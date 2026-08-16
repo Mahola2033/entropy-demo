@@ -33,6 +33,8 @@ import {
   rate,
   ZEIT,
   spieltage,
+  SUPERNOVA,
+  jahreInMs,
   SONDE,
   unterlichtSekundenProEinheit,
   LJ_PRO_EINHEIT,
@@ -49,6 +51,7 @@ import {
   kategorieBonus,
   spielzeitJetzt,
   meldungHinzufuegen,
+  meldungBetrifftSpieler,
   forschungVerfuegbar,
   forschungVoraussetzungenErfuellt,
   maxReichweite,
@@ -166,7 +169,7 @@ import { systemName, sternFuer } from "./galaxie.js";
 // zweiter Abgleich-Mechanismus in karte.js gewesen, und genau davor warnt
 // Prinzip 5.
 import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js";
-import { handbuchAbschnitte } from "./handbuch.js";
+import { handbuchAbschnitte, erststartTafel } from "./handbuch.js";
 import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole } from "./ressourcen.js";
 
 // Exportiert für js/karte.js: die Systemkarte zeichnet dieselben Symbole wie
@@ -402,6 +405,9 @@ export function render(state, root) {
   root.querySelector("#version").textContent = `v${VERSION} · ${standText}`;
   renderSupernova(state, root, jetzt);
   renderAbspann(state, root);
+  // Nach dem Abspann: der prüft selbst, ob er zu sehen ist, und das
+  // Erklärfenster tritt hinter ihm zurück (siehe dort).
+  renderErstklaerung(state, root, planet);
   renderSprachwahl(state, root);
   renderFesteTexte(root);
   root.querySelector("#planet-name").textContent = planet.name;
@@ -900,14 +906,45 @@ function bereichAktiv(state, planet, bereichId) {
   }
 }
 
-// Die Navigation ist der meistgeklickte Bereich des Spiels und war der erste,
-// der auf stabile Elemente umgestellt wurde -- allerdings nur auf dem
-// Spielzweig (v0.41s2). Hier lief sie bis v0.61 weiter jede Sekunde neu.
+// WIE DRINGEND SIEHT DIE UHR AUS? Vier Stufen, nach dem ANTEIL der Frist, der
+// noch übrig ist -- nicht nach absoluten Jahren. Der Anteil trägt beide Phasen
+// ohne zweite Tabelle: die Vorwarnung dauert 240 Spieljahre, die Zeit zwischen
+// Blitz und Flut 239, und ein Fünftel davon fühlt sich in beiden gleich an.
+//
+// Kein Blinken, in keiner Stufe. Eine Frist, die dauernd zuckt, wird
+// weggeschaut -- sie soll auffallen, wenn man hinsieht, und nicht ununterbrochen
+// um Aufmerksamkeit betteln (Prinzip 11: jede Hervorhebung muss sich verdienen,
+// sonst höhlt sie sich selbst aus).
+const UHR_STUFEN = [
+  { ab: 0.5, klasse: "" }, // mehr als die Hälfte übrig: eine ruhige Angabe
+  { ab: 0.2, klasse: "eng" },
+  { ab: 0.05, klasse: "knapp" },
+  { ab: 0, klasse: "kritisch" },
+];
+
+function uhrStufe(anteilUebrig) {
+  for (const stufe of UHR_STUFEN) if (anteilUebrig >= stufe.ab) return stufe.klasse;
+  return "kritisch";
+}
+
 // Die Uhr, unter der die ganze Partie steht.
 //
 // Sie sagt bewusst BEIDES: was in Spieljahren passiert und wieviel Echtzeit
 // das ist. Ohne die zweite Zahl kann niemand planen, ob er heute Abend noch
 // eine Kolonie schafft; ohne die erste ist es ein Countdown ohne Welt.
+//
+// TOBIS BEFUND (16.08.2026, erstes eigenes Spielen der Demo): "Der Countdown
+// zur Supanova muss bisschen Auffälliger designed sein." Er sah aus wie eine
+// Statuszeile, weil er eine war: ein Satz in Fließtext, in derselben Größe und
+// Farbe wie alles andere im Kopf. Jetzt trägt er eine Marke ("FRIST"), die
+// Restzeit als große Zahl, den Grund klein daneben und einen Balken, der
+// zeigt, wieviel schon weg ist -- ein Balken beantwortet "wie spät ist es
+// eigentlich" ohne eine einzige zusätzliche Zahl.
+//
+// Das GERÜST steht in index.html und wird hier nur gefüllt. Ohne das wäre die
+// Uhr die nächste Stelle, an der Prinzip 8a bricht: sie läuft jede Sekunde
+// weiter, ein per innerHTML neu gebauter Kopf hätte also jede Sekunde neue
+// Elemente.
 function renderSupernova(state, root, jetzt) {
   const el = root.querySelector("#supernova-uhr");
   if (!el) return;
@@ -922,23 +959,47 @@ function renderSupernova(state, root, jetzt) {
   const restSek = restMs === null ? 0 : Math.max(0, restMs / 1000);
   const name = systemName(state.galaxie.seed, sn.systemId);
 
+  // Gesamtdauer der laufenden Phase, damit der Balken einen Bezug hat. Für die
+  // Zeit zwischen Blitz und Flut steht sie im Spielstand; für die Vorwarnung
+  // nicht -- dort ist der Startzeitpunkt nirgends festgehalten, wohl aber die
+  // Regel, aus der er kommt (SUPERNOVA.jahreBisKollaps).
+  const marke = el.querySelector("#uhr-marke");
+  const zeit = el.querySelector("#uhr-zeit");
+  const was = el.querySelector("#uhr-was");
+  const fuellung = el.querySelector("#uhr-fuellung");
+
+  if (sn.phase === "vorwarnung" || sn.phase === "blitz") {
+    const gesamtMs =
+      sn.phase === "vorwarnung" ? jahreInMs(SUPERNOVA.jahreBisKollaps) : sn.flutZeit - sn.kollapsZeit;
+    const uebrig = gesamtMs > 0 ? Math.min(1, Math.max(0, (restMs || 0) / gesamtMs)) : 0;
+    el.className = `supernova-uhr ${uhrStufe(uebrig)}`.trim();
+    // Der Balken zeigt, was VERBRAUCHT ist -- er läuft voll, nicht leer. Eine
+    // Frist, deren Anzeige wächst, liest sich als "es wird enger"; eine, die
+    // schrumpft, als "es ist noch was da".
+    fuellung.style.width = `${((1 - uebrig) * 100).toFixed(1)}%`;
+    textSetzen(zeit, fmtDauer(restSek));
+  }
+
   if (sn.phase === "vorwarnung") {
-    el.className = "supernova-uhr";
-    el.textContent = t("{stern} kollabiert in {dauer}", { stern: name, dauer: fmtDauer(restSek) });
+    textSetzen(marke, t("FRIST"));
+    textSetzen(was, t("bis {stern} kollabiert", { stern: name }));
     el.title = t(
       "Das Neutrino-Observatorium liest die Brennstufe im Kern von {stern}, {lj} Lichtjahre entfernt. Wenn er kollabiert, zerlegt der Blitz die Ozonschicht – und mit ihr die Landwirtschaft jeder ungeschützten Welt.",
       { stern: name, lj: (sn.entfernung * LJ_PRO_EINHEIT).toFixed(0) }
     );
   } else if (sn.phase === "blitz") {
-    el.className = "supernova-uhr warnung";
-    el.textContent = t("Teilchenflut trifft in {dauer} ein", { dauer: fmtDauer(restSek) });
+    textSetzen(marke, t("FLUT"));
+    textSetzen(was, t("bis die Teilchenflut eintrifft"));
     el.title = t(
       "{stern} ist kollabiert. Was jetzt heranzieht, ist die kosmische Teilchenflut – geladen, jahrtausendelang, und nur durch ein Magnetfeld aufzuhalten. Danach ist keine Flottenbewegung mehr möglich.",
       { stern: name }
     );
   } else {
-    el.className = "supernova-uhr warnung";
-    el.textContent = t("Die Flut ist da.");
+    el.className = "supernova-uhr kritisch";
+    fuellung.style.width = "100%";
+    textSetzen(marke, t("FLUT"));
+    textSetzen(zeit, t("Die Flut ist da."));
+    textSetzen(was, "");
     el.title = "";
   }
 }
@@ -1028,6 +1089,77 @@ function renderAbspann(state, root) {
   });
 }
 
+// --- Erklärfenster beim ersten Start -------------------------------------
+//
+// Tobis Notiz vom ersten eigenen Spielen der veröffentlichten Demo
+// (16.08.2026): "Es kommt kein Fenster das irgendwas erklärt."
+//
+// Das Handbuch war da, samt Hinweis nach einer Minute -- er hat es nicht
+// wahrgenommen. Das ist der eigentliche Befund und er verallgemeinert sich:
+// **eine Hilfe, die man finden muss, findet der nicht, der noch nicht weiß,
+// dass er sie braucht.** Der Hinweis nach einer Minute bleibt trotzdem, er
+// löst eine andere Aufgabe (Tobis Vorgabe: "Der Spieler soll sich erstmal
+// umschauen und verwirrt sein"); dieses Fenster beantwortet dagegen die Frage,
+// die man VOR dem Umschauen hat: wo bin ich hier eigentlich.
+//
+// GEBAUT WIE DER ABSPANN, und zwar bewusst: eine feste Ebene in index.html,
+// EINMAL gefüllt, Ereignisse EINMAL beim Bauen. Der Abspann ist im Projekt der
+// einzige Vorläufer für "Tafel über allem mit Knöpfen darin", und ein zweites,
+// eigenes Overlay-Muster wäre genau die parallele Lösung, vor der Prinzip 5
+// warnt. Der Vermerk `dataset.gezeichnet` trägt die Sprache mit -- gleiches
+// Muster wie dort, damit ein Sprachwechsel die Tafel neu setzt.
+function renderErstklaerung(state, root, planet) {
+  const el = root.querySelector("#erstklaerung");
+  if (!el) return;
+  // Nach dem Ende hat sich die Frage erledigt -- und zwei Tafeln übereinander
+  // wären ohnehin unbedienbar.
+  if (state.erstklaerungGesehen || state.ende) {
+    el.hidden = true;
+    return;
+  }
+  el.hidden = false;
+  if (el.dataset.gezeichnet === sprache()) return;
+  el.dataset.gezeichnet = sprache();
+
+  const tafel = erststartTafel(planet.name);
+  el.innerHTML = `
+    <div class="erstklaerung-tafel">
+      <h2>${tafel.titel}</h2>
+      ${tafel.absaetze.map((p) => `<p>${htmlText(p)}</p>`).join("")}
+      <p class="dezent">${tafel.hinweis}</p>
+      <div class="erstklaerung-knoepfe">
+        <button data-erst-handbuch class="zweitrangig">${t("Handbuch öffnen")}</button>
+        <button data-erst-los>${t("Los geht's")}</button>
+      </div>
+    </div>`;
+
+  // ERST die Tafel wegnehmen, DANN der Merker -- dieselbe Reihenfolge und
+  // dieselbe Begründung wie beim Handbuch-Hinweis weiter unten: ein Merker,
+  // der sagt "ist erledigt", gehört hinter die Sache, die er bezeugt. Hier ist
+  // das billig zu haben, weil beides in einer Funktion steht.
+  const schliessen = () => {
+    el.hidden = true;
+    state.erstklaerungGesehen = true;
+  };
+
+  // Der Weg ins Handbuch führt über denselben Schalter wie die Navigation
+  // (aktiverBereich) -- kein zweiter Mechanismus fürs Bereichswechseln.
+  el.querySelector("[data-erst-handbuch]").addEventListener("click", () => {
+    schliessen();
+    aktiverBereich = "handbuch";
+    render(state, root);
+  });
+  el.querySelector("[data-erst-los]").addEventListener("click", () => {
+    schliessen();
+    render(state, root);
+  });
+}
+
+// Die Navigation ist der meistgeklickte Bereich des Spiels und war der erste,
+// der auf stabile Elemente umgestellt wurde -- allerdings nur auf dem
+// Spielzweig (v0.41s2). Hier lief sie bis v0.61 weiter jede Sekunde neu.
+// (Diese drei Zeilen standen versehentlich über renderSupernova, bis dort die
+// Uhr umgebaut wurde -- sie beschreiben diese Funktion hier.)
 function renderNavigation(state, root, planet) {
   const nav = root.querySelector("#navigation");
 
@@ -3487,14 +3619,68 @@ function slotAktion(state, systemId, objekt, gesperrt, eigen, flotte) {
   return `<button data-mission="${objekt.orbit}" data-art="${art}" ${check.ok ? "" : "disabled"} title="${check.ok ? "" : check.grund}">${missionLabel(art)}</button>`;
 }
 
+// Der Umschalter über der Meldungsliste. Er wird EINMAL verdrahtet -- der
+// Knopf selbst steht fest in index.html, also außerhalb der Liste, die jede
+// Sekunde neu befüllt wird (Prinzip 8a). `meldungenFilterVerdrahtet` verhindert
+// den zweiten Handler: renderMeldungen läuft im Sekundentakt, und sechzig
+// Handler an einem Knopf schalten den Filter sechzigmal um, also gar nicht.
+let meldungenFilterVerdrahtet = false;
+
+function meldungenFilterEinrichten(state, root) {
+  if (meldungenFilterVerdrahtet) return;
+  const knopf = root.querySelector("#meldungen-filter");
+  if (!knopf) return;
+  meldungenFilterVerdrahtet = true;
+  knopf.addEventListener("click", () => {
+    state.logAlles = !state.logAlles;
+    render(state, root);
+  });
+}
+
+// Die Meldungsliste.
+//
+// TOBIS BEFUND (16.08.2026, erstes eigenes Spielen der Demo): "log ist grade
+// gut für debugging, grausam für spieler. Man sieht alles im ganzen Universum
+// passieren."
+//
+// Deshalb zeigt die Liste in der Vorgabe nur, was den Spieler angeht. Der volle
+// Strom bleibt einen Klick entfernt -- er ist beim Fehlersuchen genau das
+// richtige Werkzeug, nur eben keins fürs Spielen. Die Wahl liegt im
+// Spielstand (`state.logAlles`, fehlt in alten Ständen und ist dann `false`),
+// damit sie einen Neustart überlebt.
+//
+// WAS AUSGEBLENDET WIRD, IST NICHT WEG: gefiltert wird ausschließlich die
+// Anzeige, `state.meldungen` bleibt vollständig. Und die Zahl der
+// ausgeblendeten Zeilen steht am Knopf -- ein Filter, der stillschweigend
+// arbeitet, lässt einen an der Mechanik zweifeln statt am Filter.
 function renderMeldungen(state, root) {
+  meldungenFilterEinrichten(state, root);
   const liste = root.querySelector("#meldungen-liste");
+  const alles = state.logAlles || false;
+  const sichtbar = alles ? state.meldungen : state.meldungen.filter(meldungBetrifftSpieler);
+  const versteckt = state.meldungen.length - sichtbar.length;
+
+  const knopf = root.querySelector("#meldungen-filter");
+  if (knopf) {
+    textSetzen(knopf, alles ? t("nur meine") : versteckt > 0 ? t("alles ({n})", { n: versteckt }) : t("alles"));
+    knopf.classList.toggle("aktiv", alles);
+    attributSetzen(
+      knopf,
+      "title",
+      alles
+        ? t("Zeigt gerade jedes Ereignis der Galaxie – gut zum Fehlersuchen. Zurück zu den eigenen Meldungen.")
+        : t("Zeigt gerade nur, was dich angeht. Umschalten auf jedes Ereignis der Galaxie.")
+    );
+  }
+
   liste.innerHTML = "";
-  if (state.meldungen.length === 0) {
-    liste.innerHTML = `<li class="dezent">${t("Noch nichts entdeckt.")}</li>`;
+  if (sichtbar.length === 0) {
+    liste.innerHTML = `<li class="dezent">${
+      state.meldungen.length === 0 ? t("Noch nichts entdeckt.") : t("Nichts, was dich betrifft.")
+    }</li>`;
     return;
   }
-  for (const eintrag of state.meldungen) {
+  for (const eintrag of sichtbar) {
     const li = document.createElement("li");
     // Der Meldungstext selbst wurde bereits beim Entstehen übersetzt und liegt
     // so im Spielstand -- eine Meldung von gestern bleibt in ihrer Sprache

@@ -287,8 +287,13 @@ export const EN = {
     "Normal: shares power and workers evenly. Needs {bedarf}.",
   "{menge} MW": "{menge} MW",
   "{menge} AK": "{menge} WF",
-  "{stern} kollabiert in {dauer}": "{stern} collapses in {dauer}",
-  "Teilchenflut trifft in {dauer} ein": "Particle flood arrives in {dauer}",
+  // Die Uhr im Kopf. Marke, Restzeit und Grund stehen seit dem Umbau des
+  // Countdowns getrennt -- vorher war es EIN Satz ("{stern} kollabiert in
+  // {dauer}"), und der las sich wie eine Statuszeile statt wie eine Frist.
+  FRIST: "DEADLINE",
+  FLUT: "FLOOD",
+  "bis {stern} kollabiert": "until {stern} collapses",
+  "bis die Teilchenflut eintrifft": "until the particle flood arrives",
   "Die Flut ist da.": "The flood is here.",
   "Das Neutrino-Observatorium liest die Brennstufe im Kern von {stern}, {lj} Lichtjahre entfernt. Wenn er kollabiert, zerlegt der Blitz die Ozonschicht – und mit ihr die Landwirtschaft jeder ungeschützten Welt.":
     "The neutrino observatory reads the burning stage in the core of {stern}, {lj} light years away. When it collapses, the flash will destroy the ozone layer – and with it the agriculture of every unprotected world.",
@@ -821,6 +826,16 @@ export const EN = {
   "Noch nichts entdeckt.": "Nothing discovered yet.",
   "{text}  (+{anzahl} weitere)": "{text}  (+{anzahl} more)",
   "{anzahl} gleichartige Meldungen zusammengefasst": "{anzahl} similar messages combined",
+  // Der Umschalter über der Liste. Kurze Beschriftungen, weil sie neben einer
+  // Überschrift in einer 380 px schmalen Spalte stehen.
+  "Nichts, was dich betrifft.": "Nothing that concerns you.",
+  "nur meine": "mine only",
+  alles: "everything",
+  "alles ({n})": "everything ({n})",
+  "Zeigt gerade nur, was dich angeht. Umschalten auf jedes Ereignis der Galaxie.":
+    "Currently showing only what concerns you. Switch to every event in the galaxy.",
+  "Zeigt gerade jedes Ereignis der Galaxie – gut zum Fehlersuchen. Zurück zu den eigenen Meldungen.":
+    "Currently showing every event in the galaxy – useful for debugging. Back to your own messages.",
 
   // --- Offline-Aufholung (js/main.js) -------------------------------------
   // Die Aufholung läuft seit v0.81 in Blöcken statt am Stück, damit der
@@ -906,4 +921,18 @@ export const EN = {
   // Spieler soll sich erst umsehen und ruhig verwirrt sein).
   "Verwirrt? Das Handbuch erklärt, wie diese Welt funktioniert – was sie von dir will, und warum die Uhr läuft.":
     "Confused? The manual explains how this world works – what it wants from you, and why the clock is running.",
+
+  // Das Erklärfenster beim allerersten Start (erststartTafel in
+  // js/handbuch.js). Zwei seiner vier Absätze sind wörtlich aus dem Handbuch
+  // geborgt und stehen deshalb weiter oben -- hier steht nur, was es NICHT
+  // schon gibt.
+  "Eine Welt, und eine Frist": "One world, and a deadline",
+  "Du führst genau eine Welt: {planet}. Ein Wohnmodul, ein kleiner Vorrat – und ein Himmel voller Sterne, in denen noch nie jemand war.":
+    "You run exactly one world: {planet}. One habitat, a small stock of supplies – and a sky full of stars where no one has ever been.",
+  "Zum Anfangen genügen zwei Handgriffe: im Bereich Planet ein Gebäude ausbauen – Kraftwerk und Wohnmodul tragen alles andere –, und im Bereich Forschung einen Auftrag einreihen.":
+    "Two moves are enough to start: upgrade a building under Planet – the power plant and the habitat carry everything else – and queue a project under Research.",
+  "Die Uhr oben im Kopf zeigt, wieviel Zeit bleibt. Alles Weitere steht im Handbuch – jederzeit, unterster Eintrag in der Leiste links.":
+    "The clock in the header shows how much time is left. Everything else is in the manual – at any time, bottom entry in the bar on the left.",
+  "Handbuch öffnen": "Open the manual",
+  "Los geht's": "Let's go",
 };

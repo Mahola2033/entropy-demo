@@ -29,6 +29,12 @@ export function handbuchAbschnitte() {
     {
       id: "ziel",
       titel: t("Worum es geht"),
+      // `erststart` benennt den Absatz, den das Erklärfenster beim allerersten
+      // Start übernimmt (siehe erststartTafel unten). Der Zeiger steht HIER,
+      // beim Text, und nicht dort: sonst gäbe es zwei Stellen, an denen
+      // dasselbe steht, und die eine würde beim nächsten Umschreiben
+      // vergessen. Das Fenster zitiert das Handbuch, es schreibt es nicht ab.
+      erststart: 3,
       absaetze: [
         t(
           "Am Himmel steht ein Stern, der sterben wird. Das Neutrino-Observatorium liest die Brennstufe in seinem Kern und kann daraus ablesen, wann er kollabiert – das ist keine Prophezeiung, sondern gerechnete Astrophysik: die Brennstufen eines massereichen Sterns haben bekannte Dauern."
@@ -47,6 +53,10 @@ export function handbuchAbschnitte() {
     {
       id: "zeit",
       titel: t("Wie Zeit hier funktioniert"),
+      // Absatz 2 ist der, der einem Neuling am ehesten fehlt, bevor er zum
+      // ersten Mal den Rechner zuklappt -- deshalb geht er mit ins
+      // Erklärfenster.
+      erststart: 2,
       absaetze: [
         t(
           "Eine Sekunde am Bildschirm ist ein Tag in der Welt. Das ist kein gewählter Trick, sondern folgt aus der Bevölkerung: sie ist die einzige Größe, deren echte Rate keine Technologie verschiebt. Setzt man ihr Wachstum auf einen realistischen Wert, ergibt sich dieser Maßstab von selbst."
@@ -150,4 +160,46 @@ export function handbuchAbschnitte() {
       ],
     },
   ];
+}
+
+// Das Erklärfenster beim allerersten Start.
+//
+// ANLASS: Tobi hat die veröffentlichte Demo am 16.08.2026 zum ersten Mal selbst
+// gespielt und notiert: "Es kommt kein Fenster das irgendwas erklärt." Das
+// Handbuch gab es zu dem Zeitpunkt bereits samt Hinweis nach einer Minute --
+// er hat es nur nicht wahrgenommen. Genau das ist der Befund: eine Hilfe, die
+// man finden muss, findet der nicht, der noch nicht weiß, dass er sie braucht.
+//
+// WARUM DER INHALT ÜBERWIEGEND GEBORGT IST: zwei der vier Absätze kommen
+// wörtlich aus dem Handbuch oben, markiert dort durch `erststart`. Ein
+// zweiter, eigener Erklärtext wäre eine zweite Wahrheit -- und zwar die
+// schlechtere Sorte, weil beide plausibel klingen und nur eine gepflegt wird.
+// Neu geschrieben ist nur, was das Handbuch bewusst NICHT hat: die Verortung
+// ("wo bin ich") und die ersten Handgriffe. Tobis Vorgabe fürs Handbuch war
+// ausdrücklich "keine Schritt für Schritt Anleitung"; ein Fenster, das sich
+// beim ersten Start von selbst öffnet, darf und muss dagegen sagen, wo man
+// anfängt -- sonst ist es nur eine weitere Wand aus Text.
+export function erststartTafel(planetName) {
+  const geborgt = handbuchAbschnitte()
+    .filter((a) => a.erststart !== undefined)
+    .map((a) => a.absaetze[a.erststart])
+    // Falls jemand oben Absätze umsortiert und den Zeiger vergisst: lieber
+    // einen Absatz weniger als eine Lücke im Fenster.
+    .filter(Boolean);
+
+  return {
+    titel: t("Eine Welt, und eine Frist"),
+    absaetze: [
+      t(
+        "Du führst genau eine Welt: {planet}. Ein Wohnmodul, ein kleiner Vorrat – und ein Himmel voller Sterne, in denen noch nie jemand war.",
+        { planet: planetName }
+      ),
+      ...geborgt,
+      t(
+        "Zum Anfangen genügen zwei Handgriffe: im Bereich Planet ein Gebäude ausbauen – Kraftwerk und Wohnmodul tragen alles andere –, und im Bereich Forschung einen Auftrag einreihen."
+      ),
+    ],
+    // Steht getrennt, weil es kein Inhalt ist, sondern der Weg zum Rest.
+    hinweis: t("Die Uhr oben im Kopf zeigt, wieviel Zeit bleibt. Alles Weitere steht im Handbuch – jederzeit, unterster Eintrag in der Leiste links."),
+  };
 }

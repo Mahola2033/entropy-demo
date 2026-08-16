@@ -84,11 +84,17 @@ body {
   white-space: nowrap;
 }
 
+/* Die Planetenwahl nimmt den Rest der Kopfzeile ein -- aber nicht weniger als
+   eine Kachelbreite. Ohne die Untergrenze drückten die Nachbarn sie bei
+   1280 Pixeln auf null: sie hat `overflow-x: auto` und war damit zwar
+   theoretisch scrollbar, praktisch aber unsichtbar. Sie ist der einzige Weg,
+   den Planeten zu wechseln, und gehört damit zu dem, was das Spiel braucht. */
 .kopf-planetenwahl {
   display: flex;
   gap: 0.4rem;
   overflow-x: auto;
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 7rem;
 }
 
 .kopf-testmodus {
@@ -1584,6 +1590,58 @@ button[title]:disabled {
   border-radius: 3px;
 }
 
+/* Kopfzeile der Meldungen: Überschrift links, Umschalter rechts. Die Überschrift
+   ist jetzt Kind eines Wrappers, also nicht mehr :not(:first-child) -- der
+   Abstand nach oben wandert deshalb an den Wrapper. */
+.meldungen-kopf {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+/* Bewusst ein unauffälliger Knopf: er ist eine Ansichtssache, keine
+   Spielhandlung, und darf nicht wie "Bauen" oder "Starten" aussehen
+   (Prinzip 11 -- der Akzent gehört dem, was etwas bewirkt). */
+.meldungen-filter {
+  background: none;
+  color: var(--text-dezent);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  /* Feste Mindestbreite, damit der Knopf beim Umschalten nicht die Größe
+     wechselt. Gemessen: ohne sie sprang er von 70 auf 60 Pixel, weil aus
+     "alles (2)" ein "nur meine" wird -- und ein Bedienelement, das unter dem
+     Mauszeiger schrumpft, ist die kleine Schwester des Problems aus
+     Prinzip 8a, Lernpunkt 2 (die wandernde Zahl neben dem Knopf). Beim
+     zweiten Klick trifft man daneben. */
+  min-width: 5.5rem;
+  text-align: center;
+}
+
+.meldungen-filter:hover:not(:disabled) {
+  background: var(--bg-item);
+  color: var(--text);
+}
+
+/* Der volle Strom ist der ENTWICKLER-Modus dieser Liste -- er trägt deshalb
+   dieselbe Warnfarbe wie der Testmodus-Streifen im Kopf und nicht den Akzent:
+   man soll sehen, dass man gerade nicht das Spiel ansieht, sondern die
+   Maschine dahinter. */
+.meldungen-filter.aktiv {
+  border-color: #7a5a2a;
+  color: #e0a94f;
+}
+
+.meldungen-filter.aktiv:hover:not(:disabled) {
+  background: #241a10;
+  color: #f0c98a;
+}
+
 button {
   background: var(--akzent-dunkel);
   color: #06110f;
@@ -1719,20 +1777,157 @@ button:disabled {
 
 /* Die Supernova-Uhr im Kopf. Sie ist die einzige Zahl, unter der jede andere
    Entscheidung im Spiel steht -- deshalb steht sie neben dem Titel und nicht
-   in einem Panel, das man wegklicken kann (Prinzip 8: statisches Layout). */
+   in einem Panel, das man wegklicken kann (Prinzip 8: statisches Layout).
+
+   Tobis Befund beim ersten eigenen Spielen (16.08.2026): "Der Countdown zur
+   Supanova muss bisschen Auffälliger designed sein." Vorher war das hier ein
+   Satz in Fließtext, in derselben Größe und Farbe wie alles andere im Kopf --
+   eine Statuszeile, keine Frist.
+
+   Sie darf trotzdem KEINE Fläche fressen: der Kopf ist 52 px hoch und bleibt
+   es. Die Auffälligkeit kommt deshalb aus Form und Farbe (Marke, große Zahl,
+   Balken), nicht aus Größe.
+
+   `flex: 0 1 19rem` statt einer festen Breite, und beides ist gemessen:
+
+   - NICHT WACHSEN (Basis 19rem, kein grow): sonst wanderten die Nachbarn im
+     Kopf jedes Mal, wenn aus "37,4 Jahre" ein "9 Tage" wird. Ein Layout, das
+     im Sekundentakt zuckt, ist genau das, was Prinzip 8 verhindern soll.
+   - SCHRUMPFEN DÜRFEN (shrink 1): die neue Uhr ist 304 statt 213 Pixel breit,
+     und bei 1280 Pixeln Fensterbreite drückte sie die Planetenwahl daneben auf
+     null -- eine Leiste, die das Spiel wirklich braucht. Jetzt gibt die Uhr im
+     Engpass zuerst nach, und was dabei verlorengeht, ist ihr unwichtigster
+     Teil: der Nebentext wird abgeschnitten (siehe .uhr-was), Marke, Zahl und
+     Balken bleiben. */
 .supernova-uhr {
-  font-size: 0.8rem;
-  color: var(--text-dezent);
-  border: 1px solid var(--rahmen);
-  border-radius: 3px;
-  padding: 2px 8px;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  flex: 0 1 19rem;
+  /* Untergrenze: darunter würde die Zahl selbst beschnitten. Gemessen tragen
+     11rem die Marke, die volle Restzeit und den Balken -- nur der Nebentext
+     fällt dann weg. Ab etwa 1600 Pixeln Fensterbreite steht ohnehin die volle
+     Fassung (gemessen: 304 px, Nebentext ungekürzt). */
+  min-width: 11rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--bg-item);
 }
 
-.supernova-uhr.warnung {
-  color: var(--warnung, #e57373);
-  border-color: currentColor;
+/* Die Marke links: schmal, in Versalien, mit eigener Fläche. Sie sagt in einem
+   Wort, was die Zahl daneben bedeutet -- ohne sie musste man den Satz lesen. */
+.uhr-marke {
+  display: flex;
+  align-items: center;
+  padding: 0 0.5rem;
+  background: var(--border);
+  color: var(--text);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+
+.uhr-koerper {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  padding: 3px 0.6rem 4px;
+}
+
+.uhr-zeile {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.uhr-zeit {
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.uhr-was {
+  font-size: 0.7rem;
+  color: var(--text-dezent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Der Balken zeigt, wieviel der Frist schon VERBRAUCHT ist -- er läuft voll,
+   nicht leer. Das ist die Leserichtung, die man von einer Frist erwartet, und
+   sie beantwortet "wie spät ist es eigentlich" ohne zusätzliche Zahl. */
+.uhr-schiene {
+  height: 3px;
+  border-radius: 2px;
+  background: #0a0e17;
+  overflow: hidden;
+}
+
+.uhr-fuellung {
+  height: 100%;
+  width: 0;
+  background: var(--text-dezent);
+  /* Die Breite ändert sich einmal je Sekunde in winzigen Schritten. Ein weicher
+     Übergang macht daraus eine Bewegung statt eines Zuckens. */
+  transition: width 0.4s linear, background 0.6s;
+}
+
+/* --- Die drei Eskalationsstufen ------------------------------------------
+   Nach dem ANTEIL der Frist, der noch übrig ist (siehe UHR_STUFEN in ui.js).
+   Bewusst OHNE Blinken oder Puls: eine Anzeige, die dauernd zuckt, wird
+   weggeschaut. Sie soll auffallen, wenn man hinsieht. */
+.supernova-uhr.eng {
+  border-color: #b8863a;
+}
+.supernova-uhr.eng .uhr-marke {
+  background: #6a4d1e;
+  color: #f0c98a;
+}
+.supernova-uhr.eng .uhr-fuellung {
+  background: #d69b45;
+}
+
+.supernova-uhr.knapp {
+  border-color: var(--warnung);
+}
+.supernova-uhr.knapp .uhr-marke {
+  background: #6b2028;
+  color: #f3b2b7;
+}
+.supernova-uhr.knapp .uhr-zeit {
+  color: #f3b2b7;
+}
+.supernova-uhr.knapp .uhr-fuellung {
+  background: var(--warnung);
+}
+
+/* Letzte Stufe: die Uhr wird selbst zur Warnfläche. Das ist die einzige Stelle
+   im Spiel, an der eine ganze Fläche rot wird -- sie hat es sich verdient
+   (Prinzip 11), denn ab hier ist die Partie entschieden oder verloren. */
+.supernova-uhr.kritisch {
+  border-color: var(--warnung);
+  background: #2a1116;
+}
+.supernova-uhr.kritisch .uhr-marke {
+  background: var(--warnung);
+  color: #2a1116;
+}
+.supernova-uhr.kritisch .uhr-zeit {
+  color: #ff8b93;
+}
+.supernova-uhr.kritisch .uhr-was {
+  color: #d99aa0;
+}
+.supernova-uhr.kritisch .uhr-fuellung {
+  background: #ff8b93;
 }
 
 /* --- Abspann ------------------------------------------------------------
@@ -1799,4 +1994,62 @@ button:disabled {
   display: flex;
   justify-content: flex-end;
   margin-top: 1.5rem;
+}
+
+/* --- Erklärfenster beim ersten Start ------------------------------------
+   Dieselbe Bauform wie der Abspann und ausdrücklich keine zweite: eine feste
+   Ebene über allem, eine Tafel darin, Knöpfe unten rechts. Der Unterschied ist
+   die Absicht -- der Abspann ist das Ende und lässt sich nur mit einem
+   Neustart verlassen, dieses Fenster ist der Anfang und geht mit einem Klick
+   weg. Deshalb ist sein Grund heller: es verdeckt das Spiel, es ersetzt es
+   nicht. */
+.erstklaerung {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: rgba(8, 12, 20, 0.78);
+}
+
+.erstklaerung-tafel {
+  max-width: 34rem;
+  padding: 1.75rem 2rem;
+  border: 1px solid var(--akzent-dunkel);
+  border-radius: 6px;
+  background: var(--bg-panel);
+  box-shadow: var(--schatten);
+}
+
+.erstklaerung-tafel h2 {
+  margin: 0 0 0.75rem;
+  color: var(--akzent);
+  letter-spacing: 0.08em;
+}
+
+.erstklaerung-tafel p {
+  margin: 0 0 0.75rem;
+  line-height: 1.55;
+  font-size: 0.9rem;
+}
+
+.erstklaerung-knoepfe {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1.5rem;
+}
+
+/* Der Weg ins Handbuch steht daneben, nicht darunter -- er ist eine echte
+   zweite Wahl und kein Kleingedrucktes. Aber er ist NICHT die Vorgabe: wer
+   spielen will, klickt rechts, und das ist die größere Fläche in Akzentfarbe. */
+.erstklaerung-knoepfe .zweitrangig {
+  background: none;
+  color: var(--text-dezent);
+  border: 1px solid var(--border);
+}
+
+.erstklaerung-knoepfe .zweitrangig:hover:not(:disabled) {
+  background: var(--bg-item);
+  color: var(--text);
 }

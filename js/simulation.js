@@ -75,6 +75,7 @@ import {
   planetenVon,
   flottenVon,
   fraktionVon,
+  herkunftVon,
   fraktionById,
   fraktionArt,
   flotteById,
@@ -539,7 +540,8 @@ function bevoelkerungSchritt(state, planet, zeit) {
         planet: planet.name,
         menge: Math.round(neu),
       }),
-      `hunger-${planet.id}`
+      `hunger-${planet.id}`,
+      herkunftVon(planet)
     );
     return;
   }
@@ -1025,7 +1027,9 @@ export function piratenNeugruendung(state, zeit) {
     t("{planet}: {anzahl} Menschen haben sich abgesetzt – eine neue Bande formiert sich.", {
       planet: quelle.name,
       anzahl: regeln.bevoelkerung,
-    })
+    }),
+    null,
+    herkunftVon(quelle)
   );
   return true;
 }
@@ -1103,7 +1107,14 @@ function piratenBeutezug(state, fraktion, basis, flotte, zeit) {
       angreifer: fraktion.name,
       flotte: ziel.flotte.name,
       dauer: Math.round(PIRAT.vorwarnungMs / 1000),
-    })
+    }),
+    null,
+    // DIE Stelle: gemessen an einer Demo-Galaxie über 30 Echtzeitminuten
+    // waren ALLE 30 Zeilen der Meldungsliste Überfälle fremder Piraten
+    // aufeinander, und zwar aus genau diesem Aufruf. Überfallen die Piraten
+    // eine Flotte des Spielers, bleibt die Vorwarnung sichtbar -- sie ist
+    // dann der Kern der Meldung.
+    herkunftVon(ziel.flotte)
   );
   return true;
 }
@@ -1343,7 +1354,9 @@ function piratenUmzug(state, fraktion, basis, flotte, zeit) {
     state,
     t("{gruppe} gibt ihren Stützpunkt auf und zieht weiter – ihr System ist leergeräumt.", {
       gruppe: fraktion.name,
-    })
+    }),
+    null,
+    herkunftVon(basis)
   );
 
   // Ab hier ist die Gruppe heimatlos. piratenNiederlassung baut ihr am Ziel
@@ -1397,7 +1410,9 @@ function beuteVonFlotte(state, angreifer, opfer, zeit) {
       t("{flotte}: {menge} aus den Tanks abgezapft.", {
         flotte: opfer.name,
         menge: buendelText({ tritium: abgezapft }),
-      })
+      }),
+      null,
+      herkunftVon(opfer)
     );
   }
 
@@ -1419,7 +1434,9 @@ function beuteVonFlotte(state, angreifer, opfer, zeit) {
       t("{flotte} wurde überfallen: {fracht} verloren.", {
         flotte: opfer.name,
         fracht: buendelText(genommen),
-      })
+      }),
+      null,
+      herkunftVon(opfer)
     );
   }
 
@@ -2363,7 +2380,12 @@ function flotteLeerAufloesen(state, flotte) {
     zurueckgelassen(state, flotte.ort, reste, flotte.name);
   }
 
-  meldungHinzufuegen(state, t("{flotte} hat keine Schiffe mehr und wurde aufgelöst.", { flotte: flotte.name }));
+  meldungHinzufuegen(
+    state,
+    t("{flotte} hat keine Schiffe mehr und wurde aufgelöst.", { flotte: flotte.name }),
+    null,
+    herkunftVon(flotte)
+  );
   state.flotten = state.flotten.filter((f) => f.id !== flotte.id);
 }
 
@@ -3176,7 +3198,7 @@ function militaerStarten(state, flotte, befehl, zeit) {
     // (derselbe Fehler, der beim Flotten-Rückflug schon einmal auftrat).
     naechsteRundeZeit: zeit,
   };
-  meldungHinzufuegen(state, t("{objekt}: Gefecht beginnt.", { objekt: objekt.name }));
+  meldungHinzufuegen(state, t("{objekt}: Gefecht beginnt.", { objekt: objekt.name }), null, herkunftVon(flotte));
 }
 
 // Führt genau eine Runde aus -- als eigenes Ereignis, nicht in einer
@@ -3268,7 +3290,9 @@ function kampfRundeAusfuehren(state, flotte, zeit) {
       objekt: zielName,
       ergebnis: ergebnisText(ergebnis),
       runden: g.runde,
-    })
+    }),
+    null,
+    herkunftVon(flotte)
   );
 
   if (ergebnis === "sieg" && objekt) {

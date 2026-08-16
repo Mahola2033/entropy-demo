@@ -25,8 +25,31 @@
     <header class="kopf">
       <h1>ENTROPY <span class="version" id="version"></span></h1>
       <!-- Die Uhr der Demo. Steht im Kopf und ist IMMER sichtbar: sie ist die
-           einzige Zahl, unter der jede andere Entscheidung im Spiel steht. -->
-      <div class="supernova-uhr" id="supernova-uhr" hidden></div>
+           einzige Zahl, unter der jede andere Entscheidung im Spiel steht.
+
+           DAS GERÜST STEHT HIER UND NICHT IN ui.js, und das ist Prinzip 8a in
+           seiner einfachsten Form: die Uhr läuft jede Sekunde weiter. Würde
+           renderSupernova ihren Inhalt neu bauen, wären ihre Elemente jede
+           Sekunde andere -- harmlos, solange nichts darin anklickbar ist, aber
+           genau so fängt jede der fünf offenen Stellen an. Hier entstehen die
+           Felder EINMAL, und die Anzeige füllt danach nur noch Text und
+           Balkenbreite nach.
+
+           Tobis Befund beim ersten eigenen Spielen (16.08.2026): "Der
+           Countdown zur Supanova muss bisschen Auffälliger designed sein." Er
+           war eine Statuszeile in Fließtext; jetzt trägt er eine Marke, eine
+           große Zahl, den Grund daneben und einen Balken, der zeigt, wieviel
+           von der Frist schon weg ist. -->
+      <div class="supernova-uhr" id="supernova-uhr" hidden>
+        <span class="uhr-marke" id="uhr-marke"></span>
+        <div class="uhr-koerper">
+          <div class="uhr-zeile">
+            <span class="uhr-zeit" id="uhr-zeit"></span>
+            <span class="uhr-was" id="uhr-was"></span>
+          </div>
+          <div class="uhr-schiene"><div class="uhr-fuellung" id="uhr-fuellung"></div></div>
+        </div>
+      </div>
       <div class="kopf-planet">
         <span id="planet-name"></span>
         <span id="planet-koordinaten" class="dezent"></span>
@@ -168,7 +191,19 @@
       <div class="statusspalte-inhalt">
         <h2 data-text="Status"></h2>
         <div id="status-block" class="status-block"></div>
-        <h2 data-text="Meldungen"></h2>
+        <!-- Kopfzeile der Meldungen mit dem Umschalter. Der Knopf steht
+             AUSSERHALB der Liste, und das ist kein Layoutgeschmack: die Liste
+             wird im Sekundentakt neu befüllt, ein Knopf darin verlöre nach
+             Prinzip 8a regelmäßig seinen Klick. Hier steht er im festen
+             Markup und wird nie ersetzt.
+
+             Warum es ihn gibt -- Tobi beim ersten eigenen Spielen (16.08.2026):
+             "log ist grade gut für debugging, grausam für spieler. Man sieht
+             alles im ganzen Universum passieren." -->
+        <div class="meldungen-kopf">
+          <h2 data-text="Meldungen"></h2>
+          <button id="meldungen-filter" class="meldungen-filter"></button>
+        </div>
         <ul id="meldungen-liste" class="meldungen-liste"></ul>
       </div>
     </aside>
@@ -179,6 +214,21 @@
        die Teilchenflut hat den harten Schnitt gesetzt. Er ist kein Dialog,
        den man wegklickt: er ist das Ende. -->
   <div class="abspann" id="abspann" hidden></div>
+
+  <!-- Das Erklärfenster beim allerersten Start. Anlass ist Tobis Notiz vom
+       ersten eigenen Spielen der veröffentlichten Demo (16.08.2026): "Es kommt
+       kein Fenster das irgendwas erklärt."
+
+       Das Handbuch gab es zu diesem Zeitpunkt schon (v0.81, eigener Tab, acht
+       Abschnitte, Hinweis nach einer Minute) -- er hat es nur nicht
+       wahrgenommen, und DAS ist der Befund: eine Hilfe, die man finden muss,
+       findet der nicht, der noch nicht weiß, dass er sie braucht. Deshalb kommt
+       dieses Fenster von selbst, genau einmal, und schickt danach ins Handbuch
+       weiter, statt dessen Inhalt zu wiederholen.
+
+       Es ist eine eigene Ebene wie der Abspann und bewusst NICHT im .rahmen:
+       das Regionen-Layout darf davon nichts merken (Prinzip 8). -->
+  <div class="erstklaerung" id="erstklaerung" hidden></div>
 
   <script type="module" src="js/main.js"></script>
 </body>

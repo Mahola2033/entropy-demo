@@ -1300,25 +1300,75 @@ export function forschungVoraussetzungenErfuellt(state, forschungId) {
   return voraussetzungenErfuellt(state.forschung, forschungId);
 }
 
-// Meldungen sind Einträge { text, gruppe, anzahl }, keine reinen Strings:
-// gleichartige Ereignisse unmittelbar hintereinander werden zu EINEM Eintrag
-// mit Zähler zusammengefasst. Ohne das flutet jede automatisierte Route und
-// jeder Schnellversand die Liste (15 Sonden = 15 Zeilen).
+// Meldungen sind Einträge { text, gruppe, anzahl, herkunft }, keine reinen
+// Strings: gleichartige Ereignisse unmittelbar hintereinander werden zu EINEM
+// Eintrag mit Zähler zusammengefasst. Ohne das flutet jede automatisierte Route
+// und jeder Schnellversand die Liste (15 Sonden = 15 Zeilen).
 //
 // gruppe: nur Einträge derselben Gruppe werden zusammengefasst, und nur wenn
 // sie direkt aufeinander folgen. OHNE gruppe wird nie zusammengefasst --
 // einmalige, wichtige Meldungen dürfen nie hinter einem Zähler verschwinden.
 // Deshalb ist "nicht gruppiert" auch der Standard: eine neue Meldung muss
 // sich das Zusammenfassen aktiv verdienen.
-export function meldungHinzufuegen(state, text, gruppe = null) {
+//
+// herkunft: WEN DIESE MELDUNG ANGEHT. Bis hierher führte eine Meldung darüber
+// gar nichts mit sich, und das ist die Ursache von Tobis Befund beim ersten
+// eigenen Spielen der Demo (16.08.2026): "log ist grade gut für debugging,
+// grausam für spieler. Man sieht alles im ganzen Universum passieren."
+//
+// Gemessen an einer echten Demo-Galaxie (feste Saat, 500 Systeme, 30
+// Echtzeitminuten) waren danach ALLE 30 Zeilen der gedeckelten Liste
+// Piratenüberfälle fremder Gruppen aufeinander. Das ist nicht nur Rauschen:
+// die Liste hält dreißig Einträge, das Rauschen DRÄNGT die eigenen Meldungen
+// heraus.
+//
+// Zwei Werte, mehr braucht es nicht:
+//   "eigen" -- betrifft den Spieler (eigene Planeten, Flotten, Forschung) ODER
+//              die ganze Galaxie (Supernova, Blitz, Teilchenflut). Beides will
+//              er sehen, also braucht es dafür keine zwei Werte.
+//   "fremd" -- geschieht zwischen anderen Fraktionen und geht ihn nichts an.
+//
+// **"eigen" ist die Vorgabe, und das ist die tragende Entscheidung.** Eine
+// Meldung ohne Angabe -- aus einem alten Spielstand oder von einer Aufrufstelle,
+// die noch keine mitgibt -- gilt damit als "betrifft mich" und bleibt sichtbar.
+// Der Filter kann also nie still etwas verschlucken; er kann höchstens zu wenig
+// ausblenden. Genau diese Richtung ist die verzeihliche (Save-Kategorie 1).
+export function meldungHinzufuegen(state, text, gruppe = null, herkunft = "eigen") {
   const oben = state.meldungen[0];
   if (gruppe && oben && oben.gruppe === gruppe) {
     oben.text = text; // jüngster Text bleibt sichtbar, der Zähler wächst
     oben.anzahl += 1;
     return;
   }
-  state.meldungen.unshift({ text, gruppe, anzahl: 1 });
+  state.meldungen.unshift({ text, gruppe, anzahl: 1, herkunft });
   if (state.meldungen.length > 30) state.meldungen.length = 30;
+}
+
+// Soll diese Meldung dem Spieler standardmäßig angezeigt werden?
+//
+// Bewusst hier und nicht in ui.js: die Antwort gehört zur Meldung, nicht zu
+// ihrer Darstellung -- und ein Testlauf ohne DOM kann sie so prüfen.
+// Das `||`-Muster ist der Grund, warum alte Spielstände weiterlaufen: eine
+// Meldung ohne Feld ist "eigen".
+export function meldungBetrifftSpieler(meldung) {
+  return (meldung.herkunft || "eigen") !== "fremd";
+}
+
+// Die Herkunft einer Meldung aus dem Ding ableiten, um das es geht -- Planet
+// oder Flotte, beide tragen `fraktion` (siehe fraktionVon).
+//
+// Steht hier, weil die meisten Meldungen in js/simulation.js entstehen und dort
+// FAST IMMER ein Planet oder eine Flotte in der Hand liegt. Eine Aufrufstelle
+// schreibt damit `herkunftVon(planet)` statt einer eigenen Verzweigung, und die
+// Regel "wem gehört das" steht weiterhin an genau einer Stelle im Projekt.
+//
+// Warum ein eigener Helfer und nicht der Vergleich an Ort und Stelle: 45 der 50
+// Aufrufstellen liegen in simulation.js. Fünfundvierzig handgeschriebene
+// Vergleiche wären fünfundvierzig Gelegenheiten, einmal die falsche Fraktion zu
+// nehmen -- und eine falsch als "fremd" eingestufte Meldung verschwindet, ohne
+// dass es jemand merkt.
+export function herkunftVon(objekt) {
+  return fraktionVon(objekt) === SPIELER_FRAKTION ? "eigen" : "fremd";
 }
 
 // Zählt schon eingereihte Stufen derselben Gebäudeart mit -- sonst würden
