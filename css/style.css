@@ -1,0 +1,1802 @@
+:root {
+  --bg: #0a0e17;
+  --bg-panel: #121826;
+  --bg-item: #1a2233;
+  --border: #2a3550;
+  --text: #dfe6f5;
+  --text-dezent: #7c8aad;
+  --akzent: #4fd1c5;
+  --akzent-dunkel: #2c9c92;
+  --warnung: #e0555f;
+  --schatten: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(ellipse at top, #10182a 0%, var(--bg) 60%);
+  color: var(--text);
+  font-family: "Segoe UI", system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+/* ==========================================================================
+   REGIONEN-LAYOUT
+   Festes Raster, das nie umspringt: Kopf / Ressourcenleiste oben,
+   Navigation links, Spielfeld in der Mitte, Status rechts.
+   Die Seite scrollt NIE -- nur einzelne Bereiche scrollen intern.
+   Auf WQHD ausgelegt; Rails behalten ihre Breite, das Spielfeld wächst mit.
+   ========================================================================== */
+:root {
+  --nav-breite: 200px;
+  --status-breite: 380px;
+  --kopf-hoehe: 52px;
+  --ressourcen-hoehe: auto;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden; /* die Seite selbst scrollt nie */
+}
+
+.rahmen {
+  height: 100vh;
+  display: grid;
+  grid-template-columns: var(--nav-breite) 1fr var(--status-breite);
+  grid-template-rows: var(--kopf-hoehe) auto 1fr;
+  grid-template-areas:
+    "kopf        kopf        kopf"
+    "ressourcen  ressourcen  ressourcen"
+    "nav         spielfeld   status";
+}
+
+/* Eingeklappte Statusspalte gibt ihre Breite ans Spielfeld ab. */
+.rahmen.status-zu {
+  --status-breite: 1.25rem;
+}
+
+/* --- Kopf --------------------------------------------------------------- */
+.kopf {
+  grid-area: kopf;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+
+.kopf h1 {
+  margin: 0;
+  font-size: 1.1rem;
+  letter-spacing: 0.3em;
+  color: var(--akzent);
+}
+
+.kopf-planet {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  white-space: nowrap;
+}
+
+.kopf-planetenwahl {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  flex: 1;
+}
+
+.kopf-testmodus {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+  padding: 0.25rem 0.5rem;
+  border: 1px dashed #7a5a2a;
+  border-radius: 6px;
+  background: repeating-linear-gradient(45deg, #241a10, #241a10 8px, #2a1e12 8px, #2a1e12 16px);
+}
+
+.testmodus-label {
+  color: #e0a94f;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+}
+
+.kopf-testmodus button {
+  background: #4a3418;
+  color: #f0c98a;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.75rem;
+}
+
+.kopf-testmodus button:hover:not(:disabled) {
+  background: #6b4c22;
+}
+
+.testmodus-reset {
+  background: #4a1c1c !important;
+  color: #f0a0a0 !important;
+}
+
+.testmodus-reset:hover {
+  background: #6b2828 !important;
+}
+
+.dezent {
+  color: var(--text-dezent);
+  font-size: 0.85em;
+}
+
+/* ==========================================================================
+   HINWEIS-MARKIERUNG
+   Tooltips sind nur wertvoll, wenn man weiß, dass es sie gibt. Deshalb
+   markiert sich JEDES Element mit title-Attribut selbst -- über einen
+   Attribut-Selektor, nicht über eine Extra-Klasse. Dadurch gilt es
+   automatisch auch für alles, was später dazukommt, ohne dass jemand daran
+   denken muss.
+   ========================================================================== */
+[title] {
+  cursor: help;
+}
+
+/* Interaktive Elemente behalten ihren eigenen Zeiger -- dort ist der Klick
+   die Hauptsache, der Tooltip nur Beiwerk. */
+button[title],
+input[title],
+select[title],
+label[title] {
+  cursor: pointer;
+}
+
+button[title]:disabled {
+  cursor: not-allowed;
+}
+
+/* Sichtbares Zeichen an den größeren Blöcken: kleines, dezentes ⓘ in der
+   Ecke. Bewusst nicht bei jedem Kleinkram -- sonst ist die Oberfläche voll
+   mit Symbolen und die Markierung sagt nichts mehr aus. */
+.gebaeude-item[title],
+.flotte-zeile[title],
+.galaxie-system[title],
+.system-slot[title],
+.markt-zeile[title],
+.res-kachel[title] {
+  position: relative;
+}
+
+.gebaeude-item[title]::after,
+.flotte-zeile[title]::after,
+.galaxie-system[title]::after,
+.system-slot[title]::after,
+.markt-zeile[title]::after,
+.res-kachel[title]::after {
+  content: "ⓘ";
+  position: absolute;
+  top: 0.15rem;
+  right: 0.3rem;
+  font-size: 0.7rem;
+  line-height: 1;
+  color: var(--text-dezent);
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.gebaeude-item[title]:hover::after,
+.flotte-zeile[title]:hover::after,
+.galaxie-system[title]:hover::after,
+.system-slot[title]:hover::after,
+.markt-zeile[title]:hover::after,
+.res-kachel[title]:hover::after {
+  opacity: 1;
+  color: var(--akzent);
+}
+
+/* --- Ressourcenleiste (waagerecht, AOE2-Muster) ------------------------- */
+/* ZWEI FESTE REIHEN, und beide als Raster statt als umbrechende Flexzeile.
+   Vorher lag alles in einer einzigen `flex-wrap`-Zeile, deren Umbruch von der
+   TEXTBREITE der Kacheln abhing. Da jede Sekunde neu gezeichnet wird, kippte
+   der Umbruch bei jeder Zahl, die eine Stelle länger wurde -- die Leiste
+   sprang sichtbar zwischen zwei Zuständen hin und her (Tobi, 2026-08-16).
+
+   Das Raster löst genau das: wie viele Kacheln in eine Zeile passen, hängt
+   nur noch an der Fensterbreite, nicht mehr am Inhalt. Dasselbe Muster und
+   derselbe Grund wie bei .kachel-raster -- neuer Inhalt bekommt eine Kachel,
+   nichts anderes bewegt sich (Prinzip: statisches Layout, Muskelgedächtnis).
+
+   Die Trennung in Vorräte oben / Kapazitäten unten ist Tobis Vorgabe: sie
+   trennt zwei verschiedene Fragen ("wie viel habe ich" gegen "wie viel kann
+   ich") und hält die obere Reihe frei für künftige Ressourcen. */
+.ressourcenleiste {
+  grid-area: ressourcen;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 1.25rem;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Die Mindestbreiten sind GEMESSEN, nicht geschätzt: die breitesten Inhalte
+   sind "50.000 / 50.000 · voll" bei der Bevölkerung (12,2rem) und
+   "0 / 50.000 AK · 50.000 AK frei" bei der Arbeitskraft (15,1rem). Mit der
+   ersten Fassung (9,5rem für beide Reihen) lief der Text aus den Kacheln
+   heraus und die Lagerkachel legte sich über ihre Nachbarin.
+
+   Kapazitäten brauchen strukturell mehr Platz als Vorräte: sie zeigen zwei
+   Zahlen nebeneinander plus Balken, nicht nur einen Bestand. Deshalb zwei
+   Mindestbreiten statt einer gemeinsamen -- die Reihe kennt ihre Kachelart. */
+.res-reihe {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 0.5rem;
+  /* Alle Kacheln einer Reihe gleich hoch, ausgerichtet an der größten --
+     dieselbe Regel wie bei .kachel-raster.
+
+     Die MINDESTHÖHE rechnet den Umbruch aus .res-unten bereits ein, und das
+     ist der eigentliche Trick: mit `1fr` allein wuchs die ganze Reihe um eine
+     Textzeile, sobald irgendeine Kachel umbrach -- das Springen war damit nur
+     von der Breite in die Höhe gewandert (gemessen bei 1100px: die Leiste
+     wechselte im Sekundentakt zwischen zwei Höhen, weil eine Förderrate mal
+     neben den Bestand passte und mal nicht). Mit der Mindesthöhe steht der
+     Platz für die zweite Zeile IMMER bereit, ob sie gebraucht wird oder nicht.
+     `auto` als Obergrenze lässt extreme Inhalte trotzdem wachsen, statt sie
+     abzuschneiden. */
+  grid-auto-rows: minmax(3.25rem, auto);
+}
+
+.res-reihe-kapazitaet {
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  /* Höher, weil hier ein Auslastungsbalken mit drinsteckt -- und bei
+     Batterien zusätzlich eine Speicherzeile. */
+  grid-auto-rows: minmax(5.25rem, auto);
+}
+
+/* Sicherheitsnetz für Zahlen, die größer werden, als hier je gemessen wurde
+   (ein Lager im Millionenbereich): der Inhalt bricht dann UM, statt aus der
+   Kachel zu laufen. Abschneiden wäre die schlechtere Wahl -- eine halbe Zahl
+   ist genau die Information, die zur Entscheidung fehlt. */
+.res-unten {
+  flex-wrap: wrap;
+}
+
+.res-kachel {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 0 0.5rem;
+  min-width: 9.5rem;
+  padding: 0.3rem 0.6rem;
+  background: var(--bg-item);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.res-symbol {
+  grid-row: 1 / 3;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.res-oben {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.res-name {
+  color: var(--text-dezent);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.res-stufe {
+  color: var(--text-dezent);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.res-unten {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.res-wert {
+  font-size: 1rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.res-rate {
+  color: var(--akzent);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.res-wert.warnung,
+.res-rate.warnung {
+  color: var(--warnung);
+}
+
+/* Verdeckte Platzhalter: zeigen, dass es mehr gibt, ohne zu verraten was. */
+.res-kachel.unbekannt {
+  opacity: 0.4;
+  border-style: dashed;
+}
+
+.res-kachel.unbekannt .res-wert,
+.res-kachel.unbekannt .res-name {
+  color: var(--text-dezent);
+  letter-spacing: 0.1em;
+}
+
+/* Lager- und Energiekachel sind breiter -- sie tragen einen Balken und sind
+   bewusst als andere Objektart erkennbar als die Bestandskacheln. */
+.res-kachel.lager,
+.res-kachel.energie {
+  min-width: 13rem;
+}
+
+.energie-balken-rahmen {
+  display: block;
+  height: 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.energie-balken {
+  display: block;
+  height: 100%;
+  background: var(--akzent);
+  transition: width 0.2s;
+}
+
+.energie-balken.warnung {
+  background: var(--warnung);
+}
+
+/* Zusatzertrag der nächsten Stufe -- die Zahl, die beim Ausbauen zählt. */
+.kachel-gewinn {
+  color: var(--akzent);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Laufender Eingangsstoff einer Verarbeitungskette. BEWUSST nicht rot:
+   Rot ist für Mangel und Warnungen reserviert, ein Betriebsmittel ist
+   dagegen der normale Preis der Anlage (siehe Farbregel im Projekt). */
+/* Sprachwahl im Kopf: zwei schmale Knöpfe, gleiche Formensprache wie der
+   Testmodus-Streifen, aber ohne dessen Warnfarbe -- das hier ist eine normale
+   Einstellung, keine Entwicklerfunktion. */
+.kopf-sprache {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.kopf-sprache button {
+  padding: 0.15rem 0.4rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  color: var(--text-dezent);
+  background: transparent;
+  border: 1px solid var(--rahmen);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.kopf-sprache button.aktiv {
+  color: var(--akzent);
+  border-color: var(--akzent);
+}
+
+/* Versionsanzeige im Kopf: klein und dezent, aber immer sichtbar -- sie
+   beantwortet die Frage "spiele ich gerade die eingefrorene Kopie oder den
+   Entwicklungsstand". */
+.version {
+  font-size: 0.6em;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  color: var(--text-dezent);
+  vertical-align: middle;
+}
+
+.kachel-verbrauch {
+  color: var(--text-dezent);
+  font-variant-numeric: tabular-nums;
+}
+
+.lager-balken-rahmen {
+  height: 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.lager-balken {
+  height: 100%;
+  background: var(--akzent-dunkel);
+  transition: width 0.2s;
+}
+
+/* --- Navigation (links, feste Reihenfolge) ------------------------------ */
+.navigation {
+  grid-area: nav;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem 0.5rem;
+  border-right: 1px solid var(--border);
+  background: var(--bg-panel);
+  overflow-y: auto;
+}
+
+.nav-knopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text-dezent);
+  font-size: 0.9rem;
+  letter-spacing: 0.05em;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nav-knopf:hover {
+  background: var(--bg-item);
+  color: var(--text);
+}
+
+.nav-knopf.aktiv {
+  background: var(--bg-item);
+  border-color: var(--akzent-dunkel);
+  border-left: 3px solid var(--akzent);
+  color: var(--text);
+}
+
+/* Zeigt an, dass in einem gerade nicht sichtbaren Bereich etwas läuft --
+   sonst wäre der Wechsel zu "einer Bereich sichtbar" ein Rückschritt. */
+.nav-punkt {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--akzent);
+  flex: none;
+}
+
+/* --- Spielfeld (Mitte) -------------------------------------------------- */
+.spielfeld {
+  grid-area: spielfeld;
+  padding: 1rem 1.25rem;
+  overflow-y: auto; /* nur DIESER Bereich scrollt, nie die Seite */
+}
+
+.bereich h2 {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+  color: var(--text-dezent);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.bereich h2:not(:first-child) {
+  margin-top: 1.5rem;
+}
+
+/* Kacheln statt Listenzeilen: feste Größe, umbrechend. Neuer Content
+   bekommt eine Kachel, nichts anderes bewegt sich. */
+.kachel-raster {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.75rem;
+  /* Alle Kacheln gleich groß, ausgerichtet an der größten: gleich hohe
+     Zeilen (1fr) plus Dehnen der Kacheln auf die Zeilenhöhe. Robuster als
+     eine feste Höhe -- eine Kachel mit Zusatzzeile (z.B. Voraussetzungen)
+     hebt automatisch alle anderen mit an. */
+  grid-auto-rows: 1fr;
+  align-items: stretch;
+}
+
+/* Bereiche, die eine lange Liste enthalten, füllen die volle Höhe und
+   scrollen INTERN -- die Seite selbst bleibt stehen. Ohne das wurde die
+   Galaxieliste (80 Systeme) einfach abgeschnitten und war unerreichbar. */
+.bereich-voll {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* Das Handbuch ist der einzige Ort im Spiel mit echtem Fließtext. Er braucht
+   andere Regeln als die Kachelraster daneben: eine begrenzte Zeilenlänge (ab
+   etwa 75 Zeichen verliert das Auge beim Zeilenwechsel die Spur) und mehr
+   Zeilenabstand als eine Zahlenkolonne. */
+.handbuch {
+  max-width: 72ch;
+  line-height: 1.65;
+}
+
+.handbuch h3 {
+  margin: 1.8rem 0 0.4rem;
+  color: #e0a94f;
+  font-size: 1.05rem;
+}
+
+.handbuch h3:first-child {
+  margin-top: 0.2rem;
+}
+
+.handbuch p {
+  margin: 0 0 0.7rem;
+}
+
+/* MUSS nach jeder display-Regel stehen, die ein verstecktes Element treffen
+   könnte. `hidden` ist nur ein Browser-Vorgabestil (`display:none`) und wird
+   von JEDER Klassenregel überstimmt -- `.bereich-voll { display:flex }` hat
+   genau das getan, wodurch die Galaxie- und Systemübersicht unter JEDER Seite
+   klebte, obwohl der Bereichswechsel sie korrekt auf `hidden` setzte. Sichtbar
+   war es als endlos scrollende Seite auf allen Tabs.
+   Global statt am Einzelfall, damit derselbe Fehler bei künftigen Bereichen
+   gar nicht erst entstehen kann. */
+[hidden] {
+  display: none !important;
+}
+
+/* --- Forschungsbaum ----------------------------------------------------
+   Spalten nach Tiefenstufe, Verbindungslinien als SVG-Ebene dahinter.
+   Die Kacheln sind exakt dieselben wie im Raster -- nur anders angeordnet,
+   damit man Voraussetzungen sieht statt sie im Tooltip nachlesen zu müssen. */
+.kachel-raster.baum {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 3rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+}
+
+.baum-spalte {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: none;
+  width: 15rem;
+  position: relative;
+  z-index: 1; /* über den Linien */
+}
+
+.baum-stufe {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding-left: 0.25rem;
+}
+
+.baum-linien {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.baum-linien path {
+  fill: none;
+  stroke: var(--akzent-dunkel);
+  stroke-width: 2;
+  opacity: 0.55;
+}
+
+.zwei-spalten {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 1rem;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Beide Spalten sind gleich hoch und enden auf derselben Linie: fester
+   Kopf oben, die Liste darunter füllt den Rest und scrollt dort intern. */
+.spalte {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Gleich hoher Kopfbereich in beiden Spalten -- sonst beginnen die Listen
+   auf unterschiedlicher Höhe, sobald eine Spalte eine Zusatzzeile hat.
+
+   Die 3,5rem reichten dafür nie: der rechte Kopf trägt DREI Zeilen (Titel,
+   Sondenstatus, Flottenstatus) und maß damit 82px gegen 56px links. Bei zwei
+   Listen fiel der Versatz kaum auf, seit darüber je eine Karte steht, standen
+   zwei gleich große Flächen sichtbar gegeneinander versetzt.
+
+   Das ist eine Untergrenze, kein Raster -- bricht der Text in einem schmalen
+   Fenster um, laufen die Köpfe wieder auseinander. Der saubere Weg dafür ist
+   Prinzip 10b (ein Raster für Bedienzeilen), das noch nicht gebaut ist. */
+.spalte-kopf {
+  flex: none;
+  min-height: 5.25rem;
+}
+
+.spalte-kopf .unter-titel {
+  margin: 0 0 0.25rem;
+}
+
+.spalte-scrollt {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+/* --- Statusspalte (rechts) ---------------------------------------------
+   Heißt bewusst NICHT .status: diese Klasse gibt es schon für die
+   "Im Bau"-Zeile in den Kacheln (.status.im-bau). */
+.statusspalte {
+  grid-area: status;
+  display: flex;
+  min-height: 0;
+  border-left: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+
+.statusspalte-inhalt {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 0.75rem 1rem;
+}
+
+/* Schmaler Griff am linken Rand der Spalte -- bleibt immer sichtbar,
+   damit der Zustand jederzeit umschaltbar ist. */
+.statusspalte-griff {
+  width: 1.25rem;
+  flex: none;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: var(--bg-item);
+  color: var(--text-dezent);
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.statusspalte-griff:hover {
+  background: var(--border);
+  color: var(--text);
+}
+
+.statusspalte.eingeklappt .statusspalte-inhalt {
+  display: none;
+}
+
+.statusspalte h2 {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-dezent);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.statusspalte h2:not(:first-child) {
+  margin-top: 1rem;
+}
+
+.status-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+}
+
+.status-zeile {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  background: var(--bg-item);
+  border-radius: 4px;
+  border-left: 2px solid var(--akzent-dunkel);
+}
+
+.status-zeile.ruhig {
+  border-left-color: var(--border);
+  color: var(--text-dezent);
+}
+
+.status-zeit {
+  font-variant-numeric: tabular-nums;
+  color: var(--akzent);
+  white-space: nowrap;
+}
+
+/* Bleibt für abgesetzte Blöcke innerhalb eines Bereichs (Flotten-Detail,
+   Routen-Editor) -- nicht mehr für die Seitenaufteilung. */
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+}
+
+.panel h2 {
+  margin-top: 0;
+  font-size: 1rem;
+  color: var(--text-dezent);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.gebaeude-liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Alle Kacheln einer Art sind gleich groß und richten sich nach der
+   größten -- feste Mindesthöhe plus Aktion am unteren Rand. Kacheln
+   verschiedener Objektarten (z.B. Ressource vs. Lager oben) dürfen sich
+   dagegen bewusst unterscheiden. */
+.gebaeude-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-height: 8.5rem;
+  background: var(--bg-item);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+}
+
+.kachel-kopf {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.kachel-symbol {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.kachel-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kachel-stufe {
+  color: var(--akzent);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.kachel-mitte {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.8rem;
+}
+
+.kachel-kosten {
+  font-variant-numeric: tabular-nums;
+}
+
+.kachel-dauer {
+  color: var(--text-dezent);
+  font-variant-numeric: tabular-nums;
+}
+
+.kachel-sperre {
+  font-size: 0.75rem;
+  color: var(--text-dezent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Stromvorrang: drei feste Knöpfe in fester Breite. Sie sitzen an derselben
+   Stelle jeder Kachel, damit Muskelgedächtnis entstehen kann (Prinzip 8) --
+   und sie belegen ihren Platz auch dann, wenn sie versteckt sind, sonst
+   springen die Kacheln beim Ausbauen in der Höhe. */
+.kachel-strom {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+}
+
+.kachel-strom button {
+  padding: 1px 0;
+  font-size: 0.7rem;
+  line-height: 1.2;
+  color: var(--text-dezent);
+  background: transparent;
+  border: 1px solid var(--rahmen);
+}
+
+.kachel-strom button.aktiv {
+  color: var(--text);
+  border-color: var(--akzent);
+  background: color-mix(in srgb, var(--akzent) 18%, transparent);
+}
+
+/* Aktion sitzt immer unten -- dadurch fluchten die Knöpfe über alle
+   Kacheln hinweg, egal wie viel Inhalt darüber steht. */
+.kachel-aktion,
+.schiff-knoepfe {
+  margin-top: auto;
+}
+
+.schiff-knoepfe .kachel-aktion {
+  margin-top: 0;
+}
+
+.gebaeude-item.item-aktiv {
+  border-color: var(--akzent);
+  border-left-width: 3px;
+  background: color-mix(in srgb, var(--akzent) 8%, var(--bg-item));
+}
+
+.gebaeude-kopf {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.25rem;
+}
+
+.gebaeude-name {
+  font-weight: 600;
+}
+
+.gebaeude-level {
+  color: var(--akzent);
+  font-size: 0.9rem;
+}
+
+.gebaeude-beschreibung {
+  color: var(--text-dezent);
+  font-size: 0.85rem;
+  margin-bottom: 0.4rem;
+}
+
+.gebaeude-kosten {
+  font-size: 0.8rem;
+  color: var(--text-dezent);
+  margin-bottom: 0.5rem;
+}
+
+.status.im-bau {
+  color: var(--akzent);
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
+.status.im-bau button,
+#werft-info button {
+  margin-left: 0.5rem;
+  font-size: 0.8rem;
+  padding: 0.1rem 0.5rem;
+}
+
+.panel-breit {
+  grid-column: 1 / -1;
+}
+
+.warteschlange {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--text-dezent);
+}
+
+.warteschlange-titel {
+  font-size: 0.8rem;
+  margin-bottom: 0.25rem;
+}
+
+.warteschlange-liste {
+  list-style: decimal inside;
+  font-size: 0.85rem;
+  padding: 0;
+  margin: 0;
+}
+
+.warteschlange-liste li {
+  padding: 0.15rem 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.warteschlange-liste button {
+  padding: 0 0.4rem;
+  font-size: 0.85rem;
+}
+
+.sonden-status {
+  font-size: 0.85rem;
+  color: var(--text-dezent);
+  margin-bottom: 0.75rem;
+}
+
+.sonden-status.aktiv {
+  color: var(--akzent);
+}
+
+.system-liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  /* Keine eigene Höhenbegrenzung mehr: das Scrollen übernimmt der
+     umgebende Bereich (.spalte-scrollt bzw. .spielfeld). Eine feste
+     max-height würde im neuen Layout Platz verschenken. */
+}
+
+/* Die Planetenwahl sitzt jetzt im Kopf (.kopf-planetenwahl) -- die Chips
+   selbst (.planet-chip) sind unverändert. */
+
+.planet-chip {
+  background: var(--bg-item);
+  color: var(--text-dezent);
+  border: 1px solid var(--border);
+  font-weight: 500;
+}
+
+.planet-chip:hover:not(:disabled) {
+  background: #22304a;
+}
+
+.chip-aktiv {
+  border-color: var(--akzent);
+  color: var(--akzent);
+  background: #14262b;
+}
+
+.chip-aussenposten {
+  font-style: italic;
+}
+
+.werft-liste {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 0.75rem;
+}
+
+.schiff-knoepfe {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.route-tag {
+  background: #2a1e40;
+  border-color: #6a4ca8;
+  color: #c9a8ff;
+}
+
+.route-halt {
+  border-top: 1px dashed var(--border);
+  padding-top: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.regel-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--bg-item);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.regel-tag button {
+  padding: 0 0.3rem;
+  background: transparent;
+  color: var(--text-dezent);
+}
+
+.markt-zeile {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  background: var(--bg-item);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.4rem 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.markt-name {
+  min-width: 6rem;
+  font-weight: 600;
+}
+
+.markt-zeile input[type="number"] {
+  width: 8rem;
+  background: var(--bg-item);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+}
+
+.flotte-zeile {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--bg-item);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+}
+
+.flotte-detail {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-item);
+  border: 1px solid var(--akzent-dunkel);
+  border-radius: 6px;
+}
+
+.flotte-reihe {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 0.6rem;
+}
+
+.umlade-gruppe {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.umlade-wert {
+  min-width: 2rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.schieber-gruppe {
+  flex-wrap: wrap;
+}
+
+.schieber-gruppe input[type="range"] {
+  width: 8rem;
+}
+
+.schieber-wert {
+  min-width: 5.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--akzent);
+}
+
+.auftrag-zeile {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--bg-item);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--akzent-dunkel);
+  border-radius: 4px;
+  padding: 0.4rem 0.75rem;
+}
+
+.unter-titel {
+  font-size: 0.85rem;
+  color: var(--text-dezent);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 1rem 0 0.5rem;
+}
+
+.transport-zeile {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.transport-zeile label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  color: var(--text-dezent);
+}
+
+.transport-zeile select,
+.transport-zeile input {
+  background: var(--bg-item);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.9rem;
+}
+
+.transport-zeile input {
+  width: 7rem;
+}
+
+.slot-aktionen {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.galaxie-system {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--bg-item);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.4rem 0.75rem;
+}
+
+.system-aktiv {
+  border-color: var(--akzent);
+  background: #14262b;
+}
+
+.system-fern {
+  opacity: 0.55;
+  border-style: dashed;
+}
+
+.basis-tag {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--akzent);
+  border: 1px solid var(--akzent-dunkel);
+  border-radius: 3px;
+  padding: 0.05rem 0.3rem;
+  margin-left: 0.35rem;
+}
+
+/* Der Ladebalken des Energiespeichers. Bewusst in der Ressourcenfarbe der
+   Energie statt in einer neuen Farbe -- Prinzip 11: der Balken beantwortet
+   dieselbe Frage wie die Kachel darüber und braucht keine eigene Identität. */
+.energie-balken.speicher {
+  background: #e0a94f;
+  opacity: 0.8;
+}
+
+/* Der Stern eines Systems. Die Farbe ist hier KEINE Dekoration, sondern die
+   Information selbst: sie ist die Temperatur des Sterns und sagt auf einen
+   Blick, ob ein System eine enge, kalte Zone hat (rot) oder eine weite, heiße
+   (weiß). Damit verdient sie sich ihren Platz nach Prinzip 11. */
+.stern-tag {
+  font-size: 0.75rem;
+  color: var(--text-dezent);
+  white-space: nowrap;
+}
+
+.stern-punkt {
+  display: inline-block;
+  width: 0.55em;
+  height: 0.55em;
+  border-radius: 50%;
+  background: var(--stern-farbe, #ffe9a8);
+  margin-right: 0.25rem;
+  vertical-align: baseline;
+}
+
+.voraussetzung-zeile {
+  font-size: 0.8rem;
+  color: #e0a94f;
+  margin-bottom: 0.5rem;
+}
+
+.system-slot {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--bg-item);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.4rem 0.75rem;
+}
+
+.slot-unerforscht {
+  opacity: 0.65;
+  border-style: dashed;
+}
+
+.slot-heimat {
+  border-color: var(--akzent-dunkel);
+  background: #162a28;
+}
+
+.slot-gefahr {
+  border-color: #6b2828;
+  background: #241416;
+}
+
+.slot-gesperrt {
+  border-color: #7a5a2a;
+  background: #241d10;
+}
+
+.slot-verwertet {
+  opacity: 0.5;
+}
+
+/* Auf der Karte angeklickt -- oder in der Liste. Beide Wege setzen dieselbe
+   Markierung, weil sie durch dieselbe Funktion gehen (orbitWaehlen in
+   js/ui.js). Kein neuer Farbwert: derselbe Akzent, der überall im Spiel
+   "das hier ist gerade gemeint" bedeutet (Prinzip 11). */
+.slot-gewaehlt {
+  border-color: var(--akzent);
+  box-shadow: inset 3px 0 0 var(--akzent);
+}
+
+/* --- Karten (Galaxie und System) ---------------------------------------
+   SVG statt Canvas: Klickziele, Tooltips und Theming kommen damit von selbst,
+   und jedes Element ist ein echtes DOM-Element, das über die Takte hinweg
+   stehen bleiben kann (Prinzip 8a).
+
+   Die Karte hat eine feste Höhe und keine eigene Bildlaufleiste. Der Platz
+   darunter gehört weiter der Liste -- die Karte ergänzt sie, sie verdrängt
+   sie nicht. */
+.karte {
+  flex: none;
+  display: block;
+  width: 100%;
+  height: clamp(170px, 30vh, 320px);
+  margin-bottom: 0.4rem;
+  background: radial-gradient(circle at 50% 50%, #0d1422 0%, var(--bg) 75%);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+/* Der sichtbare Punkt eines Sterns. Seine Füllung ist die Sternfarbe und
+   kommt als Attribut aus js/karte.js -- dieselbe Information wie beim
+   .stern-punkt der Liste, aus derselben Quelle.
+
+   pointer-events: none, weil das Klickziel eine eigene, größere Fläche
+   darüber ist: bei 500 Systemen muss der Punkt klein sein, das Ziel nicht. */
+.karte-stern {
+  pointer-events: none;
+  opacity: 0.75;
+}
+
+.karte-stern.karte-besucht {
+  opacity: 1;
+  stroke: var(--text-dezent);
+  stroke-width: 0.7;
+}
+
+.karte-stern.karte-eigen {
+  opacity: 1;
+  stroke: var(--akzent);
+  stroke-width: 1.4;
+}
+
+/* Außer Reichweite: sichtbar, aber deutlich zurückgenommen. Nicht ausgeblendet
+   -- die Welt ist da, bevor man hinsieht (Prinzip 1), man kommt nur noch nicht
+   hin. */
+.karte-stern.karte-fern {
+  opacity: 0.22;
+}
+
+/* Die unsichtbare Klickfläche. `pointer-events: all` gilt auch für eine
+   Fläche ohne Füllung -- ohne das wäre der Kreis für die Maus gar nicht da. */
+.karte-treffer {
+  fill: transparent;
+  pointer-events: all;
+  cursor: pointer;
+}
+
+/* Wie weit du kommst, um jeden Stützpunkt herum. Erklärt die dunklen Sterne
+   auf der Karte selbst, statt sie im Tooltip zu verstecken (Prinzip 10a). */
+.karte-reichweite {
+  fill: none;
+  stroke: var(--akzent-dunkel);
+  stroke-width: 0.6;
+  stroke-dasharray: 3 3;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+/* Der Ring um das System, das rechts gerade offen ist. */
+.karte-wahl {
+  fill: none;
+  stroke: var(--akzent);
+  stroke-width: 1.2;
+  pointer-events: none;
+}
+
+/* Fluglinie zum Ziel. Ein Punkt zwischen zwei Sternen sagt "unterwegs", aber
+   nicht wohin -- erst die Strecke macht aus der Bewegung eine Absicht. */
+.karte-route {
+  stroke: var(--akzent);
+  stroke-width: 0.7;
+  stroke-dasharray: 2 2.5;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.karte-flotte {
+  cursor: help;
+}
+
+.karte-flotte-marke {
+  fill: var(--akzent);
+  pointer-events: all;
+}
+
+/* Unterwegs: hohl statt gefüllt. Eine Flotte zwischen zwei Sternen ist nicht
+   angekommen, und die Marke soll das nicht behaupten. */
+.karte-flotte.karte-unterwegs .karte-flotte-marke {
+  fill: var(--bg);
+  stroke: var(--akzent);
+  stroke-width: 1;
+}
+
+/* Fremde Flotten. Zweite und letzte Farbe auf der Karte -- Prinzip 11: sie
+   verdient sich ihren Platz, weil "wer da steht, gehört nicht mir" die
+   einzige Unterscheidung ist, die eine sofortige Entscheidung auslöst. */
+.karte-flotte.karte-fremd .karte-flotte-marke {
+  fill: var(--warnung);
+}
+
+.karte-flotte.karte-fremd.karte-unterwegs .karte-flotte-marke {
+  fill: var(--bg);
+  stroke: var(--warnung);
+}
+
+/* --- Systemkarte ------------------------------------------------------- */
+.karte-sonne {
+  stroke: none;
+  pointer-events: all;
+}
+
+.karte-sonne-hof {
+  opacity: 0.14;
+  pointer-events: none;
+}
+
+.karte-ring {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 0.5;
+  pointer-events: none;
+}
+
+.karte-objekt {
+  cursor: pointer;
+}
+
+.karte-objekt-scheibe {
+  fill: var(--bg-item);
+  stroke: var(--border);
+  stroke-width: 0.8;
+}
+
+.karte-objekt-symbol {
+  font-size: 8px;
+  text-anchor: middle;
+  fill: var(--text);
+  pointer-events: none;
+}
+
+/* Dieselben Zustände wie die Zeilen der Systemliste, in denselben Farben --
+   Karte und Liste beantworten dieselbe Frage und dürfen nicht verschieden
+   aussehen. */
+.karte-objekt.karte-unerforscht .karte-objekt-scheibe {
+  stroke-dasharray: 2 2;
+  opacity: 0.65;
+}
+
+.karte-objekt.karte-eigen .karte-objekt-scheibe {
+  fill: #162a28;
+  stroke: var(--akzent-dunkel);
+}
+
+/* Fremd besetzt: dieselbe Warnfarbe wie die fremden Flottenmarken. Keine neue
+   Farbe (Prinzip 11) -- Rot beantwortet auf beiden Karten dieselbe Frage:
+   das hier gehört dir nicht. Bewusst heller als .karte-gefahr, denn ein
+   besetzter Orbit ist kein Naturereignis, sondern jemand. */
+.karte-objekt.karte-besetzt .karte-objekt-scheibe {
+  fill: #241416;
+  stroke: var(--warnung);
+  stroke-width: 1.2;
+}
+
+.karte-objekt.karte-gefahr .karte-objekt-scheibe {
+  fill: #241416;
+  stroke: #6b2828;
+}
+
+.karte-objekt.karte-gesperrt .karte-objekt-scheibe {
+  fill: #241d10;
+  stroke: #7a5a2a;
+}
+
+.karte-objekt.karte-verwertet {
+  opacity: 0.5;
+}
+
+.karte-objekt.karte-gewaehlt .karte-objekt-scheibe {
+  stroke: var(--akzent);
+  stroke-width: 1.8;
+}
+
+/* --- Legende ------------------------------------------------------------
+   Wird je Sprache genau einmal gebaut (js/karte.js) -- sie hängt an keinem
+   Spielzustand und hätte im Sekundentakt nichts zu sagen. */
+.karte-legende {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem 0.6rem;
+  font-size: 0.7rem;
+  color: var(--text-dezent);
+  margin-bottom: 0.4rem;
+}
+
+.karte-marke {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: #ffe9a8;
+  opacity: 0.75;
+  margin-right: 0.25rem;
+}
+
+.karte-marke.karte-besucht {
+  opacity: 1;
+  box-shadow: 0 0 0 1px var(--text-dezent);
+}
+
+.karte-marke.karte-eigen {
+  opacity: 1;
+  box-shadow: 0 0 0 1px var(--akzent);
+}
+
+.karte-marke.karte-fern {
+  opacity: 0.25;
+}
+
+/* Eigener Name statt .karte-flotte: die Flottenmarke auf der Karte ist ein
+   SVG-Element mit eigenen Regeln, die hier nichts zu suchen haben. */
+.karte-marke-flotte {
+  background: var(--akzent);
+  border-radius: 0;
+  transform: rotate(45deg);
+}
+
+.gesperrt-text {
+  color: #e0a94f;
+}
+
+.item-schluessel {
+  border-color: #7a5a2a;
+  background: #221b12;
+}
+
+.schluessel-tag {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #e0a94f;
+  border: 1px solid #7a5a2a;
+  border-radius: 3px;
+  padding: 0.05rem 0.3rem;
+  margin-left: 0.35rem;
+  vertical-align: middle;
+}
+
+.slot-nummer {
+  width: 1.6rem;
+  text-align: right;
+  color: var(--text-dezent);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+}
+
+.slot-symbol {
+  width: 1.5rem;
+  text-align: center;
+}
+
+.slot-name {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.slot-bezeichnung {
+  font-size: 0.9rem;
+}
+
+.slot-hinweis {
+  font-size: 0.8rem;
+  color: var(--text-dezent);
+}
+
+.slot-hinweis.aktiv {
+  color: var(--akzent);
+}
+
+.meldungen-liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  /* Füllt den Rest der Statusspalte und scrollt dort intern -- der Log
+     darf beliebig lang werden, ohne die Spalte zu sprengen. */
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.meldungen-liste li {
+  padding: 0.35rem 0.6rem;
+  background: var(--bg-item);
+  border-left: 2px solid var(--akzent-dunkel);
+  border-radius: 3px;
+}
+
+button {
+  background: var(--akzent-dunkel);
+  color: #06110f;
+  border: none;
+  border-radius: 4px;
+  padding: 0.4rem 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+button:hover:not(:disabled) {
+  background: var(--akzent);
+}
+
+button:disabled {
+  background: #33405c;
+  color: var(--text-dezent);
+  cursor: not-allowed;
+}
+
+/* --- Imperiumsübersicht -------------------------------------------------
+   Breite Tabelle: scrollt bei vielen Ressourcen INNERHALB des Bereichs,
+   die Seite bleibt wie überall stehen. */
+.tabelle-scrollt {
+  overflow-x: auto;
+}
+
+.imperium-tabelle {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.85rem;
+}
+
+.imperium-tabelle th {
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  color: var(--text-dezent);
+  font-weight: 500;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.imperium-tabelle td {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--bg-item);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.imperium-tabelle tr.zeile-aktiv {
+  background: var(--bg-item);
+}
+
+.imperium-tabelle tr.zeile-summe td {
+  border-top: 1px solid var(--border);
+  border-bottom: none;
+  padding-top: 0.6rem;
+}
+
+.imperium-tabelle button {
+  background: none;
+  color: var(--text);
+  padding: 0;
+  font-size: 0.85rem;
+  text-decoration: underline dotted;
+}
+
+.imperium-tabelle button:hover {
+  color: var(--akzent);
+}
+
+/* Produktionsrate steht klein unter dem Bestand -- zwei Zahlen pro Zelle
+   ohne zusätzliche Spalte. */
+.imperium-rate {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--akzent);
+}
+
+.imperium-transfers {
+  margin-top: 0.75rem;
+}
+
+/* --- Gestapelter Lagerbalken -------------------------------------------
+   Jedes Segment ist eine Ressource in ihrer eigenen Farbe. "80% voll" allein
+   sagt nicht, was man loswerden müsste -- die Aufteilung schon. Die
+   Ressourcenkacheln tragen dieselben Farben und sind damit die Legende. */
+.lager-balken-rahmen {
+  display: flex;
+}
+
+.lager-segment {
+  display: block;
+  height: 100%;
+  transition: width 0.2s;
+}
+
+.lager-segment:not(:last-child) {
+  border-right: 1px solid rgba(0, 0, 0, 0.35);
+}
+
+/* Farbmarkierung der Ressourcenkachel -- schmaler Streifen links, damit die
+   Zuordnung zum Balkensegment sofort erkennbar ist, ohne die Kachel
+   einzufärben. */
+.res-kachel[style*="--res-farbe"] {
+  border-left: 3px solid var(--res-farbe);
+}
+
+/* Genaue Mengenangabe neben den Reglern (v0.61). Schmal, damit die
+   Regler-Zeile ihre Breite behält -- Prinzip 8 verlangt, dass nichts
+   seinen Platz wechselt, wenn etwas dazukommt. */
+.menge-feld {
+  width: 6.5em;
+}
+
+/* Namensfeld der Flotte (v0.61). Breit genug für einen sprechenden Namen,
+   schmal genug, dass die Zeile nicht springt. */
+.name-feld {
+  width: 14em;
+}
+
+/* Die ganze Flottenkachel wählt die Flotte (v0.61, Tobis Ansage: kein
+   eigener wählen-Knopf). Der Zeiger muss das ankündigen -- ein klickbarer
+   Bereich, der aussieht wie Text, wird nicht gefunden. */
+.flotte-zeile.waehlbar,
+.system-slot.waehlbar {
+  cursor: pointer;
+}
+
+/* Die Supernova-Uhr im Kopf. Sie ist die einzige Zahl, unter der jede andere
+   Entscheidung im Spiel steht -- deshalb steht sie neben dem Titel und nicht
+   in einem Panel, das man wegklicken kann (Prinzip 8: statisches Layout). */
+.supernova-uhr {
+  font-size: 0.8rem;
+  color: var(--text-dezent);
+  border: 1px solid var(--rahmen);
+  border-radius: 3px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.supernova-uhr.warnung {
+  color: var(--warnung, #e57373);
+  border-color: currentColor;
+}
+
+/* --- Abspann ------------------------------------------------------------
+   Liegt über allem. Kein Dialog, den man wegklickt -- nach der Teilchenflut
+   ist nichts mehr zu tun, und das soll die Oberfläche auch sagen. */
+.abspann {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: rgba(8, 12, 20, 0.92);
+}
+
+.abspann-tafel {
+  max-width: 640px;
+  padding: 2rem 2.5rem;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  box-shadow: var(--schatten);
+}
+
+.abspann-tafel h2 {
+  margin: 0 0 0.5rem;
+  color: var(--akzent);
+  letter-spacing: 0.1em;
+}
+
+.abspann-liste {
+  list-style: none;
+  margin: 1.25rem 0;
+  padding: 0;
+}
+
+.abspann-liste li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 1rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.abspann-hielt {
+  color: var(--text);
+}
+
+.abspann-verloren {
+  color: var(--text-dezent);
+  text-decoration-color: var(--warnung);
+}
+
+.abspann-summe {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--akzent);
+}
+
+/* Der Weg aus dem Abspann heraus. Ohne ihn war ein Game over endgültig:
+   state.ende wird mitgespeichert, der Abspann lag also nach jedem Neuladen
+   wieder über allem. Steht unten und rechts -- er ist der letzte Schritt der
+   Tafel, nicht ihr Titel, und soll nicht mit dem Ergebnis konkurrieren. */
+.abspann-knoepfe {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
+}

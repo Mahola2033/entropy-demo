@@ -1,0 +1,623 @@
+// Galaxie- und Systemkarte.
+//
+// ANLASS (Tobi, 16.08.2026): "Flottennutzung und Sichtbarkeit, was sie
+// tatsächlich machen, erhöhen." Eine Flotte war bis hierher eine Zeile mit
+// einer Restzeit. Wo sie steckt, welchen Weg sie nimmt und wie weit sie schon
+// ist, stand nirgends -- man musste es sich denken. Ein Punkt, der sich
+// zwischen zwei Sternen bewegt, sagt das ohne einen einzigen Satz.
+//
+// Die Karten ERFINDEN DABEI NICHTS. Jede Zahl, die sie zeichnen, rechnet das
+// Spiel ohnehin:
+//   systemPosition(seed, id)         Ort eines Sterns, rein aus der Saat
+//   flottePosition(state, f, zeit)   wo eine Flotte in diesem Moment ist
+//   holeSystem(state, id).objekte    was in einem System steht
+// Sie sind eine ANSICHT auf vorhandene Wahrheit, kein zweites Modell. Deshalb
+// können sie auch nicht von der Liste abweichen: beide lesen dieselbe Quelle.
+//
+// --- Die entscheidende Bauregel ------------------------------------------
+//
+// render() läuft JEDE SEKUNDE. Sternpositionen sind reine Funktionen von
+// (Saat, Systemnummer) und ändern sich NIE -- sie werden EINMAL gezeichnet und
+// danach nur noch in ihren Attributen abgeglichen. Bewegt wird ausschließlich,
+// was tatsächlich fliegt.
+//
+// Abgeglichen wird mit `listeAbgleichen` aus ui.js, demselben Werkzeug wie bei
+// jeder anderen Liste im Spiel (Prinzip 5: kein zweiter Mechanismus, und
+// Prinzip 8a: ein Element, das stehen bleibt, verschluckt keinen Klick).
+// Der Ringtausch der Importe -- ui.js holt die Karten, karte.js holt das
+// Abgleich-Werkzeug -- ist zulässig, weil hier NICHTS davon beim Laden des
+// Moduls benutzt wird, sondern erst beim ersten Zeichnen.
+//
+// Und: ist der Galaxiebereich nicht sichtbar, tut diese Datei GAR NICHTS.
+// Eine geschlossene Ansicht darf keine Rechenzeit kosten -- eine Messung hat
+// der alten Galaxieansicht 4,5 ms pro Sekunde nachgewiesen, auch geschlossen.
+
+import { GALAXIE_REGELN, SPIELER_FRAKTION } from "./data.js";
+import { systemPosition, systemName, sternFuer } from "./galaxie.js";
+import { flottePosition, schiffeText } from "./flotten.js";
+import { holeSystem } from "./systeme.js";
+import {
+  planetenVon,
+  planetAn,
+  flottenVon,
+  systemBesucht,
+  untersuchteOrbits,
+  fraktionVon,
+  fraktionById,
+} from "./state.js";
+import { stromFuer } from "./zufall.js";
+import { t, sprache } from "./sprache.js";
+import { listeAbgleichen, attributSetzen, textSetzen, TYP_SYMBOL, fmtDauer } from "./ui.js";
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+// Beide Karten rechnen in einem festen Koordinatenraum von -100..100 statt in
+// Galaxie-Einheiten. Damit bleiben alle Größen (Punktradius, Strichstärke,
+// Schriftgröße) unabhängig davon, wie groß die Galaxie gerade ist -- wer
+// GALAXIE_REGELN.anzahlSysteme hochdreht, bekommt eine dichtere Karte und
+// keine anders aussehende.
+const KARTE_RADIUS = 100;
+
+// Das System von innen: der Stern sitzt in der Mitte, der äußerste Orbit auf
+// SYS_AUSSEN. SYS_RAND ist der Kartenrand, an dem anfliegende Flotten
+// auftauchen.
+const SYS_INNEN = 26;
+const SYS_AUSSEN = 90;
+const SYS_RAND = 99;
+
+// Eine Flotte im Orbit steht genau dort, wo auch das Objekt steht -- und
+// verdeckte es dadurch vollständig. Ausgerechnet die verteidigten Objekte
+// waren so nicht mehr zu sehen, also genau die, um die es geht. Die Marke
+// rückt deshalb ein Stück nach außen: derselbe Winkel, dieselbe Aussage,
+// aber beides bleibt lesbar.
+const FLOTTEN_VERSATZ = 11;
+
+function svgEl(tag, attribute = {}) {
+  const el = document.createElementNS(SVG_NS, tag);
+  for (const [name, wert] of Object.entries(attribute)) el.setAttribute(name, String(wert));
+  return el;
+}
+
+function verschieben(el, x, y) {
+  attributSetzen(el, "transform", `translate(${x.toFixed(2)} ${y.toFixed(2)})`);
+}
+
+// Rückrufe liegen im Modul und nicht in der Ereignis-Funktion: der Handler
+// wird EINMAL angehängt (Prinzip 8a) und würde sonst für immer die Fassung aus
+// dem allerersten Takt festhalten.
+const rueckrufe = { system: null, orbit: null };
+
+// Was der Mauszeiger für einen Tooltip braucht. Wird beim Zeichnen
+// nachgeführt, damit der Text erst beim Überfahren entsteht -- 500 Tooltips
+// pro Sekunde zusammenzusetzen wäre die teuerste Arbeit der ganzen Karte, und
+// gelesen wird immer nur einer.
+let galaxieStand = { state: null, abstand: [], reichweite: 0 };
+
+// Der zuletzt gesetzte Klassenname je System, damit die Schleife über 500
+// Sterne das DOM gar nicht erst befragen muss. attributSetzen liest sonst je
+// Stern zweimal zurück -- richtig, aber tausend Rückfragen pro Sekunde für
+// eine Antwort, die wir selbst geschrieben haben. Wird beim Neuaufbau des
+// Gerüsts geleert, sonst hielte er nach einem Reset die Zustände der alten
+// Galaxie fest.
+let sternKlassen = [];
+
+// --- Galaxiekarte ---------------------------------------------------------
+
+function galaxieSkala() {
+  return KARTE_RADIUS / GALAXIE_REGELN.radius;
+}
+
+function sternTitelText(state, systemId) {
+  const entfernung = galaxieStand.abstand[systemId];
+  const eigene = planetenVon(state).filter((p) => p.systemId === systemId);
+  return [
+    systemName(state.galaxie.seed, systemId),
+    Number.isFinite(entfernung) ? t("Entfernung {entfernung}", { entfernung: entfernung.toFixed(1) }) : "",
+    eigene.length ? t("Eigene Stützpunkte hier: {liste}", { liste: eigene.map((p) => p.name).join(", ") }) : "",
+    systemBesucht(state, systemId)
+      ? t("{anzahl} Orbit(s) bereits untersucht", { anzahl: untersuchteOrbits(state, systemId) })
+      : t("Noch nicht besucht"),
+    entfernung <= galaxieStand.reichweite ? t("Systemkarte öffnen") : t("außer Reichweite"),
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function flottenTitelText(state, flotte, jetzt) {
+  const eigen = fraktionVon(flotte) === SPIELER_FRAKTION;
+  const fraktion = fraktionById(state, fraktionVon(flotte));
+  const ab = flotte.abschnitt;
+  return [
+    // Eigennamen laufen wie überall im Spiel roh durch -- ein Sprachwechsel
+    // benennt weder Flotten noch Fraktionen um.
+    flotte.name,
+    eigen || !fraktion ? "" : fraktion.name,
+    schiffeText(flotte.schiffe),
+    ab && ab.nach.systemId !== null
+      ? t("Ziel {system} · noch {dauer}", {
+          system: systemName(state.galaxie.seed, ab.nach.systemId),
+          dauer: fmtDauer((ab.ankunftZeit - jetzt) / 1000),
+        })
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+// Das Gerüst der Galaxiekarte: alle Sterne EINMAL, danach nie wieder.
+//
+// Zwei Ebenen je Stern statt einer: der sichtbare Punkt darf klein sein (bei
+// 500 Systemen muss er das sogar), die Klickfläche darf es nicht. Getrennt
+// gehalten kann der Punkt seine Größe nach Lage ändern, ohne dass das Ziel
+// unter dem Zeiger mitwandert -- Prinzip 8a gilt auch für "getroffen, aber
+// danebengeklickt".
+function galaxieGeruestBauen(svg, state) {
+  const skala = galaxieSkala();
+  sternKlassen = [];
+  svg.replaceChildren(
+    svgEl("g", { "data-reichweite": "" }),
+    svgEl("g", { "data-sterne": "" }),
+    svgEl("g", { "data-wahl": "" }),
+    svgEl("g", { "data-treffer": "" }),
+    svgEl("g", { "data-routen": "" }),
+    svgEl("g", { "data-flotten": "" })
+  );
+
+  const sterne = svg.querySelector("[data-sterne]");
+  const treffer = svg.querySelector("[data-treffer]");
+  for (let id = 1; id <= state.galaxie.anzahlSysteme; id++) {
+    const pos = systemPosition(state.galaxie.seed, id);
+    const stern = sternFuer(state.galaxie.seed, id, id === state.galaxie.heimatSystem);
+    const x = (pos.x * skala).toFixed(2);
+    const y = (pos.y * skala).toFixed(2);
+    sterne.appendChild(
+      svgEl("circle", { class: "karte-stern", cx: x, cy: y, r: 1.15, fill: stern.farbe, "data-punkt": id })
+    );
+    const ziel = svgEl("circle", { class: "karte-treffer", cx: x, cy: y, r: 3.2, "data-system": id });
+    ziel.appendChild(svgEl("title"));
+    treffer.appendChild(ziel);
+  }
+
+  svg.querySelector("[data-wahl]").appendChild(svgEl("circle", { class: "karte-wahl", r: 4.6, hidden: "" }));
+}
+
+function galaxieVerdrahten(svg) {
+  if (svg.dataset.verdrahtet) return;
+  svg.dataset.verdrahtet = "1";
+
+  // EINMAL, und nur hier. Die Karte hat keinen eigenen Weg ins Spiel: sie ruft
+  // dieselbe Funktion auf wie der "Ansehen"-Knopf der Liste, samt dessen
+  // Reichweiten-Schranke. Zwei Wege zur selben Wirkung wären zwei Orte, an
+  // denen sie auseinanderlaufen können (Prinzip 5).
+  svg.addEventListener("click", (ereignis) => {
+    const ziel = ereignis.target.closest("[data-system]");
+    if (ziel && rueckrufe.system) rueckrufe.system(Number(ziel.dataset.system));
+  });
+
+  // Der Tooltip entsteht erst beim Überfahren. Gelesen wird immer nur einer --
+  // ihn im Sekundentakt für 500 Sterne zu bauen wäre die mit Abstand teuerste
+  // Arbeit dieser Datei, und zwar für nichts.
+  svg.addEventListener("mouseover", (ereignis) => {
+    const ziel = ereignis.target.closest("[data-system]");
+    if (!ziel || !galaxieStand.state) return;
+    textSetzen(ziel.querySelector("title"), sternTitelText(galaxieStand.state, Number(ziel.dataset.system)));
+  });
+}
+
+// `systeme` kommt fertig aus renderGalaxie: dort wird die Entfernung zum
+// nächsten eigenen Stützpunkt ohnehin für alle 500 Systeme gerechnet. Sie hier
+// ein zweites Mal zu rechnen wäre dieselbe Schleife zweimal pro Sekunde.
+export function galaxieKarteZeichnen(svg, legende, state, opts) {
+  if (!svg || !opts.sichtbar) return;
+  const { jetzt, reichweite, systeme, aufSystem } = opts;
+  const skala = galaxieSkala();
+
+  const stand = `${state.galaxie.seed}:${state.galaxie.anzahlSysteme}`;
+  if (svg.dataset.stand !== stand) {
+    svg.dataset.stand = stand;
+    galaxieGeruestBauen(svg, state);
+  }
+  rueckrufe.system = aufSystem;
+  galaxieVerdrahten(svg);
+  legendeFuellen(legende);
+
+  // Nachschlagen über die Systemnummer als Feldindex, nicht über eine Map:
+  // `systeme` ist nach Entfernung sortiert, die Reihenfolge taugt also nicht
+  // als Zugriff -- und ein Feld ist der billigste Index, den es gibt.
+  const abstand = [];
+  for (const eintrag of systeme) abstand[eintrag.id] = eintrag.entfernung;
+  galaxieStand = { state, abstand, reichweite };
+  attributSetzen(
+    svg,
+    "aria-label",
+    t("Galaxiekarte mit {systeme} Systemen", { systeme: state.galaxie.anzahlSysteme })
+  );
+
+  // Vier Zustände, wie sie die Liste auch unterscheidet -- aber in zwei
+  // unabhängigen Achsen: WAS ein System für dich ist (eigen/besucht/fremd)
+  // steckt in Farbe und Größe, ob du HINKOMMST in der Helligkeit. Ein
+  // besuchtes System, das durch einen aufgegebenen Stützpunkt aus der
+  // Reichweite gefallen ist, sähe sonst aus wie ein unbekanntes.
+  const eigeneSysteme = new Set(planetenVon(state).map((p) => p.systemId));
+  // Die Sterne stehen in der Reihenfolge ihrer Systemnummer in der Gruppe --
+  // so hat galaxieGeruestBauen sie angelegt, und nichts sortiert sie je um.
+  // Der Index IST damit die Systemnummer, und die Schleife braucht keine
+  // einzige Rückfrage ans DOM.
+  const sterne = svg.querySelector("[data-sterne]").children;
+  for (let i = 0; i < sterne.length; i++) {
+    const id = i + 1;
+    const eigen = eigeneSysteme.has(id);
+    let klasse = "karte-stern";
+    if (eigen) klasse += " karte-eigen";
+    else if (systemBesucht(state, id)) klasse += " karte-besucht";
+    if (!(abstand[id] <= reichweite)) klasse += " karte-fern";
+    // Im Normalfall ändert sich hier über Minuten nichts -- dann wird auch
+    // nichts angefasst. Der Radius hängt allein an "eigen" und damit an der
+    // Klasse, er gehört deshalb in denselben Zweig.
+    if (sternKlassen[id] === klasse) continue;
+    sternKlassen[id] = klasse;
+    sterne[i].setAttribute("class", klasse);
+    sterne[i].setAttribute("r", eigen ? "2.2" : "1.15");
+  }
+
+  // Wie weit du kommst, als Kreis um jeden Stützpunkt. Das ist die Erklärung
+  // für die dunklen Sterne und steht damit auf der Karte statt nur im Tooltip
+  // (Prinzip 10a).
+  listeAbgleichen(svg.querySelector("[data-reichweite]"), [...eigeneSysteme], {
+    schluessel: (id) => id,
+    bauen: () => svgEl("circle", { class: "karte-reichweite" }),
+    aktualisieren: (kreis, id) => {
+      const pos = systemPosition(state.galaxie.seed, id);
+      attributSetzen(kreis, "cx", (pos.x * skala).toFixed(2));
+      attributSetzen(kreis, "cy", (pos.y * skala).toFixed(2));
+      attributSetzen(kreis, "r", (reichweite * skala).toFixed(2));
+    },
+  });
+
+  const wahl = svg.querySelector(".karte-wahl");
+  const gewaehlt = systemPosition(state.galaxie.seed, state.angezeigtesSystem);
+  attributSetzen(wahl, "cx", (gewaehlt.x * skala).toFixed(2));
+  attributSetzen(wahl, "cy", (gewaehlt.y * skala).toFixed(2));
+  attributSetzen(wahl, "hidden", null);
+
+  // --- Was sich wirklich bewegt ------------------------------------------
+  const eigene = flottenVon(state);
+
+  // Die Linie zum Ziel gehört dazu: ein Punkt zwischen zwei Sternen sagt
+  // "unterwegs", aber nicht wohin. Erst die Strecke macht aus der Bewegung
+  // eine Absicht.
+  listeAbgleichen(
+    svg.querySelector("[data-routen]"),
+    eigene.filter((flotte) => flotte.abschnitt),
+    {
+      schluessel: (flotte) => flotte.id,
+      bauen: () => svgEl("line", { class: "karte-route" }),
+      aktualisieren: (linie, flotte) => {
+        const pos = flottePosition(state, flotte, jetzt);
+        attributSetzen(linie, "x1", (pos.x * skala).toFixed(2));
+        attributSetzen(linie, "y1", (pos.y * skala).toFixed(2));
+        attributSetzen(linie, "x2", (flotte.abschnitt.nach.x * skala).toFixed(2));
+        attributSetzen(linie, "y2", (flotte.abschnitt.nach.y * skala).toFixed(2));
+      },
+    }
+  );
+
+  listeAbgleichen(svg.querySelector("[data-flotten]"), eigene, {
+    schluessel: (flotte) => flotte.id,
+    bauen: () => {
+      const gruppe = svgEl("g", { class: "karte-flotte" });
+      gruppe.appendChild(svgEl("path", { class: "karte-flotte-marke", d: "M0,-2.8 L2.1,0 L0,2.8 L-2.1,0 Z" }));
+      gruppe.appendChild(svgEl("title"));
+      return gruppe;
+    },
+    aktualisieren: (gruppe, flotte) => {
+      const pos = flottePosition(state, flotte, jetzt);
+      verschieben(gruppe, pos.x * skala, pos.y * skala);
+      attributSetzen(gruppe, "class", flotte.abschnitt ? "karte-flotte karte-unterwegs" : "karte-flotte");
+      textSetzen(gruppe.querySelector("title"), flottenTitelText(state, flotte, jetzt));
+    },
+  });
+}
+
+// Die Legende hängt an keinem Spielzustand, nur an der Sprache -- also wird
+// sie je Sprache genau einmal gebaut, wie das Handbuch.
+function legendeFuellen(el) {
+  if (!el || el.dataset.gezeichnet === sprache()) return;
+  el.dataset.gezeichnet = sprache();
+  el.innerHTML =
+    `<span class="karte-marke karte-eigen"></span>${t("eigene Welt")}` +
+    `<span class="karte-marke karte-besucht"></span>${t("besucht")}` +
+    `<span class="karte-marke"></span>${t("in Reichweite")}` +
+    `<span class="karte-marke karte-fern"></span>${t("außer Reichweite")}` +
+    `<span class="karte-marke karte-marke-flotte"></span>${t("deine Flotte")}`;
+}
+
+// --- Systemkarte ----------------------------------------------------------
+
+// WO STEHT WELCHER ORBIT?
+//
+// Erster Versuch war ein Zufallswinkel je Orbit. Er ist an der Wirklichkeit
+// gescheitert: ein System hat hier 12 bis 49 Orbits (gemessen), und auf eng
+// benachbarten Ringen liegen zufällige Winkel regelmäßig übereinander -- die
+// Karte wurde zum Klumpen, ausgerechnet in den dichtesten Systemen.
+//
+// Stattdessen der GOLDENE WINKEL, 137,5°: derselbe Trick, mit dem eine
+// Sonnenblume ihre Kerne setzt. Jeder weitere Orbit dreht um diesen Winkel
+// weiter, und weil das Verhältnis irrational ist, kommt keine Drehung je
+// wieder auf einer früheren zu liegen. Die dichtesten Nachbarn sind dadurch
+// selbst bei 49 Orbits noch rund 20 Einheiten auseinander -- mehr als zwei
+// Scheibendurchmesser. Das ist keine Gestaltungsidee, sondern die dichteste
+// gleichmäßige Packung, die es gibt.
+//
+// Der Radius wächst mit der WURZEL des Orbitanteils, aus demselben Grund wie
+// in systemPosition: linear wachsende Radien ballen die äußeren Orbits
+// zusammen, die Wurzel verteilt sie über die Fläche.
+//
+// Beides ist stetig in `orbit`, also auch für Bruchteile definiert -- genau
+// das braucht eine Flotte, die gerade den Orbit wechselt: sie wandert dann
+// auf einer Spirale nach außen statt von Ring zu Ring zu springen.
+const GOLDENER_WINKEL = Math.PI * (3 - Math.sqrt(5));
+
+// Jedes System bekommt eine eigene Grunddrehung aus der Saat. Ohne sie sähen
+// alle Systeme gleich aus -- mit ihr ist die Anordnung trotzdem für immer
+// dieselbe, weil sie aus der Saat kommt und nicht aus der Zeichnung.
+function systemPhase(seed, systemId) {
+  return stromFuer(seed, systemId * 1013)() * Math.PI * 2;
+}
+
+function ringRadius(orbit, orbitAnzahl) {
+  if (orbitAnzahl <= 1) return (SYS_INNEN + SYS_AUSSEN) / 2;
+  const anteil = Math.max(0, Math.min(1, (orbit - 1) / (orbitAnzahl - 1)));
+  return SYS_INNEN + (SYS_AUSSEN - SYS_INNEN) * Math.sqrt(anteil);
+}
+
+function orbitPunkt(seed, systemId, orbit, orbitAnzahl, versatz = 0) {
+  const winkel = systemPhase(seed, systemId) + (orbit - 1) * GOLDENER_WINKEL;
+  const radius = Math.min(SYS_RAND, ringRadius(orbit, orbitAnzahl) + versatz);
+  return { x: Math.cos(winkel) * radius, y: Math.sin(winkel) * radius };
+}
+
+// Wer ist in diesem System, und wo genau?
+//
+// Läuft über ALLE Flotten, nicht nur die eigenen: im All gibt es keine
+// Tarnung, und wer im selben System steht, steht dort sichtbar. Der Unterschied
+// liegt in der Farbe, nicht in der Auslassung.
+//
+// Drei Fälle, und alle drei bewegen sich:
+//   im System      echte Position aus flottePosition (auch beim Orbitwechsel)
+//   im Anflug      vom Kartenrand aus der Richtung des Startsystems nach innen
+//   im Abflug      vom Orbit nach außen in Richtung des Zielsystems
+// Anflug und Abflug sind eine Darstellung, keine Behauptung über den Ort: die
+// Flotte ist in Wahrheit zwischen den Sternen -- deshalb sind ihre Marken
+// hohl, und die Galaxiekarte zeigt daneben, wo sie wirklich steckt.
+function systemFlotten(state, systemId, jetzt) {
+  const hier = systemPosition(state.galaxie.seed, systemId);
+  const system = holeSystem(state, systemId);
+  const gefunden = [];
+
+  for (const flotte of state.flotten) {
+    const ab = flotte.abschnitt;
+    if (!ab) {
+      if (!flotte.ort || flotte.ort.systemId !== systemId) continue;
+      const pos = flottePosition(state, flotte, jetzt);
+      gefunden.push({
+        flotte,
+        punkt: orbitPunkt(state.galaxie.seed, systemId, pos.orbit || 1, system.orbitAnzahl, FLOTTEN_VERSATZ),
+      });
+      continue;
+    }
+
+    const rein = ab.nach.systemId === systemId;
+    const raus = ab.von.systemId === systemId;
+    if (!rein && !raus) continue;
+
+    const gesamt = ab.ankunftZeit - ab.startZeit;
+    const anteil = gesamt <= 0 ? 1 : Math.min(1, Math.max(0, (jetzt - ab.startZeit) / gesamt));
+
+    // Orbitwechsel innerhalb des Systems.
+    //
+    // Hier wird der Orbit ausnahmsweise selbst interpoliert statt aus
+    // flottePosition genommen: die rundet ihn auf ganze Zahlen (für Anzeige
+    // und Befehle völlig richtig), und auf einer Karte mit Winkeln SPRÄNGE
+    // die Flotte damit von Ring zu Ring, statt zu wandern. Gerechnet wird mit
+    // demselben `anteil`, den flottePosition auch benutzt -- es ist dieselbe
+    // Bewegung, nur ohne die Rundung fürs Auge.
+    if (rein && raus) {
+      const vonOrbit = ab.von.orbit || 1;
+      const nachOrbit = ab.nach.orbit || 1;
+      gefunden.push({
+        flotte,
+        punkt: orbitPunkt(
+          state.galaxie.seed,
+          systemId,
+          vonOrbit + (nachOrbit - vonOrbit) * anteil,
+          system.orbitAnzahl,
+          FLOTTEN_VERSATZ
+        ),
+        ziel: orbitPunkt(state.galaxie.seed, systemId, nachOrbit, system.orbitAnzahl, FLOTTEN_VERSATZ),
+      });
+      continue;
+    }
+
+    const anderes = rein ? ab.von : ab.nach;
+    const winkel = Math.atan2(anderes.y - hier.y, anderes.x - hier.x);
+    const innen = ringRadius((rein ? ab.nach.orbit : ab.von.orbit) || 1, system.orbitAnzahl);
+    const radius = rein ? SYS_RAND - (SYS_RAND - innen) * anteil : innen + (SYS_RAND - innen) * anteil;
+    gefunden.push({
+      flotte,
+      unterwegs: true,
+      punkt: { x: Math.cos(winkel) * radius, y: Math.sin(winkel) * radius },
+      ziel: rein
+        ? orbitPunkt(state.galaxie.seed, systemId, ab.nach.orbit || 1, system.orbitAnzahl, FLOTTEN_VERSATZ)
+        : { x: Math.cos(winkel) * SYS_RAND, y: Math.sin(winkel) * SYS_RAND },
+    });
+  }
+  return gefunden;
+}
+
+function systemGeruestBauen(svg) {
+  svg.replaceChildren(
+    svgEl("g", { "data-ringe": "" }),
+    svgEl("g", { "data-sonne": "" }),
+    svgEl("g", { "data-objekte": "" }),
+    svgEl("g", { "data-sys-routen": "" }),
+    svgEl("g", { "data-sys-flotten": "" })
+  );
+  const sonne = svg.querySelector("[data-sonne]");
+  sonne.appendChild(svgEl("circle", { class: "karte-sonne-hof", r: 16 }));
+  sonne.appendChild(svgEl("circle", { class: "karte-sonne", r: 7 }));
+  sonne.appendChild(svgEl("title"));
+}
+
+function systemVerdrahten(svg) {
+  if (svg.dataset.verdrahtet) return;
+  svg.dataset.verdrahtet = "1";
+  svg.addEventListener("click", (ereignis) => {
+    const ziel = ereignis.target.closest("[data-orbit]");
+    if (ziel && rueckrufe.orbit) rueckrufe.orbit(Number(ziel.dataset.orbit));
+  });
+}
+
+export function systemKarteZeichnen(svg, state, opts) {
+  if (!svg || !opts.sichtbar) return;
+  const { jetzt, systemId, gewaehlterOrbit, aufOrbit } = opts;
+  const system = holeSystem(state, systemId);
+  const seed = state.galaxie.seed;
+
+  if (!svg.dataset.gebaut) {
+    svg.dataset.gebaut = "1";
+    systemGeruestBauen(svg);
+  }
+  rueckrufe.orbit = aufOrbit;
+  systemVerdrahten(svg);
+  attributSetzen(svg, "aria-label", t("Systemkarte von {system}", { system: system.name }));
+
+  attributSetzen(svg.querySelector(".karte-sonne"), "fill", system.stern.farbe);
+  attributSetzen(svg.querySelector(".karte-sonne-hof"), "fill", system.stern.farbe);
+  textSetzen(
+    svg.querySelector("[data-sonne] title"),
+    t("{name} ({klasse})", { name: t(system.stern.name), klasse: system.stern.spektral })
+  );
+
+  // Schlüssel mit Systemnummer davor: beim Systemwechsel passt kein einziger
+  // Schlüssel mehr, listeAbgleichen räumt alles ab und baut neu -- genau das,
+  // was ein Systemwechsel bedeutet. Innerhalb eines Systems bleibt dagegen
+  // jedes Element über beliebig viele Takte dasselbe.
+  const ringSchluessel = (objekt) => `${systemId}:${objekt.orbit}`;
+
+  listeAbgleichen(svg.querySelector("[data-ringe]"), system.objekte, {
+    schluessel: ringSchluessel,
+    bauen: (objekt) =>
+      svgEl("circle", {
+        class: "karte-ring",
+        cx: 0,
+        cy: 0,
+        r: ringRadius(objekt.orbit, system.orbitAnzahl).toFixed(2),
+      }),
+  });
+
+  listeAbgleichen(svg.querySelector("[data-objekte]"), system.objekte, {
+    schluessel: ringSchluessel,
+    bauen: (objekt) => {
+      const gruppe = svgEl("g", { class: "karte-objekt", "data-orbit": objekt.orbit });
+      const punkt = orbitPunkt(seed, systemId, objekt.orbit, system.orbitAnzahl);
+      gruppe.setAttribute("transform", `translate(${punkt.x.toFixed(2)} ${punkt.y.toFixed(2)})`);
+      gruppe.appendChild(svgEl("circle", { class: "karte-objekt-scheibe", r: 7.5 }));
+      gruppe.appendChild(svgEl("text", { class: "karte-objekt-symbol", y: 2.9 }));
+      gruppe.appendChild(svgEl("title"));
+      return gruppe;
+    },
+    aktualisieren: (gruppe, objekt) => systemObjektFuellen(state, systemId, objekt, gruppe, gewaehlterOrbit),
+  });
+
+  const flotten = systemFlotten(state, systemId, jetzt);
+
+  listeAbgleichen(
+    svg.querySelector("[data-sys-routen]"),
+    flotten.filter((eintrag) => eintrag.ziel),
+    {
+      schluessel: (eintrag) => eintrag.flotte.id,
+      bauen: () => svgEl("line", { class: "karte-route" }),
+      aktualisieren: (linie, eintrag) => {
+        attributSetzen(linie, "x1", eintrag.punkt.x.toFixed(2));
+        attributSetzen(linie, "y1", eintrag.punkt.y.toFixed(2));
+        attributSetzen(linie, "x2", eintrag.ziel.x.toFixed(2));
+        attributSetzen(linie, "y2", eintrag.ziel.y.toFixed(2));
+      },
+    }
+  );
+
+  listeAbgleichen(svg.querySelector("[data-sys-flotten]"), flotten, {
+    schluessel: (eintrag) => eintrag.flotte.id,
+    bauen: () => {
+      const gruppe = svgEl("g", { class: "karte-flotte" });
+      gruppe.appendChild(svgEl("path", { class: "karte-flotte-marke", d: "M0,-3.4 L2.6,0 L0,3.4 L-2.6,0 Z" }));
+      gruppe.appendChild(svgEl("title"));
+      return gruppe;
+    },
+    aktualisieren: (gruppe, eintrag) => {
+      verschieben(gruppe, eintrag.punkt.x, eintrag.punkt.y);
+      const klassen = ["karte-flotte"];
+      if (fraktionVon(eintrag.flotte) !== SPIELER_FRAKTION) klassen.push("karte-fremd");
+      if (eintrag.unterwegs) klassen.push("karte-unterwegs");
+      attributSetzen(gruppe, "class", klassen.join(" "));
+      textSetzen(gruppe.querySelector("title"), flottenTitelText(state, eintrag.flotte, jetzt));
+    },
+  });
+}
+
+// Dieselben Zustände, die auch die Zeile in der Systemliste einfärbt, in
+// derselben Reihenfolge der Prüfungen -- mit EINER bewussten Abweichung.
+//
+// GEFUNDEN BEIM BAU DER KARTE (16.08.2026): `planetAn` liefert den Planeten
+// an einem Orbit, EGAL WEM ER GEHÖRT. Die Systemliste behandelt jeden davon
+// als eigenen Stützpunkt -- im Heimatsystem des Spielers standen dadurch drei
+// Piratenbasen in der Akzentfarbe und mit "Dein Stützpunkt" im Tooltip. Das
+// ist dieselbe Falle wie seinerzeit bei `naechsteBasis` und
+// `naechsterHafenOrt`: ein Helfer, der "eigen" meint und die Fraktion nicht
+// fragt.
+//
+// Die Karte macht das hier NICHT mit. Eine Karte, die eine Feindbasis als
+// eigene Welt einfärbt, ist schlimmer als gar keine Karte -- und sie hat
+// nebenbei die Antwort schon da: dieselbe Warnfarbe, in der auch fremde
+// Flotten stehen. Rot heißt auf beiden Karten dasselbe: gehört dir nicht.
+//
+// Die Liste bleibt vorerst, wie sie ist: dort hängt an `eigen` auch, WELCHE
+// Missionen angeboten werden, und das ist eine Spielregel, keine Anzeige.
+function systemObjektFuellen(state, systemId, objekt, gruppe, gewaehlterOrbit) {
+  const gesperrt =
+    objekt.entdeckt && objekt.benoetigt && (state.forschung[objekt.benoetigt.forschung] || 0) < 1;
+  const planet = planetAn(state, systemId, objekt.orbit);
+  const eigen = planet ? fraktionVon(planet) === SPIELER_FRAKTION : false;
+  const fremdBesetzt = !!planet && !eigen;
+
+  const klassen = ["karte-objekt"];
+  if (objekt.typ === "heimat" || eigen) klassen.push("karte-eigen");
+  else if (fremdBesetzt) klassen.push("karte-besetzt");
+  else if (!objekt.entdeckt) klassen.push("karte-unerforscht");
+  else if (objekt.gefahr && !objekt.verteidigerBesiegt) klassen.push("karte-gefahr");
+  else if (gesperrt) klassen.push("karte-gesperrt");
+  else if (objekt.verwertet || objekt.verteidigerBesiegt) klassen.push("karte-verwertet");
+  if (objekt.orbit === gewaehlterOrbit) klassen.push("karte-gewaehlt");
+  attributSetzen(gruppe, "class", klassen.join(" "));
+
+  textSetzen(gruppe.querySelector("text"), objekt.entdeckt ? TYP_SYMBOL[objekt.typ] : "?");
+  const halter = fremdBesetzt ? fraktionById(state, fraktionVon(planet)) : null;
+  textSetzen(
+    gruppe.querySelector("title"),
+    [
+      objekt.entdeckt
+        ? t("{art} ({name}, Orbit {orbit})", {
+            art: t(objekt.bezeichnung),
+            name: objekt.name,
+            orbit: objekt.orbit,
+          })
+        : t("{name} – noch unerforscht", { name: objekt.name }),
+      eigen ? t("Dein Stützpunkt: {name}", { name: planet.name }) : "",
+      // Eigenname der Fraktion, roh wie überall -- er wird nicht übersetzt.
+      halter ? t("Fremder Stützpunkt: {fraktion}", { fraktion: halter.name }) : "",
+    ]
+      .filter(Boolean)
+      .join("\n")
+  );
+}

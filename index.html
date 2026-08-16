@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Entropy</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!--
+    Festes Regionen-Layout. Grundregel: Dinge dürfen dazukommen, aber nie
+    ihren Platz wechseln -- nur so entsteht Muskelgedächtnis.
+
+      Kopf         Titel, aktiver Planet, Testmodus
+      Ressourcen   waagerechte Leiste (viel Platz in der Breite)
+      Navigation   links, feste Reihenfolge
+      Spielfeld    Mitte, hier passiert das Spiel
+      Status       rechts, laufende Aufträge + Log
+
+    Die Seite selbst scrollt nie. Wird ein einzelner Bereich zu lang
+    (Galaxieliste), scrollt nur dieser intern.
+  -->
+  <div class="rahmen">
+
+    <header class="kopf">
+      <h1>ENTROPY <span class="version" id="version"></span></h1>
+      <!-- Die Uhr der Demo. Steht im Kopf und ist IMMER sichtbar: sie ist die
+           einzige Zahl, unter der jede andere Entscheidung im Spiel steht. -->
+      <div class="supernova-uhr" id="supernova-uhr" hidden></div>
+      <div class="kopf-planet">
+        <span id="planet-name"></span>
+        <span id="planet-koordinaten" class="dezent"></span>
+      </div>
+      <div class="kopf-planetenwahl" id="planeten-leiste"></div>
+      <!-- Sprachwahl. Bewusst im Kopf und immer sichtbar: ein neuer Tester
+           soll sie finden, ohne zu suchen. Die Wahl liegt in einem eigenen
+           localStorage-Eintrag, nicht im Spielstand -- sonst wäre sie beim
+           nächsten Versionssprung wieder weg. -->
+      <div class="kopf-sprache" id="sprach-leiste"></div>
+      <!-- data-text: feste Beschriftung, die js/ui.js beim Zeichnen durch t()
+           schickt. Der deutsche Text im Attribut IST der Übersetzungsschlüssel,
+           genau wie im Quelltext -- siehe js/sprache.js. -->
+      <div class="kopf-testmodus" id="testmodus-leiste">
+        <span class="testmodus-label" data-text="Testmodus"></span>
+        <button data-sprung-sek="10">+10s</button>
+        <button data-sprung-sek="60">+1m</button>
+        <button data-sprung-sek="600">+10m</button>
+        <button data-sprung-sek="3600">+1h</button>
+        <button data-sprung-sek="86400" data-text="+1 Tag"></button>
+        <button id="testmodus-reset" class="testmodus-reset">Reset</button>
+      </div>
+    </header>
+
+    <!-- Wird vollständig aus den Ressourcen-Definitionen erzeugt (js/ui.js). -->
+    <section class="ressourcenleiste" id="ressourcen-leiste"></section>
+
+    <nav class="navigation" id="navigation"></nav>
+
+    <main class="spielfeld" id="spielfeld">
+      <section class="bereich" data-bereich="planet">
+        <h2 data-text="Gebäude"></h2>
+        <ul id="gebaeude-liste" class="kachel-raster"></ul>
+        <div id="gebaeude-warteschlange" class="warteschlange"></div>
+        <!-- Immer sichtbar, auch ohne laufende Kette: der Block erklärt dann,
+             dass es hier nichts zu regeln gibt. Ein Bereich, der je nach
+             Zustand auftaucht und verschwindet, würde das feste Layout
+             brechen (Muskelgedächtnis-Regel). -->
+        <h2 data-text="Verarbeitung"></h2>
+        <div id="verarbeitung-block"></div>
+      </section>
+
+      <section class="bereich" data-bereich="forschung" hidden>
+        <h2><span data-text="Forschung"></span> <span class="dezent" id="forschung-info"></span></h2>
+        <ul id="forschung-liste" class="kachel-raster baum"></ul>
+        <div id="forschung-warteschlange" class="warteschlange"></div>
+      </section>
+
+      <section class="bereich" data-bereich="werft" hidden>
+        <h2><span data-text="Werft"></span> <span class="dezent" id="werft-info"></span></h2>
+        <ul id="werft-liste" class="kachel-raster"></ul>
+        <div id="werft-warteschlange" class="warteschlange"></div>
+      </section>
+
+      <section class="bereich" data-bereich="flotten" hidden>
+        <h2 data-text="Flotten"></h2>
+        <div id="flotten-block"></div>
+      </section>
+
+      <section class="bereich bereich-voll" data-bereich="galaxie" hidden>
+        <h2><span data-text="Galaxie"></span> <span class="dezent" id="galaxie-info"></span></h2>
+        <div class="zwei-spalten">
+          <!-- Beide Spalten haben einen gleich hohen Kopfbereich (.spalte-kopf),
+               damit die Listen auf derselben Linie beginnen. Sonst schiebt die
+               Flotten-Zeile rechts die Liste nach unten. -->
+          <div class="spalte">
+            <div class="spalte-kopf">
+              <h3 class="unter-titel" data-text="Systeme"></h3>
+              <div id="galaxie-hinweis" class="sonden-status"></div>
+            </div>
+            <!--
+              Die Galaxiekarte. Sie ERSETZT die Liste darunter nicht, sie zeigt
+              denselben Bestand von oben: die Liste nennt die nächsten 25
+              Systeme, die Karte zeigt alle 500 und wo sie zueinander liegen.
+              Beide führen über denselben Weg ins Spiel (systemAnzeigen in
+              js/ui.js).
+
+              Leer im Markup: Inhalt und Klickziele entstehen EINMAL in
+              js/karte.js und bleiben danach stehen -- 500 Sterne pro Sekunde
+              neu zu zeichnen wäre genau der Klickfresser aus Prinzip 8a.
+            -->
+            <svg id="galaxie-karte" class="karte" viewBox="-104 -104 208 208"
+                 preserveAspectRatio="xMidYMid meet" role="img"></svg>
+            <div id="galaxie-legende" class="karte-legende"></div>
+            <div class="spalte-scrollt">
+              <ul id="galaxie-liste" class="system-liste"></ul>
+            </div>
+          </div>
+          <div class="spalte">
+            <div class="spalte-kopf">
+              <h3 class="unter-titel"><span id="system-titel"></span> <span class="dezent" data-text="– Systemkarte"></span> <span id="system-stern" class="stern-tag"></span></h3>
+              <div id="sonden-status" class="sonden-status"></div>
+              <div id="system-flotten" class="sonden-status"></div>
+            </div>
+            <!-- Dasselbe eine Ebene tiefer: der Stern in der Mitte, die
+                 Orbits als Ringe, und darauf die Objekte und jede Flotte, die
+                 gerade hier steht oder hereinkommt. Ein Klick hebt den Orbit
+                 hervor und holt seine Zeile in der Liste in den Blick. -->
+            <svg id="system-karte" class="karte" viewBox="-104 -104 208 208"
+                 preserveAspectRatio="xMidYMid meet" role="img"></svg>
+            <div class="spalte-scrollt">
+              <ul id="system-liste" class="system-liste"></ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="bereich" data-bereich="imperium" hidden>
+        <h2><span data-text="Imperium"></span> <span class="dezent" id="imperium-info"></span></h2>
+        <div id="imperium-block" class="tabelle-scrollt"></div>
+      </section>
+
+      <section class="bereich" data-bereich="handel" hidden>
+        <h2><span data-text="Handel"></span> <span class="dezent" id="markt-titel"></span></h2>
+        <div id="markt-block"></div>
+        <h2 data-text="Logistiknetz"></h2>
+        <div id="logistiknetz-block"></div>
+      </section>
+
+      <!-- Das Handbuch. Tobis Vorgabe zum Ersteinstieg: Führung anbieten,
+           aber durch Erklärung, wie das Spiel funktioniert -- keine
+           Schritt-für-Schritt-Anleitung, und jederzeit abrufbar. Der Inhalt
+           steht in js/handbuch.js, damit er übersetzbar bleibt und nicht im
+           Markup festwächst. -->
+      <section class="bereich" data-bereich="handbuch" hidden>
+        <h2 data-text="Handbuch"></h2>
+        <div id="handbuch-block" class="handbuch"></div>
+      </section>
+    </main>
+
+    <!--
+      Standardmäßig eingeklappt: die laufenden Aufträge sieht man auch an
+      den Punkten in der Navigation, der volle Platz gehört dem Spielfeld.
+      Ein- und Ausklappen ist eine bewusste Entscheidung des Spielers und
+      bleibt bestehen -- nichts klappt von selbst auf oder zu.
+    -->
+    <aside class="statusspalte eingeklappt" id="statusspalte">
+      <button class="statusspalte-griff" id="statusspalte-griff" data-titel="Statusspalte ein-/ausklappen"></button>
+      <div class="statusspalte-inhalt">
+        <h2 data-text="Status"></h2>
+        <div id="status-block" class="status-block"></div>
+        <h2 data-text="Meldungen"></h2>
+        <ul id="meldungen-liste" class="meldungen-liste"></ul>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- Der Abspann. Liegt ÜBER allem, weil danach nichts mehr zu tun ist --
+       die Teilchenflut hat den harten Schnitt gesetzt. Er ist kein Dialog,
+       den man wegklickt: er ist das Ende. -->
+  <div class="abspann" id="abspann" hidden></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
