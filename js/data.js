@@ -32,7 +32,7 @@ export const VERSION = "1.12";
 // fehl, behauptet die Spielkopie fälschlich, Entwicklungsstand zu sein. Das ist
 // die harmlose Richtung. Der gefährliche Irrtum ist der umgekehrte -- sich auf
 // einem eingefrorenen Stand zu wähnen, während in Wahrheit gebaut wird.
-export const STAND = "demo";
+export const STAND = "entwicklung";
 
 // --- Die Saat der Demo ------------------------------------------------------
 // DEMO.md hält als Tobis Entscheidung fest: die Demo läuft auf einer FESTEN

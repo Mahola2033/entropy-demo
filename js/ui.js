@@ -2296,14 +2296,6 @@ function kachelFuellen(state, root, opts, id, li) {
         queueZeile.querySelector("[data-queue-text]"),
         `→ ${opts.queue.zielLevel} · ${fmtDauer(rest)}${anteilText}`
       );
-      fortschrittSetzen(
-        li,
-        istForschung
-          ? anteilVon(opts.queue.fortschritt, opts.queue.aufwand)
-          : opts.queue.fertigZeit === null
-            ? 0 // A-012: wartet auf Material, es läuft noch nichts.
-            : 1 - anteilVon(rest, opts.queue.dauerSek)
-      );
       attributSetzen(
         queueZeile.querySelector("button[data-abbrechen]"),
         "title",

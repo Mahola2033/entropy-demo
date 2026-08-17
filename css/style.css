@@ -955,52 +955,6 @@ button[title]:disabled {
   background: color-mix(in srgb, var(--akzent) 8%, var(--bg-item));
 }
 
-/* Die Kachel IST der Balken (Tobis Punkt 22). Ein laufender Bau, eine
-   laufende Forschung, ein laufender Werftauftrag füllen ihre eigene Kachel
-   von links -- kein zusätzliches Balken-Element darunter.
-
-   Drei Eigenschaften, die nicht verhandelbar sind:
-   - Die Fläche ändert KEIN Maß. Sie ist absolut gelegt, die Kachel bekommt
-     dafür nur `position: relative`; Breite und Höhe der Kachel bleiben, was
-     sie waren (die v0.40/41-Regel: nichts, was springt).
-   - Sie liegt UNTER dem Inhalt. `z-index: -1` malt sie nach dem Hintergrund
-     der Kachel und vor deren Text -- das geht nur, solange die Kachel selbst
-     keinen Stapelkontext aufmacht (kein `z-index`, keine `opacity` < 1).
-   - Sie ist keine neue Farbe (Prinzip 11), sondern dieselbe Akzentfarbe wie
-     der aktive Rahmen, nur stark durchsichtig.
-
-   Die Breite kommt aus `--fortschritt` (0 bis 1), das der Sekundentakt per
-   `style.setProperty` nachführt -- kein DOM wird dafür neu gebaut (8a). */
-.gebaeude-item {
-  position: relative;
-  --fortschritt: 0;
-}
-
-.gebaeude-item::before {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: calc(var(--fortschritt) * 100%);
-  background: var(--akzent);
-  opacity: 0.16;
-  border-radius: 5px 0 0 5px;
-  pointer-events: none;
-  /* Der Takt liefert einmal je Sekunde einen neuen Wert; eine Sekunde
-     linear dazwischen macht daraus eine ruhige Bewegung statt eines
-     Sprungs. */
-  transition: width 1s linear;
-}
-
-/* Fertig oder abgebrochen: die Fläche verschwindet SOFORT, statt eine
-   Sekunde lang rückwärts zu laufen. */
-.gebaeude-item:not(.item-aktiv)::before {
-  width: 0;
-  transition: none;
-}
-
 .gebaeude-kopf {
   display: flex;
   justify-content: space-between;
