@@ -23,6 +23,7 @@
 // sind: der Zeitmaßstab und die Frist.
 
 import { t } from "./sprache.js";
+import { feedbackAdresse } from "./feedback.js";
 
 export function handbuchAbschnitte() {
   return [
@@ -158,6 +159,92 @@ export function handbuchAbschnitte() {
           "Deshalb ist Wissen auch die einzige Sache in diesem Spiel, die sofort überall gilt. Es ist nichts Physisches – es muss nicht reisen. Alles andere muss den Weg tatsächlich zurücklegen, und das gilt auch für die Rechnung."
         ),
       ],
+    },
+    // Der Feedback-Abschnitt (A-018). Er steht am Ende und nicht am Anfang:
+    // wer hier ankommt, hat das Spiel erklärt bekommen und weiß, worüber er
+    // redet. `link` ist das einzige Feld, das ein Abschnitt außer Text haben
+    // darf -- gerendert wird es in js/ui.js als eigener Absatz.
+    {
+      id: "feedback",
+      titel: t("Feedback"),
+      absaetze: [
+        t(
+          "Das hier ist ein Entwicklungsstand, kein fertiges Spiel. Was dir auffällt, ist deshalb ausdrücklich erwünscht: ein Fehler, eine Stelle, an der du nicht weiterwusstest, etwas, das sich falsch anfühlt."
+        ),
+        t(
+          "Der Link öffnet ein Formular in einem neuen Tab – dieses hier läuft weiter, du verlierst nichts. Welche Fassung du vor dir hast, trägt er selbst ein; das ist die Angabe, die uns sonst immer fehlt. Zum Abschicken braucht es ein GitHub-Konto."
+        ),
+      ],
+      link: { text: t("Rückmeldung geben"), adresse: feedbackAdresse() },
+    },
+    // Neuigkeiten & Roadmap (A-019, Zuschnitt und Titel nach A-040).
+    //
+    // WOHER DER INHALT KOMMT: aus AUFTRAEGE/ROADMAP.md, wörtlich. Diese Datei
+    // pflegt die Planung, sie ist die EINZIGE Quelle, und die Formulierungen
+    // dort sind auf Spielertauglichkeit geprüft (keine Balancing-Zahlen, keine
+    // Auflösung der Demo). Wer hier umformuliert, erzeugt eine zweite Wahrheit
+    // -- gepflegt würde danach nur noch eine davon.
+    //
+    // WARUM VON HAND ÜBERTRAGEN UND NICHT EINGELESEN: der Text muss durch t()
+    // laufen, sonst steht im englischen Spiel eine deutsche Liste. Ein
+    // Einlesen zur Laufzeit könnte das nicht -- und die Prüfung auf
+    // Vollständigkeit (tests/sprache.test.js) sähe die Texte nie. Der Abgleich
+    // gehört deshalb zur Veröffentlichungsroutine, sie steht im LEITFADEN.
+    //
+    // DIE ⚠-ZEILE IST PFLICHT: sie ist die einzige Warnung, die ein Tester
+    // bekommt, bevor ein Spielstand einmalig zurückgesetzt wird.
+    {
+      id: "neuigkeiten",
+      titel: t("Neuigkeiten & Roadmap"),
+      absaetze: [
+        t(
+          "Diese Demo ist unterwegs, nicht fertig. Hier steht, was zuletzt dazugekommen ist und was als Nächstes drankommt – damit du weißt, was du siehst, und nicht meldest, was schon auf dem Zettel steht."
+        ),
+      ],
+      gruppen: [
+        {
+          titel: t("Kürzlich"),
+          punkte: [
+            t("Hänger bei Zeitsprüngen und Tab-Wechseln behoben — und wenn doch etwas stockt, meldet das Spiel es jetzt selbst"),
+            t("Erklärung beim allerersten Start, Handbuch, Galaxie- und Systemkarte"),
+            t("Meldungen zeigen nur noch, was dein Imperium betrifft"),
+            t("Ingame-Datum „Jahr N · Tag M“ — Fristen sind jetzt lesbar"),
+            t("Gebäude nach Themen sortiert, Countdown mit Frist und Balken"),
+            t("Fremde Stützpunkte sind als fremd erkennbar; die Flut trifft alle Fraktionen nach denselben Regeln"),
+            t("Der Treibstoff heißt jetzt physikalisch ehrlich Deuterium"),
+          ],
+        },
+        {
+          titel: t("Bald"),
+          punkte: [
+            t("Feedback-Link, Roadmap und „Was ist neu“ direkt im Spiel"),
+            t("Bauen ohne volle Ressourcen — die Warteschlange wartet und baut dann"),
+            t("Flotten bleiben am Ziel; der Sonden-Schnellversand denkt mit"),
+            t("Hotkeys für die Bedienung"),
+            t("Kacheln zeigen ihren Bau- und Forschungsfortschritt als Fläche"),
+          ],
+        },
+        {
+          titel: t("In Arbeit"),
+          punkte: [
+            t("Energie bekommt echte Entscheidungen: zwei Kraftwerkstypen mit Vor- und Nachteilen"),
+            t("Eine zweite Verarbeitungskette"),
+            t("Ressourcen-Namen werden physikalisch ehrlich"),
+            t("Die Versorgungskrise wird ernster — und bekommt einen Ausweg"),
+          ],
+        },
+        {
+          titel: t("Später"),
+          punkte: [
+            t("Endliche Vorkommen — ⚠ dieser Schritt setzt Spielstände einmalig zurück"),
+            t("Lesbare Systemnamen statt Nummern"),
+            t("Oberfläche fürs Handy"),
+          ],
+        },
+      ],
+      schluss: t(
+        "Was hier nicht steht und dir trotzdem auffällt, gehört in eine Rückmeldung – der Abschnitt darüber sagt, wie."
+      ),
     },
   ];
 }

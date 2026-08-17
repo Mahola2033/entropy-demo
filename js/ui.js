@@ -54,6 +54,7 @@ import {
   spielDatum,
   meldungHinzufuegen,
   meldungBetrifftSpieler,
+  neuigkeitenHinweisPruefen,
   forschungVerfuegbar,
   forschungVoraussetzungenErfuellt,
   maxReichweite,
@@ -173,6 +174,7 @@ import { systemName, sternFuer } from "./galaxie.js";
 // Prinzip 5.
 import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js";
 import { handbuchAbschnitte, erststartTafel } from "./handbuch.js";
+import { feedbackAdresse } from "./feedback.js";
 import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole } from "./ressourcen.js";
 
 // Exportiert für js/karte.js: die Systemkarte zeichnet dieselben Symbole wie
@@ -503,6 +505,7 @@ export function render(state, root) {
   // Erklärfenster tritt hinter ihm zurück (siehe dort).
   renderErstklaerung(state, root, planet);
   renderSprachwahl(state, root);
+  renderFeedbackLink(root);
   renderFesteTexte(root);
   root.querySelector("#planet-name").textContent = planet.name;
   root.querySelector("#planet-koordinaten").textContent = t("{system} · Orbit {orbit} · {art}", {
@@ -538,6 +541,11 @@ export function render(state, root) {
   if (sichtbar("handbuch")) teil("handbuch", () => renderHandbuch(root));
   // Nach dem Handbuch, damit der Hinweis im selben Takt in der Liste landet.
   handbuchHinweisPruefen(state);
+  neuigkeitenHinweisPruefen(
+    state,
+    VERSION,
+    t("Neu in v{version} – was sich geändert hat", { version: VERSION })
+  );
   renderMeldungen(state, root);
 }
 
@@ -555,14 +563,75 @@ function renderHandbuch(root) {
     ...handbuchAbschnitte().flatMap((abschnitt) => {
       const h3 = document.createElement("h3");
       h3.textContent = abschnitt.titel;
+      // Sprungmarke: eine Meldung kann direkt hierher führen (A-040). Die
+      // Kennung kommt aus dem Abschnitt selbst, damit es keine zweite Liste
+      // von Ankern gibt, die man vergessen kann (Prinzip 5).
+      h3.id = `handbuch-${abschnitt.id}`;
       const absaetze = abschnitt.absaetze.map((text) => {
         const p = document.createElement("p");
         p.textContent = text;
         return p;
       });
+      // Gegliederte Abschnitte (A-019): Zwischentitel plus Liste. Bisher gab
+      // es nur Fließtext, und für eine Roadmap ist der falsch -- man liest sie
+      // überfliegend ("ist mein Fund schon bekannt?"), nicht am Stück.
+      for (const gruppe of abschnitt.gruppen || []) {
+        const h4 = document.createElement("h4");
+        h4.textContent = gruppe.titel;
+        const ul = document.createElement("ul");
+        for (const punkt of gruppe.punkte) {
+          const li = document.createElement("li");
+          li.textContent = punkt;
+          ul.appendChild(li);
+        }
+        absaetze.push(h4, ul);
+      }
+      if (abschnitt.schluss) {
+        const p = document.createElement("p");
+        p.textContent = abschnitt.schluss;
+        absaetze.push(p);
+      }
+      // Ein Abschnitt darf einen einzigen Verweis nach draußen tragen (A-018).
+      // Er kommt ans Ende und ist ein echter Link, kein Knopf: der Browser
+      // soll ihn als das behandeln, was er ist -- mit Mittelklick, Kontextmenü
+      // und allem, was ein Nutzer von einem Link erwartet.
+      if (abschnitt.link) {
+        const p = document.createElement("p");
+        p.appendChild(externerLink(abschnitt.link.adresse, abschnitt.link.text));
+        absaetze.push(p);
+      }
       return [h3, ...absaetze];
     })
   );
+}
+
+// Ein Link, der das Spiel nicht verlässt.
+//
+// `noopener` ist hier keine Formalie: ohne ihn bekommt die geöffnete Seite
+// über window.opener einen Griff auf DIESEN Tab und könnte ihn wegnavigieren
+// -- mitten in einer laufenden Partie. `noreferrer` steht dazu, weil ältere
+// Browser den ersten Wert allein nicht kennen.
+function externerLink(adresse, text) {
+  const a = document.createElement("a");
+  a.href = adresse;
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  a.textContent = text;
+  return a;
+}
+
+// Der Feedback-Verweis im Kopf (A-018).
+//
+// Er hängt an keinem Spielzustand, aber an der SPRACHE: der vorbefüllte
+// Formulartext ist übersetzt. Deshalb dasselbe Muster wie beim Handbuch --
+// einmal je Sprache setzen statt im Sekundentakt. Ein href, das jede Sekunde
+// neu geschrieben wird, ist zwar harmlos, aber es ist auch jede Sekunde
+// vergebliche Arbeit an einem Element, das sich nie ändert.
+function renderFeedbackLink(root) {
+  const a = root.querySelector("#feedback-link");
+  if (!a || a.dataset.gezeichnet === sprache()) return;
+  a.dataset.gezeichnet = sprache();
+  a.href = feedbackAdresse();
 }
 
 // Feste Beschriftungen aus index.html (Überschriften, Testmodus-Leiste).
@@ -694,7 +763,7 @@ function flussSpeicherZeile(planet, resId, netto) {
   };
 }
 
-function resKachel({ symbol, name, wert, stufe, rate, rateKlasse = "", klassen = "", titel = "", farbe = "" }) {
+function resKachel({ symbol, name, wert, stufe, rate, rateKlasse = "", klassen = "", titel = "", farbe = "", zusatz = "" }) {
   return `
     <div class="res-kachel ${klassen}" title="${titel}"${farbe ? ` style="--res-farbe:${farbe}"` : ""}>
       <span class="res-symbol">${symbol}</span>
@@ -706,6 +775,7 @@ function resKachel({ symbol, name, wert, stufe, rate, rateKlasse = "", klassen =
         <span class="res-wert">${wert}</span>
         <span class="res-rate ${rateKlasse}">${rate}</span>
       </span>
+      ${zusatz ? `<span class="res-zusatz">${zusatz}</span>` : ""}
     </div>`;
 }
 
@@ -802,6 +872,22 @@ function renderRessourcen(state, root, planet) {
             ? `−${ratenText(resId, -rate)}`
             : "",
       rateKlasse: zieht || speicherVoll ? "warnung" : "",
+      // VERDERB BEKOMMT EINE EIGENE ZEILE (A-010, Prinzip 13: keine Zauberei).
+      //
+      // Er taucht in der Flussbilanz NICHT auf, und das ist kein Versehen: er
+      // ist keine Rate, sondern ein Anteil des Bestands -- ein volles Lager
+      // verliert absolut mehr als ein halbleeres. Stünde er nicht da, sähe
+      // der Spieler eine positive Bilanz und einen sinkenden Vorrat und
+      // hielte das Spiel für kaputt.
+      //
+      // Die Zahl steht in SPIELJAHREN, wie jede andere Rate in der Leiste,
+      // und geht dafür durch dieselbe Umrechnung (`rateProJahr`) -- eine
+      // zweite Umrechnung wäre eine zweite Wahrheit über den Zeitmaßstab.
+      zusatz: def.verderb
+        ? t("−{prozent} % im Jahr verdirbt", {
+            prozent: (rateProJahr(def.verderb) * 100).toFixed(1),
+          })
+        : "",
       titel:
         `${t(def.name)} – ${gewichtText}` +
         (def.gebaeude ? t(" · gefördert von {gebaeude}", { gebaeude: t(BUILDINGS[def.gebaeude].name) }) : "") +
@@ -4113,25 +4199,84 @@ function renderMeldungen(state, root) {
     );
   }
 
-  liste.innerHTML = "";
-  if (sichtbar.length === 0) {
-    liste.innerHTML = `<li class="dezent">${
-      state.meldungen.length === 0 ? t("Noch nichts entdeckt.") : t("Nichts, was dich betrifft.")
-    }</li>`;
-    return;
-  }
-  for (const eintrag of sichtbar) {
-    const li = document.createElement("li");
-    // Der Meldungstext selbst wurde bereits beim Entstehen übersetzt und liegt
-    // so im Spielstand -- eine Meldung von gestern bleibt in ihrer Sprache
-    // stehen, wie ein Logbucheintrag. Nur der Zähler drumherum ist Anzeige.
-    li.textContent =
-      eintrag.anzahl > 1
-        ? t("{text}  (+{anzahl} weitere)", { text: eintrag.text, anzahl: eintrag.anzahl - 1 })
-        : eintrag.text;
-    if (eintrag.anzahl > 1) {
-      li.title = t("{anzahl} gleichartige Meldungen zusammengefasst", { anzahl: eintrag.anzahl });
-    }
-    liste.appendChild(li);
-  }
+  // PRINZIP 8a, seit A-040 auch hier: die Liste wurde bis v0.90 jede Sekunde
+  // per innerHTML neu gebaut. Das war ausdrücklich in Ordnung, SOLANGE nichts
+  // darin anklickbar war (so stand es in PRINZIPIEN.md). Mit dem
+  // Neuigkeiten-Hinweis steckt jetzt ein Klickziel darin -- und ein Klick
+  // entsteht nur, wenn mousedown und mouseup dasselbe Element treffen.
+  //
+  // Der stabile Schlüssel ist `nr` aus dem Spielstand (state.js). Die Position
+  // taugt nicht: jede neue Meldung schiebt alle anderen nach unten, das
+  // Element an Platz 3 meinte dann eine Sekunde später etwas anderes -- und
+  // der Klick landete auf der falschen Meldung, was schlimmer ist als ein
+  // verschluckter.
+  //
+  // Der leere Zustand läuft durch denselben Weg (ein Eintrag mit fester
+  // Kennung) statt durch einen zweiten Zweig mit innerHTML: sonst wäre die
+  // Liste bei jedem Wechsel zwischen leer und voll wieder ein Neubau.
+  const leerText =
+    state.meldungen.length === 0 ? t("Noch nichts entdeckt.") : t("Nichts, was dich betrifft.");
+  const eintraege = sichtbar.length ? sichtbar : [{ nr: "leer", text: leerText, anzahl: 1, leer: true }];
+
+  listeAbgleichen(liste, eintraege, {
+    schluessel: (eintrag) => eintrag.nr,
+    bauen: (eintrag) => {
+      const li = document.createElement("li");
+      if (eintrag.leer) li.className = "dezent";
+      // Ereignis EINMAL beim Bauen, nie im Aktualisieren (Lernpunkt 1 zu 8a).
+      // Das Ziel gehört der Meldung und ändert sich nie -- ein hier
+      // eingefangener Bezug kann also nicht veralten (Lernpunkt 4).
+      if (eintrag.ziel) {
+        li.className = "meldung-klickbar";
+        li.setAttribute("role", "button");
+        li.tabIndex = 0;
+        const hin = () => bereichOeffnen(state, root, eintrag.ziel);
+        li.addEventListener("click", hin);
+        li.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            hin();
+          }
+        });
+      }
+      return li;
+    },
+    aktualisieren: (li, eintrag) => {
+      // Der Meldungstext selbst wurde bereits beim Entstehen übersetzt und
+      // liegt so im Spielstand -- eine Meldung von gestern bleibt in ihrer
+      // Sprache stehen, wie ein Logbucheintrag. Nur der Zähler drumherum ist
+      // Anzeige.
+      textSetzen(
+        li,
+        eintrag.anzahl > 1
+          ? t("{text}  (+{anzahl} weitere)", { text: eintrag.text, anzahl: eintrag.anzahl - 1 })
+          : eintrag.text
+      );
+      attributSetzen(
+        li,
+        "title",
+        eintrag.anzahl > 1
+          ? t("{anzahl} gleichartige Meldungen zusammengefasst", { anzahl: eintrag.anzahl })
+          : eintrag.ziel
+            ? t("Öffnet das Handbuch")
+            : null
+      );
+    },
+  });
+}
+
+// Einen Bereich öffnen und dort an eine bestimmte Stelle springen (A-040).
+//
+// Der Bereichswechsel läuft über denselben Schalter wie die Navigation
+// (`aktiverBereich`) -- kein zweiter Mechanismus fürs Bereichswechseln
+// (Prinzip 5), dieselbe Begründung wie beim Handbuch-Knopf im Erklärfenster.
+//
+// Das Scrollen kommt NACH dem Zeichnen: vorher ist der Abschnitt noch
+// `hidden`, hat keine Maße, und scrollIntoView tut folgenlos nichts.
+function bereichOeffnen(state, root, ziel) {
+  aktiverBereich = ziel.bereich;
+  render(state, root);
+  if (!ziel.anker) return;
+  const marke = root.querySelector(`#handbuch-${ziel.anker}`);
+  if (marke && marke.scrollIntoView) marke.scrollIntoView({ block: "start" });
 }

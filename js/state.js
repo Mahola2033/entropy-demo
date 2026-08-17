@@ -1413,15 +1413,83 @@ export function forschungVoraussetzungenErfuellt(state, forschungId) {
 // die noch keine mitgibt -- gilt damit als "betrifft mich" und bleibt sichtbar.
 // Der Filter kann also nie still etwas verschlucken; er kann höchstens zu wenig
 // ausblenden. Genau diese Richtung ist die verzeihliche (Save-Kategorie 1).
-export function meldungHinzufuegen(state, text, gruppe = null, herkunft = "eigen") {
+export function meldungHinzufuegen(state, text, gruppe = null, herkunft = "eigen", ziel = null) {
   const oben = state.meldungen[0];
   if (gruppe && oben && oben.gruppe === gruppe) {
     oben.text = text; // jüngster Text bleibt sichtbar, der Zähler wächst
     oben.anzahl += 1;
     return;
   }
-  state.meldungen.unshift({ text, gruppe, anzahl: 1, herkunft });
+  // `nr` ist eine STABILE KENNUNG, kein Zähler zum Anzeigen. Seit A-040 kann
+  // eine Meldung anklickbar sein, und damit gilt für die Liste Prinzip 8a:
+  // ihre Elemente müssen abgeglichen statt neu gebaut werden, und dafür
+  // braucht jeder Eintrag einen Schlüssel, der ihm gehört. Die Position taugt
+  // dafür nicht -- jede neue Meldung schiebt alle anderen nach unten.
+  state.meldungNr = (state.meldungNr || 0) + 1;
+  const eintrag = { text, gruppe, anzahl: 1, herkunft, nr: state.meldungNr };
+  // `ziel` = { bereich, anker }: wohin ein Klick auf die Meldung führt. Fehlt
+  // es, ist die Meldung ein reiner Logbucheintrag -- also fast immer.
+  if (ziel) eintrag.ziel = ziel;
+  state.meldungen.unshift(eintrag);
   if (state.meldungen.length > 30) state.meldungen.length = 30;
+}
+
+// Meldungen aus Ständen VOR v0.90 haben keine `nr`. Sie hier einmalig
+// nachzutragen ist billiger als überall mit ihrem Fehlen zu rechnen -- und es
+// bleibt save-neutral: ein zusätzliches Feld bricht keinen Stand
+// (`||`-Muster), es fehlt nur.
+//
+// Rückwärts durchlaufen, damit die ÄLTESTE Meldung die kleinste Nummer
+// bekommt: die Liste steht neueste-zuerst, und eine Nummernfolge, die
+// entgegen der Zeit läuft, würde beim nächsten Lesen jeden in die Irre führen.
+export function meldungenNummerieren(state) {
+  if (!Array.isArray(state.meldungen)) return;
+  let hoechste = state.meldungNr || 0;
+  for (const m of state.meldungen) if (typeof m.nr === "number" && m.nr > hoechste) hoechste = m.nr;
+  for (let i = state.meldungen.length - 1; i >= 0; i--) {
+    if (typeof state.meldungen[i].nr !== "number") state.meldungen[i].nr = ++hoechste;
+  }
+  state.meldungNr = hoechste;
+}
+
+// Der „Was ist neu"-Hinweis nach einem Versionswechsel (A-040).
+//
+// ANLASS (Tobi, 17.08.2026): „Prio hoch für alle User-Interaction-Geschichten:
+// Changelog, Feedback-Möglichkeit, Roadmap. Diese Punkte sollten auch leicht zu
+// finden sein im Spiel." Der Handbuch-Abschnitt allein ist nicht auffindbar:
+// niemand öffnet ein Handbuch, um nachzusehen, ob sich etwas geändert hat.
+//
+// WARUM HIER UND NICHT IN ui.js: die Entscheidung „zeigen oder nicht" ist
+// Zustandslogik mit drei Fällen, und die will geprüft sein. In ui.js wäre sie
+// untestbar (kein DOM in Node). Die Version kommt als Argument herein statt
+// aus data.js -- dann kann ein Test einen Wechsel spielen, ohne die echte
+// Versionsnummer zu kennen.
+//
+// DIE FALLE, die der Auftrag ausdrücklich benennt: ein FRISCHES Spiel darf den
+// Hinweis nicht bekommen. Wer gerade anfängt, kennt nichts Altes; neben dem
+// Erklärfenster wäre ein Changelog-Hinweis nur Lärm. Erkennbar ist der frische
+// Start daran, dass beides fehlt: eine gesehene Version UND das Erklärfenster.
+// Die Version wird trotzdem gemerkt -- sonst käme der Hinweis beim nächsten
+// Laden doch noch.
+export function neuigkeitenHinweisPruefen(state, version, text) {
+  const gesehen = state.gesehenVersion || null;
+  if (gesehen === version) return false;
+
+  const frischesSpiel = !gesehen && !state.erstklaerungGesehen;
+  if (frischesSpiel) {
+    state.gesehenVersion = version;
+    return false;
+  }
+
+  // ERST die Meldung, DANN der Merker -- dieselbe Reihenfolge und derselbe
+  // Grund wie beim Handbuch-Hinweis in ui.js: ein Merker, der sagt „ist
+  // erledigt", gehört hinter die Sache, die er bezeugt.
+  meldungHinzufuegen(state, text, "neuigkeiten", "eigen", {
+    bereich: "handbuch",
+    anker: "neuigkeiten",
+  });
+  state.gesehenVersion = version;
+  return true;
 }
 
 // Soll diese Meldung dem Spieler standardmäßig angezeigt werden?

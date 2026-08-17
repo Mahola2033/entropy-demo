@@ -9,6 +9,19 @@ export function reichenAus(bestand, kosten) {
   return Object.entries(kosten).every(([resId, betrag]) => (bestand[resId] || 0) >= betrag);
 }
 
+// WELCHE Ressourcen fehlen -- nicht nur DASS etwas fehlt (A-009).
+//
+// Prinzip 10a: Blockiertes erklärt sich selbst. „Nicht genug Ressourcen" war
+// solange erträglich, wie Gebäude aus Metall und Silizium bestanden und beides
+// direkt daneben in der Leiste stand. Seit Werft, Labor, Schirm und jedes
+// Schiff auch Elektronik kosten, ist die Antwort auf „was fehlt mir denn?"
+// nicht mehr auf einen Blick zu haben.
+export function fehlende(bestand, kosten) {
+  return Object.entries(kosten)
+    .filter(([resId, betrag]) => (bestand[resId] || 0) < betrag)
+    .map(([resId]) => resId);
+}
+
 export function abziehen(bestand, kosten) {
   for (const [resId, betrag] of Object.entries(kosten)) {
     bestand[resId] = (bestand[resId] || 0) - betrag;

@@ -407,6 +407,54 @@ button[title]:disabled {
   border-color: var(--akzent);
 }
 
+/* Die Verderb-Zeile in einer Ressourcenkachel (A-010). Klein und in der
+   Warnfarbe: sie ist kein Nebenwert, sondern der Grund, warum ein Vorrat
+   schrumpft, obwohl die Bilanz positiv aussieht. Sie steht in JEDER Kachel
+   dieser Reihe gleich hoch -- die Kacheln richten sich an der groessten aus
+   (Prinzip 10), es springt also nichts. */
+.res-zusatz {
+  font-size: 0.62rem;
+  color: var(--warnung);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/* Eine Meldung, die irgendwo hinführt (A-040). Sie soll sich vom Logbuch
+   drumherum abheben, ohne wie ein Knopf auszusehen -- sie ist ein Weg, keine
+   Aktion. */
+.meldung-klickbar {
+  color: var(--akzent);
+  cursor: pointer;
+}
+
+.meldung-klickbar:hover {
+  text-decoration: underline;
+}
+
+/* Feedback-Verweis im Kopf (A-018): dieselbe Größe wie die Sprachwahl
+   daneben, aber ohne Rahmen -- er soll da sein, wenn man ihn sucht, und
+   nicht auffallen, wenn man spielt. Erst beim Überfahren nimmt er die
+   Akzentfarbe an. */
+.kopf-feedback {
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  color: var(--text-dezent);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--border);
+  white-space: nowrap;
+}
+
+.kopf-feedback:hover {
+  color: var(--akzent);
+  border-bottom-color: var(--akzent);
+}
+
+/* Der Verweis im Handbuch-Abschnitt. Hier darf er deutlicher sein als im
+   Kopf: wer den Abschnitt liest, sucht ihn bereits. */
+.handbuch a {
+  color: var(--akzent);
+}
+
 /* Versionsanzeige im Kopf: klein und dezent, aber immer sichtbar -- sie
    beantwortet die Frage "spiele ich gerade die eingefrorene Kopie oder den
    Entwicklungsstand". */
@@ -555,6 +603,26 @@ button[title]:disabled {
 
 .handbuch p {
   margin: 0 0 0.7rem;
+}
+
+/* Gegliederte Abschnitte (A-019, Neuigkeiten & Roadmap). Die Zwischentitel
+   sind kleiner und blasser als die Abschnittstitel darüber -- sonst liest man
+   vier Roadmap-Stufen als vier Kapitel. */
+.handbuch h4 {
+  margin: 1.1rem 0 0.3rem;
+  color: var(--text-dezent);
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.handbuch ul {
+  margin: 0 0 0.7rem;
+  padding-left: 1.2rem;
+}
+
+.handbuch li {
+  margin-bottom: 0.25rem;
 }
 
 /* MUSS nach jeder display-Regel stehen, die ein verstecktes Element treffen

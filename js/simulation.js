@@ -108,6 +108,7 @@ import { findeObjekt, setzeOrbitZustand, holeSystem } from "./systeme.js";
 import { stromFuer } from "./zufall.js";
 import {
   reichenAus,
+  fehlende,
   abziehen,
   hinzufuegen,
   lagerHinzufuegen,
@@ -213,6 +214,43 @@ function planetVorruecken(state, planet, bisZeitpunkt) {
   }
 }
 
+// Verderb (A-010): exponentieller Zerfall des BESTANDS, angewandt beim
+// Fortschreiben -- nicht in der Ratenrechnung.
+//
+// WARUM NICHT IN rohRaten: eine Rate, die vom Bestand abhängt, macht den
+// gemerkten Puffergrenzen-Zeitpunkt ab der ersten Sekunde falsch. Genau daran
+// ist der erste Versuch gescheitert (`tests/planetenuhr.test.js` hat ihn
+// gekippt), und es ist derselbe Fehlertyp wie der Zeit-Klassiker: ein Wert
+// wird einmal gerechnet und gilt dann für eine Spanne, in der er sich ändert.
+//
+// DIE FORM IST DIE EXAKTE LÖSUNG, nicht eine Näherung. Für einen Bestand S
+// mit konstantem Zufluss P und Zerfallsrate λ gilt
+//
+//     S(t) = S₀·e^(−λt) + P·(1 − e^(−λt))/λ
+//
+// Deshalb zerfällt hier NICHT nur der Altbestand, sondern der Zuwachs der
+// Spanne wird mit demselben Faktor gewichtet: was in der Mitte der Spanne
+// geerntet wurde, verdirbt nur die halbe Spanne lang. Nur so kommt ein
+// 24-Stunden-Sprung auf denselben Wert wie 86.400 Einzelsekunden -- und genau
+// das ist die Zusicherung, auf der die ganze Aufholung steht.
+//
+// Der Faktor erreicht nie null: e^(−λt) > 0 für jedes endliche t. Ein Vorrat
+// wird also beliebig klein, aber nie leer. Das ist gewollt (Prinzip 7: der
+// Zustand null darf entstehen, aber nicht aus Zauberei).
+function verderbFaktor(resId, stunden) {
+  const lambda = RESSOURCEN[resId] && RESSOURCEN[resId].verderb;
+  if (!lambda || stunden <= 0) return null;
+  const rest = Math.exp(-lambda * stunden);
+  return {
+    // Anteil des Altbestands, der die Spanne übersteht.
+    bestand: rest,
+    // Anteil des in der Spanne Erwirtschafteten, der sie übersteht.
+    // Grenzwert 1 für t→0, also stetig -- ein Ereignis, das die Spanne
+    // zerteilt, ändert das Ergebnis nicht.
+    zuwachs: (1 - rest) / (lambda * stunden),
+  };
+}
+
 function planetRatenAnwenden(state, planet, stunden) {
   {
     const { lager, fluss, produktion } = effektiveRaten(state, planet);
@@ -243,7 +281,14 @@ function planetRatenAnwenden(state, planet, stunden) {
 
     const zuwachs = {};
     for (const [resId, proStunde] of Object.entries(lager)) {
-      const menge = proStunde * stunden;
+      const verderb = verderbFaktor(resId, stunden);
+      // Erst den Altbestand zerfallen lassen, dann die Rate anwenden -- die
+      // Reihenfolge ist Teil der exakten Lösung oben, nicht Geschmack.
+      if (verderb) {
+        const alt = planet.ressourcen[resId] || 0;
+        if (alt > 0) planet.ressourcen[resId] = alt * verderb.bestand;
+      }
+      const menge = proStunde * stunden * (verderb ? verderb.zuwachs : 1);
       if (menge >= 0) {
         zuwachs[resId] = menge;
         continue;
@@ -425,7 +470,13 @@ function naechstesEreignis(state) {
     pruefe(transfer.ankunftZeit, "transfer", transfer);
   }
   if (besteArt === null) return null;
-  return ereignisBauen(state, besteZeit, besteArt, besteEntitaet);
+  const gebaut = ereignisBauen(state, besteZeit, besteArt, besteEntitaet);
+  // Die ART kommt mit ans Ereignis (A-042). Sie wird für die Ausführung nicht
+  // gebraucht, aber für die Diagnose einer hängenden Aufholung: „welches
+  // Ereignis rückt die Uhr nicht vor" ist ohne sie nicht zu beantworten.
+  // Ein Feld an einem ohnehin erzeugten Objekt, kein zweiter Weg.
+  if (gebaut) gebaut.art = besteArt;
+  return gebaut;
 }
 
 // Baut aus der Auswahl das fertige Ereignis -- EINMAL je Ereignis statt
@@ -691,7 +742,19 @@ export function vorspulenSchrittweise(state, jetzt, maxEreignisse, budgetMs = In
   // Genau bis `erreicht` -- NICHT bis `jetzt`.
   ressourcenVorruecken(state, erreicht);
   logistiknetzPruefen(state, erreicht, true);
-  return { ereignisse, erreicht, fertig };
+  // Was als Nächstes ansteht, kommt MIT ZURÜCK (A-042). Es kostet eine
+  // Abfrage und beantwortet die einzige Frage, die man bei einer hängenden
+  // Aufholung wirklich stellt: WER hängt? Ohne diese Angabe meldet der
+  // Wächter in aufholen.js nur eine Zahl, und die Fehlersuche fängt bei null
+  // an -- genau der Zustand, aus dem A-030 herausgeführt hat.
+  const naechstes = fertig ? null : naechstesEreignis(state);
+  return {
+    ereignisse,
+    erreicht,
+    fertig,
+    naechsteArt: naechstes ? naechstes.art : null,
+    naechsteZeit: naechstes ? naechstes.zeit : null,
+  };
 }
 
 export function vorspulenBisJetzt(state, jetzt = spielzeitJetzt(state), deckel = EREIGNIS_DECKEL) {
@@ -1778,11 +1841,26 @@ export function botKolonisieren(state, fraktion, welt, zeit) {
     if (bauStarten(state, welt, "tritiumextraktor", zeit).ok) return true;
   }
 
-  // 2. Werft -- ohne sie gibt es keine Schiffe.
+  // 2. FERTIGUNG -- seit A-009 kostet die Werft Elektronik, und Elektronik
+  // gibt es nur hier. Sie steht aus demselben Grund an dieser Stelle wie der
+  // Extraktor darüber und ausdrücklich NICHT in BOT.nachschub: dort hätte sie
+  // Vorrang vor Kraftwerk, Farm und Wohnmodul, und der Bot baute sich eine
+  // Fabrik ohne Strom und ohne Belegschaft (gemessen, siehe BOT.nachschub).
+  if (!botHatOderBaut(welt, "fertigung")) {
+    if (bauStarten(state, welt, "fertigung", zeit).ok) return true;
+  }
+
+  // 3. Werft -- ohne sie gibt es keine Schiffe.
   if (!botHatOderBaut(welt, "werft")) return bauStarten(state, welt, "werft", zeit).ok;
 
-  // Beides bestellt, aber noch nicht fertig: warten, nicht nachbestellen.
-  if ((welt.gebaeude.tritiumextraktor || 0) <= 0 || (welt.gebaeude.werft || 0) <= 0) return false;
+  // Alles bestellt, aber noch nicht fertig: warten, nicht nachbestellen.
+  if (
+    (welt.gebaeude.tritiumextraktor || 0) <= 0 ||
+    (welt.gebaeude.fertigung || 0) <= 0 ||
+    (welt.gebaeude.werft || 0) <= 0
+  ) {
+    return false;
+  }
 
   // 2. Kolonieschiff bauen, wenn keines dasteht und keines unterwegs ist.
   const flotten = flottenVon(state, fraktion.id);
@@ -2003,6 +2081,43 @@ function aufwandVon(eintrag) {
   return eintrag.aufwand ?? forschungsAufwand(RESEARCH[eintrag.forschungId], eintrag.zielLevel);
 }
 
+// IST DIESE FORSCHUNG FERTIG? Genau EINE Antwort für beide Seiten -- die
+// Projektion (wann ist sie fertig) und den Abschluss (ist sie es jetzt).
+//
+// DER FEHLER, DER DAS ERZWUNGEN HAT (A-042, gefunden am 17.08.2026 in Tobis
+// hängendem Spielstand): dort stand
+//
+//     aufwand:     775850
+//     fortschritt: 775849.999987793
+//
+// Ein Fließkomma-Krümel von 0,0000122 fehlte. Damit galt die Forschung als
+// NICHT fertig, `forschungFertigProjektion` rechnete die Restzeit auf
+// praktisch null und plante das Ereignis auf den aktuellen Zeitpunkt --
+// und `forschungAbschliessen` sah beim Ausführen dasselbe Krümelchen und tat
+// nichts. Ereignis erzeugt, Ereignis ausgeführt, nichts verändert, Uhr steht.
+// Die Aufholung drehte daraufhin mit voller CPU-Last im Kreis (von Chris auf
+// v0.88 unabhängig reproduziert), die Anzeige blieb bei 0 %, und ein Neuladen
+// half nicht, weil der Zeit-Offset im Spielstand liegt.
+//
+// WARUM DER KRÜMEL ÜBERHAUPT ENTSTEHT: der Fortschritt wird je Planet und je
+// Zeitspanne aufaddiert (`forschungGutschreiben`). Viele kleine Sprünge --
+// genau das, was mehrfaches +1m erzeugt -- summieren sich in Fließkomma
+// nicht exakt auf denselben Wert wie ein großer. Er landet dann beliebig
+// knapp unter dem Ziel statt darüber. Das ist keine Schlamperei, sondern die
+// Natur von Fließkomma: kein Rechenweg der Welt trifft eine Summe exakt.
+//
+// DIE SCHRANKE IST RELATIV, nicht absolut. Der Aufwand wächst über die Stufen
+// um Größenordnungen; eine feste Zahl wäre bei kleinen Forschungen zu grob und
+// bei großen zu fein. `1e-9` liegt weit über dem, was sich an Rundungsfehler
+// ansammeln kann (Doubles tragen rund 1e-16 relativ), und weit unter allem,
+// was ein Spieler je als Fortschritt bemerken würde.
+export function forschungFertig(eintrag) {
+  if (!eintrag) return false;
+  const aufwand = aufwandVon(eintrag);
+  const rest = aufwand - (eintrag.fortschritt || 0);
+  return rest <= Math.max(1e-6, aufwand * 1e-9);
+}
+
 function neueForschungsQueue(eintrag, zeit) {
   if (!eintrag) return null;
   return {
@@ -2044,8 +2159,11 @@ function forschungGutschreiben(state, planet, stunden, produktion) {
 function forschungFertigProjektion(state) {
   const queue = state.forschungsQueue;
   if (!queue) return null;
+  // Fertig (auch bis auf einen Fliesskomma-Kruemel)? Dann steht das Ereignis
+  // jetzt an -- und der Abschluss unten sieht dasselbe, weil beide durch
+  // dieselbe Frage gehen. Genau das Auseinanderlaufen war der Fehler (A-042).
+  if (forschungFertig(queue)) return state.letzterTick;
   const rest = aufwandVon(queue) - (queue.fortschritt || 0);
-  if (rest <= 0) return state.letzterTick;
   const fluss = forschungsFluss(state);
   if (fluss <= 0) return null; // Kein Labor, kein Strom, keine Leute: es passiert nichts.
   let frueheste = null;
@@ -2062,7 +2180,7 @@ function forschungAbschliessen(state, zeit) {
   if (!queue) return;
   // Noch nicht so weit: die Projektion lag zu früh (was sie darf). Nichts
   // tun -- naechstesEreignis rechnet mit den nun weitergestellten Uhren neu.
-  if ((queue.fortschritt || 0) < aufwandVon(queue)) return;
+  if (!forschungFertig(queue)) return;
 
   state.forschung[queue.forschungId] = queue.zielLevel;
   meldungHinzufuegen(
@@ -2392,7 +2510,7 @@ export function ladungAufnehmen(state, flotte, buendel) {
   const check = kannUmladen(state, flotte);
   if (!check.ok) return check;
   const planet = check.planet;
-  if (!reichenAus(planet.ressourcen, buendel)) return { ok: false, grund: t("Nicht genug Ressourcen.") };
+  if (!reichenAus(planet.ressourcen, buendel)) return nichtGenug(planet.ressourcen, buendel);
 
   const menge = Object.values(buendel).reduce((a, b) => a + b, 0);
   if (menge > frachtraumFrei(state, flotte)) {
@@ -3871,6 +3989,26 @@ export function ladungEntladen(state, flotte) {
 }
 
 // --- Bauen & Forschen -----------------------------------------------------
+// Eine Absage, die sagt, WORAN es liegt (A-009, Prinzip 10a).
+//
+// Der Satz nennt die fehlenden Ressourcen in Klammern statt in einem eigenen
+// Teilsatz -- so stimmt er für eine wie für drei, und niemand muss ein
+// Genus- oder Numerusfeld pflegen. Dieselbe Überlegung wie bei „{res} gibt es
+// hier nicht" weiter unten.
+//
+// `fehlt` kommt als Feld mit: die Oberfläche kann daran die betroffene
+// Kostenzeile hervorheben, ohne den Satz zu zerlegen.
+function nichtGenug(bestand, kosten) {
+  const fehlt = fehlende(bestand, kosten);
+  return {
+    ok: false,
+    fehlt,
+    grund: t("Nicht genug Ressourcen ({res}).", {
+      res: fehlt.map((resId) => t(RESSOURCEN[resId].name)).join(", "),
+    }),
+  };
+}
+
 export function kannBauen(state, planet, gebaeudeId) {
   if (!planet || planet.typ === "aussenposten") {
     return { ok: false, grund: t("Außenposten haben keine Wirtschaft.") };
@@ -3925,7 +4063,7 @@ export function kannBauen(state, planet, gebaeudeId) {
   }
   const level = naechstesGebaeudeLevel(planet, gebaeudeId);
   const kosten = gebaeudeKosten(planet, def, level);
-  if (!reichenAus(planet.ressourcen, kosten)) return { ok: false, grund: t("Nicht genug Ressourcen.") };
+  if (!reichenAus(planet.ressourcen, kosten)) return { ...nichtGenug(planet.ressourcen, kosten), kosten, level };
   return { ok: true, kosten, level };
 }
 
@@ -4079,7 +4217,7 @@ export function kannSchiffBauen(state, planet, schiffId, anzahl = 1) {
   }
 
   const kosten = schiffKosten(planet, schiffId, anzahl);
-  if (!reichenAus(planet.ressourcen, kosten)) return { ok: false, grund: t("Nicht genug Ressourcen.") };
+  if (!reichenAus(planet.ressourcen, kosten)) return { ...nichtGenug(planet.ressourcen, kosten), kosten };
   return { ok: true, kosten };
 }
 

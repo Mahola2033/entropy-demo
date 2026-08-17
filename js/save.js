@@ -1,6 +1,6 @@
 // Persistenz: Spielstand in localStorage speichern/laden.
 
-import { neuesSpiel, SAVE_VERSION, meldungHinzufuegen } from "./state.js";
+import { neuesSpiel, SAVE_VERSION, meldungHinzufuegen, meldungenNummerieren } from "./state.js";
 import { piratenWeltStart, botWeltStart } from "./simulation.js";
 import { DEMO_SAAT } from "./data.js";
 import { t } from "./sprache.js";
@@ -86,6 +86,10 @@ export function laden() {
         t("Der alte Spielstand stammt aus einer früheren Version – er liegt als Sicherung im Browserspeicher, das Spiel beginnt neu.")
       );
     }
+    // Nachtragen, was ein älterer Stand noch nicht hatte. Bewusst HIER und
+    // nicht bei jedem Zugriff: eine Stelle, die einmal läuft, statt einer
+    // Bedingung an fünfzig Stellen (A-040).
+    meldungenNummerieren(state);
     return state;
   } catch (e) {
     altenStandSichern(raw, "unlesbar");

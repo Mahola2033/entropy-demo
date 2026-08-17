@@ -17,7 +17,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.88";
+export const VERSION = "0.94";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von uebernehmen.mjs beim Kopieren auf "spielkopie"
@@ -278,6 +278,22 @@ export const RESSOURCEN = {
   // Spezialisierung statt "eine Forschung boostet alles". Dichtes Material,
   // braucht pro Einheit mehr Lagerplatz.
   iridium: { id: "iridium", name: "Iridium", symbol: "💎", farbe: "#b39ddb", einheit: "t", art: "lager", start: 0, lagerverbrauch: 4, gebaeude: "iridiummine" },
+  // Veredeltes Gut, zweite Verarbeitungskette (A-009). Entsteht aus Silizium
+  // und viel Energie, und zwar MIT VERLUST -- das ist die These des Spiels
+  // („jede Umwandlung verliert") zum ersten Mal an einer Kette, die im
+  // Frühspiel wirklich jeder anfasst.
+  //
+  // PHYSIK: ein Halbleiter ist nicht Rohmasse, sondern Reinheit. Aus Rohsilizium
+  // wird über den Umweg Trichlorsilan und Zonenschmelzen ein Kristall, in dem
+  // auf eine Milliarde Siliziumatome höchstens eines fremd sein darf. Der
+  // Aufwand steckt fast vollständig in Energie, und der größte Teil des
+  // eingesetzten Materials wird dabei NICHT zu Chip -- er wird zu Abfall,
+  // Schnittverlust und Ausschuss. Deshalb kostet die Fertigung viel Silizium
+  // und liefert wenig Elektronik.
+  //
+  // `lagerverbrauch: 2` -- veredelte Ware ist kompakt, aber nicht frei:
+  // Baugruppen sind empfindlich und brauchen Verpackung statt Schüttgutraum.
+  elektronik: { id: "elektronik", name: "Elektronik", symbol: "🔌", farbe: "#e07a5f", einheit: "t", art: "lager", start: 0, lagerverbrauch: 2, gebaeude: "fertigung" },
   // Seltenes Endgame-Material. Braucht Iridium als Baukosten für die
   // Gewinnungsanlage -- die erste echte Ressourcenkette im Spiel. Extremer
   // Lagerverbrauch pro Einheit (Containment) -- das hält die Mengen klein,
@@ -290,7 +306,22 @@ export const RESSOURCEN = {
   // Versorgungsgut der Bevölkerung. Erste Ressource, die ausschließlich
   // verbraucht statt verbaut wird -- ihre Senke sind die Menschen, sie kann
   // also nicht zu totem Gewicht werden.
-  nahrung: { id: "nahrung", name: "Nahrung", symbol: "🌾", farbe: "#9ccc65", einheit: "t", art: "lager", start: 2000, lagerverbrauch: 1, gebaeude: "farm" },
+  // `verderb` (A-010): Anteil des Bestands, der JE STUNDE Spielzeit verdirbt.
+  // Eine Stunde am Bildschirm sind rund zehn Spieljahre -- 0,2 heißt also
+  // etwa zwei Prozent Verlust je Spieljahr, und über die zehn Jahre bleibt
+  // gut vier Fünftel liegen.
+  //
+  // WARUM DAS EIN FELD IST UND KEIN SONDERFALL: Verderblichkeit ist eine
+  // Eigenschaft von Ware, keine Eigenschaft von Nahrung. Heute trägt sie nur
+  // die Nahrung; ein späteres verderbliches Gut braucht dann keine zweite
+  // Mechanik, sondern eine Zahl (Prinzip 5).
+  //
+  // PHYSIK: nichts hält ewig, auch nicht versiegelt. Fett oxidiert, Stärke
+  // kristallisiert, Vitamine zerfallen, und was ein Silo an Sporen enthält,
+  // arbeitet weiter. Ein exponentieller Zerfall ist dafür die ehrliche Form:
+  // es verdirbt ein ANTEIL des Vorrats, nicht eine feste Menge -- ein großes
+  // Lager verliert absolut mehr als ein kleines und erreicht dabei nie null.
+  nahrung: { id: "nahrung", name: "Nahrung", symbol: "🌾", farbe: "#9ccc65", einheit: "t", art: "lager", start: 2000, lagerverbrauch: 1, gebaeude: "farm", verderb: 0.2 },
   // Bevölkerung ist ein Bestand wie jede Lagerressource -- dadurch lässt sie
   // sich mit Flotten transportieren (Siedler), ohne dass es dafür einen
   // Sonderweg braucht. ZWEI Abweichungen, beide bewusst:
@@ -578,7 +609,7 @@ export const BUILDINGS = {
     // Baumaterial. Macht das Wohnmodul sofort bedeutsam und hält den
     // Meilenstein "erstes eigenes Schiff" da, wo er hingehört.
     bevoelkerungAb: 1200,
-    baseCost: { metall: 400, silizium: 200 },
+    baseCost: { metall: 400, silizium: 200, elektronik: 60 },
     costFactor: 1.55,
     buildTimeDivisor: 2.0,
     produktion: {},
@@ -624,6 +655,42 @@ export const BUILDINGS = {
     // anteilig (bzw. zieht bis zur eingestellten Reserve aus dem Lager).
     verbrauch: { energie: { basis: 900, faktor: 1.15 }, iridium: { basis: 20, faktor: 1.15 }, arbeitskraft: { basis: 45, faktor: 1.15 } },
   },
+  // Die zweite Verarbeitungskette (A-009). Sie steht bewusst FRÜHER als die
+  // Werft (Bevölkerungsschwelle 800 gegen 1200): wer die Werft freischaltet,
+  // muss die Elektronik für sie schon bauen können, sonst wäre die
+  // Freischaltung ein leeres Versprechen.
+  //
+  // WARUM SIE SICH SELBST ERST AB STUFE 2 KOSTET: eine Fertigung, die
+  // Elektronik zum Bauen braucht, wäre auf einer Welt ohne Elektronik nie zu
+  // errichten -- eine Sackgasse, aus der kein Weg zurückführt (dieselbe
+  // Falle, die bei den Bots schon einmal zugeschlagen hat: ohne Mine kein
+  // Metall, ohne Metall keine Mine). Stufe 1 kostet deshalb nur Rohmaterial,
+  // jede weitere Stufe zahlt in der eigenen Ware -- siehe `baseCostAbLevel`.
+  fertigung: {
+    id: "fertigung",
+    gruppe: "industrie",
+    name: "Fertigung",
+    beschreibung:
+      "Macht aus Silizium und viel Strom Elektronik. Ein Halbleiter ist nicht Rohmasse, sondern Reinheit: auf eine Milliarde Siliziumatome darf höchstens ein fremdes kommen. Der größte Teil des eingesetzten Materials wird dabei nicht zu Bauteilen, sondern zu Abfall – dieser Verlust ist der Preis der Veredelung.",
+    kategorie: "fertigung",
+    bevoelkerungAb: 800,
+    baseCost: { metall: 180, silizium: 120, elektronik: 40 },
+    // Stufe 1 zahlt nur Metall und Silizium. Ohne diese Zeile gäbe es keinen
+    // Weg, die erste Fertigung überhaupt zu bauen.
+    baseCostAbLevel: { elektronik: 2 },
+    costFactor: 1.5,
+    buildTimeDivisor: 2.0,
+    produktion: { elektronik: { basis: 30, faktor: 1.2 } },
+    // 90 t Silizium werden zu 30 t Elektronik: zwei Drittel gehen verloren.
+    // Das ist die Zahl, an der „jede Umwandlung verliert" sichtbar wird --
+    // und sie ist Balancing, also gemessen und nicht gewählt (siehe Ergebnis
+    // zu A-009).
+    verbrauch: {
+      silizium: { basis: 90, faktor: 1.2 },
+      energie: { basis: 40, faktor: 1.2 },
+      arbeitskraft: { basis: 20, faktor: 1.15 },
+    },
+  },
   forschungslabor: {
     id: "forschungslabor",
     gruppe: "industrie",
@@ -631,7 +698,7 @@ export const BUILDINGS = {
     beschreibung:
       "Erzeugt Forschung, solange es Strom, Menschen und Laborbedarf hat. Ohne Labor forscht niemand – Erkenntnis entsteht nicht aus Vorräten, sondern aus laufender Arbeit.",
     kategorie: "labor",
-    baseCost: { metall: 150, silizium: 200 },
+    baseCost: { metall: 150, silizium: 200, elektronik: 45 },
     costFactor: 1.5,
     buildTimeDivisor: 1.8,
     // Stufe 1 erzeugt eine Forschungseinheit je Sekunde (siehe FORSCHUNG).
@@ -707,7 +774,7 @@ export const BUILDINGS = {
     beschreibung:
       "Hält ein künstliches Magnetfeld um diese Welt und lenkt geladene Teilchen ab. Braucht dauerhaft rund ein Terawatt – fällt der Strom, fällt der Schirm. Zum Vergleich: der Geodynamo der Erde setzt für dasselbe etwa dieselbe Leistung um.",
     kategorie: "schutz",
-    baseCost: { metall: 8000, silizium: 6000, iridium: 2000 },
+    baseCost: { metall: 8000, silizium: 6000, iridium: 2000, elektronik: 900 },
     costFactor: 1.6,
     buildTimeDivisor: 1.2,
     benoetigt: { forschung: "magnetosphaerentechnik" },
@@ -1000,6 +1067,21 @@ export const BOT = {
   nachschub: [
     { resId: "metall", gebaeude: "metallmine" },
     { resId: "silizium", gebaeude: "siliziummine" },
+    // ELEKTRONIK STEHT HIER BEWUSST NICHT, obwohl seit A-009 alles
+    // Industrielle sie kostet. Sie gehört zur selben Sorte wie das Deuterium:
+    // kein Baustoff der Grundversorgung, sondern Voraussetzung fürs
+    // Wegkommen -- und die Nachschubliste hat Vorrang VOR den Engpässen.
+    //
+    // GEMESSEN, weil es beim ersten Versuch genau schiefging: mit einem
+    // Eintrag hier baute der Bot als drittes Gebäude eine Fertigung, steckte
+    // seinen Startvorrat hinein und stand nach zwanzig Tagen bei
+    // `metallmine1 siliziummine1 lagerhalle1 fertigung1 handelsposten1` --
+    // ohne Kraftwerk, ohne Farm, ohne Wohnmodul, mit **null Einwohnern**.
+    // Die Fertigung lief nie, weil sie Strom und Leute braucht, die es nicht
+    // gab. Dieselbe Sackgassen-Falle wie 2026-08-16, nur mit anderem Gebäude.
+    //
+    // Die Fertigung entsteht deshalb dort, wo sie gebraucht wird: in
+    // `botKolonisieren`, vor der Werft, über das `botHatOderBaut`-Muster.
   ],
 
   // Wann ein Imperium über seine Heimatwelt hinauswächst.
@@ -1920,7 +2002,7 @@ export const SCHIFFE = {
     name: "Sonde",
     beschreibung:
       "Billige Einwegsonde. Deckt einfache Ziele auf. Sie kehrt nicht zurück, weil Abbremsen genauso viel Treibstoff kostet wie Beschleunigen – eine Sonde, die heimkommen soll, ist ein ganz anderes Schiff.",
-    kosten: { metall: 40, silizium: 20 },
+    kosten: { metall: 40, silizium: 20, elektronik: 5 },
     bauzeitSek: 25,
     verbraucht: true,
     tempo: 1,
@@ -1934,7 +2016,7 @@ export const SCHIFFE = {
     id: "erkunder",
     name: "Erkunder",
     beschreibung: "Bemanntes Aufklärungsschiff. Nötig für komplexe Ziele – Anomalien, Strukturen, Gefahren.",
-    kosten: { metall: 500, silizium: 350 },
+    kosten: { metall: 500, silizium: 350, elektronik: 70 },
     bauzeitSek: 200,
     verbraucht: false,
     tempo: 1.3,
@@ -1948,7 +2030,7 @@ export const SCHIFFE = {
     id: "forschungsschiff",
     name: "Forschungsschiff",
     beschreibung: "Wertet Anomalien aus. Ohne Forschungsmission gibt eine Anomalie ihre Technologie nicht her.",
-    kosten: { metall: 800, silizium: 800 },
+    kosten: { metall: 800, silizium: 800, elektronik: 180 },
     bauzeitSek: 320,
     verbraucht: false,
     tempo: 0.9,
@@ -1962,7 +2044,7 @@ export const SCHIFFE = {
     id: "frachter",
     name: "Frachter",
     beschreibung: "Bringt Bergungsgut und Ressourcen nach Hause. Große Funde brauchen mehrere Fahrten.",
-    kosten: { metall: 700, silizium: 300 },
+    kosten: { metall: 700, silizium: 300, elektronik: 90 },
     bauzeitSek: 240,
     verbraucht: false,
     tank: 720,
@@ -1976,7 +2058,7 @@ export const SCHIFFE = {
     id: "kolonieschiff",
     name: "Kolonieschiff",
     beschreibung: "Gründet eine vollwertige Kolonie. Wird dabei verbraucht.",
-    kosten: { metall: 3500, silizium: 2200 },
+    kosten: { metall: 3500, silizium: 2200, elektronik: 400 },
     bauzeitSek: 420,
     tank: 2000,
     verbraucht: true,
@@ -1991,7 +2073,7 @@ export const SCHIFFE = {
     name: "Kriegsschiff",
     beschreibung:
       "Bewaffnetes Schiff. Einziger Schiffstyp, der Gefahren-Objekte angreifen kann. Verstecken kann es sich nicht: jedes Schiff strahlt seine Abwärme gegen einen drei Grad über dem absoluten Nullpunkt kalten Hintergrund ab. Wer im System ist, ist sichtbar.",
-    kosten: { metall: 900, silizium: 500 },
+    kosten: { metall: 900, silizium: 500, elektronik: 140 },
     tank: 600,
     bauzeitSek: 280,
     verbraucht: false,
@@ -2111,10 +2193,16 @@ export function schluesselHaeufigkeit(forschungId) {
 
 // --- Kosten & Zeiten ------------------------------------------------------
 // Arbeiten generisch über alle Ressourcen in baseCost.
+// `baseCostAbLevel` (A-009): einzelne Kostenposten dürfen erst ab einer Stufe
+// anfallen. Gebraucht für Gebäude, die ihre EIGENE Ware kosten -- die erste
+// Stufe muss ohne sie zu bauen sein, sonst ist die Kette nie zu starten.
+// Bewusst als Daten am Gebäude und nicht als Sonderfall im Code (Prinzip 5).
 export function kostenFuerLevel(def, level) {
   const faktor = Math.pow(def.costFactor, level - 1);
   const kosten = {};
   for (const [resId, betrag] of Object.entries(def.baseCost)) {
+    const abLevel = def.baseCostAbLevel && def.baseCostAbLevel[resId];
+    if (abLevel && level < abLevel) continue;
     kosten[resId] = Math.round(betrag * faktor);
   }
   return kosten;

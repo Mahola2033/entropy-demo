@@ -20,6 +20,7 @@ export const EN = {
   Silizium: "Silicon",
   Deuterium: "Deuterium",
   Iridium: "Iridium",
+  Elektronik: "Electronics",
   Antimaterie: "Antimatter",
   Credits: "Credits",
   Nahrung: "Food",
@@ -58,6 +59,7 @@ export const EN = {
   "Deuterium-Extraktor": "Deuterium Extractor",
   Werft: "Shipyard",
   Iridiummine: "Iridium Mine",
+  Fertigung: "Fabrication Plant",
   Antimateriefabrik: "Antimatter Plant",
   Forschungslabor: "Research Lab",
   Handelsposten: "Trading Post",
@@ -82,6 +84,8 @@ export const EN = {
     "Mines iridium. There is almost none in the crust: iridium binds to iron and sank into the core with it while the planet formed. Asteroids carry it a hundred times more densely – the iridium layer at the end of the Cretaceous came from one.",
   "Erzeugt Antimaterie aus Energie. Der Wirkungsgrad ist miserabel und bleibt es – Antimaterie ist kein Brennstoff, sondern der dichteste Speicher, den die Physik kennt: 9 × 10¹⁶ Joule je Kilogramm umgesetzter Masse, das Zehnmillionenfache von chemischem Sprengstoff.":
     "Manufactures antimatter from power. The efficiency is dismal and always will be – antimatter is not a fuel but the densest storage medium physics knows: 9 × 10¹⁶ joules per kilogram of converted mass, ten million times chemical explosive.",
+  "Macht aus Silizium und viel Strom Elektronik. Ein Halbleiter ist nicht Rohmasse, sondern Reinheit: auf eine Milliarde Siliziumatome darf höchstens ein fremdes kommen. Der größte Teil des eingesetzten Materials wird dabei nicht zu Bauteilen, sondern zu Abfall – dieser Verlust ist der Preis der Veredelung.":
+    "Turns silicon and a great deal of power into electronics. A semiconductor is not raw mass but purity: at most one atom in a billion may be foreign. Most of the material that goes in does not become components but waste – that loss is the price of refinement.",
   "Erzeugt Forschung, solange es Strom, Menschen und Laborbedarf hat. Ohne Labor forscht niemand – Erkenntnis entsteht nicht aus Vorräten, sondern aus laufender Arbeit.":
     "Produces research as long as it has power, people and lab supplies. Without a lab nobody researches – knowledge does not come from stockpiles but from work being done.",
   "Handelt mit fremden Imperien in Reichweite und zieht Abgaben aus der eigenen Bevölkerung. Gekaufte Ware muss von einer Flotte abgeholt werden. Die Abgaben wachsen mit Bevölkerung und Stufe, die Betriebskosten überlinear mit der Stufe – zu jeder Weltgröße gibt es deshalb eine beste Stufe. Unter rund 36.000 Einwohnern trägt sich schon die erste nicht.":
@@ -267,6 +271,11 @@ export const EN = {
   // Kurze Sätze, die im Spiel als Tooltip an einem gesperrten Knopf hängen.
   // Sie sagen, WAS fehlt, nicht was der Spieler falsch gemacht hat.
   "Nicht genug Ressourcen.": "Not enough resources.",
+  "−{prozent} % im Jahr verdirbt": "−{prozent} % per year spoils",
+  "Die Aufholung kam nicht voran: {bloecke} Blöcke ohne Fortschritt, hängengeblieben bei einem Ereignis der Art [{art}]. Der Rest der Zeit bleibt offen und wurde NICHT verrechnet.":
+    "Catching up made no progress: {bloecke} blocks without advancing, stuck on an event of type [{art}]. The remaining time is left open and was NOT applied.",
+  unbekannt: "unknown",
+  "Nicht genug Ressourcen ({res}).": "Not enough resources ({res}).",
   "Kein Forschungslabor im Imperium – ohne Labor forscht niemand.":
     "No research lab in the empire – without a lab nobody researches.",
   "Nicht genug Frachtraum.": "Not enough cargo space.",
@@ -952,4 +961,69 @@ export const EN = {
     "The clock in the header shows how much time is left. Everything else is in the manual – at any time, bottom entry in the bar on the left.",
   "Handbuch öffnen": "Open the manual",
   "Los geht's": "Let's go",
+
+  // Der Feedback-Kanal (A-018). Der Körper des vorbefüllten GitHub-Formulars
+  // steht in js/feedback.js -- er wird in der Sprache abgeschickt, in der der
+  // Tester gespielt hat, und genau das wollen wir auch lesen.
+  Feedback: "Feedback",
+  "Was ist passiert?": "What happened?",
+  "Was hast du erwartet?": "What did you expect?",
+  "Version {version} ({stand}) – automatisch eingetragen, bitte stehen lassen.":
+    "Version {version} ({stand}) – filled in automatically, please leave it in.",
+  "Rückmeldung geben": "Send feedback",
+  "Das hier ist ein Entwicklungsstand, kein fertiges Spiel. Was dir auffällt, ist deshalb ausdrücklich erwünscht: ein Fehler, eine Stelle, an der du nicht weiterwusstest, etwas, das sich falsch anfühlt.":
+    "This is a work in progress, not a finished game. So whatever strikes you is explicitly welcome: a bug, a place where you got stuck, something that feels wrong.",
+  "Der Link öffnet ein Formular in einem neuen Tab – dieses hier läuft weiter, du verlierst nichts. Welche Fassung du vor dir hast, trägt er selbst ein; das ist die Angabe, die uns sonst immer fehlt. Zum Abschicken braucht es ein GitHub-Konto.":
+    "The link opens a form in a new tab – this one keeps running, you lose nothing. Which build you are looking at is filled in for you; that is the detail we otherwise always miss. Sending it requires a GitHub account.",
+
+  // Neuigkeiten & Roadmap (A-019). Der deutsche Text kommt WÖRTLICH aus
+  // AUFTRAEGE/ROADMAP.md -- wer ihn hier ändert, muss ihn dort ändern lassen
+  // (die Datei gehört der Planung), sonst zeigen deutsche und englische
+  // Fassung Verschiedenes.
+  "Neuigkeiten & Roadmap": "What's new & roadmap",
+  "Diese Demo ist unterwegs, nicht fertig. Hier steht, was zuletzt dazugekommen ist und was als Nächstes drankommt – damit du weißt, was du siehst, und nicht meldest, was schon auf dem Zettel steht.":
+    "This demo is on its way, not finished. Here is what was added most recently and what comes next – so you know what you are looking at, and do not report what is already on the list.",
+  Kürzlich: "Recently",
+  Bald: "Soon",
+  "In Arbeit": "In progress",
+  Später: "Later",
+  "Hänger bei Zeitsprüngen und Tab-Wechseln behoben — und wenn doch etwas stockt, meldet das Spiel es jetzt selbst":
+    "Stalls on time jumps and tab switches fixed — and if something does hang, the game now says so itself",
+  "Erklärung beim allerersten Start, Handbuch, Galaxie- und Systemkarte":
+    "An explanation on the very first start, the manual, galaxy and system maps",
+  "Meldungen zeigen nur noch, was dein Imperium betrifft":
+    "Messages now only show what concerns your empire",
+  "Ingame-Datum „Jahr N · Tag M“ — Fristen sind jetzt lesbar":
+    "In-game date “Year N · Day M” — deadlines are readable now",
+  "Gebäude nach Themen sortiert, Countdown mit Frist und Balken":
+    "Buildings sorted by theme, countdown with deadline and bar",
+  "Fremde Stützpunkte sind als fremd erkennbar; die Flut trifft alle Fraktionen nach denselben Regeln":
+    "Foreign outposts are recognisable as foreign; the flux hits every faction by the same rules",
+  "Der Treibstoff heißt jetzt physikalisch ehrlich Deuterium":
+    "The fuel is now called deuterium, which is what it physically is",
+  "Feedback-Link, Roadmap und „Was ist neu“ direkt im Spiel":
+    "Feedback link, roadmap and “what's new” right inside the game",
+  "Bauen ohne volle Ressourcen — die Warteschlange wartet und baut dann":
+    "Queueing without full resources — the queue waits and then builds",
+  "Flotten bleiben am Ziel; der Sonden-Schnellversand denkt mit":
+    "Fleets stay at their destination; quick probe dispatch thinks along",
+  "Hotkeys für die Bedienung": "Hotkeys for the controls",
+  "Kacheln zeigen ihren Bau- und Forschungsfortschritt als Fläche":
+    "Tiles show their build and research progress as an area",
+  "Energie bekommt echte Entscheidungen: zwei Kraftwerkstypen mit Vor- und Nachteilen":
+    "Power gets real decisions: two kinds of plant, each with upsides and downsides",
+  "Eine zweite Verarbeitungskette": "A second processing chain",
+  "Ressourcen-Namen werden physikalisch ehrlich": "Resource names become physically honest",
+  "Die Versorgungskrise wird ernster — und bekommt einen Ausweg":
+    "The supply crisis gets more serious — and gets a way out",
+  "Endliche Vorkommen — ⚠ dieser Schritt setzt Spielstände einmalig zurück":
+    "Finite deposits — ⚠ this step resets saved games once",
+  "Lesbare Systemnamen statt Nummern": "Readable system names instead of numbers",
+  "Oberfläche fürs Handy": "A layout for phones",
+  "Was hier nicht steht und dir trotzdem auffällt, gehört in eine Rückmeldung – der Abschnitt darüber sagt, wie.":
+    "Anything not listed here that strikes you anyway belongs in a piece of feedback – the section above says how.",
+
+  // Der Hinweis nach einem Versionswechsel (A-040).
+  "Neu in v{version} – was sich geändert hat": "New in v{version} – what changed",
+  "Öffnet das Handbuch": "Opens the manual",
 };

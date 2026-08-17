@@ -196,6 +196,12 @@ export async function aufholen(state) {
   let anzeige = null;
   let ereignisse = 0;
   let deckelGerissen = false;
+  // Der Wächter merkt sich, SEIT WANN die Uhr steht (Wanduhr) und wie viele
+  // Blöcke das waren -- die Zahl geht nur in die Meldung. Beides steht
+  // außerhalb beider Schleifen: ein Stillstand hört nicht auf, nur weil die
+  // Außenschleife eine neue Runde beginnt.
+  let steheStillSeit = null;
+  let steheStillBloecke = 0;
 
   try {
     // Aussenschleife: sie laeuft ein zweites Mal, wenn waehrend der Rechnung
@@ -231,9 +237,48 @@ export async function aufholen(state) {
         // Phase benennen, damit eine gemeldete Stockung sagen kann, WER sie
         // war -- ohne das liefert der Beobachter nur eine Zahl (A-030).
         const phaseFertig = phase(`Aufholung Block ${nummer}`);
+        const vorher = state.letzterTick;
         const schritt = vorspulenSchrittweise(state, ziel, EREIGNIS_FANGNETZ, ZIEL_BLOCK_RECHENZEIT_MS);
         phaseFertig();
         ereignisse += schritt.ereignisse;
+
+        // DER WÄCHTER (A-042). Jeder Block MUSS die Uhr strikt vorrücken.
+        //
+        // Tut er es nicht, dreht die Schleife auf der Stelle: der Balken
+        // bleibt bei 0 %, die Seite sieht aus wie abgestürzt, und ein
+        // Neuladen hilft nicht, weil `testZeitOffsetMs` im Spielstand liegt
+        // und das Ziel wieder dorthin setzt. Genau das hat Tobi am 17.08. auf
+        // der Live-Demo gemeldet.
+        //
+        // Die Invariante ist SCHÄRFER als „läuft nie rückwärts": sie verlangt
+        // vorwärts. Ein Block, der nichts bewegt, ist kein langsamer Block,
+        // sondern ein kaputter -- die Zeit rückt zwischen zwei Ereignissen
+        // immer vor, und wenn nicht, steht ein Ereignis im Weg, das sich
+        // nicht abräumt.
+        //
+        // DREI in Folge, nicht einer: ein einzelner Block darf legitim bei
+        // null landen, wenn er sein Zeitbudget schon am ersten Ereignis
+        // verbraucht und dieses Ereignis genau auf `letzterTick` liegt. Erst
+        // die Wiederholung ist der Beweis, dass sich nichts mehr bewegt.
+        if (state.letzterTick > vorher) {
+          steheStillSeit = null;
+          steheStillBloecke = 0;
+        } else {
+          steheStillBloecke += 1;
+          if (steheStillSeit === null) steheStillSeit = performance.now();
+        }
+        if (steheStillSeit !== null && performance.now() - steheStillSeit >= STILLSTAND_MS) {
+          stillstandMelden(state, {
+            bloecke: steheStillBloecke,
+            zeitpunkt: state.letzterTick,
+            art: schritt.naechsteArt,
+            ereignisZeit: schritt.naechsteZeit,
+          });
+          // ABBRECHEN, NICHT PAUSCHAL BUCHEN. Die Regel aus A-032 gilt hier
+          // genauso: lieber eine offene Restzeit, die man sieht, als eine
+          // stillschweigend verrechnete, die den Spielstand verfälscht.
+          return { ereignisse, deckelGerissen, stillstand: true };
+        }
 
         // Die Anzeige kommt erst, wenn es sich lohnt -- und wenn sie einmal
         // da ist, bleibt sie bis zum Ende.
@@ -257,6 +302,44 @@ export async function aufholen(state) {
   }
 
   return { ereignisse, deckelGerissen };
+}
+
+// Wie lange der Wächter Stillstand duldet, bevor er abbricht -- in WANDUHR-
+// ZEIT und nicht in Blöcken.
+//
+// Die erste Fassung zählte Blöcke (drei in Folge ohne Fortschritt) und war
+// GEMESSEN falsch: in Tobis Spielstand takten 376 Fraktionen auf denselben
+// Zeitpunkt. Die Uhr steht dann über mehrere Blöcke völlig zu Recht still,
+// während die Ereignisse dieses einen Zeitpunkts abgearbeitet werden -- der
+// Wächter hätte eine gesunde Aufholung abgebrochen.
+//
+// Was einen echten Stillstand von einem dichten Zeitpunkt unterscheidet, ist
+// nicht die Zahl der Blöcke, sondern die DAUER: gleichzeitige Ereignisse sind
+// endlich viele und in Millisekunden weg, eine Schleife dreht für immer. Fünf
+// Sekunden sind großzügig genug für jeden denkbaren Ereignisstau und kurz
+// genug, dass niemand sie für ein hängendes Spiel hält.
+export const STILLSTAND_MS = 5000;
+
+// EINE HÄNGENDE AUFHOLUNG MUSS SICH SELBST MELDEN (A-042).
+//
+// Der Unterschied zu einer stummen Endlosschleife ist der ganze Punkt: eine
+// Schleife, die sich meldet, ist ein Fehlerbericht -- eine stumme ist ein
+// toter Spielstand, und der Spieler hat nichts in der Hand außer „hängt".
+// Deshalb steht in der Meldung, was man zum Suchen braucht: wie viele Blöcke,
+// welcher Zeitpunkt, und WELCHE Ereignisart nicht weichen wollte.
+//
+// Gruppe `stillstand`, damit mehrere Versuche eine Zeile mit Zähler ergeben
+// und keine Lawine -- dieselbe Regel wie beim gerissenen Deckel darunter.
+export function stillstandMelden(state, { bloecke, zeitpunkt, art, ereignisZeit }) {
+  const rueckstandMin = Math.round(Math.max(0, (ereignisZeit ?? zeitpunkt) - zeitpunkt) / 60000);
+  meldungHinzufuegen(
+    state,
+    t(
+      "Die Aufholung kam nicht voran: {bloecke} Blöcke ohne Fortschritt, hängengeblieben bei einem Ereignis der Art [{art}]. Der Rest der Zeit bleibt offen und wurde NICHT verrechnet.",
+      { bloecke, art: art || t("unbekannt"), minuten: rueckstandMin }
+    ),
+    "stillstand"
+  );
 }
 
 // EIN GERISSENER DECKEL MUSS DEN SPIELER ERREICHEN.

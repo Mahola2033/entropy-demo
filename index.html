@@ -64,6 +64,14 @@
            soll sie finden, ohne zu suchen. Die Wahl liegt in einem eigenen
            localStorage-Eintrag, nicht im Spielstand -- sonst wäre sie beim
            nächsten Versionssprung wieder weg. -->
+      <!-- Feedback-Verweis (A-018). Fester Platz, unaufdringlich: ein Link,
+           kein Knopf -- er konkurriert damit optisch nicht mit den
+           Spielaktionen (Prinzip 8). Das Ziel (ein vorbefülltes GitHub-Formular
+           samt Versionsnummer) setzt js/ui.js, weil es von der Sprache und der
+           laufenden Version abhängt; hier steht nur die Hülle, damit sie nie
+           neu entsteht und nie einen Klick verliert (Prinzip 8a). -->
+      <a class="kopf-feedback" id="feedback-link" href="https://github.com/Mahola2033/entropy-demo/issues/new"
+         target="_blank" rel="noopener noreferrer" data-text="Feedback"></a>
       <div class="kopf-sprache" id="sprach-leiste"></div>
       <!-- data-text: feste Beschriftung, die js/ui.js beim Zeichnen durch t()
            schickt. Der deutsche Text im Attribut IST der Übersetzungsschlüssel,
