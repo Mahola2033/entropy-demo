@@ -3575,8 +3575,39 @@ export function gruendungBefehlen(state, flotte, art, systemId, orbit) {
 // Mit wem handelt dieser Planet? Ein fremder Planet mit Handelsposten in
 // Reichweite -- der nächstgelegene gewinnt. Fraktionen ohne `handel` (Piraten)
 // scheiden über ihre Art aus, nicht über eine Sonderabfrage.
+// Merker für die Partnersuche -- KEINE Änderung am Ergebnis, nur daran, wie
+// oft es gerechnet wird (A-030).
+//
+// Gemessen im Browser: `renderMarkt` kostete 15 bis 22 ms JE SEKUNDE, und der
+// Grund war nicht die Suche selbst, sondern ihre Häufigkeit. `kannVerkaufen`
+// und `kannKaufen` rufen beide `partnerPruefen` und damit `handelsPartner`
+// auf; die Marktansicht fragt sie je Ware. Das sind bei sechs Waren
+// **dreizehn vollständige Galaxie-Durchläufe pro Bild** -- jeder über 397
+// Planeten, jeder mit Erreichbarkeitsprüfung und Streckenrechnung.
+//
+// Derselbe Fehlertyp, der in v0.31 schon einmal die Rechenzeit gekostet hat:
+// eine teure Abfrage, die in einer Schleife steckt. Die Lehre von damals
+// steht in PRINZIPIEN.md -- Aufrufkosten × Aufrufhäufigkeit, und die
+// Häufigkeit ist hier der Faktor.
+//
+// Der Schlüssel ist die Planetenuhr: innerhalb EINES Takts kann sich die
+// Antwort nicht ändern. Alles, was sie ändern würde (eine neue Kolonie, eine
+// gekippte Beziehung, ein zerstörter Posten), passiert über ein Ereignis --
+// und ein Ereignis rückt `letzterTick` vor. Schlimmster Fall ist also eine
+// Antwort, die eine Sekunde alt ist; sichtbar ist das nicht.
+let partnerMerker = { tick: -1, planetId: -1, wert: null };
+
 export function handelsPartner(state, planet) {
   if (!planet) return null;
+  if (partnerMerker.tick === state.letzterTick && partnerMerker.planetId === planet.id) {
+    return partnerMerker.wert;
+  }
+  const gefunden = handelsPartnerSuchen(state, planet);
+  partnerMerker = { tick: state.letzterTick, planetId: planet.id, wert: gefunden };
+  return gefunden;
+}
+
+function handelsPartnerSuchen(state, planet) {
   let bester = null;
   for (const fremd of state.planeten) {
     if (fraktionVon(fremd) === fraktionVon(planet)) continue;

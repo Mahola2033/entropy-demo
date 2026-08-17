@@ -799,6 +799,12 @@ export const EN = {
   "Nächster Schritt: {mission}": "Next step: {mission}",
   "Nächster Schritt: {mission} (braucht {schiff})": "Next step: {mission} (needs a {schiff})",
   "Hier ist nichts mehr zu holen.": "There is nothing left to get here.",
+  // Stockungs-Diagnose (A-030). Sieht der Spieler nur, wenn die Anzeige
+  // wirklich gehangen hat -- dann ist es die wichtigste Meldung der Liste.
+  "Anzeige hing {dauer} ms – Ursache: {wer}": "Display stalled for {dauer} ms – cause: {wer}",
+  unbekannt: "unknown",
+  "[Stockung] Dieser Browser meldet keine langen Aufgaben.":
+    "[Stall] This browser does not report long tasks.",
   "Jahr {jahr} · Tag {tag}": "Year {jahr} · Day {tag}",
   Förderung: "Extraction",
   Energie: "Power",

@@ -25,6 +25,7 @@
 
 import { vorspulenBisJetzt } from "./simulation.js";
 import { spielzeitJetzt, meldungHinzufuegen } from "./state.js";
+import { phase } from "./stockung.js";
 import { t } from "./sprache.js";
 
 // IN WIE VIELE BLOECKE die Aufholung zerfaellt -- nicht, wie lange ein Block
@@ -51,10 +52,36 @@ const BLOECKE = 100;
 // Blockzahl faellt daraus (nach oben gedeckelt durch BLOECKE). Fuenf
 // Sekunden Spielzeit kosten gemessen rund 20 ms -- ungefaehr ein Bild.
 const ZIEL_BLOCK_SPIELZEIT_MS = 5 * 1000;
-// Notbremse nach unten: dauert ein Block spuerbar zu lang, wird er geteilt.
-// Die Grenze ist grosszuegig -- ein kurzes Stocken ist besser als tausend
-// Aufrufe, die nur ihren Sockel bezahlen.
-const BLOCK_ZU_LANG_MS = 250;
+// WIE LANGE EIN BLOCK RECHNEN DARF -- gemessen, nicht geschaetzt (A-030).
+//
+// Bis v0.85 kam die Blockgroesse allein aus der SPANNE: eine feste Zahl
+// Bloecke, plus eine Notbremse, die einen zu langen Block nachtraeglich
+// halbierte. Das hat zwei Loecher, und beide sind in Node gemessen:
+//
+//   1. Der ERSTE Block jeder Spanne ist blind. Ueber Nacht waren das 596 ms,
+//      bei +1 Tag 1192 ms -- am Stueck, ohne Bild. Die Notbremse greift erst
+//      danach.
+//   2. Auf langsamerer Hardware verschiebt sich alles proportional. Eine
+//      Aufteilung nach Spielzeit weiss nichts ueber das Geraet, auf dem sie
+//      laeuft.
+//
+// Jetzt bestimmt die GEMESSENE Rate die naechste Blockgroesse: nach jedem
+// Block ist bekannt, was eine Millisekunde Spielzeit kostet, und daraus faellt
+// die Breite fuer das Zeitbudget. Der erste Block ist absichtlich klein und
+// dient als Messung.
+//
+// WARUM DAS NICHT DER GESCHEITERTE ERSTE ENTWURF IST: der fuehrte die
+// Blockgroesse an einer Ziel-Rechenzeit nach, OHNE Untergrenze -- und lief in
+// den festen Sockel je Aufruf (`vorspulenBisJetzt` rueckt am Ende immer alle
+// Planeten vor). Er stellte sich auf eine Groesse ein, bei der fast nur noch
+// der Sockel bezahlt wurde: viele Aufrufe, kaum Fortschritt, Balken 20 s auf
+// 0 %. Die Untergrenze `MIN_BLOCK_SPIELZEIT_MS` ist genau die Lehre daraus.
+const ZIEL_BLOCK_RECHENZEIT_MS = 50;
+// Kein Block ist schmaler als das -- sonst zahlt man nur noch den Sockel.
+const MIN_BLOCK_SPIELZEIT_MS = 5 * 1000;
+// Erster Block: schmal, er ist die Messung. Zwei Mindestbreiten, damit er
+// ueberhaupt etwas Messbares leistet.
+const PROBE_BLOCK_SPIELZEIT_MS = 2 * MIN_BLOCK_SPIELZEIT_MS;
 // Feiner als tausendstel Schritte wird nicht geteilt: darunter ueberwiegt der
 // Sockel wieder, und ein Prozentbalken braucht es auch nicht genauer.
 const BLOECKE_MAX = 1000;
@@ -94,7 +121,34 @@ export function aufholenLaeuft() {
 // Der Wettlauf mit dem Zeitgeber ist kein Schmuck: in einem HINTERGRUND-Tab
 // feuert rAF ueberhaupt nicht mehr. Ohne ihn bliebe die Aufholung dort ewig
 // stehen, und der Spielstand hinge auf halbem Weg fest.
+// Im Hintergrund-Tab gibt es kein Bild, auf das man warten koennte -- und
+// `setTimeout` wird dort auf mindestens eine Sekunde geklemmt. Beides zusammen
+// hiess: die Aufholung kriecht, sobald der Tab nicht vorn ist. Genau der Fall,
+// den Tobi als "passiert wohl auch manchmal wenn man zum Tab wechselt" gemeldet
+// hat, und er wurde durch das feinere Zeitbudget (A-030) noch spuerbarer --
+// mehr Bloecke heisst oefter warten.
+//
+// Ein `MessageChannel`-Ping wird NICHT geklemmt. Er gibt dem Browser die
+// Kontrolle zurueck (ein echter Makrotask, keine Microtask-Schleife, die den
+// Thread gar nicht freigibt) und kommt sofort wieder. Im Hintergrund ist das
+// die richtige Wahl: niemand sieht ein Bild, aber Klicks und Zeitgeber
+// sollen weiter durchkommen.
+function naechsterTakt() {
+  return new Promise((fertig) => {
+    const kanal = new MessageChannel();
+    kanal.port1.onmessage = () => {
+      kanal.port1.close();
+      fertig();
+    };
+    kanal.port2.postMessage(0);
+  });
+}
+
 function naechstesBild() {
+  const unsichtbar =
+    typeof document !== "undefined" && document.visibilityState === "hidden";
+  if (unsichtbar && typeof MessageChannel === "function") return naechsterTakt();
+
   return new Promise((fertig) => {
     let erledigt = false;
     const einmal = () => {
@@ -102,7 +156,11 @@ function naechstesBild() {
       erledigt = true;
       fertig();
     };
+    // `requestAnimationFrame` ist das einzige, was einen gezeichneten Rahmen
+    // wirklich zusichert -- setTimeout(0) wird geklemmt und garantiert nichts.
     if (typeof requestAnimationFrame === "function") requestAnimationFrame(einmal);
+    // Wettlauf als Sicherheitsnetz: rAF feuert nicht, wenn der Tab genau
+    // zwischen den beiden Zeilen unsichtbar wird.
     setTimeout(einmal, 100);
   });
 }
@@ -177,15 +235,22 @@ export async function aufholen(state) {
         break;
       }
 
-      let block = blockGroesse(spanne);
-      const kleinsterBlock = Math.ceil(spanne / BLOECKE_MAX);
+      // Erster Block ist die Messung, danach fuehrt die gemessene Rate.
+      let block = ersterBlock(spanne);
       let stand = start;
+      let nummer = 0;
 
       while (stand < ziel) {
         const bis = Math.min(ziel, stand + block);
+        const breite = bis - stand;
+        nummer += 1;
+        // Phase benennen, damit eine gemeldete Stockung sagen kann, WER sie
+        // war -- ohne das liefert der Beobachter nur eine Zahl (A-030).
+        const phaseFertig = phase(`Aufholung Block ${nummer}, ${Math.round(breite / 1000)} s Spielzeit`);
         const t0 = performance.now();
         const diagnose = vorspulenBisJetzt(state, bis);
         const dauer = performance.now() - t0;
+        phaseFertig();
         ereignisse += diagnose.ereignisse;
         deckelGerissen = deckelGerissen || diagnose.deckelGerissen;
         stand = bis;
@@ -197,7 +262,10 @@ export async function aufholen(state) {
         }
         if (anzeige) anzeige.setzen((stand - start) / spanne);
 
-        if (dauer > BLOCK_ZU_LANG_MS) block = Math.max(kleinsterBlock, Math.round(block / 2));
+        // Aus dem, was dieser Block WIRKLICH gekostet hat, faellt die Breite
+        // des naechsten. Damit passt sich die Aufholung an das Geraet an,
+        // statt auf eine Annahme ueber es zu setzen.
+        block = naechsterBlock(breite, dauer, spanne);
         await naechstesBild();
       }
 
@@ -222,6 +290,46 @@ export async function aufholen(state) {
 export function blockGroesse(spanne) {
   const bloecke = Math.min(BLOECKE, Math.max(1, Math.round(spanne / ZIEL_BLOCK_SPIELZEIT_MS)));
   return Math.ceil(spanne / bloecke);
+}
+
+// Der Probeblock: schmal, damit der erste Griff nicht blind ins Volle geht.
+export function ersterBlock(spanne) {
+  return Math.min(spanne, PROBE_BLOCK_SPIELZEIT_MS);
+}
+
+// Wie breit darf der naechste Block sein? Aus der GEMESSENEN Rate des
+// letzten, nicht aus der Spanne.
+//
+//   breite  Spielzeit, die der letzte Block abgedeckt hat (ms)
+//   dauer   was er dafuer an Wanduhr gebraucht hat (ms)
+//   spanne  die ganze offene Luecke -- deckelt nach oben, damit der
+//           Fortschrittsbalken sich noch bewegt (mindestens hundert Schritte)
+//
+// Eigene Funktion, damit `tests/sprungmessung.mjs` dieselbe Rechnung benutzt
+// und nicht dieselbe IDEE ein zweites Mal umsetzt -- zwei Stellen, die
+// dieselbe Grenze meinen und getrennt gepflegt werden, sind in diesem Projekt
+// schon einmal auseinandergelaufen (siehe PRINZIPIEN.md zur Puffergrenze).
+export function naechsterBlock(breite, dauer, spanne) {
+  const obergrenze = Math.max(MIN_BLOCK_SPIELZEIT_MS, Math.ceil(spanne / BLOECKE));
+  // WACHSTUMSBREMSE -- die Lehre aus der ersten Messung dieses Umbaus.
+  //
+  // Die Regel schaut auf den LETZTEN Block und hinkt damit jeder Aenderung
+  // einen Block nach. Die Ereignisdichte ist aber nicht gleichmaessig: auf
+  // eine ruhige Strecke folgte ein grosszuegig bemessener Block, und traf der
+  // auf eine Dichtespitze, kostete er das Vielfache. Gemessen ueber einen
+  // ganzen Tag Spielzeit: schlimmster Block 928 ms, obwohl das Budget 50 ms
+  // sagt.
+  //
+  // Ein Block darf deshalb nur um die Haelfte wachsen, aber beliebig
+  // schrumpfen. Nach unten muss die Regel sofort reagieren duerfen -- nach
+  // oben hat sie Zeit, und Vorsicht kostet dort nur ein paar Bloecke mehr.
+  const gedeckelt = Math.min(obergrenze, Math.round(breite * 1.5));
+  // Ein Block, der nicht messbar gedauert hat, sagt nichts ueber die Rate --
+  // dann vorsichtig wachsen statt aus dem Rauschen zu rechnen.
+  if (!(dauer > 0.5) || !(breite > 0)) return Math.max(MIN_BLOCK_SPIELZEIT_MS, gedeckelt);
+  const proMs = dauer / breite;
+  const gewuenscht = ZIEL_BLOCK_RECHENZEIT_MS / proMs;
+  return Math.max(MIN_BLOCK_SPIELZEIT_MS, Math.min(gedeckelt, Math.round(gewuenscht)));
 }
 
 // EIN GERISSENER DECKEL MUSS DEN SPIELER ERREICHEN.

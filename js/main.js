@@ -3,9 +3,10 @@
 import { laden, speichern } from "./save.js";
 import { vorspulenBisJetzt } from "./simulation.js";
 import { aufholen, aufholenLaeuft, grosseLuecke, deckelMelden } from "./aufholen.js";
-import { render } from "./ui.js";
+import { render, renderProfilStarten, renderProfilLesen } from "./ui.js";
 import { testmodusEinrichten } from "./testmodus.js";
-import { spracheLaden } from "./sprache.js";
+import { spracheLaden, t } from "./sprache.js";
+import { phase, stockungenBeobachten, stockungsBericht } from "./stockung.js";
 
 const root = document;
 // Sprache VOR dem ersten Rendern festlegen -- sonst blitzt einmal die falsche
@@ -30,8 +31,16 @@ const state = laden();
 // Testmodus-Knöpfe rechneten dieselbe Arbeit weiter in einem Zug -- und
 // genau daran hat sich die Demo aufgehängt. Dort steht auch die Messung.
 
+// VOR allem anderen, damit auch die Startaufholung schon beobachtet wird.
+// Liefert false, wenn der Browser `longtask` nicht kennt (Safari, Firefox) --
+// dann ist das Schweigen kein Freispruch, sondern eine fehlende Messung.
+const stockungenSichtbar = stockungenBeobachten(state);
+
 aufholen(state).then((diagnose) => {
   deckelMelden(state, diagnose);
+  if (!stockungenSichtbar) {
+    console.info(t("[Stockung] Dieser Browser meldet keine langen Aufgaben."));
+  }
   render(state, root);
   testmodusEinrichten(state, root, render);
 
@@ -51,16 +60,28 @@ aufholen(state).then((diagnose) => {
     if (grosseLuecke(state)) {
       aufholen(state).then((d) => {
         deckelMelden(state, d);
+        const fertig = phase("render");
         render(state, root);
+        fertig();
       });
       return;
     }
+    const taktFertig = phase("Sekundentakt");
     deckelMelden(state, vorspulenBisJetzt(state));
     render(state, root);
+    taktFertig();
   }, 1000);
 
   // Alle 10 Sekunden speichern, plus beim Verlassen der Seite.
-  setInterval(() => speichern(state), 10000);
+  //
+  // Als Phase benannt, weil das der zweite Verdächtige ist: ein Spielstand
+  // wiegt rund 2 MB, und `JSON.stringify` samt `localStorage.setItem` läuft
+  // synchron. Ob das 5 ms oder 500 ms kostet, war nie gemessen (A-030).
+  setInterval(() => {
+    const fertig = phase("speichern");
+    speichern(state);
+    fertig();
+  }, 10000);
   window.addEventListener("beforeunload", () => speichern(state));
 
   // Erst JETZT der erste Schreibversuch, und bewusst als LETZTES. Vorher stand
@@ -72,4 +93,14 @@ aufholen(state).then((diagnose) => {
 });
 
 // Für schnelles Debuggen in der Konsole erreichbar machen.
-window.__entropy = { state };
+//
+// `profilStarten`/`profilLesen` schlüsseln die Renderkosten je Bereich auf
+// (A-030) -- der Weg, einen Freeze-Bericht in Zahlen zu verwandeln:
+//   __entropy.profilStarten(); // ein paar Sekunden spielen
+//   __entropy.profilLesen();
+window.__entropy = {
+  state,
+  profilStarten: renderProfilStarten,
+  profilLesen: renderProfilLesen,
+  stockungen: stockungsBericht,
+};

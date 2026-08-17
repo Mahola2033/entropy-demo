@@ -392,6 +392,67 @@ function ratenBuendelText(buendel, symbolisch = false) {
   return teile.join(symbolisch ? "  " : ", ");
 }
 
+// --- Aufschlüsselung der Renderkosten (A-030) -----------------------------
+//
+// `render()` läuft jede Sekunde und ruft JEDEN Bereich auf, auch die sieben,
+// die gerade nicht zu sehen sind. Ob das 5 ms oder 50 ms kostet, war nie
+// gemessen -- und ein Freeze-Bericht ohne Aufschlüsselung ist eine Vermutung.
+//
+// Aus, solange niemand sie einschaltet. Kosten im Normalbetrieb: eine
+// Null-Prüfung je Bereich.
+//
+//   window.__entropy.profilStarten(); // ein paar Sekunden warten
+//   window.__entropy.profilLesen();   // Millisekunden je Bereich, sortiert
+let profil = null;
+
+export function renderProfilStarten() {
+  profil = new Map();
+}
+
+export function renderProfilLesen() {
+  if (!profil) return null;
+  const zeilen = [...profil.entries()].map(([name, { summe, aufrufe }]) => ({
+    name,
+    msJeAufruf: +(summe / aufrufe).toFixed(2),
+    aufrufe,
+  }));
+  zeilen.sort((a, b) => b.msJeAufruf - a.msJeAufruf);
+  return zeilen;
+}
+
+function teil(name, fn) {
+  if (!profil) return fn();
+  const t0 = performance.now();
+  fn();
+  const dauer = performance.now() - t0;
+  const alt = profil.get(name) || { summe: 0, aufrufe: 0 };
+  profil.set(name, { summe: alt.summe + dauer, aufrufe: alt.aufrufe + 1 });
+}
+
+// --- Nur zeichnen, was jemand sieht (A-030) --------------------------------
+//
+// DAS WAR DIE URSACHE DER FREEZES, und sie hat mit der Zeitaufholung nichts zu
+// tun. `render()` läuft jede Sekunde und rief JEDEN Bereich auf -- auch die
+// sieben, die gerade hinter `hidden` liegen.
+//
+// Gemessen im Browser auf der Demo-Saat (397 Planeten, 509 Flotten), Kosten je
+// Aufruf: Markt 15,0 ms · Forschung 5,8 ms · Galaxie 4,4 ms · Gebäude 3,6 ms,
+// ganzer Durchlauf rund 54 ms. Der teuerste Posten war ein Bereich, den
+// niemand ansah. Auf einem vier- bis sechsmal langsameren Gerät sind das 220
+// bis 330 ms -- JEDE SEKUNDE. Genau das ist Tobis „Freezes kommen wirklich
+// sehr regelmäßig", und es erklärt, warum der v0.82-Umbau nichts geändert hat:
+// er hat den falschen Verdächtigen behandelt.
+//
+// `renderNavigation` setzt die `hidden`-Marken, und es läuft VOR den
+// Bereichen -- die Abfrage hier sieht also schon den neuen Stand. Beim
+// Umschalten zeichnet der neue Bereich damit im selben Durchlauf.
+function bereichSichtbar(root, name) {
+  const abschnitt = root.querySelector(`.bereich[data-bereich="${name}"]`);
+  // Kein Abschnitt gefunden heißt: zeichnen. Lieber zu viel Arbeit als eine
+  // Anzeige, die stillschweigend einfriert.
+  return !abschnitt || !abschnitt.hidden;
+}
+
 export function render(state, root) {
   const jetzt = spielzeitJetzt(state);
   const planet = aktiverPlanet(state);
@@ -421,21 +482,31 @@ export function render(state, root) {
     art: planetArtText(planet),
   });
 
-  renderPlanetenwahl(state, root);
-  renderRessourcen(state, root, planet);
-  renderNavigation(state, root, planet);
-  renderStatus(state, root, planet, jetzt);
-  renderImperium(state, root);
-  renderGebaeude(state, root, planet);
-  renderVerarbeitung(state, root, planet);
-  renderForschung(state, root, planet);
-  renderWerft(state, root, planet, jetzt);
-  renderMarkt(state, root, planet);
-  renderLogistiknetz(state, root, planet, jetzt);
-  renderFlotten(state, root, planet, jetzt);
-  renderGalaxie(state, root);
-  renderSystem(state, root, jetzt);
-  renderHandbuch(root);
+  teil("planetenwahl", () => renderPlanetenwahl(state, root));
+  teil("ressourcen", () => renderRessourcen(state, root, planet));
+  teil("navigation", () => renderNavigation(state, root, planet));
+  teil("status", () => renderStatus(state, root, planet, jetzt));
+  // Ab hier nur noch, was zu sehen ist. Die Reihenfolge bleibt wie gehabt --
+  // sie ist an mehreren Stellen begründet (Abspann vor Erstklärung, Handbuch
+  // vor dem Hinweis).
+  const sichtbar = (name) => bereichSichtbar(root, name);
+  if (sichtbar("imperium")) teil("imperium", () => renderImperium(state, root));
+  if (sichtbar("planet")) {
+    teil("gebaeude", () => renderGebaeude(state, root, planet));
+    teil("verarbeitung", () => renderVerarbeitung(state, root, planet));
+  }
+  if (sichtbar("forschung")) teil("forschung", () => renderForschung(state, root, planet));
+  if (sichtbar("werft")) teil("werft", () => renderWerft(state, root, planet, jetzt));
+  if (sichtbar("handel")) {
+    teil("markt", () => renderMarkt(state, root, planet));
+    teil("logistiknetz", () => renderLogistiknetz(state, root, planet, jetzt));
+  }
+  if (sichtbar("flotten")) teil("flotten", () => renderFlotten(state, root, planet, jetzt));
+  if (sichtbar("galaxie")) {
+    teil("galaxie", () => renderGalaxie(state, root));
+    teil("system", () => renderSystem(state, root, jetzt));
+  }
+  if (sichtbar("handbuch")) teil("handbuch", () => renderHandbuch(root));
   // Nach dem Handbuch, damit der Hinweis im selben Takt in der Liste landet.
   handbuchHinweisPruefen(state);
   renderMeldungen(state, root);
