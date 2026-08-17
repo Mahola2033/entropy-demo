@@ -17,7 +17,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.82";
+export const VERSION = "0.85";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von uebernehmen.mjs beim Kopieren auf "spielkopie"
@@ -260,7 +260,19 @@ export const RESSOURCEN = {
   metall: { id: "metall", name: "Metall", symbol: "🔩", farbe: "#8fa3bf", einheit: "t", art: "lager", start: 500, lagerverbrauch: 1, gebaeude: "metallmine" },
   silizium: { id: "silizium", name: "Silizium", symbol: "💠", farbe: "#7dd3fc", einheit: "t", art: "lager", start: 300, lagerverbrauch: 1, gebaeude: "siliziummine" },
   // Treibstoff. Name ist reine Kosmetik und hier in einer Zeile änderbar.
-  tritium: { id: "tritium", name: "Tritium", symbol: "⚛️", farbe: "#6ee7a8", einheit: "t", art: "lager", start: 600, lagerverbrauch: 1.5, gebaeude: "tritiumextraktor" },
+  // DIE ID HEISST WEITER `tritium`, DER NAME NICHT MEHR -- und das ist Absicht.
+  //
+  // Lore-Korrektur, beschlossen seit v0.30 (LORE-PHYSIK.md Abschnitt 1):
+  // Tritium hat eine Halbwertszeit von 12,3 Jahren und kommt natürlich
+  // praktisch nicht vor -- es ist nichts, was man fördert. Der förderbare
+  // schwere Wasserstoff ist DEUTERIUM: stabil, und überall dort, wo Wasser
+  // ist. Der Extraktor war deshalb das einzige Gebäude, dessen Lore-Text nie
+  // geschrieben wurde; jetzt trägt er sie.
+  //
+  // Umbenannt wurde NUR, was der Spieler sieht. Die ID `tritium` steckt in
+  // jedem Spielstand -- sie zu ändern bricht laufende Partien und ist damit
+  // Save-Kategorie 3. Der Umzug kommt im Sammel-Sprung, nicht einzeln (A-007).
+  tritium: { id: "tritium", name: "Deuterium", symbol: "⚛️", farbe: "#6ee7a8", einheit: "t", art: "lager", start: 600, lagerverbrauch: 1.5, gebaeude: "tritiumextraktor" },
   // Mittelseltenes Strategiematerial -- eigene Kategorie (siehe iridiummine),
   // damit Fördertechnik es NICHT automatisch mitboostet. Erzwingt echte
   // Spezialisierung statt "eine Forschung boostet alles". Dichtes Material,
@@ -449,9 +461,26 @@ export const FLUSS_RESSOURCEN = Object.values(RESSOURCEN)
 // --- Gebäude --------------------------------------------------------------
 // produktion/verbrauch: { ressourcenId: { basis, faktor } } -> pro Stunde.
 // kategorie dient Forschungen als Angriffspunkt für Boni.
+// Themengruppen der Gebäudeliste (A-006, Tobis Punkt: „Sortierung der
+// Gebäude nach Thema. Abbau / Production / Bevölkerung sowas in der Art").
+//
+// Ein Neuling sieht sonst vierzehn Kacheln ohne Ordnung und keinen Hinweis,
+// womit er anfangen soll -- das ist die halbe Antwort auf den Ersteinstieg.
+//
+// Die Zugehörigkeit steht als Feld `gruppe` am Gebäude, nicht als
+// Verzweigung im Code: dieselbe Projektregel wie bei den Fraktionsarten.
+// Die Reihenfolge hier IST die Reihenfolge in der Anzeige.
+export const GEBAEUDE_GRUPPEN = [
+  { id: "foerderung", name: "Förderung" },
+  { id: "energie", name: "Energie" },
+  { id: "versorgung", name: "Versorgung" },
+  { id: "industrie", name: "Industrie & Wissenschaft" },
+];
+
 export const BUILDINGS = {
   metallmine: {
     id: "metallmine",
+    gruppe: "foerderung",
     name: "Metallmine",
     beschreibung:
       "Fördert Metall aus der Kruste. Sternnahe Welten sind metallreicher, weil ihnen die leichten Stoffe früh weggekocht wurden – Merkur besteht zu einem auffällig großen Teil aus Eisen.",
@@ -464,6 +493,7 @@ export const BUILDINGS = {
   },
   siliziummine: {
     id: "siliziummine",
+    gruppe: "foerderung",
     name: "Siliziummine",
     beschreibung:
       "Baut Silizium für Bauteile und Elektronik ab. Sauerstoff und Silizium sind die beiden häufigsten Elemente jeder Gesteinskruste – neun Zehntel davon sind Silikate.",
@@ -476,6 +506,7 @@ export const BUILDINGS = {
   },
   kraftwerk: {
     id: "kraftwerk",
+    gruppe: "energie",
     name: "Kraftwerk",
     beschreibung:
       "Fusionsreaktor. Die Reaktion setzt schnelle Neutronen frei – ungeladen, also nur schwer abzuschirmen und nur als Wärme erntbar. Deshalb steckt in jedem Kraftwerk ein Dampfkreislauf, so altmodisch das klingt.",
@@ -501,6 +532,7 @@ export const BUILDINGS = {
   // Bestand. Siehe RESSOURCEN.energie.speicher.
   energiespeicher: {
     id: "energiespeicher",
+    gruppe: "energie",
     name: "Energiespeicher",
     beschreibung:
       "Supraleitende Spule, in der Strom verlustfrei kreist. Überschuss wird eingelagert und deckt später Spitzen ab. Die Kühlung braucht selbst etwas Energie.",
@@ -513,6 +545,7 @@ export const BUILDINGS = {
   },
   lagerhalle: {
     id: "lagerhalle",
+    gruppe: "versorgung",
     name: "Lagerhalle",
     beschreibung: "Erhöht die Lagerkapazität aller lagerbaren Ressourcen.",
     kategorie: "lager",
@@ -524,8 +557,10 @@ export const BUILDINGS = {
   },
   tritiumextraktor: {
     id: "tritiumextraktor",
-    name: "Tritiumextraktor",
-    beschreibung: "Gewinnt Tritium – der Treibstoff, ohne den keine Flotte fliegt.",
+    gruppe: "foerderung",
+    name: "Deuterium-Extraktor",
+    beschreibung:
+      "Gewinnt Deuterium aus Wasser – der Treibstoff, ohne den keine Flotte fliegt. Schwerer Wasserstoff ist stabil und steckt überall dort, wo Wasser ist: in jedem sechstausendsten Wasserstoffkern, in Eis, in Ozeanen, in feuchtem Gestein.",
     kategorie: "mine",
     baseCost: { metall: 90, silizium: 60 },
     costFactor: 1.45,
@@ -535,6 +570,7 @@ export const BUILDINGS = {
   },
   werft: {
     id: "werft",
+    gruppe: "industrie",
     name: "Werft",
     beschreibung: "Ermöglicht den Schiffbau. Höhere Stufen bauen schneller.",
     kategorie: "werft",
@@ -550,6 +586,7 @@ export const BUILDINGS = {
   },
   iridiummine: {
     id: "iridiummine",
+    gruppe: "foerderung",
     name: "Iridiummine",
     beschreibung:
       "Fördert Iridium. In der Kruste ist es fast nicht vorhanden: Iridium bindet an Eisen und ist bei der Entstehung des Planeten mit ihm in den Kern gesunken. In Asteroiden liegt es hundertfach dichter – die Iridiumschicht am Ende der Kreidezeit stammt von einem.",
@@ -562,6 +599,7 @@ export const BUILDINGS = {
   },
   antimateriekollektor: {
     id: "antimateriekollektor",
+    gruppe: "industrie",
     name: "Antimateriefabrik",
     beschreibung: "Erzeugt Antimaterie aus Energie. Der Wirkungsgrad ist miserabel und bleibt es – Antimaterie ist kein Brennstoff, sondern der dichteste Speicher, den die Physik kennt: 9 × 10¹⁶ Joule je Kilogramm umgesetzter Masse, das Zehnmillionenfache von chemischem Sprengstoff.",
     kategorie: "antimaterie",
@@ -588,6 +626,7 @@ export const BUILDINGS = {
   },
   forschungslabor: {
     id: "forschungslabor",
+    gruppe: "industrie",
     name: "Forschungslabor",
     beschreibung:
       "Erzeugt Forschung, solange es Strom, Menschen und Laborbedarf hat. Ohne Labor forscht niemand – Erkenntnis entsteht nicht aus Vorräten, sondern aus laufender Arbeit.",
@@ -614,6 +653,7 @@ export const BUILDINGS = {
   },
   farm: {
     id: "farm",
+    gruppe: "versorgung",
     name: "Agrarkuppel",
     beschreibung:
       "Erzeugt Nahrung. Ohne sie schrumpft die Bevölkerung, sobald der Vorrat aufgebraucht ist. Pflanzen setzen nur etwa ein Prozent des einfallenden Lichts in Biomasse um – Landwirtschaft braucht deshalb vor allem Fläche und Licht, nicht bessere Technik.",
@@ -630,6 +670,7 @@ export const BUILDINGS = {
   },
   wohnmodul: {
     id: "wohnmodul",
+    gruppe: "versorgung",
     name: "Wohnmodul",
     beschreibung:
       "Schafft Platz für mehr Bevölkerung. Ohne freien Wohnraum wächst niemand nach. Ein Mensch atmet rund 0,8 Kilogramm Sauerstoff am Tag – ein geschlossener Kreislauf muss ihn zurückgewinnen, sonst wäre jede Kolonie eine Dauerlieferung.",
@@ -661,6 +702,7 @@ export const BUILDINGS = {
   // Zahl zu erhöhen).
   magnetschild: {
     id: "magnetschild",
+    gruppe: "energie",
     name: "Magnetfeldgenerator",
     beschreibung:
       "Hält ein künstliches Magnetfeld um diese Welt und lenkt geladene Teilchen ab. Braucht dauerhaft rund ein Terawatt – fällt der Strom, fällt der Schirm. Zum Vergleich: der Geodynamo der Erde setzt für dasselbe etwa dieselbe Leistung um.",
@@ -683,6 +725,7 @@ export const BUILDINGS = {
 
   handelsposten: {
     id: "handelsposten",
+    gruppe: "industrie",
     name: "Handelsposten",
     beschreibung:
       "Handelt mit fremden Imperien in Reichweite und zieht Abgaben aus der eigenen Bevölkerung. Gekaufte Ware muss von einer Flotte abgeholt werden. Die Abgaben wachsen mit Bevölkerung und Stufe, die Betriebskosten überlinear mit der Stufe – zu jeder Weltgröße gibt es deshalb eine beste Stufe. Unter rund 36.000 Einwohnern trägt sich schon die erste nicht.",

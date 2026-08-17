@@ -2045,21 +2045,49 @@ function supernovaFlut(state, zeit) {
   sn.ozonKaputt = true;
   sn.ozonZeit = null;
 
+  // DIE FLUT FRAGT NICHT NACH DER FLAGGE (Prinzip 0b, A-001).
+  //
+  // Bis v0.82 lief diese Schleife über `planetenVon(state)` -- und dessen
+  // Vorgabe ist die Spielerfraktion. Bot-Imperien und Piratenbasen überstanden
+  // eine galaxieweite Teilchenflut damit folgenlos und ohne Schirm. Der
+  // Blitz war schon immer symmetrisch, nur die Abrechnung nicht.
+  //
+  // Bots bauen in der Demo KEINE Schirme (sie forschen noch nicht -- bekannte,
+  // bewusste Lücke). Ihre Welten sterben also mit, und das ist gewollt: der
+  // Spieler überlebt in einer Galaxie, die es nicht geschafft hat.
   const welten = [];
-  for (const planet of planetenVon(state)) {
+  const fremd = { gesamt: 0, ueberlebt: 0 };
+  for (const planet of state.planeten) {
+    if (!((planet.ressourcen && planet.ressourcen.bevoelkerung) > 0)) continue;
     const schildStufe = planet.gebaeude ? planet.gebaeude.magnetschild || 0 : 0;
+    // `effektiveRaten` nur, wenn überhaupt ein Schirm steht -- sonst kostete
+    // die Abrechnung die volle Produktionsauflösung für jede der bis zu 672
+    // Welten der Galaxie, für ein Ergebnis, das schon feststeht.
     const anteil = schildStufe > 0 ? effektiveRaten(state, planet).faktoren.magnetschild ?? 0 : 0;
     // Voll versorgt heißt voll versorgt. Ein Feld mit 80 % Leistung lenkt
     // nicht 80 % der Teilchen ab, es reißt an der falschen Stelle auf.
     const ueberlebt = schildStufe > 0 && anteil >= 0.999;
-    welten.push({
-      planet: planet.id,
-      name: planet.name,
-      bevoelkerung: Math.round(planet.ressourcen.bevoelkerung || 0),
-      schild: schildStufe,
-      versorgung: anteil,
-      ueberlebt,
-    });
+
+    if (fraktionVon(planet) === SPIELER_FRAKTION) {
+      welten.push({
+        planet: planet.id,
+        name: planet.name,
+        bevoelkerung: Math.round(planet.ressourcen.bevoelkerung || 0),
+        schild: schildStufe,
+        versorgung: anteil,
+        ueberlebt,
+      });
+    } else {
+      // Fremde Welten werden GEZÄHLT, nicht aufgezählt. Der Abspann geht
+      // Welt für Welt durch; mit bis zu 672 Einträgen wäre er kein Abspann
+      // mehr, sondern eine Tabelle. Der Auftrag erlaubt beides ausdrücklich
+      // ("wenn das ohne neues Layout geht") -- es geht nicht, also die Zahl.
+      // Sie steht trotzdem im Spielstand: nach der Abrechnung ist die
+      // Bevölkerung überall null, danach ist sie nicht mehr ermittelbar.
+      fremd.gesamt += 1;
+      if (ueberlebt) fremd.ueberlebt += 1;
+    }
+
     if (!ueberlebt) {
       // Über die Jahrtausende der Flut stirbt, was nicht geschützt war.
       // Ursächlich erreicht, nicht per Uhr (Prinzip 13a).
@@ -2071,6 +2099,10 @@ function supernovaFlut(state, zeit) {
   state.ende = {
     zeit,
     welten,
+    fremd,
+    // AUSDRÜCKLICH NUR SPIELERWELTEN. Würde `gewonnen` aus allen Welten
+    // abgeleitet, gewänne der Spieler, weil irgendeine Piratenbasis
+    // durchgekommen ist -- während seine eigene Bevölkerung bei null steht.
     gewonnen: welten.some((w) => w.ueberlebt),
   };
 
@@ -2192,12 +2224,12 @@ export function tanken(state, flotte, menge) {
     const platz = Math.max(0, flotteTankKapazitaet(state, flotte) - (flotte.treibstoff || 0));
     if (platz <= 0) return { ok: false, grund: t("Der Tank ist voll.") };
     const nimm = Math.min(menge, verfuegbar, platz);
-    if (nimm <= 0) return { ok: false, grund: t("Kein Tritium vorhanden.") };
+    if (nimm <= 0) return { ok: false, grund: t("Kein Deuterium vorhanden.") };
     planet.ressourcen.tritium -= nimm;
     flotte.treibstoff += nimm;
   } else {
     const gib = Math.min(-menge, flotte.treibstoff);
-    if (gib <= 0) return { ok: false, grund: t("Kein Tritium an Bord.") };
+    if (gib <= 0) return { ok: false, grund: t("Kein Deuterium an Bord.") };
     flotte.treibstoff -= gib;
     const { genommen } = insLager(state, planet, { tritium: gib });
     // Was nicht ins Lager passte, bleibt an Bord statt zu verschwinden.
@@ -2333,7 +2365,7 @@ export function flotteAufloesen(state, flotte) {
     if (rest > 0.5) {
       meldungHinzufuegen(
         state,
-        t("{planet}: Lager voll – {menge} Tritium beim Auflösen verloren.", {
+        t("{planet}: Lager voll – {menge} Deuterium beim Auflösen verloren.", {
           planet: planet.name,
           menge: Math.floor(rest),
         })
@@ -2491,8 +2523,8 @@ export function kannBefehlen(state, flotte, ziel, optionen = {}) {
     return {
       ok: false,
       grund: optionen.einweg
-        ? t("Zu wenig Tritium: {noetig} nötig, {anBord} an Bord.", werte)
-        : t("Zu wenig Tritium: {noetig} nötig (inkl. Rückweg), {anBord} an Bord.", werte),
+        ? t("Zu wenig Deuterium: {noetig} nötig, {anBord} an Bord.", werte)
+        : t("Zu wenig Deuterium: {noetig} nötig (inkl. Rückweg), {anBord} an Bord.", werte),
     };
   }
   // ok bewusst NACH dem Spread: pruefung trägt ein eigenes ok (Hin- UND
@@ -2761,7 +2793,7 @@ function naechstenBefehlFortsetzen(state, flotte, zeit) {
   if (pruefung.ok || flotte.treibstoff >= pruefung.hinVerbrauch) {
     abschnittStarten(state, flotte, zielOrt, zeit);
   } else {
-    meldungHinzufuegen(state, t("{flotte}: zu wenig Tritium für den Weiterflug – Flotte wartet.", { flotte: flotte.name }));
+    meldungHinzufuegen(state, t("{flotte}: zu wenig Deuterium für den Weiterflug – Flotte wartet.", { flotte: flotte.name }));
     flotte.befehle = [];
   }
   return true;
@@ -2836,7 +2868,7 @@ function routeNaechstenHaltStarten(state, flotte, zeit) {
   const zielOrt = ortVonPlanet(state, planet);
   const pruefung = reichtTreibstoff(state, flotte, flotte.ort, zielOrt);
   if (!(pruefung.ok || flotte.treibstoff >= pruefung.hinVerbrauch)) {
-    meldungHinzufuegen(state, t("{flotte}: zu wenig Tritium – Route pausiert.", { flotte: flotte.name }));
+    meldungHinzufuegen(state, t("{flotte}: zu wenig Deuterium – Route pausiert.", { flotte: flotte.name }));
     route.aktiv = false;
     return;
   }

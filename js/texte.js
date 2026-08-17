@@ -18,7 +18,7 @@ export const EN = {
   // --- Ressourcen ---------------------------------------------------------
   Metall: "Metal",
   Silizium: "Silicon",
-  Tritium: "Tritium",
+  Deuterium: "Deuterium",
   Iridium: "Iridium",
   Antimaterie: "Antimatter",
   Credits: "Credits",
@@ -55,7 +55,7 @@ export const EN = {
   Siliziummine: "Silicon Mine",
   Kraftwerk: "Power Plant",
   Lagerhalle: "Warehouse",
-  Tritiumextraktor: "Tritium Extractor",
+  "Deuterium-Extraktor": "Deuterium Extractor",
   Werft: "Shipyard",
   Iridiummine: "Iridium Mine",
   Antimateriefabrik: "Antimatter Plant",
@@ -74,8 +74,8 @@ export const EN = {
   "Fusionsreaktor. Die Reaktion setzt schnelle Neutronen frei – ungeladen, also nur schwer abzuschirmen und nur als Wärme erntbar. Deshalb steckt in jedem Kraftwerk ein Dampfkreislauf, so altmodisch das klingt.":
     "Fusion reactor. The reaction releases fast neutrons – uncharged, therefore hard to shield and harvestable only as heat. That is why every power plant contains a steam cycle, however old-fashioned that sounds.",
   "Erhöht die Lagerkapazität aller lagerbaren Ressourcen.": "Increases storage capacity for all stockpiled resources.",
-  "Gewinnt Tritium – der Treibstoff, ohne den keine Flotte fliegt.":
-    "Extracts tritium – the fuel without which no fleet flies.",
+  "Gewinnt Deuterium aus Wasser – der Treibstoff, ohne den keine Flotte fliegt. Schwerer Wasserstoff ist stabil und steckt überall dort, wo Wasser ist: in jedem sechstausendsten Wasserstoffkern, in Eis, in Ozeanen, in feuchtem Gestein.":
+    "Extracts deuterium from water – the fuel without which no fleet flies. Heavy hydrogen is stable and sits wherever water does: in every six-thousandth hydrogen nucleus, in ice, in oceans, in damp rock.",
   "Ermöglicht den Schiffbau. Höhere Stufen bauen schneller.":
     "Enables shipbuilding. Higher levels build faster.",
   "Fördert Iridium. In der Kruste ist es fast nicht vorhanden: Iridium bindet an Eisen und ist bei der Entstehung des Planeten mit ihm in den Kern gesunken. In Asteroiden liegt es hundertfach dichter – die Iridiumschicht am Ende der Kreidezeit stammt von einem.":
@@ -348,8 +348,8 @@ export const EN = {
   "Keine Schiffe dieses Typs.": "No ships of this type.",
   "Der Tank ist voll.": "The tank is full.",
   "{flotte}: {menge} aus den Tanks abgezapft.": "{flotte}: {menge} siphoned from the tanks.",
-  "Kein Tritium vorhanden.": "No tritium available.",
-  "Kein Tritium an Bord.": "No tritium on board.",
+  "Kein Deuterium vorhanden.": "No deuterium available.",
+  "Kein Deuterium an Bord.": "No deuterium on board.",
   "Keine Beschädigung.": "No damage.",
   "Hier steht keine Werft.": "There is no shipyard here.",
   "Außenposten haben keine Werft.": "Outposts have no shipyard.",
@@ -384,9 +384,9 @@ export const EN = {
   "Braucht {noetig} Bevölkerung (aktuell {aktuell}).": "Requires {noetig} population (currently {aktuell}).",
   "{res} gibt es hier nicht.": "There is no {res} here.",
   "{res} gibt es hier nicht ({art}).": "There is no {res} here ({art}).",
-  "Zu wenig Tritium: {noetig} nötig, {anBord} an Bord.": "Not enough tritium: {noetig} needed, {anBord} on board.",
-  "Zu wenig Tritium: {noetig} nötig (inkl. Rückweg), {anBord} an Bord.":
-    "Not enough tritium: {noetig} needed (incl. return trip), {anBord} on board.",
+  "Zu wenig Deuterium: {noetig} nötig, {anBord} an Bord.": "Not enough deuterium: {noetig} needed, {anBord} on board.",
+  "Zu wenig Deuterium: {noetig} nötig (inkl. Rückweg), {anBord} an Bord.":
+    "Not enough deuterium: {noetig} needed (incl. return trip), {anBord} on board.",
 
   // --- Meldungen (simulation.js) ------------------------------------------
   "Flotte {nr}": "Fleet {nr}",
@@ -398,8 +398,8 @@ export const EN = {
   "{planet}: Lager voll – Logistiknetz-Lieferung teilweise verloren.":
     "{planet}: storage full – logistics delivery partly lost.",
   "{planet}: Lager voll – {fracht} bleiben an Bord.": "{planet}: storage full – {fracht} stay on board.",
-  "{planet}: Lager voll – {menge} Tritium beim Auflösen verloren.":
-    "{planet}: storage full – {menge} tritium lost while disbanding.",
+  "{planet}: Lager voll – {menge} Deuterium beim Auflösen verloren.":
+    "{planet}: storage full – {menge} deuterium lost while disbanding.",
   "{planet}: Lager voll – Reste von {flotte} gingen verloren.":
     "{planet}: storage full – the remains of {flotte} were lost.",
   "{planet}: Lager voll – Erstattung teilweise verloren.": "{planet}: storage full – refund partly lost.",
@@ -418,10 +418,10 @@ export const EN = {
     "{flotte}: quick dispatch – {anzahl} target(s) in {system}.",
   "{flotte}: Schnellversand – {anzahl} Ziel(e) in {system}, {offen} offen (zu wenige Schiffe).":
     "{flotte}: quick dispatch – {anzahl} target(s) in {system}, {offen} left open (too few ships).",
-  "{flotte}: zu wenig Tritium für den Weiterflug – Flotte wartet.":
-    "{flotte}: not enough tritium to fly on – the fleet is waiting.",
+  "{flotte}: zu wenig Deuterium für den Weiterflug – Flotte wartet.":
+    "{flotte}: not enough deuterium to fly on – the fleet is waiting.",
   "{flotte}: {fracht} bei {planet} geladen.": "{flotte}: loaded {fracht} at {planet}.",
-  "{flotte}: zu wenig Tritium – Route pausiert.": "{flotte}: not enough tritium – route paused.",
+  "{flotte}: zu wenig Deuterium – Route pausiert.": "{flotte}: not enough deuterium – route paused.",
   "{objekt}: {art} entdeckt.": "{objekt}: {art} discovered.",
   "{objekt}: {art} entdeckt – Flotte gesichtet ({schiffe}, {hp} HP gesamt).":
     "{objekt}: {art} discovered – fleet sighted ({schiffe}, {hp} HP total).",
@@ -580,14 +580,17 @@ export const EN = {
   "Ohne Werft lassen sich keine Schiffe bauen.": "Without a shipyard no ships can be built.",
   "Werft Stufe {stufe} – baut {tempo}× so schnell wie eine Werft der Stufe 1. Jede weitere Stufe beschleunigt zusätzlich.":
     "Shipyard level {stufe} – builds {tempo}× as fast as a level 1 shipyard. Every further level speeds it up more.",
-  'Im Bau: {anzahl}× {schiff} ({dauer}) <button data-werft-abbrechen="1" title="{hinweis}">Abbrechen</button>':
-    'Building: {anzahl}× {schiff} ({dauer}) <button data-werft-abbrechen="1" title="{hinweis}">Cancel</button>',
+  // Seit v0.83 zwei getrennte Schlüssel: der Abbrechen-Knopf steht fest im
+  // Gerüst, damit die mitlaufende Restzeit ihn nicht jede Sekunde mitreißt
+  // (Prinzip 8a, A-004). Vorher steckte der ganze Knopf als Markup im Text.
+  "Im Bau: {anzahl}× {schiff} ({dauer})": "Building: {anzahl}× {schiff} ({dauer})",
+  Abbrechen: "Cancel",
   "Bricht den laufenden Schiffbau ab. Die Kosten werden vollständig erstattet.":
     "Cancels the shipbuilding in progress. The costs are refunded in full.",
   "Werft Stufe {stufe} · {tempo}× Bautempo": "Shipyard level {stufe} · {tempo}× build speed",
   "Kosten: {kosten} · {dauer}": "Cost: {kosten} · {dauer}",
-  "{menge} Tritium pro Strecke": "{menge} tritium per leg",
-  "{menge} Tritium pro Strecke · Frachtraum {frachtraum}": "{menge} tritium per leg · cargo hold {frachtraum}",
+  "{menge} Deuterium pro Strecke": "{menge} deuterium per leg",
+  "{menge} Deuterium pro Strecke · Frachtraum {frachtraum}": "{menge} deuterium per leg · cargo hold {frachtraum}",
   "{hp} HP · {angriff} Angriff": "{hp} HP · {angriff} attack",
   Bauen: "Build",
   "5 Stück auf einmal": "5 at once",
@@ -652,15 +655,15 @@ export const EN = {
   "Keine Schiffe an Bord": "No ships on board",
   "Fracht {menge} / {kapazitaet}": "Cargo {menge} / {kapazitaet}",
   "Fracht {menge} / {kapazitaet} ({ladung})": "Cargo {menge} / {kapazitaet} ({ladung})",
-  "Tritium {menge} an Bord": "Tritium {menge} on board",
+  "Deuterium {menge} an Bord": "Deuterium {menge} on board",
   "Position: {system}": "Position: {system}",
   "Position: {system} Orbit {orbit}": "Position: {system} orbit {orbit}",
   "Position: zwischen den Systemen ({x} / {y})": "Position: between systems ({x} / {y})",
   "Route aktiv: {halte} Halt(e), gerade Halt {nr}": "Route active: {halte} stop(s), currently stop {nr}",
   "Im Gefecht – nicht umleitbar": "In combat – cannot be redirected",
   aktiv: "active",
-  "Tritium {menge}": "Tritium {menge}",
-  "Tritium {menge} · Ladung {ladung}": "Tritium {menge} · cargo {ladung}",
+  "Deuterium {menge}": "Deuterium {menge}",
+  "Deuterium {menge} · Ladung {ladung}": "Deuterium {menge} · cargo {ladung}",
   " · zwischen den Systemen": " · between systems",
   "Diese Flotte bekommt gerade die Befehle.": "This is the fleet that receives orders.",
   "Anklicken wählt diese Flotte – Befehle gehen danach an sie.":
@@ -684,9 +687,9 @@ export const EN = {
     "{flotte} is under way – transfers only work in port. The course can be changed at any time (click a target in the system, or “Turn back”).",
   "{flotte} im Hafen bei {planet}": "{flotte} in port at {planet}",
   "({anzahl} frei)": "({anzahl} free)",
-  "Tritium an Bord: {menge} ({lager} im Lager)": "Tritium on board: {menge} ({lager} in storage)",
-  "Anteil des hier gelagerten Tritiums, das an Bord soll. Der Regler stellt nur ein -- erst „Tanken“ führt es aus.":
-    "Share of the tritium stored here that should go on board. The slider only sets the amount – “Refuel” carries it out.",
+  "Deuterium an Bord: {menge} ({lager} im Lager)": "Deuterium on board: {menge} ({lager} in storage)",
+  "Anteil des hier gelagerten Deuteriums, das an Bord soll. Der Regler stellt nur ein -- erst „Tanken“ führt es aus.":
+    "Share of the deuterium stored here that should go on board. The slider only sets the amount – “Refuel” carries it out.",
   "Übernimmt die eingestellte Menge aus dem Hafenlager in den Tank.":
     "Moves the set amount from the port's storage into the tank.",
   Tanken: "Refuel",
@@ -770,8 +773,8 @@ export const EN = {
   "{ziele} von {gesamt} Ziel(en) mit {schiffe} Schiff(en)": "{ziele} of {gesamt} target(s) with {schiffe} ship(s)",
   "Keine Flotte gewählt – stelle eine auf und wähle sie aus, um Befehle zu geben.":
     "No fleet selected – form one and select it to give orders.",
-  "{flotte}: Entfernung {distanz} · rund {tritium} Tritium hin · {anBord} an Bord":
-    "{flotte}: distance {distanz} · about {tritium} tritium one way · {anBord} on board",
+  "{flotte}: Entfernung {distanz} · rund {tritium} Deuterium hin · {anBord} an Bord":
+    "{flotte}: distance {distanz} · about {tritium} deuterium one way · {anBord} on board",
 
   // --- Karten (js/karte.js) -----------------------------------------------
   "Galaxiekarte mit {systeme} Systemen": "Galaxy map with {systeme} systems",
@@ -796,7 +799,15 @@ export const EN = {
   "Nächster Schritt: {mission}": "Next step: {mission}",
   "Nächster Schritt: {mission} (braucht {schiff})": "Next step: {mission} (needs a {schiff})",
   "Hier ist nichts mehr zu holen.": "There is nothing left to get here.",
+  "Jahr {jahr} · Tag {tag}": "Year {jahr} · Day {tag}",
+  Förderung: "Extraction",
+  Energie: "Power",
+  Versorgung: "Life support",
+  "Industrie & Wissenschaft": "Industry & science",
+  "Seit der Gründung dieser Kolonie. Eine Echtzeitsekunde ist ein Spieltag, ein Jahr sind {tage} Tage – gut sechs Echtzeitminuten.":
+    "Since this colony was founded. One real-time second is one game day; a year is {tage} days – a good six real-time minutes.",
   "Dein Stützpunkt: {name}": "Your base: {name}",
+  "Fremder Stützpunkt: {name} ({fraktion})": "Foreign base: {name} ({fraktion})",
   Unerforscht: "Unexplored",
   "ergiebig: {liste}": "rich in: {liste}",
   "keine Landwirtschaft – muss versorgt werden": "no agriculture – has to be supplied",

@@ -28,6 +28,8 @@ import {
   BEZIEHUNG,
   SUPERNOVA,
   LJ_PRO_EINHEIT,
+  ZEIT,
+  spieltage,
   supernovaFlutJahre,
   jahreInMs,
   lagerkapazitaet,
@@ -202,6 +204,18 @@ function startsystemAufdecken(seed, galaxie) {
 // eine Änderung nicht von der Streuung zwischen zwei Welten unterscheiden.
 export function neuesSpiel(saat) {
   const seed = (saat ?? Date.now()) >>> 0;
+  // DIE UHR WIRD EINMAL GELESEN, und das ist keine Sparsamkeit.
+  //
+  // Vorher stand `Date.now()` an drei Stellen dieser Funktion: für
+  // `letzterTick`, für den Supernova-Zeitplan und für `beginn`. Zwischen
+  // ihnen vergeht Zeit -- meist null Millisekunden, manchmal eine. Genau die
+  // eine hat den Datums-Test (A-005) sporadisch rot werden lassen: der Blitz
+  // lag dann 239,999… statt 240 Jahre nach dem Beginn und landete im Jahr
+  // 240 statt 241. Ein Fehler, der in zwei von drei Läufen unsichtbar ist.
+  //
+  // Dieselbe Regel wie bei den Ereigniszeiten: wer eine Zeitspanne aufspannt,
+  // benutzt EINEN Zeitpunkt, nicht zwei Ablesungen derselben Uhr.
+  const jetzt = Date.now();
   const galaxie = galaxiePlanen(seed);
   const start = startsystemAufdecken(seed, galaxie);
 
@@ -230,7 +244,7 @@ export function neuesSpiel(saat) {
 
   return {
     version: SAVE_VERSION,
-    letzterTick: Date.now(),
+    letzterTick: jetzt,
     galaxie,
     naechstePlanetId: 2,
     // Alle Akteure, die eigenständig handeln -- der Spieler ist einer davon.
@@ -281,15 +295,58 @@ export function neuesSpiel(saat) {
     // sichtbar -- die Welt existiert, bevor jemand hinsieht (Prinzip 1), und
     // die Frist ist keine gesetzte Zahl, sondern Entfernung durch
     // Geschwindigkeit (Prinzip 13). Siehe SUPERNOVA in data.js.
-    supernova: supernovaAnlegen(seed, galaxie, Date.now()),
+    supernova: supernovaAnlegen(seed, galaxie, jetzt),
     angezeigtesSystem: galaxie.heimatSystem,
     meldungen: [],
     testZeitOffsetMs: 0,
+    // Wann diese Kolonie gegründet wurde. Bezugspunkt für das Ingame-Datum
+    // (A-005) -- gezählt wird ab hier, nicht ab einem Erdkalender.
+    beginn: jetzt,
   };
 }
 
 export function spielzeitJetzt(state) {
   return Date.now() + (state.testZeitOffsetMs || 0);
+}
+
+// --- Ingame-Datum (A-005) -------------------------------------------------
+//
+// Tobis Punkt: „Ingame muss ersichtlich sein wieviel ein Ingame Jahr ist."
+// Das ist demo-tragend, und zwar mehr als es klingt: die Frist der Demo läuft
+// in SPIELJAHREN (240 bis zum Blitz). Wer nicht weiß, was ein Jahr ist, kann
+// die Frist nicht lesen -- und die Frist ist die ganze Geschichte.
+//
+// Gezählt wird ab Gründung der Kolonie, nicht nach einem Erdkalender. Ein
+// Datum, das die Menschheit hinter sich gelassen hat, würde eine Herkunft
+// behaupten, die das Spiel nicht erzählt.
+
+// Wann fing diese Partie an?
+//
+// Der Merker `beginn` gibt es erst seit v0.83. Für ältere Spielstände wird er
+// REKONSTRUIERT statt auf „jetzt" gesetzt: `supernovaAnlegen` legt den Kollaps
+// exakt `jahreBisKollaps` nach dem Start, die Rechnung ist also umkehrbar.
+// Ohne das würde bei jedem laufenden Tester das Datum auf Jahr 1 Tag 1
+// zurückspringen -- und genau die Zahl, die Vertrauen schaffen soll, wäre die
+// erste, die lügt.
+export function spielBeginn(state) {
+  if (state.beginn) return state.beginn;
+  if (state.supernova && state.supernova.kollapsZeit) {
+    return state.supernova.kollapsZeit - jahreInMs(SUPERNOVA.jahreBisKollaps);
+  }
+  return state.letzterTick;
+}
+
+// „Jahr N · Tag M", beide ab 1 gezählt -- der erste Tag der Kolonie ist
+// Jahr 1, Tag 1, nicht Jahr 0, Tag 0.
+//
+// Reine Rechnung, absichtlich hier und nicht in ui.js: sie ist Logik, und
+// damit prüfbar, ohne einen Browser zu starten.
+export function spielDatum(state, jetzt = spielzeitJetzt(state)) {
+  const tageGesamt = Math.max(0, spieltage((jetzt - spielBeginn(state)) / 1000));
+  return {
+    jahr: Math.floor(tageGesamt / ZEIT.tageProJahr) + 1,
+    tag: Math.floor(tageGesamt % ZEIT.tageProJahr) + 1,
+  };
 }
 
 // --- Fraktionen -----------------------------------------------------------
@@ -413,8 +470,31 @@ export function wirtschaftsPlaneten(state, fraktionId = SPIELER_FRAKTION) {
   return planetenVon(state, fraktionId).filter((p) => p.typ !== "aussenposten");
 }
 
+// Steht an diesem Orbit ein Planet -- EGAL WEM ER GEHÖRT?
+//
+// Diese Frage ist absichtlich fraktionsblind: fünf Stellen in simulation.js
+// benutzen sie als Belegtprüfung ("kann hier noch etwas hin?"), und für die
+// ist die Flagge des Besitzers gleichgültig. Wer "gehört das MIR" meint,
+// nimmt `eigenerPlanetAn`.
 export function planetAn(state, systemId, orbit) {
   return state.planeten.find((p) => p.systemId === systemId && p.orbit === orbit);
+}
+
+// Steht an diesem Orbit ein Planet, der dem SPIELER gehört?
+//
+// Anlass (A-002): die Systemliste las das Ergebnis von `planetAn` als "eigen".
+// Im Heimatsystem der Demo-Saat standen dadurch drei Piratenbasen als "Dein
+// Stützpunkt" da -- und das war nicht nur Anzeige: an `eigen` hängt auch,
+// welche Missionen ein Orbit anbietet. Es ist der vierte Fall des Fehlertyps
+// "Vorgabe aus der Zeit, als nur der Spieler Planeten hatte".
+//
+// Eigene Funktion statt eines Vergleichs an Ort und Stelle, weil die Karte
+// (js/karte.js) denselben Vergleich schon einmal ausgeschrieben hatte: zwei
+// Stellen, die dieselbe Grenze meinen und getrennt gepflegt werden, laufen in
+// diesem Projekt erfahrungsgemäß auseinander.
+export function eigenerPlanetAn(state, systemId, orbit) {
+  const planet = planetAn(state, systemId, orbit);
+  return planet && fraktionVon(planet) === SPIELER_FRAKTION ? planet : null;
 }
 
 // --- Produktion -----------------------------------------------------------

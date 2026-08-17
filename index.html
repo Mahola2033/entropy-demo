@@ -40,6 +40,11 @@
            war eine Statuszeile in Fließtext; jetzt trägt er eine Marke, eine
            große Zahl, den Grund daneben und einen Balken, der zeigt, wieviel
            von der Frist schon weg ist. -->
+      <!-- Ingame-Datum (A-005). Steht NEBEN der Supernova-Uhr und nicht in
+           ihr: die Uhr verschwindet, wenn es keine Frist gibt, das Datum
+           läuft immer. Feste Breite über tabular-nums im CSS, sonst
+           zappelt der Kopf im Sekundentakt. -->
+      <div class="spiel-datum" id="spiel-datum" title=""></div>
       <div class="supernova-uhr" id="supernova-uhr" hidden>
         <span class="uhr-marke" id="uhr-marke"></span>
         <div class="uhr-koerper">

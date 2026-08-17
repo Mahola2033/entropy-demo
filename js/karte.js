@@ -39,6 +39,7 @@ import { holeSystem } from "./systeme.js";
 import {
   planetenVon,
   planetAn,
+  eigenerPlanetAn,
   flottenVon,
   systemBesucht,
   untersuchteOrbits,
@@ -582,13 +583,20 @@ export function systemKarteZeichnen(svg, state, opts) {
 // nebenbei die Antwort schon da: dieselbe Warnfarbe, in der auch fremde
 // Flotten stehen. Rot heißt auf beiden Karten dasselbe: gehört dir nicht.
 //
-// Die Liste bleibt vorerst, wie sie ist: dort hängt an `eigen` auch, WELCHE
-// Missionen angeboten werden, und das ist eine Spielregel, keine Anzeige.
+// NACHTRAG v0.83 (A-002): die Liste ist nachgezogen. Der Satz hier lautete
+// vorher "Die Liste bleibt vorerst, wie sie ist" -- mit der Begründung, an
+// `eigen` hänge dort auch, WELCHE Missionen angeboten werden. Genau das war
+// der Grund, es NICHT liegenzulassen: eine Piratenbasis bot dem Spieler
+// Eigentümer-Aktionen an. Beide Ansichten fragen jetzt über
+// `eigenerPlanetAn` dieselbe Frage.
 function systemObjektFuellen(state, systemId, objekt, gruppe, gewaehlterOrbit) {
   const gesperrt =
     objekt.entdeckt && objekt.benoetigt && (state.forschung[objekt.benoetigt.forschung] || 0) < 1;
   const planet = planetAn(state, systemId, objekt.orbit);
-  const eigen = planet ? fraktionVon(planet) === SPIELER_FRAKTION : false;
+  // Seit A-002 über den gemeinsamen Helfer statt über einen hier
+  // ausgeschriebenen Vergleich -- die Liste stellt jetzt dieselbe Frage, und
+  // zwei Stellen, die dieselbe Grenze getrennt umsetzen, laufen auseinander.
+  const eigen = !!eigenerPlanetAn(state, systemId, objekt.orbit);
   const fremdBesetzt = !!planet && !eigen;
 
   const klassen = ["karte-objekt"];

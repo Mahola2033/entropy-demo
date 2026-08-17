@@ -1249,9 +1249,53 @@ button[title]:disabled {
   border-style: dashed;
 }
 
+/* Themengruppen der Gebäudeliste (A-006). Die Gruppe ist ein Kasten mit
+   Überschrift; die Kacheln darin behalten ihr bisheriges Raster, damit
+   Prinzip 10 gilt (Kacheln einer Art sind alle gleich groß). Nichts klappt
+   auf oder zu -- die Gruppierung ist eine einmalige Umsortierung, danach ist
+   jeder Platz wieder fest (Prinzip 8). */
+.gebaeude-gruppe {
+  display: contents;
+}
+
+.gruppe-titel {
+  grid-column: 1 / -1;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0.6rem 0 0.1rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.2rem;
+}
+
+.gebaeude-gruppe:first-child .gruppe-titel {
+  margin-top: 0;
+}
+
+/* Ingame-Datum im Kopf (A-005). `tabular-nums` ist hier kein Feinschliff:
+   die Zahl läuft im Sekundentakt, und mit proportionalen Ziffern wandert
+   der halbe Kopf jedes Mal ein Stück -- derselbe Fehler, der v0.40/v0.41
+   schon bei der Ressourcenleiste behoben wurde. */
+.spiel-datum {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+  color: var(--dezent);
+  white-space: nowrap;
+  align-self: center;
+}
+
 .slot-heimat {
   border-color: var(--akzent-dunkel);
   background: #162a28;
+}
+
+/* Ein fremder Stützpunkt. Dieselbe Warnfarbe wie .karte-besetzt auf der
+   Systemkarte -- rot heißt auf beiden Ansichten dasselbe: gehört dir nicht.
+   Bis v0.82 trug diese Zeile .slot-heimat und war damit von der eigenen Welt
+   nicht zu unterscheiden (A-002). */
+.slot-besetzt {
+  border-color: var(--warnung);
+  background: #241416;
 }
 
 .slot-gefahr {

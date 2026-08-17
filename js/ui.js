@@ -32,6 +32,7 @@ import {
   techStufe,
   rate,
   ZEIT,
+  GEBAEUDE_GRUPPEN,
   spieltage,
   SUPERNOVA,
   jahreInMs,
@@ -50,6 +51,7 @@ import {
   forschungsFluss,
   kategorieBonus,
   spielzeitJetzt,
+  spielDatum,
   meldungHinzufuegen,
   meldungBetrifftSpieler,
   forschungVerfuegbar,
@@ -67,6 +69,7 @@ import {
   aktiverPlanet,
   planetById,
   planetAn,
+  eigenerPlanetAn,
   werftTempo,
   flotteById,
   handelVerfuegbar,
@@ -403,6 +406,7 @@ export function render(state, root) {
   const standText =
     STAND === "spielkopie" ? t("Spielkopie") : STAND === "demo" ? t("Demo") : t("Entwicklung");
   root.querySelector("#version").textContent = `v${VERSION} · ${standText}`;
+  renderDatum(state, root, jetzt);
   renderSupernova(state, root, jetzt);
   renderAbspann(state, root);
   // Nach dem Abspann: der prüft selbst, ob er zu sehen ist, und das
@@ -480,24 +484,34 @@ function planetArtText(planet) {
   return t("Außenposten");
 }
 
+// PRINZIP 8a (A-004): Die Planetenwahl baute ihre Knöpfe bis v0.82 jede
+// Sekunde neu -- und sie ist die meistbenutzte Bedienung des Spiels. Ein
+// verschluckter Klick heißt hier: man landet nicht auf der Welt, die man
+// anklickt, und merkt es erst zwei Handgriffe später.
+//
+// Die Knöpfe hängen jetzt am Planeten (stabiler Schlüssel), das Ereignis
+// wird EINMAL beim Bauen gesetzt. Was sich ändert -- Name, Art, welcher
+// aktiv ist -- wird nachgezogen, nicht neu erzeugt.
 function renderPlanetenwahl(state, root) {
   const leiste = root.querySelector("#planeten-leiste");
-  leiste.innerHTML = "";
   // Nur eigene Stützpunkte -- state.planeten hält seit v0.33 ALLE.
-  for (const planet of planetenVon(state)) {
-    const btn = document.createElement("button");
-    btn.className = "planet-chip";
-    if (planet.id === state.aktiverPlanet) btn.classList.add("chip-aktiv");
-    if (planet.typ === "aussenposten") btn.classList.add("chip-aussenposten");
-    btn.dataset.planet = planet.id;
-    btn.textContent = planet.typ === "heimat" ? planet.name : `${planet.name} · ${planetArtText(planet)}`;
-    leiste.appendChild(btn);
-  }
-  leiste.querySelectorAll("button[data-planet]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.aktiverPlanet = Number(btn.dataset.planet);
-      render(state, root);
-    });
+  listeAbgleichen(leiste, planetenVon(state), {
+    schluessel: (planet) => planet.id,
+    bauen: (planet) => {
+      const btn = document.createElement("button");
+      btn.className = "planet-chip";
+      btn.dataset.planet = planet.id;
+      btn.addEventListener("click", () => {
+        state.aktiverPlanet = planet.id;
+        render(state, root);
+      });
+      return btn;
+    },
+    aktualisieren: (btn, planet) => {
+      btn.classList.toggle("chip-aktiv", planet.id === state.aktiverPlanet);
+      btn.classList.toggle("chip-aussenposten", planet.typ === "aussenposten");
+      textSetzen(btn, planet.typ === "heimat" ? planet.name : `${planet.name} · ${planetArtText(planet)}`);
+    },
   });
 }
 
@@ -945,6 +959,25 @@ function uhrStufe(anteilUebrig) {
 // Uhr die nächste Stelle, an der Prinzip 8a bricht: sie läuft jede Sekunde
 // weiter, ein per innerHTML neu gebauter Kopf hätte also jede Sekunde neue
 // Elemente.
+// Das Ingame-Datum (A-005). Beantwortet die Frage, ohne die die Frist der
+// Demo nicht lesbar ist: was ist hier eigentlich ein Jahr?
+//
+// Der Hinweistext nennt den Maßstab ausdrücklich -- die Zahl allein sagt
+// nicht, wie schnell sie läuft, und genau das war Tobis Punkt.
+function renderDatum(state, root, jetzt) {
+  const el = root.querySelector("#spiel-datum");
+  if (!el) return;
+  const { jahr, tag } = spielDatum(state, jetzt);
+  textSetzen(el, t("Jahr {jahr} · Tag {tag}", { jahr, tag }));
+  attributSetzen(
+    el,
+    "title",
+    t("Seit der Gründung dieser Kolonie. Eine Echtzeitsekunde ist ein Spieltag, ein Jahr sind {tage} Tage – gut sechs Echtzeitminuten.", {
+      tage: Math.round(ZEIT.tageProJahr),
+    })
+  );
+}
+
 function renderSupernova(state, root, jetzt) {
   const el = root.querySelector("#supernova-uhr");
   if (!el) return;
@@ -1222,90 +1255,178 @@ function renderImperium(state, root) {
     }
   }
 
-  const kopf = `
-    <tr>
-      <th>${t("Planet")}</th>
-      <th>${t("Lager")}</th>
-      ${res.map((r) => `<th title="${t(RESSOURCEN[r].name)}">${RESSOURCEN[r].symbol}</th>`).join("")}
-      <th title="${t("Gekaufte Ware, die noch am Markt auf Abholung wartet")}">${t("Marktlager")}</th>
-    </tr>`;
+  // PRINZIP 8a (A-004): Bis v0.82 entstand hier jede Sekunde eine komplette
+  // <table> per innerHTML -- mitsamt den Planeten-Knöpfen darin. Wer einen
+  // Planeten anklickte, traf mit mousedown und mouseup unterschiedliche
+  // Elemente, sobald der Takt dazwischenfiel.
+  //
+  // Jetzt: Gerüst EINMAL, Zeilen über `listeAbgleichen`, Zahlen nachgezogen.
+  // Das Gerüst hängt nur an Dingen, die sich fast nie ändern (Sprache,
+  // Ressourcenliste) -- nicht an den Beständen.
+  const geruest = `imperium:${sprache()}:${res.join(",")}`;
+  if (block.dataset.geruest !== geruest) {
+    block.dataset.geruest = geruest;
+    block.innerHTML = `
+      <table class="imperium-tabelle">
+        <thead>
+          <tr>
+            <th>${t("Planet")}</th>
+            <th>${t("Lager")}</th>
+            ${res.map((r) => `<th title="${t(RESSOURCEN[r].name)}">${RESSOURCEN[r].symbol}</th>`).join("")}
+            <th title="${t("Gekaufte Ware, die noch am Markt auf Abholung wartet")}">${t("Marktlager")}</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot>
+          <tr class="zeile-summe">
+            <td><strong>${t("Gesamt")}</strong></td>
+            <td></td>
+            ${res
+              .map(
+                (r) => `<td title="${t("{res} im ganzen Imperium", { res: t(RESSOURCEN[r].name) })}">
+                  <strong data-summe="${r}"></strong>
+                  <span class="imperium-rate" data-summe-rate="${r}"></span>
+                </td>`
+              )
+              .join("")}
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+      <div class="dezent imperium-transfers" hidden></div>`;
+  }
 
-  const zeilen = planeten
-    .map((p) => {
-      const aktiv = p.id === state.aktiverPlanet;
-      if (p.typ === "aussenposten") {
-        return `<tr class="${aktiv ? "zeile-aktiv" : ""}">
-          <td><button data-imperium-planet="${p.id}">${p.name}</button> <span class="dezent">${t("Außenposten")}</span></td>
-          <td colspan="${res.length + 2}" class="dezent">${t(
-            "Kein Lager, keine Produktion – zählt nur für die Reichweite."
-          )}</td>
-        </tr>`;
-      }
-      const { lager } = effektiveRaten(state, p);
-      const belegt = lagerBelegung(p);
-      const gesamt = lagerKapazitaetGesamt(state, p);
-      const anteil = gesamt > 0 ? belegt / gesamt : 0;
-      const voll = anteil >= 0.98;
-      const marktware = Object.entries(p.marktlager || {}).filter(([, m]) => m > 0);
+  const koerper = block.querySelector("tbody");
 
-      return `<tr class="${aktiv ? "zeile-aktiv" : ""}">
-        <td><button data-imperium-planet="${p.id}">${p.name}</button> ${planetArtText(p) === p.name ? "" : `<span class="dezent">${planetArtText(p)}</span>`}</td>
-        <td class="${voll ? "warnung" : ""}" title="${
-          voll
-            ? t("{belegt} von {gesamt} m³ – VOLL, Produktion verfällt", { belegt: fmt(belegt), gesamt: fmt(gesamt) })
-            : t("{belegt} von {gesamt} m³", { belegt: fmt(belegt), gesamt: fmt(gesamt) })
-        }">
-          ${Math.round(anteil * 100)}%
-        </td>
-        ${res
-          .map((r) => {
-            const menge = p.ressourcen[r] || 0;
-            const rate = lager[r] || 0;
-            const titel =
-              rate > 0
-                ? t("{res}: {menge}, +{rate} im Jahr", {
-                    res: t(RESSOURCEN[r].name),
-                    menge: buendelText({ [r]: menge }),
-                    rate: fmt(rateProJahr(rate)),
-                  })
-                : t("{res}: {menge}, keine Produktion", {
-                    res: t(RESSOURCEN[r].name),
-                    menge: buendelText({ [r]: menge }),
-                  });
-            return `<td title="${titel}">
-              <span class="${menge > 0 ? "" : "dezent"}">${formatKurz(menge)}</span>
-              ${rate > 0 ? `<span class="imperium-rate">+${formatKurz(rate)}</span>` : ""}
-            </td>`;
+  // Eine Zeile bauen. Der Knopf bekommt sein Ereignis GENAU HIER, einmal --
+  // Lernpunkt 1 aus PRINZIPIEN.md 8a: wer im Aktualisieren anhängt, hat nach
+  // einer Minute sechzig Handler am selben Knopf.
+  function zeileBauen(p) {
+    const tr = document.createElement("tr");
+    const nameZelle = document.createElement("td");
+    const btn = document.createElement("button");
+    btn.dataset.imperiumPlanet = p.id;
+    btn.addEventListener("click", () => {
+      state.aktiverPlanet = p.id;
+      render(state, root);
+    });
+    const art = document.createElement("span");
+    art.className = "dezent";
+    art.dataset.zelle = "art";
+    nameZelle.append(btn, document.createTextNode(" "), art);
+    tr.appendChild(nameZelle);
+
+    if (p.typ === "aussenposten") {
+      const hinweis = document.createElement("td");
+      hinweis.className = "dezent";
+      hinweis.colSpan = res.length + 2;
+      hinweis.textContent = t("Kein Lager, keine Produktion – zählt nur für die Reichweite.");
+      tr.appendChild(hinweis);
+      return tr;
+    }
+
+    const lagerZelle = document.createElement("td");
+    lagerZelle.dataset.zelle = "lager";
+    tr.appendChild(lagerZelle);
+    for (const r of res) {
+      const td = document.createElement("td");
+      td.dataset.zelle = `res:${r}`;
+      td.innerHTML = `<span data-menge></span><span class="imperium-rate" data-rate></span>`;
+      tr.appendChild(td);
+    }
+    const marktZelle = document.createElement("td");
+    marktZelle.dataset.zelle = "markt";
+    tr.appendChild(marktZelle);
+    return tr;
+  }
+
+  function zeileFuellen(tr, p) {
+    tr.classList.toggle("zeile-aktiv", p.id === state.aktiverPlanet);
+    textSetzen(tr.querySelector("button[data-imperium-planet]"), p.name);
+    const art = tr.querySelector('[data-zelle="art"]');
+    textSetzen(art, p.typ === "aussenposten" ? t("Außenposten") : planetArtText(p) === p.name ? "" : planetArtText(p));
+    if (p.typ === "aussenposten") return;
+
+    const { lager } = effektiveRaten(state, p);
+    const belegt = lagerBelegung(p);
+    const gesamt = lagerKapazitaetGesamt(state, p);
+    const anteil = gesamt > 0 ? belegt / gesamt : 0;
+    const voll = anteil >= 0.98;
+
+    const lagerZelle = tr.querySelector('[data-zelle="lager"]');
+    lagerZelle.classList.toggle("warnung", voll);
+    textSetzen(lagerZelle, `${Math.round(anteil * 100)}%`);
+    attributSetzen(
+      lagerZelle,
+      "title",
+      voll
+        ? t("{belegt} von {gesamt} m³ – VOLL, Produktion verfällt", { belegt: fmt(belegt), gesamt: fmt(gesamt) })
+        : t("{belegt} von {gesamt} m³", { belegt: fmt(belegt), gesamt: fmt(gesamt) })
+    );
+
+    for (const r of res) {
+      const td = tr.querySelector(`[data-zelle="res:${r}"]`);
+      const menge = p.ressourcen[r] || 0;
+      const rate = lager[r] || 0;
+      const mengeEl = td.querySelector("[data-menge]");
+      mengeEl.classList.toggle("dezent", !(menge > 0));
+      textSetzen(mengeEl, formatKurz(menge));
+      textSetzen(td.querySelector("[data-rate]"), rate > 0 ? `+${formatKurz(rate)}` : "");
+      attributSetzen(
+        td,
+        "title",
+        rate > 0
+          ? t("{res}: {menge}, +{rate} im Jahr", {
+              res: t(RESSOURCEN[r].name),
+              menge: buendelText({ [r]: menge }),
+              rate: fmt(rateProJahr(rate)),
+            })
+          : t("{res}: {menge}, keine Produktion", {
+              res: t(RESSOURCEN[r].name),
+              menge: buendelText({ [r]: menge }),
+            })
+      );
+    }
+
+    const marktware = Object.entries(p.marktlager || {}).filter(([, m]) => m > 0);
+    const marktZelle = tr.querySelector('[data-zelle="markt"]');
+    marktZelle.classList.toggle("warnung", marktware.length > 0);
+    marktZelle.classList.toggle("dezent", marktware.length === 0);
+    textSetzen(marktZelle, marktware.length ? buendelSymbole(Object.fromEntries(marktware)) : "–");
+    attributSetzen(
+      marktZelle,
+      "title",
+      marktware.length
+        ? t("Wartet auf Abholung: {ware} – eine Flotte muss andocken und laden.", {
+            ware: buendelText(Object.fromEntries(marktware)),
           })
-          .join("")}
-        <td class="${marktware.length ? "warnung" : "dezent"}" title="${
-          marktware.length
-            ? t("Wartet auf Abholung: {ware} – eine Flotte muss andocken und laden.", {
-                ware: buendelText(Object.fromEntries(marktware)),
-              })
-            : t("Nichts wartet auf Abholung.")
-        }">${marktware.length ? buendelSymbole(Object.fromEntries(marktware)) : "–"}</td>
-      </tr>`;
-    })
-    .join("");
+        : t("Nichts wartet auf Abholung.")
+    );
+  }
 
-  const summenZeile = `
-    <tr class="zeile-summe">
-      <td><strong>${t("Gesamt")}</strong></td>
-      <td></td>
-      ${res
-        .map(
-          (r) => `<td title="${t("{res} im ganzen Imperium", { res: t(RESSOURCEN[r].name) })}">
-            <strong>${formatKurz(summe[r] || 0)}</strong>
-            ${summeRate[r] > 0 ? `<span class="imperium-rate">+${formatKurz(summeRate[r])}</span>` : ""}
-          </td>`
-        )
-        .join("")}
-      <td></td>
-    </tr>`;
+  listeAbgleichen(koerper, planeten, {
+    // Die Art steckt mit im Schlüssel: ein Außenposten hat eine ANDERE
+    // Zellenstruktur (colspan statt Einzelspalten). Würde ein Planet je die
+    // Art wechseln, muss seine Zeile neu gebaut werden statt nachgefüllt.
+    schluessel: (p) => `${p.id}:${p.typ === "aussenposten" ? "a" : "p"}`,
+    bauen: zeileBauen,
+    aktualisieren: zeileFuellen,
+  });
 
-  const transfers = state.logistikTransfers.length
-    ? `<div class="dezent imperium-transfers">${t("Unterwegs: {liste}", {
+  for (const r of res) {
+    textSetzen(block.querySelector(`[data-summe="${r}"]`), formatKurz(summe[r] || 0));
+    textSetzen(
+      block.querySelector(`[data-summe-rate="${r}"]`),
+      summeRate[r] > 0 ? `+${formatKurz(summeRate[r])}` : ""
+    );
+  }
+
+  const transferBox = block.querySelector(".imperium-transfers");
+  transferBox.hidden = state.logistikTransfers.length === 0;
+  if (state.logistikTransfers.length) {
+    textSetzen(
+      transferBox,
+      t("Unterwegs: {liste}", {
         liste: state.logistikTransfers
           .map((transfer) => {
             const von = planetById(state, transfer.quellPlanet);
@@ -1315,17 +1436,9 @@ function renderImperium(state, root) {
             }`;
           })
           .join(" · "),
-      })}</div>`
-    : "";
-
-  block.innerHTML = `<table class="imperium-tabelle">${kopf}${zeilen}${summenZeile}</table>${transfers}`;
-
-  block.querySelectorAll("button[data-imperium-planet]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.aktiverPlanet = Number(btn.dataset.imperiumPlanet);
-      render(state, root);
-    });
-  });
+      })
+    );
+  }
 }
 
 // --- Statusspalte -------------------------------------------------------
@@ -1404,43 +1517,97 @@ function renderStatus(state, root, planet, jetzt) {
 
 // Kompakte Liste wartender Aufträge unter dem eigentlichen Panel -- gleiche
 // Darstellung für Gebäude, Forschung und Werft (identisches Datenmuster).
-function renderWarteschlange(state, root, containerId, warteschlange, labelFn, entfernen) {
+// PRINZIP 8a (A-004): Diese Liste entstand bis v0.82 jede Sekunde neu, samt
+// ihrer ×-Knöpfe. Wer einen Auftrag aus der Schlange nehmen wollte, traf
+// genau dann daneben, wenn zwischen mousedown und mouseup ein Takt lag.
+//
+// EINE FALLE STECKT HIER, DIE ES SONST NIRGENDS GIBT: die Einträge haben
+// keine eigene Kennung, sie hängen am INDEX. Ein einmal angehängter Handler,
+// der seinen Index bei der Erzeugung einfängt, entfernt nach der ersten
+// Löschung den FALSCHEN Auftrag -- die Positionen rücken nach. Der Handler
+// liest seinen Index deshalb erst beim Klick aus dem Element, und der Index
+// wird beim Aktualisieren nachgezogen.
+function renderWarteschlange(state, root, containerId, warteschlange, labelFn, entfernen, kontext = "") {
   const el = root.querySelector(containerId);
   if (!el) return;
+
   if (!warteschlange.length) {
-    el.innerHTML = "";
+    // Leerer Fall: Gerüst weg, damit die Überschrift nicht ohne Liste stehen
+    // bleibt. Hier gibt es nichts anzuklicken, also ist das unkritisch.
+    if (el.dataset.geruest) {
+      el.innerHTML = "";
+      delete el.dataset.geruest;
+    }
     return;
   }
+
   const belegt = warteschlange.length + 1; // +1 für den laufenden Auftrag
   const gesamtSek = warteschlange.reduce((summe, e) => summe + (e.dauerSek || 0), 0);
-  el.innerHTML = `
-    <div class="dezent warteschlange-titel" title="${t(
-      "Diese Aufträge starten nacheinander, sobald der laufende fertig ist. Die Kosten sind bereits abgezogen – ein eingereihter Auftrag findet also garantiert statt. Zusammen noch {dauer} Bauzeit.",
-      { dauer: fmtDauer(gesamtSek) }
-    )}">${t("Warteschlange ({belegt}/{max}) · noch {dauer}", {
+
+  // `kontext` trägt die Planeten-Kennung: der Entfernen-Handler unten fängt
+  // die `entfernen`-Funktion des Aufrufers ein, und die hängt an EINEM
+  // Planeten. Ohne den Kontext im Schlüssel bliebe die Liste über einen
+  // Planetenwechsel stehen und nähme Aufträge auf der falschen Welt heraus.
+  const geruest = `warteschlange:${sprache()}:${kontext}`;
+  if (el.dataset.geruest !== geruest) {
+    el.dataset.geruest = geruest;
+    el.innerHTML = `<div class="dezent warteschlange-titel"></div><ol class="warteschlange-liste"></ol>`;
+  }
+
+  const titel = el.querySelector(".warteschlange-titel");
+  textSetzen(
+    titel,
+    t("Warteschlange ({belegt}/{max}) · noch {dauer}", {
       belegt,
       max: BAUWARTESCHLANGE_MAX,
       dauer: fmtDauer(gesamtSek),
-    })}</div>
-    <ol class="warteschlange-liste">
-      ${warteschlange
-        .map(
-          (eintrag, i) =>
-            `<li title="${t("Position {nr} · Bauzeit {dauer}", {
-              nr: i + 1,
-              dauer: fmtDauer(eintrag.dauerSek || 0),
-            })}">${labelFn(eintrag)} <button data-entfernen="${i}" title="${t(
-              "Aus der Warteschlange nehmen. Die bereits abgezogenen Kosten werden erstattet."
-            )}">×</button></li>`
-        )
-        .join("")}
-    </ol>`;
-  el.querySelectorAll("button[data-entfernen]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      entfernen(Number(btn.dataset.entfernen));
-      render(state, root);
-    });
-  });
+    })
+  );
+  attributSetzen(
+    titel,
+    "title",
+    t(
+      "Diese Aufträge starten nacheinander, sobald der laufende fertig ist. Die Kosten sind bereits abgezogen – ein eingereihter Auftrag findet also garantiert statt. Zusammen noch {dauer} Bauzeit.",
+      { dauer: fmtDauer(gesamtSek) }
+    )
+  );
+
+  listeAbgleichen(
+    el.querySelector(".warteschlange-liste"),
+    warteschlange.map((eintrag, i) => ({ eintrag, i })),
+    {
+      schluessel: (x) => x.i,
+      bauen: () => {
+        const li = document.createElement("li");
+        const text = document.createElement("span");
+        text.dataset.label = "";
+        const btn = document.createElement("button");
+        btn.textContent = "×";
+        attributSetzen(
+          btn,
+          "title",
+          t("Aus der Warteschlange nehmen. Die bereits abgezogenen Kosten werden erstattet.")
+        );
+        btn.addEventListener("click", () => {
+          // NICHT der bei der Erzeugung eingefangene Index, sondern der
+          // aktuelle -- siehe die Falle im Kopf dieser Funktion.
+          entfernen(Number(li.dataset.position));
+          render(state, root);
+        });
+        li.append(text, document.createTextNode(" "), btn);
+        return li;
+      },
+      aktualisieren: (li, { eintrag, i }) => {
+        li.dataset.position = i;
+        textSetzen(li.querySelector("[data-label]"), labelFn(eintrag));
+        attributSetzen(
+          li,
+          "title",
+          t("Position {nr} · Bauzeit {dauer}", { nr: i + 1, dauer: fmtDauer(eintrag.dauerSek || 0) })
+        );
+      },
+    }
+  );
 }
 
 function renderAusbauListe(state, root, opts) {
@@ -1486,6 +1653,39 @@ function renderAusbauListe(state, root, opts) {
       },
     });
     verbindungenZeichnen(liste, opts.defs);
+    return;
+  }
+
+  // Gruppiert nach Thema (A-006). Dasselbe Muster wie die Baum-Spalten
+  // darüber: die Gruppen werden abgeglichen, die Überschrift ist das
+  // `startNach` ihrer Kacheln. Würden die Gruppen neu erzeugt, nähmen sie die
+  // stabilen Kacheln mit ins Grab (Prinzip 8a).
+  if (opts.gruppen) {
+    const nachGruppe = new Map();
+    for (const id of sichtbareIds) {
+      const g = opts.defs[id].gruppe || "sonstige";
+      if (!nachGruppe.has(g)) nachGruppe.set(g, []);
+      nachGruppe.get(g).push(id);
+    }
+    // Nur Gruppen mit sichtbaren Kacheln -- eine leere Überschrift wäre ein
+    // Versprechen ohne Inhalt.
+    const sichtbareGruppen = opts.gruppen.filter((g) => nachGruppe.has(g.id));
+    listeAbgleichen(liste, sichtbareGruppen, {
+      schluessel: (g) => `gruppe-${g.id}`,
+      bauen: () => {
+        const kasten = document.createElement("div");
+        kasten.className = "gebaeude-gruppe";
+        const kopf = document.createElement("div");
+        kopf.className = "gruppe-titel dezent";
+        kasten.appendChild(kopf);
+        return kasten;
+      },
+      aktualisieren: (kasten, g) => {
+        const kopf = kasten.querySelector(".gruppe-titel");
+        textSetzen(kopf, t(g.name));
+        kachelAbgleich(kasten, nachGruppe.get(g.id), kopf);
+      },
+    });
     return;
   }
 
@@ -1797,7 +1997,7 @@ function renderGebaeude(state, root, planet) {
     return;
   }
   renderAusbauListe(state, root, {
-    listenId: "#gebaeude-liste", defs: BUILDINGS,
+    listenId: "#gebaeude-liste", defs: BUILDINGS, gruppen: GEBAEUDE_GRUPPEN,
     levelVon: (id) => planet.gebaeude[id] || 0,
     naechstesLevel: (id) => naechstesGebaeudeLevel(planet, id),
     queue: planet.bauQueue, queueIdFeld: "gebaeudeId",
@@ -1811,7 +2011,8 @@ function renderGebaeude(state, root, planet) {
   renderWarteschlange(
     state, root, "#gebaeude-warteschlange", planet.bauWarteschlange,
     (e) => t("{name} → Stufe {stufe}", { name: t(BUILDINGS[e.gebaeudeId].name), stufe: e.zielLevel }),
-    (i) => bauWarteschlangeEntfernen(state, planet, i)
+    (i) => bauWarteschlangeEntfernen(state, planet, i),
+    String(planet.id)
   );
 }
 
@@ -1858,13 +2059,26 @@ function renderForschung(state, root, planet) {
   );
 }
 
+// PRINZIP 8a (A-004): Die Werft war der dichteste Fall im Spiel -- ein
+// "Abbrechen"-Knopf, der in derselben Zeile wie ein sekündlich laufender
+// Countdown stand (Lernpunkt 2), und darunter je Schiffstyp zwei Knöpfe, die
+// alle im Takt neu entstanden.
+//
+// Jetzt: der Abbrechen-Knopf steht fest und wird nur ein- und ausgeblendet,
+// die Restzeit läuft in einem eigenen Feld daneben. Die Kacheln werden
+// abgeglichen, ihre Knöpfe bekommen ihr Ereignis einmal beim Bauen.
 function renderWerft(state, root, planet, jetzt) {
   const liste = root.querySelector("#werft-liste");
   const info = root.querySelector("#werft-info");
-  liste.innerHTML = "";
 
-  if (planet.typ === "aussenposten") { info.textContent = t("Außenposten haben keine Werft."); return; }
-  if (werftTempo(planet) <= 0) { info.textContent = t("Ohne Werft lassen sich keine Schiffe bauen."); return; }
+  // Die beiden Abbruchfälle leeren die Liste -- sonst blieben die Kacheln der
+  // vorigen Welt stehen, wenn man auf einen Außenposten wechselt.
+  const listeLeeren = () => {
+    if (liste.firstChild) liste.innerHTML = "";
+    delete info.dataset.geruest;
+  };
+  if (planet.typ === "aussenposten") { listeLeeren(); info.textContent = t("Außenposten haben keine Werft."); return; }
+  if (werftTempo(planet) <= 0) { listeLeeren(); info.textContent = t("Ohne Werft lassen sich keine Schiffe bauen."); return; }
 
   // Werftstufe beschleunigt den Bau -- ohne Hinweis ist nicht erkennbar,
   // wofür ein Ausbau überhaupt gut wäre.
@@ -1873,80 +2087,151 @@ function renderWerft(state, root, planet, jetzt) {
     "Werft Stufe {stufe} – baut {tempo}× so schnell wie eine Werft der Stufe 1. Jede weitere Stufe beschleunigt zusätzlich.",
     { stufe: planet.gebaeude.werft, tempo: tempo.toFixed(2) }
   );
-  info.innerHTML = planet.werftQueue
-    ? t('Im Bau: {anzahl}× {schiff} ({dauer}) <button data-werft-abbrechen="1" title="{hinweis}">Abbrechen</button>', {
-        anzahl: planet.werftQueue.anzahl,
-        schiff: t(SCHIFFE[planet.werftQueue.schiffId].name),
-        dauer: fmtDauer((planet.werftQueue.fertigZeit - jetzt) / 1000),
-        hinweis: t("Bricht den laufenden Schiffbau ab. Die Kosten werden vollständig erstattet."),
-      })
-    : t("Werft Stufe {stufe} · {tempo}× Bautempo", { stufe: planet.gebaeude.werft, tempo: tempo.toFixed(2) });
-  if (planet.werftQueue) {
-    info.querySelector("button[data-werft-abbrechen]").addEventListener("click", () => {
+  // Gerüst der Kopfzeile einmal: Text und Knopf sind getrennte Elemente,
+  // damit die mitlaufende Restzeit den Knopf nicht jede Sekunde mitreißt.
+  //
+  // DIE PLANETEN-KENNUNG GEHÖRT IN DEN SCHLÜSSEL, und das ist kein Beiwerk:
+  // der Handler unten fängt `planet` beim Bauen ein. Bliebe das Gerüst über
+  // einen Planetenwechsel hinweg stehen, bräche der Knopf den Schiffbau auf
+  // der zuvor gewählten Welt ab. Die neue Falle, die man sich beim Umstellen
+  // auf 8a einhandelt: stehende Elemente halten auch alte Bezüge fest.
+  const infoGeruest = `werft-info:${sprache()}:${planet.id}`;
+  if (info.dataset.geruest !== infoGeruest) {
+    info.dataset.geruest = infoGeruest;
+    info.innerHTML = `<span data-werft-text></span> <button data-werft-abbrechen="1" hidden></button>`;
+    const abbrechen = info.querySelector("button[data-werft-abbrechen]");
+    abbrechen.textContent = t("Abbrechen");
+    attributSetzen(
+      abbrechen,
+      "title",
+      t("Bricht den laufenden Schiffbau ab. Die Kosten werden vollständig erstattet.")
+    );
+    abbrechen.addEventListener("click", () => {
       werftAbbrechen(state, planet);
       render(state, root);
     });
   }
+  textSetzen(
+    info.querySelector("[data-werft-text]"),
+    planet.werftQueue
+      ? t("Im Bau: {anzahl}× {schiff} ({dauer})", {
+          anzahl: planet.werftQueue.anzahl,
+          schiff: t(SCHIFFE[planet.werftQueue.schiffId].name),
+          dauer: fmtDauer((planet.werftQueue.fertigZeit - jetzt) / 1000),
+        })
+      : t("Werft Stufe {stufe} · {tempo}× Bautempo", { stufe: planet.gebaeude.werft, tempo: tempo.toFixed(2) })
+  );
+  info.querySelector("button[data-werft-abbrechen]").hidden = !planet.werftQueue;
 
-  for (const [id, def] of Object.entries(SCHIFFE)) {
+  listeAbgleichen(liste, Object.keys(SCHIFFE), {
+    // Planeten-Kennung im Schlüssel, damit die Knopf-Handler beim Wechsel der
+    // Welt neu entstehen -- sie fangen `planet` ein (siehe Kopfzeile oben).
+    schluessel: (id) => `${planet.id}:${id}`,
+    bauen: (id) => {
+      const li = document.createElement("li");
+      li.className = "gebaeude-item";
+      li.innerHTML = `
+        <div class="kachel-kopf">
+          <span class="kachel-symbol">${SYMBOLE[id] || "▪"}</span>
+          <span class="kachel-name"></span>
+          <span class="kachel-stufe"></span>
+        </div>
+        <div class="kachel-mitte">
+          <span class="kachel-kosten"></span>
+          <span class="kachel-dauer"></span>
+        </div>
+        <div class="schiff-knoepfe">
+          <button class="kachel-aktion" data-schiff="${id}" data-anzahl="1"></button>
+          <button data-schiff="${id}" data-anzahl="5">5×</button>
+        </div>`;
+      // Ereignisse EINMAL, hier beim Bauen (Lernpunkt 1 aus PRINZIPIEN.md 8a).
+      for (const btn of li.querySelectorAll("button[data-schiff]")) {
+        btn.addEventListener("click", () => {
+          schiffBauen(state, planet, btn.dataset.schiff, Number(btn.dataset.anzahl));
+          render(state, root);
+        });
+      }
+      return li;
+    },
+    aktualisieren: (li, id) => werftKachelFuellen(state, planet, li, id),
+  });
+
+  renderWarteschlange(
+    state, root, "#werft-warteschlange", planet.werftWarteschlange,
+    (e) => `${e.anzahl}× ${t(SCHIFFE[e.schiffId].name)}`, // reine Zahl plus Name, kein Satz
+    (i) => werftWarteschlangeEntfernen(state, planet, i),
+    String(planet.id)
+  );
+}
+
+// Die veränderlichen Teile einer Schiffskachel. Getrennt von ihrem Gerüst,
+// damit die beiden Knöpfe stehen bleiben (Prinzip 8a).
+function werftKachelFuellen(state, planet, li, id) {
+  {
+    const def = SCHIFFE[id];
     const check = kannSchiffBauen(state, planet, id, 1);
     const fuenfCheck = kannSchiffBauen(state, planet, id, 5);
-    const li = document.createElement("li");
-    li.className = "gebaeude-item";
-    if (planet.werftQueue && planet.werftQueue.schiffId === id) li.classList.add("item-aktiv");
-    li.title = [
+    li.classList.toggle("item-aktiv", !!(planet.werftQueue && planet.werftQueue.schiffId === id));
+    textSetzen(li.querySelector(".kachel-name"), t(def.name));
+    textSetzen(li.querySelector(".kachel-stufe"), String(planet.schiffe[id] || 0));
+    textSetzen(li.querySelector(".kachel-kosten"), buendelSymbole(schiffKosten(planet, id)));
+    textSetzen(
+      li.querySelector(".kachel-dauer"),
+      `${fmtDauer(schiffsBauzeitSek(planet, id, 1))} · ${def.verbrauchProStrecke}⚛️${
+        def.kapazitaet ? ` · ${fmt(def.kapazitaet)}📦` : ""
+      }`
+    );
+
+    const [einer, fuenfer] = li.querySelectorAll("button[data-schiff]");
+    textSetzen(einer, t("Bauen"));
+    einer.disabled = !check.ok;
+    attributSetzen(einer, "title", check.ok ? "" : check.grund);
+    fuenfer.disabled = !fuenfCheck.ok;
+    attributSetzen(fuenfer, "title", fuenfCheck.ok ? t("5 Stück auf einmal") : fuenfCheck.grund);
+
+    attributSetzen(li, "title", [
       t(def.beschreibung),
       t("Kosten: {kosten} · {dauer}", {
         kosten: buendelText(schiffKosten(planet, id)),
         dauer: fmtDauer(schiffsBauzeitSek(planet, id, 1)),
       }),
       def.kapazitaet
-        ? t("{menge} Tritium pro Strecke · Frachtraum {frachtraum}", {
+        ? t("{menge} Deuterium pro Strecke · Frachtraum {frachtraum}", {
             menge: def.verbrauchProStrecke,
             frachtraum: fmt(def.kapazitaet),
           })
-        : t("{menge} Tritium pro Strecke", { menge: def.verbrauchProStrecke }),
+        : t("{menge} Deuterium pro Strecke", { menge: def.verbrauchProStrecke }),
       def.hp ? t("{hp} HP · {angriff} Angriff", { hp: def.hp, angriff: def.angriff || 0 }) : "",
       check.ok ? "" : check.grund,
     ]
       .filter(Boolean)
-      .join("\n");
-    li.innerHTML = `
-      <div class="kachel-kopf">
-        <span class="kachel-symbol">${SYMBOLE[id] || "▪"}</span>
-        <span class="kachel-name">${t(def.name)}</span>
-        <span class="kachel-stufe">${planet.schiffe[id] || 0}</span>
-      </div>
-      <div class="kachel-mitte">
-        <span class="kachel-kosten">${buendelSymbole(schiffKosten(planet, id))}</span>
-        <span class="kachel-dauer">${fmtDauer(schiffsBauzeitSek(planet, id, 1))} · ${def.verbrauchProStrecke}⚛️${def.kapazitaet ? ` · ${fmt(def.kapazitaet)}📦` : ""}</span>
-      </div>
-      <div class="schiff-knoepfe">
-        <button class="kachel-aktion" data-schiff="${id}" data-anzahl="1" ${check.ok ? "" : "disabled"} title="${check.ok ? "" : check.grund}">${t("Bauen")}</button>
-        <button data-schiff="${id}" data-anzahl="5" ${fuenfCheck.ok ? "" : "disabled"} title="${fuenfCheck.ok ? t("5 Stück auf einmal") : fuenfCheck.grund}">5×</button>
-      </div>`;
-    liste.appendChild(li);
+      .join("\n"));
   }
-  liste.querySelectorAll("button[data-schiff]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      schiffBauen(state, planet, btn.dataset.schiff, Number(btn.dataset.anzahl));
-      render(state, root);
-    });
-  });
-  renderWarteschlange(
-    state, root, "#werft-warteschlange", planet.werftWarteschlange,
-    (e) => `${e.anzahl}× ${t(SCHIFFE[e.schiffId].name)}`, // reine Zahl plus Name, kein Satz
-    (i) => werftWarteschlangeEntfernen(state, planet, i)
-  );
 }
 
 // --- Markt ------------------------------------------------------------
+// PRINZIP 8a (A-004): Der Markt baute je Ware zwei Knöpfe, und zwar jede
+// Sekunde neu -- daneben stand der eigene Bestand, der sich laufend ändert
+// (Lernpunkt 2). Wer verkaufen wollte, traf regelmäßig ins Leere.
+//
+// Jetzt: Gerüst einmal je Planet, Zeilen fest, Zahlen und Sperrgründe
+// nachgezogen. Die Knöpfe bekommen ihr Ereignis einmal beim Bauen.
 function renderMarkt(state, root, planet) {
   const box = root.querySelector("#markt-block");
-  box.innerHTML = "";
+
+  // Ein Hinweistext statt des Marktes. Räumt das Gerüst mit ab, sonst blieben
+  // die Handelsknöpfe der vorigen Welt darunter stehen.
+  const stattdessen = (text) => {
+    if (box.dataset.hinweis !== text) {
+      box.dataset.hinweis = text;
+      delete box.dataset.geruest;
+      box.innerHTML = `<div class="dezent"></div>`;
+      box.firstChild.textContent = text;
+    }
+  };
 
   if (!handelVerfuegbar(planet)) {
-    box.innerHTML = `<div class="dezent">${t("Kein Handelsposten auf {planet}.", { planet: planet.name })}</div>`;
+    stattdessen(t("Kein Handelsposten auf {planet}.", { planet: planet.name }));
     return;
   }
 
@@ -1956,22 +2241,62 @@ function renderMarkt(state, root, planet) {
   // Knöpfe unerklärlich (Prinzip 10a).
   const partner = handelsPartner(state, planet);
   if (!partner) {
-    box.innerHTML = `<div class="dezent">${t(
-      "Kein Handelspartner in Reichweite. Der Markt braucht einen Gegenüber – ein fremdes Imperium mit eigenem Handelsposten, das eine Flotte von hier aus erreichen könnte."
-    )}</div>`;
+    stattdessen(
+      t(
+        "Kein Handelspartner in Reichweite. Der Markt braucht einen Gegenüber – ein fremdes Imperium mit eigenem Handelsposten, das eine Flotte von hier aus erreichen könnte."
+      )
+    );
     return;
   }
   const partnerFraktion = fraktionById(state, fraktionVon(partner.planet));
-  const partnerZeile = `<div class="dezent">${t("Handel mit {partner} auf {planet} · Kasse dort {credits}", {
+  const partnerZeile = t("Handel mit {partner} auf {planet} · Kasse dort {credits}", {
     partner: partnerFraktion ? partnerFraktion.name : t("Unbekannt"),
     planet: partner.planet.name,
     credits: mitEinheit("credits", partner.planet.ressourcen.credits || 0),
-  })}</div>`;
+  });
 
   const marktware = Object.entries(planet.marktlager || {}).filter(([, m]) => m > 0);
 
-  const zeilen = Object.keys(MARKT_PREISE)
-    .map((resId) => {
+  // Planeten-Kennung im Schlüssel: die Knopf-Handler unten fangen `planet`
+  // ein, und ein stehengebliebenes Gerüst würde sonst nach einem Wechsel auf
+  // der falschen Welt handeln.
+  const geruest = `markt:${sprache()}:${planet.id}`;
+  if (box.dataset.geruest !== geruest) {
+    box.dataset.geruest = geruest;
+    delete box.dataset.hinweis;
+    box.innerHTML =
+      `<div class="dezent" data-markt-credits></div><div class="dezent" data-markt-partner></div>` +
+      Object.keys(MARKT_PREISE)
+        .map(
+          (resId) => `
+        <div class="markt-zeile" data-res="${resId}">
+          <span class="markt-name"></span>
+          <span class="dezent" data-bestand></span>
+          <span class="dezent" data-preise></span>
+          <button data-verkaufen="${resId}" data-menge="${MARKT.los}"></button>
+          <button data-kaufen="${resId}" data-menge="${MARKT.los}"></button>
+        </div>`
+        )
+        .join("") +
+      `<div class="voraussetzung-zeile" data-markt-abholung hidden></div>`;
+
+    // Ereignisse EINMAL beim Bauen (Lernpunkt 1 aus PRINZIPIEN.md 8a).
+    for (const btn of box.querySelectorAll("button[data-verkaufen]")) {
+      btn.addEventListener("click", () => {
+        verkaufen(state, planet, btn.dataset.verkaufen, Number(btn.dataset.menge));
+        render(state, root);
+      });
+    }
+    for (const btn of box.querySelectorAll("button[data-kaufen]")) {
+      btn.addEventListener("click", () => {
+        kaufen(state, planet, btn.dataset.kaufen, Number(btn.dataset.menge));
+        render(state, root);
+      });
+    }
+  }
+
+  Object.keys(MARKT_PREISE)
+    .forEach((resId) => {
       const preis = MARKT_PREISE[resId];
       const bestand = Math.floor(planet.ressourcen[resId] || 0);
       const los = MARKT.los;
@@ -1999,58 +2324,61 @@ function renderMarkt(state, root, planet) {
         t("Handelsspanne {spanne}% – Kaufen und Verkaufen ergibt immer ein Minus", { spanne }),
         t("Gekaufte Ware wird nicht eingelagert: sie wartet am Markt, bis eine Flotte sie abholt."),
       ].join("\n");
-      return `
-        <div class="markt-zeile" title="${titel}">
-          <span class="markt-name">${t(RESSOURCEN[resId].name)}</span>
-          <span class="dezent">${t("Bestand {menge}", { menge: mitEinheit(resId, bestand) })}</span>
-          <span class="dezent">${t("Verkauf {verkauf}/St. · Kauf {kauf}/St.", {
-            verkauf: preis.verkauf,
-            kauf: preis.kauf,
-          })}</span>
-          <button data-verkaufen="${resId}" data-menge="${los}" ${verk.ok ? "" : "disabled"} title="${
-            verk.ok
-              ? t("{menge} {res} abgeben, {erloes} Credits erhalten", {
-                  menge: mitEinheit(resId, los),
-                  res: t(RESSOURCEN[resId].name),
-                  erloes: fmt(erloes),
-                })
-              : verk.grund
-          }">${t("Verkaufe {menge} → 🪙 {erloes}", { menge: formatKurz(los), erloes: fmt(erloes) })}</button>
-          <button data-kaufen="${resId}" data-menge="${los}" ${kau.ok ? "" : "disabled"} title="${
-            kau.ok
-              ? t("{preis} Credits zahlen, {menge} {res} warten dann am Markt auf Abholung", {
-                  preis: fmt(preisFuer100),
-                  menge: mitEinheit(resId, los),
-                  res: t(RESSOURCEN[resId].name),
-                })
-              : kau.grund
-          }">${t("Kaufe {menge} → 🪙 {preis}", { menge: formatKurz(los), preis: fmt(preisFuer100) })}</button>
-        </div>`;
-    })
-    .join("");
+      const zeile = box.querySelector(`.markt-zeile[data-res="${resId}"]`);
+      attributSetzen(zeile, "title", titel);
+      textSetzen(zeile.querySelector(".markt-name"), t(RESSOURCEN[resId].name));
+      textSetzen(zeile.querySelector("[data-bestand]"), t("Bestand {menge}", { menge: mitEinheit(resId, bestand) }));
+      textSetzen(
+        zeile.querySelector("[data-preise]"),
+        t("Verkauf {verkauf}/St. · Kauf {kauf}/St.", { verkauf: preis.verkauf, kauf: preis.kauf })
+      );
 
-  box.innerHTML = `
-    <div class="dezent">${t("Credits: {menge}", { menge: fmt(planet.ressourcen.credits || 0) })}</div>
-    ${partnerZeile}
-    ${zeilen}
-    ${marktware.length
-      ? `<div class="voraussetzung-zeile">${t("Wartet auf Abholung: {ware} – eine Flotte muss andocken und laden.", {
-          ware: buendelText(Object.fromEntries(marktware)),
-        })}</div>`
-      : ""}`;
+      const verkKnopf = zeile.querySelector("button[data-verkaufen]");
+      verkKnopf.disabled = !verk.ok;
+      textSetzen(verkKnopf, t("Verkaufe {menge} → 🪙 {erloes}", { menge: formatKurz(los), erloes: fmt(erloes) }));
+      attributSetzen(
+        verkKnopf,
+        "title",
+        verk.ok
+          ? t("{menge} {res} abgeben, {erloes} Credits erhalten", {
+              menge: mitEinheit(resId, los),
+              res: t(RESSOURCEN[resId].name),
+              erloes: fmt(erloes),
+            })
+          : verk.grund
+      );
 
-  box.querySelectorAll("button[data-verkaufen]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      verkaufen(state, planet, btn.dataset.verkaufen, Number(btn.dataset.menge));
-      render(state, root);
+      const kaufKnopf = zeile.querySelector("button[data-kaufen]");
+      kaufKnopf.disabled = !kau.ok;
+      textSetzen(kaufKnopf, t("Kaufe {menge} → 🪙 {preis}", { menge: formatKurz(los), preis: fmt(preisFuer100) }));
+      attributSetzen(
+        kaufKnopf,
+        "title",
+        kau.ok
+          ? t("{preis} Credits zahlen, {menge} {res} warten dann am Markt auf Abholung", {
+              preis: fmt(preisFuer100),
+              menge: mitEinheit(resId, los),
+              res: t(RESSOURCEN[resId].name),
+            })
+          : kau.grund
+      );
     });
-  });
-  box.querySelectorAll("button[data-kaufen]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      kaufen(state, planet, btn.dataset.kaufen, Number(btn.dataset.menge));
-      render(state, root);
-    });
-  });
+
+  textSetzen(
+    box.querySelector("[data-markt-credits]"),
+    t("Credits: {menge}", { menge: fmt(planet.ressourcen.credits || 0) })
+  );
+  textSetzen(box.querySelector("[data-markt-partner]"), partnerZeile);
+  const abholung = box.querySelector("[data-markt-abholung]");
+  abholung.hidden = marktware.length === 0;
+  if (marktware.length) {
+    textSetzen(
+      abholung,
+      t("Wartet auf Abholung: {ware} – eine Flotte muss andocken und laden.", {
+        ware: buendelText(Object.fromEntries(marktware)),
+      })
+    );
+  }
 }
 
 // --- Verarbeitung -----------------------------------------------------
@@ -2465,7 +2793,7 @@ function flottenZeileFuellen(state, li, flotte, jetzt) {
             ladung: buendelText(flotte.ladung),
           })
         : t("Fracht {menge} / {kapazitaet}", { menge: fmt(ladungGesamt(flotte)), kapazitaet: fmt(kapazitaet) }),
-      t("Tritium {menge} an Bord", { menge: fmt(flotte.treibstoff) }),
+      t("Deuterium {menge} an Bord", { menge: fmt(flotte.treibstoff) }),
       pos.systemId
         ? pos.orbit
           ? t("Position: {system} Orbit {orbit}", { system: systemName(state.galaxie.seed, pos.systemId), orbit: pos.orbit })
@@ -2492,11 +2820,11 @@ function flottenZeileFuellen(state, li, flotte, jetzt) {
       li.querySelector("[data-flotte-fracht]"),
       `${schiffsText} · ${
         ladungGesamt(flotte)
-          ? t("Tritium {menge} · Ladung {ladung}", {
+          ? t("Deuterium {menge} · Ladung {ladung}", {
               menge: fmt(flotte.treibstoff),
               ladung: buendelText(flotte.ladung),
             })
-          : t("Tritium {menge}", { menge: fmt(flotte.treibstoff) })
+          : t("Deuterium {menge}", { menge: fmt(flotte.treibstoff) })
       }`
     );
     textSetzen(
@@ -2571,7 +2899,7 @@ function flottenDetailZahlen(state, box, flotte, hafen) {
   }
   textSetzen(
     box.querySelector("[data-tritium-lage]"),
-    t("Tritium an Bord: {menge} ({lager} im Lager)", {
+    t("Deuterium an Bord: {menge} ({lager} im Lager)", {
       menge: fmt(flotte.treibstoff),
       lager: fmt(hafen.ressourcen.tritium || 0),
     })
@@ -2668,7 +2996,7 @@ function flottenDetail(state, root, flotte) {
       <span class="umlade-gruppe schieber-gruppe">
         <span class="dezent" data-tritium-lage></span>
         <input type="range" min="0" max="100" step="1" data-tanken-schieber="1" title="${t(
-          "Anteil des hier gelagerten Tritiums, das an Bord soll. Der Regler stellt nur ein -- erst „Tanken“ führt es aus."
+          "Anteil des hier gelagerten Deuteriums, das an Bord soll. Der Regler stellt nur ein -- erst „Tanken“ führt es aus."
         )}" />
         <span class="schieber-wert" data-tanken-anzeige="1"></span>
         <input type="number" class="menge-feld" min="0" step="1" placeholder="${t("genaue Menge")}" data-tanken-feld="1" title="${t(
@@ -3255,7 +3583,7 @@ function renderSystem(state, root, jetzt) {
     const von = flottePosition(state, flotte, jetzt);
     const d = strecke(von, ziel);
     statusEl.innerHTML =
-      t("{flotte}: Entfernung {distanz} · rund {tritium} Tritium hin · {anBord} an Bord", {
+      t("{flotte}: Entfernung {distanz} · rund {tritium} Deuterium hin · {anBord} an Bord", {
         // innerHTML, weil unten die Schnellversand-Knöpfe angehängt werden --
         // der Name muss also entschärft sein.
         flotte: htmlText(flotte.name),
@@ -3412,9 +3740,15 @@ function slotZeileFuellen(state, systemId, objekt, flotte, li) {
   if (orbitWahl.systemId === systemId && orbitWahl.orbit === objekt.orbit) li.classList.add("slot-gewaehlt");
   const gesperrt =
     objekt.entdeckt && objekt.benoetigt && (state.forschung[objekt.benoetigt.forschung] || 0) < 1;
-  const eigen = planetAn(state, systemId, objekt.orbit);
+  // `eigen` ist SPIELREGEL, nicht Anzeige: daran hängt, welche Missionen der
+  // Orbit anbietet (slotAktion) und was in der Detailzeile steht. Deshalb
+  // fragt es seit v0.83 nach der Fraktion -- vorher galt jeder Planet an
+  // diesem Orbit als eigener, auch eine Piratenbasis (A-002).
+  const eigen = eigenerPlanetAn(state, systemId, objekt.orbit);
+  const besetzer = !eigen ? planetAn(state, systemId, objekt.orbit) : null;
 
   if (objekt.typ === "heimat" || eigen) li.classList.add("slot-heimat");
+  else if (besetzer) li.classList.add("slot-besetzt");
   else if (!objekt.entdeckt) li.classList.add("slot-unerforscht");
   else if (objekt.gefahr && !objekt.verteidigerBesiegt) li.classList.add("slot-gefahr");
   else if (gesperrt) li.classList.add("slot-gesperrt");
@@ -3447,10 +3781,16 @@ function slotZeileFuellen(state, systemId, objekt, flotte, li) {
             schiff: t(SCHIFFE[MISSIONS_SCHIFF[naechsteMission]].name),
           })
         : t("Nächster Schritt: {mission}", { mission: missionLabel(naechsteMission) || naechsteMission })
-      : objekt.entdeckt && !eigen
+      : objekt.entdeckt && !eigen && !besetzer
       ? t("Hier ist nichts mehr zu holen.")
       : "",
     eigen ? t("Dein Stützpunkt: {name}", { name: eigen.name }) : "",
+    besetzer
+      ? t("Fremder Stützpunkt: {name} ({fraktion})", {
+          name: besetzer.name,
+          fraktion: (fraktionById(state, fraktionVon(besetzer)) || {}).name || t("Unbekannt"),
+        })
+      : "",
   ]
     .filter(Boolean)
     .join("\n");
