@@ -83,6 +83,13 @@
         <button data-sprung-sek="600">+10m</button>
         <button data-sprung-sek="3600">+1h</button>
         <button data-sprung-sek="86400" data-text="+1 Tag"></button>
+        <!-- A-038: Dauerfaktor statt Sprung. 0 ist die Pause -- derselbe
+             Regler, ein Wert weiter unten, kein zweiter Mechanismus. -->
+        <button data-zeitfaktor="0" data-text="Pause"></button>
+        <button data-zeitfaktor="1">×1</button>
+        <button data-zeitfaktor="2">×2</button>
+        <button data-zeitfaktor="3">×3</button>
+        <button data-zeitfaktor="4">×4</button>
         <button id="testmodus-reset" class="testmodus-reset">Reset</button>
       </div>
     </header>
@@ -144,8 +151,14 @@
               js/karte.js und bleiben danach stehen -- 500 Sterne pro Sekunde
               neu zu zeichnen wäre genau der Klickfresser aus Prinzip 8a.
             -->
-            <svg id="galaxie-karte" class="karte" viewBox="-104 -104 208 208"
-                 preserveAspectRatio="xMidYMid meet" role="img"></svg>
+            <!-- Die Hülle trägt die Zoomknöpfe (A-039). Sie stehen an einer
+                 festen Stelle über der Karte, damit sie beim Zoomen nicht
+                 mitwandern (Prinzip 8) -- gebaut werden sie EINMAL in
+                 js/karte.js, nicht in jedem Takt. -->
+            <div class="karte-huelle">
+              <svg id="galaxie-karte" class="karte" viewBox="-104 -104 208 208"
+                   preserveAspectRatio="xMidYMid meet" role="img"></svg>
+            </div>
             <div id="galaxie-legende" class="karte-legende"></div>
             <div class="spalte-scrollt">
               <ul id="galaxie-liste" class="system-liste"></ul>
@@ -161,8 +174,10 @@
                  Orbits als Ringe, und darauf die Objekte und jede Flotte, die
                  gerade hier steht oder hereinkommt. Ein Klick hebt den Orbit
                  hervor und holt seine Zeile in der Liste in den Blick. -->
-            <svg id="system-karte" class="karte" viewBox="-104 -104 208 208"
-                 preserveAspectRatio="xMidYMid meet" role="img"></svg>
+            <div class="karte-huelle">
+              <svg id="system-karte" class="karte" viewBox="-104 -104 208 208"
+                   preserveAspectRatio="xMidYMid meet" role="img"></svg>
+            </div>
             <div class="spalte-scrollt">
               <ul id="system-liste" class="system-liste"></ul>
             </div>
@@ -190,6 +205,18 @@
       <section class="bereich" data-bereich="handbuch" hidden>
         <h2 data-text="Handbuch"></h2>
         <div id="handbuch-block" class="handbuch"></div>
+      </section>
+
+      <!-- Der Kanal zwischen Testern und Entwicklung (A-054). Drei
+           Abschnitte in fester Reihenfolge: was sich geändert hat, was
+           geplant ist, und der Weg zurück.
+
+           Leer im Markup: der Inhalt entsteht EINMAL beim ersten Öffnen
+           (js/ui.js). Langer Text im Sekundentakt neu zu bauen wäre der
+           teuerste Weg, nichts zu ändern. -->
+      <section class="bereich" data-bereich="development" hidden>
+        <h2 data-text="Development"></h2>
+        <div id="development-block" class="handbuch"></div>
       </section>
     </main>
 

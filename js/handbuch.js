@@ -83,6 +83,12 @@ export function handbuchAbschnitte() {
         t(
           "Arbeitskraft kommt aus deiner Bevölkerung, und Bevölkerung wächst nur, wenn Wohnraum frei ist. Deshalb ist ein Wohnmodul selten das, was am dringendsten aussieht, und oft das, was am meisten bringt: es hebt nicht eine Zahl, sondern die Obergrenze aller anderen."
         ),
+        // A-052: der Verderb steht seit v1.25 nur noch im Tooltip der Kachel,
+        // und Tooltips gibt es auf einem Telefon nicht. Deshalb hier, im
+        // Fließtext -- das ist Pflicht und nicht Beiwerk.
+        t(
+          "Eine Ausnahme unter den Vorräten: Nahrung verdirbt. Ein Teil des Lagerbestands geht laufend verloren, und zwar anteilig – ein volles Lager verliert absolut mehr als ein halbleeres. Deshalb kann dein Vorrat schrumpfen, obwohl die Bilanz positiv aussieht. Wie viel es ist, steht im Tooltip der Nahrungs-Kachel."
+        ),
       ],
     },
     {
@@ -216,58 +222,23 @@ export function handbuchAbschnitte() {
     //
     // DIE ⚠-ZEILE IST PFLICHT: sie ist die einzige Warnung, die ein Tester
     // bekommt, bevor ein Spielstand einmalig zurückgesetzt wird.
+    // A-054: DER ABSCHNITT „Neuigkeiten & Roadmap" IST HIER RAUS.
+    // Er hat drei Dinge in einem Kasten gehalten -- was war, was kommt, und
+    // wie man sich meldet -- und der Kasten war das Handbuch, also der Ort
+    // fuer „wie funktioniert das Spiel". Beides zusammen hat keinem der
+    // beiden gutgetan.
+    //
+    // Alles davon steht jetzt im Development-Bereich, und zwar getrennt:
+    // Patchnotes (js/patchnotes.js), Roadmap (ROADMAP_PUNKTE unten) und
+    // Feedback. Hier bleibt nur der Weg dorthin.
     {
       id: "neuigkeiten",
-      titel: t("Neuigkeiten & Roadmap"),
+      titel: t("Was neu ist und was kommt"),
       absaetze: [
         t(
-          "Diese Demo ist unterwegs, nicht fertig. Hier steht, was zuletzt dazugekommen ist und was als Nächstes drankommt – damit du weißt, was du siehst, und nicht meldest, was schon auf dem Zettel steht."
+          "Diese Demo ist unterwegs, nicht fertig. Was zuletzt dazugekommen ist, was als Nächstes drankommt und wie du dich meldest, steht im Bereich Development – unterster Eintrag in der Leiste links."
         ),
       ],
-      gruppen: [
-        {
-          titel: t("Kürzlich"),
-          punkte: [
-            t("Hänger bei Zeitsprüngen und Tab-Wechseln behoben — und wenn doch etwas stockt, meldet das Spiel es jetzt selbst"),
-            t("Erklärung beim allerersten Start, Handbuch, Galaxie- und Systemkarte"),
-            t("Meldungen zeigen nur noch, was dein Imperium betrifft"),
-            t("Ingame-Datum „Jahr N · Tag M“ — Fristen sind jetzt lesbar"),
-            t("Gebäude nach Themen sortiert, Countdown mit Frist und Balken"),
-            t("Fremde Stützpunkte sind als fremd erkennbar; die Flut trifft alle Fraktionen nach denselben Regeln"),
-            t("Der Treibstoff heißt jetzt physikalisch ehrlich Deuterium"),
-          ],
-        },
-        {
-          titel: t("Bald"),
-          punkte: [
-            t("Feedback-Link, Roadmap und „Was ist neu“ direkt im Spiel"),
-            t("Bauen ohne volle Ressourcen — die Warteschlange wartet und baut dann"),
-            t("Flotten bleiben am Ziel; der Sonden-Schnellversand denkt mit"),
-            t("Hotkeys für die Bedienung"),
-            t("Kacheln zeigen ihren Bau- und Forschungsfortschritt als Fläche"),
-          ],
-        },
-        {
-          titel: t("In Arbeit"),
-          punkte: [
-            t("Energie bekommt echte Entscheidungen: zwei Kraftwerkstypen mit Vor- und Nachteilen"),
-            t("Eine zweite Verarbeitungskette"),
-            t("Ressourcen-Namen werden physikalisch ehrlich"),
-            t("Die Versorgungskrise wird ernster — und bekommt einen Ausweg"),
-          ],
-        },
-        {
-          titel: t("Später"),
-          punkte: [
-            t("Endliche Vorkommen — ⚠ dieser Schritt setzt Spielstände einmalig zurück"),
-            t("Lesbare Systemnamen statt Nummern"),
-            t("Oberfläche fürs Handy"),
-          ],
-        },
-      ],
-      schluss: t(
-        "Was hier nicht steht und dir trotzdem auffällt, gehört in eine Rückmeldung – der Abschnitt darüber sagt, wie."
-      ),
     },
   ];
 }
@@ -305,8 +276,21 @@ export function erststartTafel(planetName) {
         { planet: planetName }
       ),
       ...geborgt,
+      // A-045, Chris: „It says to upgrade a building and start research but
+      // you actually cant research right away bc you dont have a lab."
+      //
+      // Hier stand „zwei Handgriffe … und im Bereich Forschung einen Auftrag
+      // einreihen". Nachgemessen im frischen Spiel: 13 Forschungskacheln, 0
+      // davon einreihbar -- ohne Labor forscht niemand. Ein Neuling sucht den
+      // Fehler dann bei sich, und genau das hat Chris getan („not sure if im
+      // missing something").
+      //
+      // Der Satz sagt jetzt EINEN Handgriff und macht die Reihenfolge
+      // ehrlich. Bewusst FEST und nicht zustandsabhängig: das Handbuch baut
+      // bei jedem Aufruf neu, und ein wahrer fester Satz ist billiger als
+      // eine Zustandsprüfung, die dasselbe sagt.
       t(
-        "Zum Anfangen genügen zwei Handgriffe: im Bereich Planet ein Gebäude ausbauen – Kraftwerk und Wohnmodul tragen alles andere –, und im Bereich Forschung einen Auftrag einreihen."
+        "Zum Anfangen genügt ein Handgriff: im Bereich Planet ein Gebäude ausbauen – Kraftwerk und Wohnmodul tragen alles andere. Geforscht wird erst, wenn ein Forschungslabor steht; Forschung ist kein Kauf, sondern Arbeit, und ohne Labor arbeitet niemand daran."
       ),
     ],
     // Steht getrennt, weil es kein Inhalt ist, sondern der Weg zum Rest.

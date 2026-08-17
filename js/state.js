@@ -299,6 +299,7 @@ export function neuesSpiel(saat) {
     angezeigtesSystem: galaxie.heimatSystem,
     meldungen: [],
     testZeitOffsetMs: 0,
+    testZeitFaktor: 1,
     // Wann diese Kolonie gegründet wurde. Bezugspunkt für das Ingame-Datum
     // (A-005) -- gezählt wird ab hier, nicht ab einem Erdkalender.
     beginn: jetzt,
@@ -307,6 +308,120 @@ export function neuesSpiel(saat) {
 
 export function spielzeitJetzt(state) {
   return Date.now() + (state.testZeitOffsetMs || 0);
+}
+
+// --- Was vom Zeitversatz in den Spielstand darf (A-048) -------------------
+//
+// DER FEHLER, DEN DAS ABSTELLT, und er ist der Grund, warum Tobis Reload nie
+// half: der Sekundentakt speichert `testZeitOffsetMs` mit, `letzterTick`
+// rückt aber nur vor, wenn die Aufholung durchläuft. Hängt sie, wächst der
+// gespeicherte Versatz weiter -- beim nächsten Laden steht dieselbe oder eine
+// GRÖSSERE Lücke da. Der kaputte Zustand ernährt sich selbst.
+//
+// Die Invariante dagegen ist eine Zeile: gespeichert wird höchstens der
+// Versatz, den die Uhr tatsächlich erreicht hat. Der Versatz, bei dem
+// `spielzeitJetzt` genau auf `letzterTick` stünde, ist `letzterTick - jetzt`
+// -- alles darüber ist ungerechnete Strecke.
+//
+//     gespeichert = min(roher Versatz, letzterTick − jetzt)
+//
+// Im Normalbetrieb ändert das nichts: der Takt hält `letzterTick` aktuell,
+// beide Werte sind gleich. Erst wenn die Uhr zurückfällt, greift die Grenze.
+//
+// WAS DAS KOSTET, offen gesagt: wer mitten in einer langen Aufholung den Tab
+// schließt, verliert den noch nicht gerechneten Rest seines Sprungs. Das ist
+// der Handel -- ein Sprung, der nie gerechnet wurde, hat auch nie
+// stattgefunden, und er darf sich nicht über Neuladen hinweg aufsummieren.
+//
+// Der Spielstand selbst bleibt unangetastet: das hier ändert nur, WAS beim
+// Speichern hinausgeht, nicht den laufenden Zustand. Eine Aufholung, die noch
+// läuft, rechnet mit ihrem vollen Versatz weiter.
+// WARUM DIE UNTERGRENZE BEI NULL LIEGT, und das war beim ersten Anlauf falsch:
+// `letzterTick − jetzt` ist auch dann negativ, wenn der Spieler schlicht WEG
+// war -- eine ganz normale Offline-Lücke, mit der der Versatz nichts zu tun
+// hat. Ohne die Null hätte ein Speichern während dieser Lücke den Versatz
+// negativ gemacht: die Spielzeit stünde dauerhaft hinter der Wanduhr, und die
+// Abwesenheit, die die Frist ausdrücklich mitzählen soll, wäre still
+// verschwunden. Aufgefallen beim Gegenprüfen mit A-046 („Verwerfen" setzt den
+// Versatz auf 0, und genau dort greift der Fall).
+//
+// Gekappt wird deshalb nur, was der Versatz selbst an ungerechneter Strecke
+// mitbringt. Ein NEGATIVER Versatz ist die Pause aus A-038 -- sie hat ihre
+// eigene Verankerung beim Laden (`pauseNachziehen`) und wird hier nicht
+// angefasst.
+export function speicherbarerVersatz(state, jetzt = Date.now()) {
+  const roh = state.testZeitOffsetMs || 0;
+  if (roh <= 0) return roh;
+  const erreicht = state.letzterTick - jetzt;
+  return Math.max(0, Math.min(roh, erreicht));
+}
+
+// --- Zeitraffer und Pause im Testmodus (A-038) ----------------------------
+//
+// Es gibt keinen zweiten Zeitpfad. Die Spielzeit ist und bleibt
+// `Date.now() + testZeitOffsetMs` -- der Faktor lässt nur den VERSATZ
+// mitwachsen (Prinzip 5).
+//
+// Eine Formel deckt alles ab:      Versatz += Echtzeit × (Faktor − 1)
+//
+//   Faktor 0  →  Versatz schrumpft genau um die verstrichene Echtzeit:
+//                die Wanduhr läuft, die Spielzeit steht. Das ist die Pause.
+//   Faktor 1  →  nichts passiert, der Normalfall.
+//   Faktor 3  →  je Echtzeitsekunde kommen zwei Sekunden dazu, macht drei.
+//
+// Der Faktor liegt im Spielstand, der Bezugspunkt bewusst NICHT: „wann habe
+// ich zuletzt angepasst" ist eine Frage an diesen Lauf, nicht an die Welt.
+// Nach einem Neuladen fängt die Messung neu an, statt eine Lücke aufzuholen,
+// die niemand erlebt hat.
+let zeitfaktorBezug = null;
+
+export const ZEITFAKTOREN = [0, 1, 2, 3, 4];
+
+export function zeitfaktorVon(state) {
+  const f = state.testZeitFaktor;
+  return ZEITFAKTOREN.includes(f) ? f : 1;
+}
+
+// `jetzt` ist auch hier durchgereicht, nicht abgefragt: sonst wäre der
+// Faktorwechsel die eine Stelle, die man nicht deterministisch testen kann --
+// und genau dort sitzt die Abrechnung des alten Faktors.
+export function zeitfaktorSetzen(state, faktor, jetzt = Date.now()) {
+  if (!ZEITFAKTOREN.includes(faktor)) return;
+  // Erst abrechnen, was mit dem ALTEN Faktor noch offen ist -- sonst würde
+  // die Zeit seit dem letzten Takt mit dem neuen Faktor verrechnet.
+  zeitfaktorAnwenden(state, jetzt);
+  state.testZeitFaktor = faktor;
+}
+
+export function zeitfaktorAnwenden(state, jetzt = Date.now()) {
+  const faktor = zeitfaktorVon(state);
+  if (zeitfaktorBezug === null) {
+    zeitfaktorBezug = jetzt;
+    return 0;
+  }
+  const echtVergangen = jetzt - zeitfaktorBezug;
+  zeitfaktorBezug = jetzt;
+  if (faktor === 1 || echtVergangen <= 0) return 0;
+  const zuwachs = echtVergangen * (faktor - 1);
+  state.testZeitOffsetMs = (state.testZeitOffsetMs || 0) + zuwachs;
+  return zuwachs;
+}
+
+// Nur für Tests: den Bezugspunkt zurücksetzen, damit ein Lauf nicht die
+// Wartezeit des vorherigen erbt.
+export function zeitfaktorBezugSetzen(wert) {
+  zeitfaktorBezug = wert;
+}
+
+// Beim Laden: eine Pause überdauert das Neuladen (die Falle aus dem Auftrag).
+// Ohne das stünde der Versatz noch auf dem Wert von vorhin, `spielzeitJetzt`
+// spränge um die ganze Abwesenheit nach vorn — und der pausierte Stand holte
+// beim Öffnen genau das auf, wovor die Pause ihn bewahren sollte. Neu
+// verankert steht die Spielzeit exakt dort, wo sie beim Schließen stand.
+export function pauseNachziehen(state) {
+  if (zeitfaktorVon(state) !== 0) return;
+  state.testZeitOffsetMs = state.letzterTick - Date.now();
+  zeitfaktorBezug = null;
 }
 
 // --- Ingame-Datum (A-005) -------------------------------------------------
@@ -1100,6 +1215,37 @@ export function lagerFrei(state, planet) {
   return Math.max(0, lagerKapazitaetGesamt(state, planet) - lagerBelegung(planet));
 }
 
+// Wie lange reicht der Platz noch? (A-051)
+//
+// Die Antwort auf das A-023-Zurück: die Belegung im Frühspiel plateaut, eine
+// Lagerhalle ist eine OFFLINE-Entscheidung -- und das ist in Ordnung. Was
+// fehlte, war nur, dass das Spiel es SAGT.
+//
+// Gerechnet wird in Lagervolumen je Stunde, nicht in Tonnen: eine Tonne
+// Antimaterie belegt fünfundzwanzigmal so viel wie eine Tonne Metall. Wer
+// Tonnen addierte, bekäme eine Zahl, die mit dem Regal nichts zu tun hat.
+//
+// DIE RATEN MÜSSEN DIE EFFEKTIVEN SEIN, nicht die Rohraten -- die Falle aus
+// dem Auftrag. Bei Strommangel fördert eine gedrosselte Mine weniger, und
+// eine Prognose aus Nennleistung verspräche ein volles Lager, das nie kommt.
+// Deshalb nimmt diese Funktion die Raten ENTGEGEN, statt sie selbst zu
+// holen: der Aufrufer hat sie ohnehin, und so kann kein zweiter Weg zu einer
+// anderen Wahrheit entstehen.
+//
+// Rückgabe in Stunden, oder `null` -- und `null` heißt „keine Angabe", nicht
+// „nie". Eine Zeile, die fehlt, ist ehrlicher als ein „∞", das wie eine
+// Auskunft aussieht.
+export function lagerVollInStunden(state, planet, lagerRaten) {
+  const frei = lagerFrei(state, planet);
+  if (frei <= 0) return 0; // schon voll -- das ist eine Angabe, keine Prognose
+  let zuflussProStunde = 0;
+  for (const resId of LAGER_RESSOURCEN) {
+    zuflussProStunde += (lagerRaten[resId] || 0) * lagerverbrauchVon(resId);
+  }
+  if (zuflussProStunde <= 0) return null;
+  return frei / zuflussProStunde;
+}
+
 // Eigene Speicherkapazität einer Ressource, gespeist aus EINEM bestimmten
 // Gebäude statt aus dem gemeinsamen Warenlager (RESSOURCEN[x].speicher).
 //
@@ -1491,8 +1637,8 @@ export function neuigkeitenHinweisPruefen(state, version, text) {
   // Grund wie beim Handbuch-Hinweis in ui.js: ein Merker, der sagt „ist
   // erledigt", gehört hinter die Sache, die er bezeugt.
   meldungHinzufuegen(state, text, "neuigkeiten", "eigen", {
-    bereich: "handbuch",
-    anker: "neuigkeiten",
+    bereich: "development",
+    anker: "patchnotes",
   });
   state.gesehenVersion = version;
   return true;

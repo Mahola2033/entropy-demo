@@ -182,9 +182,190 @@ function galaxieGeruestBauen(svg, state) {
   svg.querySelector("[data-wahl]").appendChild(svgEl("circle", { class: "karte-wahl", r: 4.6, hidden: "" }));
 }
 
+// ===== Zoom und Verschieben (A-039) =======================================
+//
+// Der ganze Zoom ist EINE Zeile Wirkung: das `viewBox`-Attribut der bereits
+// vorhandenen SVG. Nichts am Zeichenpfad ändert sich -- keine zweite
+// Zeichenroutine, keine Transformationsmatrix, die irgendwo mitgeführt werden
+// müsste (Prinzip 5, und die Falle aus dem Auftrag).
+//
+// DIE TREFFERERKENNUNG BRAUCHT DEHALB GAR NICHTS. Der Auftrag nennt sie „die
+// eigentliche Arbeit" -- das gilt für eine Karte, die selbst transformiert
+// (Canvas, oder ein `transform` auf einer Gruppe). Bei einer viewBox rechnet
+// der Browser die Zeigerposition selbst zurück: `ereignis.target` ist bei
+// jedem Maßstab dasselbe Element wie in der Übersicht. Nachgemessen, nicht
+// angenommen (siehe Ergebnis von A-039).
+//
+// Der Zustand liegt bewusst NICHT im Spielstand: eine Ansicht ist keine Welt.
+// Er hängt an der SVG selbst und ist mit dem Neuladen weg -- so beauftragt.
+const GRUND_HALB = 104; // die halbe Kantenlänge aus dem index.html-viewBox
+const ZOOM_MIN = 1;
+const ZOOM_MAX = 8;
+const ZOOM_SCHRITT = 1.3;
+
+const ansichten = new WeakMap();
+
+function ansichtVon(svg) {
+  let a = ansichten.get(svg);
+  if (!a) {
+    a = { zoom: 1, mx: 0, my: 0 };
+    ansichten.set(svg, a);
+  }
+  return a;
+}
+
+// Die Mitte darf nur so weit wandern, dass der Rand der Karte nicht ins Bild
+// gerät. Bei Zoom 1 ist der Spielraum null -- ganz herausgezoomt sieht man
+// immer die volle Karte, und zwar mittig (Fertig-Kriterium des Auftrags).
+function ansichtAnwenden(svg, a) {
+  const halb = GRUND_HALB / a.zoom;
+  const spiel = GRUND_HALB - halb;
+  a.mx = Math.max(-spiel, Math.min(spiel, a.mx));
+  a.my = Math.max(-spiel, Math.min(spiel, a.my));
+  attributSetzen(
+    svg,
+    "viewBox",
+    `${(a.mx - halb).toFixed(3)} ${(a.my - halb).toFixed(3)} ${(halb * 2).toFixed(3)} ${(halb * 2).toFixed(3)}`
+  );
+  svg.classList.toggle("karte-gezoomt", a.zoom > 1);
+  // Die Klickziele sollen ihre Größe AUF DEM SCHIRM behalten, statt mit der
+  // Karte zu wachsen -- sonst überlappen sie bei 500 Systemen in jedem Maßstab
+  // gleich stark und der Zoom hilft beim Zielen nicht. Siehe .karte-treffer.
+  svg.style.setProperty("--karte-zoom", String(a.zoom));
+}
+
+// Zeigerposition in Kartenkoordinaten. Über die Bildschirmmatrix der SVG --
+// die kennt Skalierung, `preserveAspectRatio` und die Randstreifen, die dabei
+// entstehen. Selbst gerechnet wäre das genau der Fehler, den man erst bei
+// nicht-quadratischen Fenstern sieht.
+function zeigerInKarte(svg, ereignis) {
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return null;
+  const p = svg.createSVGPoint();
+  p.x = ereignis.clientX;
+  p.y = ereignis.clientY;
+  const k = p.matrixTransform(ctm.inverse());
+  return { x: k.x, y: k.y };
+}
+
+// Zoomen auf einen Punkt: der Punkt unter dem Zeiger bleibt stehen. Dafür
+// wird sein ANTEIL am sichtbaren Ausschnitt vor dem Zoom gemerkt und danach
+// wiederhergestellt -- ohne Anker (Knöpfe) ist der Anker die Mitte.
+function zoomen(svg, faktor, anker) {
+  const a = ansichtVon(svg);
+  const alt = a.zoom;
+  const neu = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, alt * faktor));
+  if (neu === alt) return;
+  if (anker) {
+    const halbAlt = GRUND_HALB / alt;
+    const halbNeu = GRUND_HALB / neu;
+    // anteil ∈ [-1, 1]: wo im Ausschnitt der Punkt sitzt, unabhängig vom Maßstab.
+    const anteilX = (anker.x - a.mx) / halbAlt;
+    const anteilY = (anker.y - a.my) / halbAlt;
+    a.mx = anker.x - anteilX * halbNeu;
+    a.my = anker.y - anteilY * halbNeu;
+  }
+  a.zoom = neu;
+  ansichtAnwenden(svg, a);
+}
+
+function zoomZuruecksetzen(svg) {
+  const a = ansichtVon(svg);
+  a.zoom = 1;
+  a.mx = 0;
+  a.my = 0;
+  ansichtAnwenden(svg, a);
+}
+
+// Die Knöpfe EINMAL, in die Hülle neben die Karte (Prinzip 8a). Sie liegen
+// außerhalb der SVG, damit sie nicht mitzoomen -- ein Bedienelement, das beim
+// Zoomen die Größe wechselt, ist kein Bedienelement mehr.
+function zoomKnoepfeBauen(svg) {
+  const huelle = svg.parentElement;
+  if (!huelle || !huelle.classList.contains("karte-huelle")) return;
+  if (huelle.querySelector(".karte-zoom")) return;
+  const leiste = document.createElement("div");
+  leiste.className = "karte-zoom";
+  leiste.innerHTML =
+    `<button data-zoom="naeher" title="${t("Näher heran")}">+</button>` +
+    `<button data-zoom="weiter" title="${t("Weiter weg")}">−</button>` +
+    `<button data-zoom="ganz" title="${t("Ganze Karte zeigen")}">⤢</button>`;
+  leiste.addEventListener("click", (ereignis) => {
+    const knopf = ereignis.target.closest("button[data-zoom]");
+    if (!knopf) return;
+    if (knopf.dataset.zoom === "ganz") zoomZuruecksetzen(svg);
+    else zoomen(svg, knopf.dataset.zoom === "naeher" ? ZOOM_SCHRITT : 1 / ZOOM_SCHRITT, null);
+  });
+  huelle.appendChild(leiste);
+}
+
+function zoomVerdrahten(svg) {
+  zoomKnoepfeBauen(svg);
+
+  svg.addEventListener(
+    "wheel",
+    (ereignis) => {
+      ereignis.preventDefault();
+      zoomen(svg, ereignis.deltaY < 0 ? ZOOM_SCHRITT : 1 / ZOOM_SCHRITT, zeigerInKarte(svg, ereignis));
+    },
+    { passive: false }
+  );
+
+  svg.addEventListener("dblclick", () => zoomZuruecksetzen(svg));
+
+  // Ziehen zum Verschieben. Der Weg wird in KARTENkoordinaten gemessen, nicht
+  // in Bildpunkten -- sonst zöge man im Zoom weiter als der Zeiger läuft.
+  let zug = null;
+  svg.addEventListener("pointerdown", (ereignis) => {
+    if (ereignis.button !== 0) return;
+    const a = ansichtVon(svg);
+    if (a.zoom <= ZOOM_MIN) return; // in der Übersicht gibt es nichts zu schieben
+    const start = zeigerInKarte(svg, ereignis);
+    if (!start) return;
+    zug = { start, mx: a.mx, my: a.my, gezogen: false };
+    svg.setPointerCapture(ereignis.pointerId);
+  });
+  svg.addEventListener("pointermove", (ereignis) => {
+    if (!zug) return;
+    const jetzt = zeigerInKarte(svg, ereignis);
+    if (!jetzt) return;
+    const a = ansichtVon(svg);
+    // Zwischenschritt: der Griffpunkt soll unter dem Zeiger bleiben. Deshalb
+    // wird von der GEMERKTEN Mitte aus gerechnet, nicht Schritt für Schritt --
+    // sonst summieren sich Rundungsfehler zu einem Driften.
+    a.mx = zug.mx - (jetzt.x - zug.start.x);
+    a.my = zug.my - (jetzt.y - zug.start.y);
+    if (Math.abs(jetzt.x - zug.start.x) > 1 || Math.abs(jetzt.y - zug.start.y) > 1) zug.gezogen = true;
+    ansichtAnwenden(svg, a);
+  });
+  const beenden = (ereignis) => {
+    if (!zug) return;
+    // Ein Zug ist kein Klick. Ohne das würde jedes Verschieben nebenbei das
+    // System unter dem Griffpunkt auswählen (Prinzip 8a, andere Richtung:
+    // hier darf ein Klick gerade NICHT ankommen).
+    if (zug.gezogen) svg.dataset.zugGerade = "1";
+    zug = null;
+    if (svg.hasPointerCapture(ereignis.pointerId)) svg.releasePointerCapture(ereignis.pointerId);
+  };
+  svg.addEventListener("pointerup", beenden);
+  svg.addEventListener("pointercancel", beenden);
+
+  // Vor den Auswahl-Handlern: der Klick nach einem Zug wird hier geschluckt.
+  svg.addEventListener(
+    "click",
+    (ereignis) => {
+      if (!svg.dataset.zugGerade) return;
+      delete svg.dataset.zugGerade;
+      ereignis.stopPropagation();
+    },
+    true
+  );
+}
+
 function galaxieVerdrahten(svg) {
   if (svg.dataset.verdrahtet) return;
   svg.dataset.verdrahtet = "1";
+  zoomVerdrahten(svg);
 
   // EINMAL, und nur hier. Die Karte hat keinen eigenen Weg ins Spiel: sie ruft
   // dieselbe Funktion auf wie der "Ansehen"-Knopf der Liste, samt dessen
@@ -473,6 +654,7 @@ function systemGeruestBauen(svg) {
 function systemVerdrahten(svg) {
   if (svg.dataset.verdrahtet) return;
   svg.dataset.verdrahtet = "1";
+  zoomVerdrahten(svg);
   svg.addEventListener("click", (ereignis) => {
     const ziel = ereignis.target.closest("[data-orbit]");
     if (ziel && rueckrufe.orbit) rueckrufe.orbit(Number(ziel.dataset.orbit));

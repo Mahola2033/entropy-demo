@@ -17,7 +17,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "1.12";
+export const VERSION = "1.27";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von uebernehmen.mjs beim Kopieren auf "spielkopie"
@@ -32,7 +32,7 @@ export const VERSION = "1.12";
 // fehl, behauptet die Spielkopie fälschlich, Entwicklungsstand zu sein. Das ist
 // die harmlose Richtung. Der gefährliche Irrtum ist der umgekehrte -- sich auf
 // einem eingefrorenen Stand zu wähnen, während in Wahrheit gebaut wird.
-export const STAND = "entwicklung";
+export const STAND = "demo";
 
 // --- Die Saat der Demo ------------------------------------------------------
 // DEMO.md hält als Tobis Entscheidung fest: die Demo läuft auf einer FESTEN
@@ -2130,7 +2130,26 @@ export const SCHIFFE = {
     id: "kolonieschiff",
     werftAb: 4,
     name: "Kolonieschiff",
-    beschreibung: "Gründet eine vollwertige Kolonie. Wird dabei verbraucht.",
+    beschreibung:
+      "Gründet eine vollwertige Kolonie. Nimmt beim Start Siedler von der Heimatwelt mit und wird dabei verbraucht.",
+    // WIE VIELE MENSCHEN MITFLIEGEN (A-043, Tobis Entscheidung: „Colony
+    // schiffe kosten keine Bevölkerung sollten sie aber").
+    //
+    // Die Zahl steht zwischen zwei Grenzen, beide gemessen:
+    //  - NACH OBEN durch den Wohnraum der neuen Welt. Ein Wohnmodul der Stufe
+    //    0 fasst 50.000 Menschen (RESSOURCEN.bevoelkerung.speicher.basis) --
+    //    mehr Siedler als das wären beim ersten Atemzug schon obdachlos.
+    //  - NACH UNTEN durch die Heimatwelt. Beim Erreichen der nötigen Werft
+    //    (Stufe 4, nach 24 bis 48 h) hat sie 350.000 bis 700.000 Menschen;
+    //    unter etwa 5 % wäre der Abgang keine Entscheidung, sondern eine
+    //    Formalität.
+    //
+    // 800 × MASSSTAB = 40.000: vier Fünftel des neuen Wohnraums (die Kolonie
+    // braucht sofort ein zweites Wohnmodul) und rund ein Zehntel der
+    // Heimatwelt. Zum Vergleich: eine abtrünnige Fraktion nimmt 400 mit
+    // (PIRAT.gruendung.bevoelkerung) -- ein Kolonieschiff ist der doppelte
+    // Aufbruch, und er kostet auch das Doppelte.
+    siedler: 800,
     kosten: { metall: 3500, silizium: 2200, elektronik: 400 },
     bauzeitSek: 420,
     tank: 2000,
@@ -2341,7 +2360,10 @@ for (const def of Object.values(SCHIFFE)) {
   // `tank` ist eine MENGE wie der Verbrauch -- beide müssen denselben Maßstab
   // tragen, sonst wäre die Reichweite um Faktor 50 falsch. Siebter Fall
   // dieser Falle im Projekt.
-  for (const feld of ["kapazitaet", "verbrauchProStrecke", "tank", "hp", "angriff"]) {
+  // `siedler` ist eine PERSONENZAHL und damit eine Menge wie jede andere
+  // (A-043) -- unskaliert nähme ein Kolonieschiff 800 statt 40.000 Menschen
+  // mit und die neue Welt startete praktisch leer. Achter Fall dieser Falle.
+  for (const feld of ["kapazitaet", "verbrauchProStrecke", "tank", "hp", "angriff", "siedler"]) {
     if (def[feld]) def[feld] = Math.round(def[feld] * MASSSTAB);
   }
 }

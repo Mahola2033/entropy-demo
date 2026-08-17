@@ -1,7 +1,8 @@
 // Persistenz: Spielstand in localStorage speichern/laden.
 
-import { neuesSpiel, SAVE_VERSION, meldungHinzufuegen, meldungenNummerieren } from "./state.js";
+import { neuesSpiel, SAVE_VERSION, meldungHinzufuegen, meldungenNummerieren, pauseNachziehen, speicherbarerVersatz } from "./state.js";
 import { piratenWeltStart, botWeltStart, piratenNamenNachziehen } from "./simulation.js";
+import { notausgangLoeschen } from "./aufholen.js";
 import { DEMO_SAAT } from "./data.js";
 import { t } from "./sprache.js";
 
@@ -93,6 +94,8 @@ export function laden() {
     // Piratengruppen aus der Zeit vor A-031 heissen nach ihrem Orbitobjekt --
     // im Log liest sich das wie ein Naturereignis, das Flotten angreift.
     piratenNamenNachziehen(state);
+    // Eine Pause aus dem Testmodus ueberdauert das Neuladen (A-038).
+    pauseNachziehen(state);
     return state;
   } catch (e) {
     altenStandSichern(raw, "unlesbar");
@@ -114,7 +117,16 @@ let gesperrt = false;
 export function speichern(state) {
   if (gesperrt) return;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    // A-048: der Zeitversatz geht nur so weit hinaus, wie die Uhr ihn
+    // eingeholt hat. Begründung und Formel stehen bei `speicherbarerVersatz`.
+    //
+    // Über eine flache Kopie, NICHT am laufenden Zustand: eine Aufholung, die
+    // gerade rechnet, braucht ihren vollen Versatz weiter. Die Kopie legt nur
+    // die oberste Ebene neu an, alles darunter bleibt dieselbe Referenz --
+    // bei zwei Megabyte Spielstand ist das der Unterschied zwischen einer
+    // Zuweisung und einer Verdopplung.
+    const hinaus = { ...state, testZeitOffsetMs: speicherbarerVersatz(state) };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(hinaus));
   } catch (e) {
     // Anlass: dieser Aufruf stand beim Start VOR den setInterval-Zeilen in
     // main.js. Ein Wurf hier -- volles localStorage (rund 5 MB Quota, ein
@@ -133,6 +145,11 @@ export function zuruecksetzen() {
   gesperrt = true;
   try {
     localStorage.removeItem(STORAGE_KEY);
+    // A-046, Falle 1: der Notausgang-Marker läuft am Spielstand vorbei und
+    // muss deshalb hier ausdrücklich mit weg. Bliebe er stehen, zeigte ein
+    // FRISCHES Spiel die Tafel für ein Problem, das mit dem alten Stand
+    // verschwunden ist.
+    notausgangLoeschen();
   } catch (e) {
     // Wirft das Löschen, bliebe das location.reload() im Aufrufer aus -- und
     // zurück bliebe ein laufendes Spiel mit gesetzter Sperre, das nie wieder

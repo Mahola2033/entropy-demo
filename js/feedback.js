@@ -34,7 +34,41 @@ export const FEEDBACK_REPO = "https://github.com/Mahola2033/entropy-demo";
 // Tester -- eine übersetzte Marke müsste beim Lesen erst zurückübersetzt
 // werden, und bei einer dritten Sprache stünde dort irgendwann ein Wort, das
 // wir nicht zuordnen können.
+// WELCHER BROWSER (A-054, Tobis Ansage: „mit automatischer Versionsnummer UND
+// Browser").
+//
+// Kurz destilliert, nicht roh. Ein vollständiger User-Agent ist eine Zeile
+// Kauderwelsch mitten im Formular -- der Tester löscht sie, oder er löscht aus
+// Versehen mehr. „Firefox 129" beantwortet dieselbe Frage.
+//
+// Die Reihenfolge der Prüfungen ist nicht beliebig: JEDER Chromium-Browser
+// trägt „Safari" im Namen, Edge trägt zusätzlich „Chrome", und Firefox trägt
+// nichts davon. Wer von oben nach unten das Speziellste zuerst fragt, kommt
+// mit vier Zeilen aus.
+//
+// Kein Netzabruf, keine Rateverfahren: was der Browser über sich selbst sagt,
+// ist genau die Auskunft, die ein Fehlerbericht braucht.
+export function browserKurz(kennung) {
+  const ua = typeof kennung === "string" ? kennung : typeof navigator !== "undefined" ? navigator.userAgent : "";
+  if (!ua) return "";
+  const treffer =
+    /(Firefox)\/(\d+)/.exec(ua) ||
+    /(Edg)\/(\d+)/.exec(ua) ||
+    /(OPR)\/(\d+)/.exec(ua) ||
+    /(Chrome)\/(\d+)/.exec(ua) ||
+    /Version\/(\d+).*(Safari)/.exec(ua);
+  if (!treffer) return "";
+  // Beim Safari-Muster stehen Name und Zahl vertauscht -- dort liefert die
+  // erste Gruppe die Version.
+  const [, a, b] = treffer;
+  const name = /^\d+$/.test(a) ? b : a;
+  const version = /^\d+$/.test(a) ? a : b;
+  const namen = { Edg: "Edge", OPR: "Opera" };
+  return `${namen[name] || name} ${version}`;
+}
+
 export function feedbackKoerper() {
+  const browser = browserKurz();
   return [
     `**${t("Was ist passiert?")}**`,
     "",
@@ -43,10 +77,16 @@ export function feedbackKoerper() {
     "",
     "",
     "---",
-    t("Version {version} ({stand}) – automatisch eingetragen, bitte stehen lassen.", {
-      version: VERSION,
-      stand: STAND,
-    }),
+    browser
+      ? t("Version {version} ({stand}) · {browser} – automatisch eingetragen, bitte stehen lassen.", {
+          version: VERSION,
+          stand: STAND,
+          browser,
+        })
+      : t("Version {version} ({stand}) – automatisch eingetragen, bitte stehen lassen.", {
+          version: VERSION,
+          stand: STAND,
+        }),
     "",
   ].join("\n");
 }

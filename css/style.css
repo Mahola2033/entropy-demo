@@ -121,6 +121,21 @@ body {
   font-size: 0.75rem;
 }
 
+/* A-038: welcher Zeitfaktor gilt, muss man sehen. Ein Testmodus, der heimlich
+   dreifach läuft, produziert Fehlerberichte über Dinge, die niemand gebaut
+   hat. Pause bekommt eine eigene Farbe -- „steht" ist ein anderer Zustand als
+   „läuft schneller", nicht bloß eine andere Zahl. */
+.kopf-testmodus button[data-zeitfaktor].aktiv {
+  background: #f0c98a;
+  color: #241a10;
+  font-weight: 700;
+}
+
+.kopf-testmodus button[data-zeitfaktor="0"].aktiv {
+  background: #e06a4f;
+  color: #1a1008;
+}
+
 .kopf-testmodus button:hover:not(:disabled) {
   background: #6b4c22;
 }
@@ -412,11 +427,14 @@ button[title]:disabled {
   border-color: var(--akzent);
 }
 
-/* Die Verderb-Zeile in einer Ressourcenkachel (A-010). Klein und in der
-   Warnfarbe: sie ist kein Nebenwert, sondern der Grund, warum ein Vorrat
-   schrumpft, obwohl die Bilanz positiv aussieht. Sie steht in JEDER Kachel
-   dieser Reihe gleich hoch -- die Kacheln richten sich an der groessten aus
-   (Prinzip 10), es springt also nichts. */
+/* Eine dritte Zeile in einer Ressourcenkachel.
+   DERZEIT BENUTZT SIE NIEMAND. Sie trug bis v1.24 den Verderb (A-010) und
+   hat damit genau das gebrochen, wofuer die v0.40/41-Regeln da sind: die
+   Nahrungskachel wurde hoeher als ihre Nachbarn. A-052 hat den Verderb in
+   den Tooltip verlegt.
+   Die Klasse bleibt stehen, weil das Geruest sie kennt -- WER SIE WIEDER
+   BENUTZT, MISST VORHER DIE REIHENHOEHE. Eine dritte Zeile in EINER Kachel
+   ist eine dritte Zeile in ALLEN, sonst ist die Reihe schief. */
 .res-zusatz {
   font-size: 0.62rem;
   color: var(--warnung);
@@ -572,8 +590,38 @@ button[title]:disabled {
   /* Alle Kacheln gleich groß, ausgerichtet an der größten: gleich hohe
      Zeilen (1fr) plus Dehnen der Kacheln auf die Zeilenhöhe. Robuster als
      eine feste Höhe -- eine Kachel mit Zusatzzeile (z.B. Voraussetzungen)
-     hebt automatisch alle anderen mit an. */
-  grid-auto-rows: 1fr;
+     hebt automatisch alle anderen mit an.
+
+     A-053: `1fr` gilt aber für JEDE implizite Zeile -- auch für die, in der
+     nur eine Gruppenüberschrift steht. Die wurde dadurch so hoch wie eine
+     Kachel (gemessen 181 px für zwei Zeilen Text), und genau das war Tobis
+     „es sieht so aus, als wären sie an der falschen Stelle": nicht die
+     Kacheln saßen falsch, die Überschrift war ein leerer Block über ihnen.
+
+     ERSTER ANLAUF, GESCHEITERT UND LEHRREICH: die Überschrift selbst
+     schrumpfen (`align-self: start` + `height: min-content`). Das Element
+     wurde 21 px klein -- die ZEILE blieb 181 px hoch, und der Leerraum stand
+     danach unter der Überschrift statt in ihr. Sichtbar war es dasselbe.
+
+     `1fr` bei `grid-auto-rows` verteilt nicht Platz, sondern gleicht alle
+     impliziten Zeilen an die GRÖSSTE an. Eine Zeile, in der nur Text steht,
+     lässt sich innerhalb dieser Regel nicht kleiner machen -- die Regel muss
+     weg.
+
+     ZWEITER ANLAUF, auch gescheitert: `grid-auto-rows: auto`. Die
+     Überschriften wurden kompakt (13,6 px Abstand zu ihrer ersten Kachel),
+     aber die Kacheln fielen auseinander -- gemessen 157,7 bis 182,5 px, je
+     nachdem ob eine Kachel eine Sperrzeile trägt (A-044). Prinzip 10 weg.
+
+     WAS JETZT STEHT: `auto` für die Zeilen, plus eine gemeinsame Mindesthöhe
+     an `.gebaeude-item`. Die Zeilen dürfen dadurch verschieden hoch sein
+     (die Titelzeile IST verschieden), die Kacheln sind es nicht.
+
+     Der Preis, offen: die Mindesthöhe ist eine GESETZTE Zahl, keine
+     gemessene. Wächst eine Kachel über sie hinaus, ist die Reihe wieder
+     schief. Sie steht deshalb an EINER Stelle und trägt dort die Anleitung
+     zum Nachziehen. */
+  grid-auto-rows: auto;
   align-items: stretch;
 }
 
@@ -843,11 +891,20 @@ button[title]:disabled {
    größten -- feste Mindesthöhe plus Aktion am unteren Rand. Kacheln
    verschiedener Objektarten (z.B. Ressource vs. Lager oben) dürfen sich
    dagegen bewusst unterscheiden. */
+/* DIE ZAHL, DIE ALLE KACHELN GLEICH HOCH HÄLT (A-053).
+   Seit die Zeilen `auto` sind (Begründung bei `.kachel-raster`), macht nicht
+   mehr das Raster die Kacheln gleich, sondern diese Mindesthöhe.
+   NACHZIEHEN, WENN EINE KACHEL WÄCHST -- so geht es:
+       [...document.querySelectorAll('.gebaeude-item')]
+         .map(k => k.getBoundingClientRect().height)
+   Streuen die Werte, ist diese Zahl zu klein. Sie war zuletzt 8.5rem und
+   damit unter dem, was eine Kachel mit Sperrzeile (A-044) braucht: gemessen
+   182,5 px gegen 136 px Vorgabe. */
 .gebaeude-item {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  min-height: 8.5rem;
+  min-height: 11.6rem;
   background: var(--bg-item);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -891,17 +948,47 @@ button[title]:disabled {
   font-variant-numeric: tabular-nums;
 }
 
+/* A-044, Chris: „making it more clear that the resources there are the cost
+   would be ideal … or just cost:". Die Zahlen sagten nicht, WAS sie sind.
+
+   Bewusst KEINE neue Farbe (Prinzip 11: der Farbbestand bleibt knapp). Chris'
+   Gelb-Vorschlag war das Symptom -- was fehlte, war ein Wort, nicht ein Ton.
+   Bei Mangel färbt das bestehende Rot ohnehin schon. */
+/* A-051: „voll in ~5 h 40" unter dem Lagerbalken.
+   `min-height` ist der Punkt (v0.41-Regel): die Zeile belegt ihren Platz auch
+   dann, wenn sie leer ist -- sonst wächst und schrumpft die Kachel im Takt,
+   sobald der Nettozufluss um die Null pendelt, und die ganze Leiste springt. */
+.lager-prognose {
+  min-height: 1em;
+  font-size: 0.7rem;
+  color: var(--text-dezent);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.zeilen-marke {
+  color: var(--text-dezent);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .kachel-dauer {
   color: var(--text-dezent);
   font-variant-numeric: tabular-nums;
 }
 
+/* Die Bedingung, die diese Kachel gerade sperrt (A-044).
+   Sie DARF UMBRECHEN. Vorher stand hier `white-space: nowrap` samt Ellipse --
+   ausgerechnet der Satz, der erklärt, warum nichts geht, wurde abgeschnitten,
+   und genau das hat Chris berichtet („had to look pretty closely"). Ein
+   abgeschnittener Grund ist kein Grund.
+   Farbe ist die normale Textfarbe statt der dezenten: eine Bedingung ist eine
+   Aussage, keine Fußnote. Kein neuer Farbwert (Prinzip 11). */
 .kachel-sperre {
   font-size: 0.75rem;
-  color: var(--text-dezent);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: var(--text);
+  line-height: 1.35;
 }
 
 /* Stromvorrang: drei feste Knöpfe in fester Breite. Sie sitzen an derselben
@@ -953,6 +1040,52 @@ button[title]:disabled {
   border-color: var(--akzent);
   border-left-width: 3px;
   background: color-mix(in srgb, var(--akzent) 8%, var(--bg-item));
+}
+
+/* Die Kachel IST der Balken (Tobis Punkt 22). Ein laufender Bau, eine
+   laufende Forschung, ein laufender Werftauftrag füllen ihre eigene Kachel
+   von links -- kein zusätzliches Balken-Element darunter.
+
+   Drei Eigenschaften, die nicht verhandelbar sind:
+   - Die Fläche ändert KEIN Maß. Sie ist absolut gelegt, die Kachel bekommt
+     dafür nur `position: relative`; Breite und Höhe der Kachel bleiben, was
+     sie waren (die v0.40/41-Regel: nichts, was springt).
+   - Sie liegt UNTER dem Inhalt. `z-index: -1` malt sie nach dem Hintergrund
+     der Kachel und vor deren Text -- das geht nur, solange die Kachel selbst
+     keinen Stapelkontext aufmacht (kein `z-index`, keine `opacity` < 1).
+   - Sie ist keine neue Farbe (Prinzip 11), sondern dieselbe Akzentfarbe wie
+     der aktive Rahmen, nur stark durchsichtig.
+
+   Die Breite kommt aus `--fortschritt` (0 bis 1), das der Sekundentakt per
+   `style.setProperty` nachführt -- kein DOM wird dafür neu gebaut (8a). */
+.gebaeude-item {
+  position: relative;
+  --fortschritt: 0;
+}
+
+.gebaeude-item::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: calc(var(--fortschritt) * 100%);
+  background: var(--akzent);
+  opacity: 0.16;
+  border-radius: 5px 0 0 5px;
+  pointer-events: none;
+  /* Der Takt liefert einmal je Sekunde einen neuen Wert; eine Sekunde
+     linear dazwischen macht daraus eine ruhige Bewegung statt eines
+     Sprungs. */
+  transition: width 1s linear;
+}
+
+/* Fertig oder abgebrochen: die Fläche verschwindet SOFORT, statt eine
+   Sekunde lang rückwärts zu laufen. */
+.gebaeude-item:not(.item-aktiv)::before {
+  width: 0;
+  transition: none;
 }
 
 .gebaeude-kopf {
@@ -1418,8 +1551,19 @@ button[title]:disabled {
   display: contents;
 }
 
+/* A-053: DIE ÜBERSCHRIFT NIMMT SICH AUS DEM 1fr-FLUSS HERAUS.
+   `.kachel-raster` setzt `grid-auto-rows: 1fr`, damit alle Kacheln gleich
+   hoch sind (Prinzip 10). Das gilt aber auch für die Zeile, in der NUR diese
+   Überschrift steht -- sie wurde dadurch so hoch wie eine Kachel, gemessen
+   181 px für zwei Zeilen Text. Zwischen Überschrift und Kacheln klaffte
+   also nichts; die Überschrift SELBST war der Leerraum.
+   `align-self: start` löst sie vom Dehnen, `height: min-content` schrumpft
+   sie auf ihren Text. Beides zusammen -- ohne das erste bleibt die Zeile
+   hoch, ohne das zweite dehnt sie sich wieder. */
 .gruppe-titel {
   grid-column: 1 / -1;
+  align-self: start;
+  height: min-content;
   font-size: 0.8rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1489,6 +1633,14 @@ button[title]:disabled {
    Die Karte hat eine feste Höhe und keine eigene Bildlaufleiste. Der Platz
    darunter gehört weiter der Liste -- die Karte ergänzt sie, sie verdrängt
    sie nicht. */
+/* A-039: die Hülle gibt den Zoomknöpfen ihren festen Platz. Sie trägt
+   ausdrücklich KEINE eigene Größe -- die Karte bestimmt weiter, wie hoch die
+   Spalte wird, die Hülle legt sich nur darum. */
+.karte-huelle {
+  position: relative;
+  flex: none;
+}
+
 .karte {
   flex: none;
   display: block;
@@ -1498,6 +1650,50 @@ button[title]:disabled {
   background: radial-gradient(circle at 50% 50%, #0d1422 0%, var(--bg) 75%);
   border: 1px solid var(--border);
   border-radius: 4px;
+  /* Das Mausrad gehört im Kartenfeld dem Zoom, nicht dem Seitenlauf. Ohne
+     `touch-action` schiebt der Browser die Seite mit, bevor der Handler
+     überhaupt gefragt wird. */
+  touch-action: none;
+}
+
+/* Herausgezoomt ist die ganze Karte zu sehen, es gibt nichts zu schieben --
+   der Greifzeiger erscheint deshalb erst, wenn Schieben etwas bewirkt
+   (Prinzip 10a: was nicht geht, bietet sich auch nicht an). */
+.karte.karte-gezoomt {
+  cursor: grab;
+}
+
+.karte.karte-gezoomt:active {
+  cursor: grabbing;
+}
+
+.karte-zoom {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.karte-zoom button {
+  width: 1.6rem;
+  height: 1.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 0.85rem;
+  line-height: 1;
+  color: var(--text-dezent);
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+
+.karte-zoom button:hover {
+  color: var(--text);
+  border-color: var(--akzent);
 }
 
 /* Der sichtbare Punkt eines Sterns. Seine Füllung ist die Sternfarbe und
@@ -1532,7 +1728,20 @@ button[title]:disabled {
 
 /* Die unsichtbare Klickfläche. `pointer-events: all` gilt auch für eine
    Fläche ohne Füllung -- ohne das wäre der Kreis für die Maus gar nicht da. */
+/* Das Klickziel eines Sterns. Sein Radius steht hier und nicht mehr nur als
+   Attribut am Element, weil er vom Zoom abhängt (A-039).
+
+   Warum überhaupt: bei 500 Systemen überlappen sich die 3,2 Einheiten großen
+   Ziele in der Übersicht bereits kräftig -- gemessen wurden vier von fünf
+   Sternen von einem Nachbarn verdeckt. Wächst das Ziel beim Zoomen mit,
+   bleibt das für immer so, und der Zoom hilft beim Zielen genau nichts.
+   Geteilt durch den Maßstab behält das Ziel seine Größe AUF DEM SCHIRM: je
+   näher man herangeht, desto genauer trifft man. Das ist der Sinn der Sache.
+
+   Eine Zeile statt 500 Attributschreibungen je Zoomschritt -- `r` ist in
+   SVG2 eine CSS-Eigenschaft, und `px` heißt hier Benutzereinheit. */
 .karte-treffer {
+  r: calc(3.2px / var(--karte-zoom, 1));
   fill: transparent;
   pointer-events: all;
   cursor: pointer;

@@ -98,6 +98,79 @@ export function aufholenLaeuft() {
   return laeuft;
 }
 
+// --- Der Notausgang (A-046) ----------------------------------------------
+//
+// Tobis Punkt war „Reset button when game is completely frozen". Ein Knopf IM
+// eingefrorenen Spiel kann nicht helfen -- ein blockierter Hauptthread
+// zeichnet keine Knöpfe und liest keine Klicks. Was hilft, ist der Moment
+// DAVOR: beim nächsten Laden erkennen, dass die letzte Aufholung nie fertig
+// wurde, und fragen, bevor sie erneut startet.
+//
+// Der Marker liegt NEBEN dem Spielstand, in einem eigenen Schlüssel. Er
+// beschreibt einen PROZESS („es läuft gerade eine Aufholung"), nicht einen
+// Weltzustand -- im Save hätte er nichts verloren, und er muss ihn auch
+// überleben können, wenn das Speichern selbst nicht mehr dazu kommt.
+const NOTAUSGANG_KEY = "entropy-aufholung";
+
+// Ab wann „Verwerfen" die empfohlene Vorgabe wird: wer dreimal hintereinander
+// hängt, will raus und nicht ein viertes Mal dasselbe versuchen.
+export const NOTAUSGANG_ESKALATION = 3;
+
+function speicherLesen() {
+  if (typeof localStorage === "undefined") return null;
+  try {
+    return JSON.parse(localStorage.getItem(NOTAUSGANG_KEY) || "null");
+  } catch (e) {
+    return null;
+  }
+}
+
+function speicherSchreiben(wert) {
+  if (typeof localStorage === "undefined") return;
+  try {
+    if (wert === null) localStorage.removeItem(NOTAUSGANG_KEY);
+    else localStorage.setItem(NOTAUSGANG_KEY, JSON.stringify(wert));
+  } catch (e) {
+    // Voller oder gesperrter Speicher. Der Notausgang ist ein Sicherheitsnetz
+    // -- er darf das Spiel nicht daran hindern zu starten, nur weil er sich
+    // selbst nicht notieren kann.
+  }
+}
+
+// Steht beim Laden ein Marker? Dann kam die letzte Aufholung nicht durch.
+export function notausgangStand() {
+  const eintrag = speicherLesen();
+  if (!eintrag) return { haengt: false, zaehler: 0 };
+  return { haengt: true, zaehler: Number(eintrag.zaehler) || 1 };
+}
+
+// Vor dem nächsten Versuch: den Zähler hochsetzen. Er steht im Marker, damit
+// er genau so lange lebt wie das Problem.
+export function notausgangZaehlen() {
+  const stand = notausgangStand();
+  speicherSchreiben({ zaehler: stand.zaehler + 1 });
+}
+
+export function notausgangLoeschen() {
+  speicherSchreiben(null);
+}
+
+// Der Weg hinaus: NUR der Zeitversatz fällt, der Spielstand bleibt
+// unangetastet. Der Notausgang wirft nie eine Welt weg -- er nimmt ihr die
+// Strecke, an der sie sich verschluckt hat.
+export function zeitsprungVerwerfen(state) {
+  // NUR der Versatz. `letzterTick` bleibt bewusst stehen: was danach noch zu
+  // rechnen ist, ist die echte Abwesenheit -- die normale Offline-Aufholung,
+  // die das Spiel ohnehin jeden Morgen macht. Der Versatz ist das, was die
+  // Testmodus-Knöpfe aufgeblasen haben, und nur er.
+  state.testZeitOffsetMs = 0;
+  notausgangLoeschen();
+  meldungHinzufuegen(
+    state,
+    t("Der offene Zeitsprung wurde verworfen – dein Spielstand ist unverändert, nur die nicht gerechnete Zeit ist weg.")
+  );
+}
+
 // Ein Bild abwarten. `requestAnimationFrame` ist das einzige, was einen
 // gezeichneten Rahmen wirklich zusichert -- setTimeout(0) wird geklemmt und
 // garantiert gar nichts.
@@ -202,6 +275,8 @@ export async function aufholen(state) {
   // Außenschleife eine neue Runde beginnt.
   let steheStillSeit = null;
   let steheStillBloecke = 0;
+  // A-046: haben wir den Notausgang-Marker in diesem Lauf gesetzt?
+  let markerSteht = false;
 
   try {
     // Aussenschleife: sie laeuft ein zweites Mal, wenn waehrend der Rechnung
@@ -223,6 +298,16 @@ export async function aufholen(state) {
         ereignisse += diagnose.ereignisse;
         deckelGerissen = deckelGerissen || diagnose.deckelGerissen;
         break;
+      }
+
+      // A-046: ab hier wird es lang -- und genau hier kann es hängen bleiben.
+      // Der Marker steht deshalb um die BLOCKRECHNUNG, nicht um jeden
+      // Aufruf: eine Zehn-Sekunden-Lücke ist keine, an der jemand hängt, und
+      // ein Schreibzugriff in den Speicher für jeden Sekundentakt wäre teuer
+      // gekauft. Erst mit `markerSteht` wird er im `finally` wieder entfernt.
+      if (!markerSteht) {
+        markerSteht = true;
+        speicherSchreiben({ zaehler: notausgangStand().zaehler || 1 });
       }
 
       // KEINE Vorhersage mehr, wie viel in einen Block passt: das Budget ist
@@ -299,6 +384,11 @@ export async function aufholen(state) {
     // muss fallen, sonst rueckt die Uhr nie wieder vor.
     if (anzeige) anzeige.entfernen();
     laeuft = false;
+    // A-046: durchgekommen -- der Marker hat seine Schuldigkeit getan. Im
+    // `finally`, damit auch ein Wurf ihn abräumt: ein Marker, der einen
+    // sauberen Abbruch überlebt, zeigt beim nächsten Laden eine Tafel für ein
+    // Problem, das es nicht mehr gibt.
+    if (markerSteht) notausgangLoeschen();
   }
 
   return { ereignisse, deckelGerissen };

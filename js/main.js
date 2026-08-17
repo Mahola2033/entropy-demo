@@ -1,9 +1,27 @@
 // Einstiegspunkt: Spielstand laden, Offline-Zeit nachrechnen, Render-/Tick-Loop starten.
 
 import { laden, speichern } from "./save.js";
+import { zeitfaktorAnwenden } from "./state.js";
 import { vorspulenBisJetzt } from "./simulation.js";
-import { aufholen, aufholenLaeuft, grosseLuecke, deckelMelden } from "./aufholen.js";
-import { render, renderProfilStarten, renderProfilLesen, renderProfilAnsichten, hotkeysEinrichten } from "./ui.js";
+import {
+  aufholen,
+  aufholenLaeuft,
+  grosseLuecke,
+  deckelMelden,
+  notausgangStand,
+  notausgangZaehlen,
+  zeitsprungVerwerfen,
+  notausgangLoeschen,
+  NOTAUSGANG_ESKALATION,
+} from "./aufholen.js";
+import {
+  render,
+  renderProfilStarten,
+  renderProfilLesen,
+  renderProfilAnsichten,
+  hotkeysEinrichten,
+  notausgangTafel,
+} from "./ui.js";
 import { testmodusEinrichten } from "./testmodus.js";
 import { spracheLaden, t } from "./sprache.js";
 import { phase, stockungenBeobachten, stockungsBericht } from "./stockung.js";
@@ -40,7 +58,46 @@ const state = laden();
 // Blindheit, und sie gehoert in die Konsole statt in eine Annahme.
 const stockungenSichtbar = stockungenBeobachten(state);
 
-aufholen(state).then((diagnose) => {
+// A-046: der Notausgang steht VOR der Aufholung. Ein Knopf im eingefrorenen
+// Spiel kann nicht helfen -- ein blockierter Hauptthread zeichnet keine
+// Knöpfe. Was hilft, ist die Frage, bevor dieselbe Rechnung ein zweites Mal
+// startet.
+//
+// Zwei Tafeln übereinander darf es nie geben (Falle 3 des Auftrags): weil
+// hier VOR dem ersten `render` gefragt wird und die Erstklärung erst darin
+// entsteht, kann sich das gar nicht überschneiden.
+async function startAufholen(state) {
+  const stand = notausgangStand();
+  if (!stand.haengt) return aufholen(state);
+
+  const wahl = await notausgangTafel(root, stand.zaehler, NOTAUSGANG_ESKALATION);
+  if (wahl === "verwerfen") {
+    zeitsprungVerwerfen(state);
+    render(state, root);
+    speichern(state);
+  } else {
+    // Erneut versuchen: der Zähler steigt, damit beim dritten Mal der Weg
+    // hinaus die Empfehlung ist.
+    notausgangZaehlen();
+  }
+
+  // Die Zeit ist entweder verworfen oder wird jetzt neu gerechnet -- der
+  // normale Rückstand seit dem Schließen kommt in beiden Fällen dazu, das ist
+  // Alltag und nicht das Problem.
+  const diagnose = await aufholen(state);
+
+  // UND DANACH DEN MARKER WEG, in jedem Fall.
+  //
+  // Das ist kein Gürtel zum Hosenträger: `aufholen` räumt nur auf, wenn es die
+  // BLOCKRECHNUNG betreten hat. Ist die Lücke diesmal kurz (unter zehn
+  // Sekunden), passiert das nie -- der Marker überlebte, und die Tafel käme
+  // bei jedem Start wieder, obwohl längst nichts mehr hängt. Beim Nachsehen
+  // im Browser genau so aufgetreten.
+  notausgangLoeschen();
+  return diagnose;
+}
+
+startAufholen(state).then((diagnose) => {
   deckelMelden(state, diagnose);
   if (!stockungenSichtbar) {
     console.info(t("[Stockung] Dieser Browser meldet keine unbenannten langen Aufgaben. Die Phasen melden sich weiter selbst."));
@@ -65,6 +122,11 @@ aufholen(state).then((diagnose) => {
   //  - der Normalfall: eine Sekunde, rund vier Millisekunden, sofort.
   setInterval(() => {
     if (aufholenLaeuft()) return;
+    // A-038: ZUERST den Zeitraffer verrechnen, dann vorspulen -- sonst käme
+    // der Zuwachs dieses Takts erst eine Sekunde später an. Bei Pause
+    // schrumpft der Versatz hier genau um die verstrichene Echtzeit, die
+    // Spielzeit steht also, und `vorspulenBisJetzt` findet nichts zu tun.
+    zeitfaktorAnwenden(state);
     if (grosseLuecke(state)) {
       aufholen(state).then((d) => {
         deckelMelden(state, d);

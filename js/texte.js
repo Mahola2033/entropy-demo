@@ -165,8 +165,10 @@ export const EN = {
     "Studies anomalies. Without a science mission an anomaly will not yield its technology.",
   "Bringt Bergungsgut und Ressourcen nach Hause. Große Funde brauchen mehrere Fahrten.":
     "Brings salvage and resources home. Large finds take several runs.",
-  "Gründet eine vollwertige Kolonie. Wird dabei verbraucht.":
-    "Founds a full colony. Consumed in the process.",
+  "Gründet eine vollwertige Kolonie. Nimmt beim Start Siedler von der Heimatwelt mit und wird dabei verbraucht.":
+    "Founds a full colony. Takes settlers from the home world when it departs, and is consumed in the process.",
+  "Braucht mehr als {noetig} Siedler auf {planet} – dort leben {da}.":
+    "Needs more than {noetig} settlers on {planet} – {da} live there.",
   "Bewaffnetes Schiff. Einziger Schiffstyp, der Gefahren-Objekte angreifen kann. Verstecken kann es sich nicht: jedes Schiff strahlt seine Abwärme gegen einen drei Grad über dem absoluten Nullpunkt kalten Hintergrund ab. Wer im System ist, ist sichtbar.":
     "Armed vessel. The only ship type that can attack hazard objects. It cannot hide: every ship radiates its waste heat against a background three degrees above absolute zero. Whoever is in the system is visible.",
 
@@ -534,6 +536,56 @@ export const EN = {
   Entwicklung: "Development",
   Demo: "Demo",
   "+1 Tag": "+1 day",
+  Pause: "Pause",
+  // --- Der Development-Bereich (A-054) ---
+  Development: "Development",
+  Patchnotes: "Patch notes",
+  Roadmap: "Roadmap",
+  "Rückmeldung schreiben": "Write feedback",
+  "Was neu ist und was kommt": "What is new and what is coming",
+  "Was sich seit der ersten veröffentlichten Fassung geändert hat, neueste zuoberst. Was hier steht, ist da – wenn es bei dir anders aussieht, ist das eine Meldung wert.":
+    "What has changed since the first published build, newest first. What is listed here is in the game – if it looks different for you, that is worth reporting.",
+  "Was auf dem Plan steht. Grob und ohne Datum – eine Demo, die Termine verspricht, hat schon verloren. Steht dein Fund hier, ist er bekannt.":
+    "What is on the plan. Rough and without dates – a demo that promises deadlines has already lost. If your finding is listed here, it is known.",
+  "Was dir auffällt, gehört hierher – auch Kleinigkeiten, auch „das habe ich nicht verstanden“. Versionsnummer und Browser trägt das Formular selbst ein; bitte stehen lassen, ohne sie ist eine Meldung schwer einzuordnen.":
+    "Whatever you notice belongs here – small things too, and “I did not understand this”. The form fills in version number and browser by itself; please leave them in, without them a report is hard to place.",
+  "Diese Demo ist unterwegs, nicht fertig. Was zuletzt dazugekommen ist, was als Nächstes drankommt und wie du dich meldest, steht im Bereich Development – unterster Eintrag in der Leiste links.":
+    "This demo is on its way, not finished. What was added last, what comes next and how to get in touch is in the Development area – bottom entry in the bar on the left.",
+  "Version {version} ({stand}) · {browser} – automatisch eingetragen, bitte stehen lassen.":
+    "Version {version} ({stand}) · {browser} – filled in automatically, please leave it in.",
+  // Beschriftung der Kostenzeile auf jeder Kachel (A-044).
+  Kosten: "Cost",
+  // A-050: eine Rate, die im vollen Lager nirgends ankommt, darf nicht wie
+  // ein Zugewinn aussehen.
+  "Lager voll": "Storage full",
+  // A-051: wie lange der Platz noch reicht.
+  "voll in {dauer}": "full in {dauer}",
+  // A-052: der Verderb steht jetzt im Tooltip statt in einer eigenen Zeile.
+  " · verdirbt: −{prozent} % des Bestands im Jahr":
+    " · spoils: −{prozent} % of the stock per year",
+  "Eine Ausnahme unter den Vorräten: Nahrung verdirbt. Ein Teil des Lagerbestands geht laufend verloren, und zwar anteilig – ein volles Lager verliert absolut mehr als ein halbleeres. Deshalb kann dein Vorrat schrumpfen, obwohl die Bilanz positiv aussieht. Wie viel es ist, steht im Tooltip der Nahrungs-Kachel.":
+    "One exception among the stockpiles: food spoils. A share of what is stored is lost continuously, in proportion – a full store loses more in absolute terms than a half-empty one. That is why your supply can shrink although the balance looks positive. How much it is stands in the tooltip of the food tile.",
+  voll: "full",
+  " · LAGER VOLL – was hier entsteht, verfällt sofort":
+    " · STORAGE FULL – whatever is produced here is lost immediately",
+  // Der Notausgang (A-046). Bewusst harmlos formuliert -- ein beforeunload
+  // mitten in einer normalen langen Aufholung lässt den Marker zu Recht
+  // stehen, und "Fehler!" schickte den Spieler auf eine falsche Suche.
+  "Die letzte Zeitaufholung kam nicht durch": "The last time catch-up did not finish",
+  "Beim letzten Mal hat das Nachrechnen der vergangenen Zeit nicht bis zum Ende gereicht. Dein Spielstand ist unversehrt – offen ist nur die Strecke, die noch zu rechnen wäre.":
+    "Last time, catching up on elapsed time did not run to completion. Your save is intact – all that is open is the stretch still to be calculated.",
+  "Das ist jetzt der {zahl}. Versuch in Folge. Verwerfen ist der Weg, der sicher hinausführt.":
+    "That is attempt {zahl} in a row now. Discarding is the way that reliably gets you out.",
+  "Verwerfen wirft nichts von deiner Welt weg – nur die noch nicht gerechnete Zeit.":
+    "Discarding throws away nothing of your world – only the time not yet calculated.",
+  "Erneut versuchen": "Try again",
+  "Zeitsprung verwerfen und weiterspielen": "Discard the time jump and keep playing",
+  "Der offene Zeitsprung wurde verworfen – dein Spielstand ist unverändert, nur die nicht gerechnete Zeit ist weg.":
+    "The open time jump was discarded – your save is unchanged, only the uncalculated time is gone.",
+  // Zoomknöpfe der Karten (A-039).
+  "Näher heran": "Zoom in",
+  "Weiter weg": "Zoom out",
+  "Ganze Karte zeigen": "Show whole map",
   "– Systemkarte": "– system map",
   "Statusspalte ein-/ausklappen": "Show/hide the status column",
   Kolonie: "Colony",
@@ -995,8 +1047,10 @@ export const EN = {
   "Eine Welt, und eine Frist": "One world, and a deadline",
   "Du führst genau eine Welt: {planet}. Ein Wohnmodul, ein kleiner Vorrat – und ein Himmel voller Sterne, in denen noch nie jemand war.":
     "You run exactly one world: {planet}. One habitat, a small stock of supplies – and a sky full of stars where no one has ever been.",
-  "Zum Anfangen genügen zwei Handgriffe: im Bereich Planet ein Gebäude ausbauen – Kraftwerk und Wohnmodul tragen alles andere –, und im Bereich Forschung einen Auftrag einreihen.":
-    "Two moves are enough to start: upgrade a building under Planet – the power plant and the habitat carry everything else – and queue a project under Research.",
+  // A-045: der alte Satz empfahl das Forschen, das im Startzustand gar nicht
+  // geht -- genau die Stelle, die Chris gemeldet hat.
+  "Zum Anfangen genügt ein Handgriff: im Bereich Planet ein Gebäude ausbauen – Kraftwerk und Wohnmodul tragen alles andere. Geforscht wird erst, wenn ein Forschungslabor steht; Forschung ist kein Kauf, sondern Arbeit, und ohne Labor arbeitet niemand daran.":
+    "One move is enough to start: upgrade a building under Planet – the power plant and the habitat carry everything else. Research only begins once a research lab stands; research is not a purchase but work, and without a lab nobody is doing it.",
   "Die Uhr oben im Kopf zeigt, wieviel Zeit bleibt. Alles Weitere steht im Handbuch – jederzeit, unterster Eintrag in der Leiste links.":
     "The clock in the header shows how much time is left. Everything else is in the manual – at any time, bottom entry in the bar on the left.",
   "Handbuch öffnen": "Open the manual",

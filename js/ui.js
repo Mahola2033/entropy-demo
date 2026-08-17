@@ -45,6 +45,7 @@ import {
   effektiveRaten,
   lagerKapazitaetGesamt,
   lagerBelegung,
+  lagerVollInStunden,
   lagerverbrauchVon,
   naechstesGebaeudeLevel,
   naechstesForschungLevel,
@@ -175,6 +176,7 @@ import { systemName, sternFuer } from "./galaxie.js";
 import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js";
 import { handbuchAbschnitte, erststartTafel } from "./handbuch.js";
 import { feedbackAdresse } from "./feedback.js";
+import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js";
 import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole } from "./ressourcen.js";
 
 // Exportiert für js/karte.js: die Systemkarte zeichnet dieselben Symbole wie
@@ -632,6 +634,7 @@ export function render(state, root) {
     teil("system", () => renderSystem(state, root, jetzt));
   }
   if (sichtbar("handbuch")) teil("handbuch", () => renderHandbuch(root));
+  if (sichtbar("development")) teil("development", () => renderDevelopment(root));
   // Nach dem Handbuch, damit der Hinweis im selben Takt in der Liste landet.
   handbuchHinweisPruefen(state);
   neuigkeitenHinweisPruefen(
@@ -942,6 +945,27 @@ function renderRessourcen(state, root, planet) {
     const hatSpeicher = Number.isFinite(eigenerSpeicher);
     const bestandJetzt = planet.ressourcen[resId] || 0;
     const speicherVoll = hatSpeicher && bestandJetzt >= eigenerSpeicher;
+
+    // A-050: DAS GEMEINSAME LAGER IST VOLL -- und was hier produziert wird,
+    // kommt nie an.
+    //
+    // Tobis Meldung war „die Fertigung produziert bei mir nichts auf
+    // Ausbaustufe 1". Nachgemessen ist der Zustand schlimmer, als er klingt:
+    // die Anlage läuft mit Faktor 1, verbraucht ihr Silizium, und das Ergebnis
+    // verfällt beim Einlagern (`insLager` wirft Überproduktion weg). Der
+    // Spieler sieht eine laufende Anlage und einen Bestand, der bei null
+    // steht -- und nirgends stand, warum.
+    //
+    // Die Warnung gab es bisher NUR in der Imperiumstabelle, als Tooltip an
+    // einer Prozentzelle. Genau dort schaut niemand nach, der wissen will,
+    // warum seine Fabrik nichts abwirft.
+    //
+    // Deshalb hier, an der Ressource selbst, und für JEDE Lagerressource
+    // (Prinzip 5: ein Mechanismus, nicht einer für Elektronik).
+    const lagerVoll = !hatSpeicher && lagerBelegung(planet) >= lagerKapazitaetGesamt(state, planet);
+    if (lagerVoll && rate > 0) {
+      kettenText += t(" · LAGER VOLL – was hier entsteht, verfällt sofort");
+    }
     if (hatSpeicher) {
       kettenText += speicherVoll
         ? t(" · Platz für {platz} – belegt, es wächst niemand nach", { platz: fmt(eigenerSpeicher) })
@@ -960,30 +984,35 @@ function renderRessourcen(state, root, planet) {
           ? t("voll")
           : ""
         : rate > 0
-          ? `+${ratenText(resId, rate)}`
+          ? // A-050: eine Rate, die nirgends ankommt, darf nicht wie ein
+            // Zugewinn aussehen. Das Pluszeichen war hier die Lüge.
+            lagerVoll
+            ? t("Lager voll")
+            : `+${ratenText(resId, rate)}`
           : zieht
             ? `−${ratenText(resId, -rate)}`
             : "",
-      rateKlasse: zieht || speicherVoll ? "warnung" : "",
-      // VERDERB BEKOMMT EINE EIGENE ZEILE (A-010, Prinzip 13: keine Zauberei).
+      rateKlasse: zieht || speicherVoll || (lagerVoll && rate > 0) ? "warnung" : "",
+      // A-052: DER VERDERB STAND HIER ALS EIGENE ZEILE (aus A-010) und hat
+      // damit genau das gebrochen, was die v0.40/41-Regeln absichern: die
+      // Nahrungskachel war höher als ihre Nachbarn, die Reihe wirkte
+      // uneinheitlich. Tobis Abnahme dazu: „Die −2 % im Jahr ist eine Info,
+      // die man einmal braucht, nicht immer."
       //
-      // Er taucht in der Flussbilanz NICHT auf, und das ist kein Versehen: er
-      // ist keine Rate, sondern ein Anteil des Bestands -- ein volles Lager
-      // verliert absolut mehr als ein halbleeres. Stünde er nicht da, sähe
-      // der Spieler eine positive Bilanz und einen sinkenden Vorrat und
-      // hielte das Spiel für kaputt.
-      //
-      // Die Zahl steht in SPIELJAHREN, wie jede andere Rate in der Leiste,
-      // und geht dafür durch dieselbe Umrechnung (`rateProJahr`) -- eine
-      // zweite Umrechnung wäre eine zweite Wahrheit über den Zeitmaßstab.
-      zusatz: def.verderb
-        ? t("−{prozent} % im Jahr verdirbt", {
-            prozent: (rateProJahr(def.verderb) * 100).toFixed(1),
-          })
-        : "",
+      // Er ist jetzt im Tooltip, und Prinzip 13 bleibt trotzdem erfüllt --
+      // aus einem Grund, der beim Bauen von A-010 noch nicht klar war: die
+      // WIRKSAME Folge steht ohnehin in der t/Jahr-Zahl der Kachel. Dort
+      // SIEHT man den Verderb wirken. Was hier stand, war die KONSTANTE
+      // dahinter, und eine Konstante braucht keinen Platz im Sekundentakt.
+      zusatz: "",
       titel:
         `${t(def.name)} – ${gewichtText}` +
         (def.gebaeude ? t(" · gefördert von {gebaeude}", { gebaeude: t(BUILDINGS[def.gebaeude].name) }) : "") +
+        (def.verderb
+          ? t(" · verdirbt: −{prozent} % des Bestands im Jahr", {
+              prozent: (rateProJahr(def.verderb) * 100).toFixed(1),
+            })
+          : "") +
         kettenText,
       // Dieselbe Farbe wie das Segment im Lagerbalken -- die Kachel ist die
       // Legende dazu.
@@ -1083,6 +1112,24 @@ function renderRessourcen(state, root, planet) {
       </div>`;
   }
 
+  // A-051: „voll in ~5 h 40". Die Antwort auf das A-023-Zurück -- die Messung
+  // sagt, dass eine Lagerhalle eine Offline-Entscheidung ist, und das ist in
+  // Ordnung; gefehlt hat nur, dass das Spiel es SAGT.
+  //
+  // Die Rechnung steht in `lagerVollInStunden` (state.js) und bekommt die
+  // EFFEKTIVEN Raten -- gedrosselt, nicht Nennleistung. Eine Prognose aus
+  // Rohraten verspräche bei Strommangel ein volles Lager, das nie kommt.
+  //
+  // Drei Zustände, drei Texte, und der dritte ist eine Leerzeile: bei
+  // Nettozufluss ≤ 0 steht dort NICHTS. Kein „nie", keine Phantasiezahl --
+  // was man nicht weiß, sagt man nicht.
+  const lagerPrognoseText = (state, planet, lagerRaten) => {
+    const stunden = lagerVollInStunden(state, planet, lagerRaten);
+    if (stunden === null) return "";
+    if (stunden <= 0) return t("voll");
+    return t("voll in {dauer}", { dauer: fmtDauer(stunden * 3600) });
+  };
+
   // Lagerauslastung als eigene Kachel in derselben Leiste.
   const gesamt = lagerKapazitaetGesamt(state, planet);
   const belegt = lagerBelegung(planet);
@@ -1125,6 +1172,7 @@ function renderRessourcen(state, root, planet) {
       <span class="res-unten" style="flex-direction:column;align-items:stretch;gap:.2rem">
         <span class="res-wert">${formatKurz(belegt)} / ${formatKurz(gesamt)} m³</span>
         <span class="lager-balken-rahmen">${balkenHtml}</span>
+        <span class="lager-prognose">${lagerPrognoseText(state, planet, lager)}</span>
       </span>
     </div>`;
 
@@ -1165,6 +1213,9 @@ const BEREICHE = [
   // gewohnten Positionen und das Muskelgedächtnis ist hin.
   { id: "imperium", label: () => t("Imperium") },
   { id: "handbuch", label: () => t("Handbuch") },
+  // A-054: der Tester-Dev-Kanal. Kommt UNTEN dazu, wie die Regel darüber es
+  // verlangt -- Handbuch bleibt, wo es war.
+  { id: "development", label: () => t("Development") },
 ];
 
 // Wann diese Sitzung angefangen hat zu zeigen. UI-lokal und bewusst nicht im
@@ -1792,22 +1843,6 @@ function renderStatus(state, root, planet, jetzt) {
 
   const block = root.querySelector("#status-block");
   const zeilen = [];
-  // Was in der Zeitspalte steht: eine Restdauer, wenn der Auftrag LÄUFT --
-  // und sonst, worauf er wartet (A-012, Prinzip 10a: Blockiertes erklärt sich
-  // selbst).
-  //
-  // Bei Rate 0 steht dort ausdrücklich „keine Produktion" statt einer
-  // gerechneten Phantasiezahl. Eine Restzeit, die aus einer Rate von null
-  // entsteht, wäre unendlich — und „∞" ist keine Auskunft, sondern eine
-  // Ausrede.
-  const kopfZeitText = (state, planet, kopf, art, jetzt) => {
-    if (kopf.fertigZeit !== null) return fmtDauer((kopf.fertigZeit - jetzt) / 1000);
-    const wartet = wartetAuf(state, planet, kopf, art);
-    if (!wartet) return t("wartet");
-    return wartet.sekunden === null
-      ? t("wartet auf {was} – keine Produktion", { was: wartet.text })
-      : t("wartet auf {was} – noch {dauer}", { was: wartet.text, dauer: fmtDauer(wartet.sekunden) });
-  };
   const zeile = (text, zeit) =>
     `<div class="status-zeile"><span>${text}</span><span class="status-zeit">${zeit}</span></div>`;
 
@@ -2223,7 +2258,7 @@ function kachelFuellen(state, root, opts, id, li) {
     // werden, und das hält die Zahlen einfach.
     const mitte = fertig
       ? `<span class="dezent">${t("erforscht")}</span>`
-      : `<span class="kachel-kosten">${istForschung ? `${RESSOURCEN.forschung.symbol} ${fmt(aufwand)} ${RESSOURCEN.forschung.einheit}` : buendelSymbole(kosten)}</span>
+      : `<span class="kachel-kosten"><span class="zeilen-marke">${t("Kosten")}</span> ${istForschung ? `${RESSOURCEN.forschung.symbol} ${fmt(aufwand)} ${RESSOURCEN.forschung.einheit}` : buendelSymbole(kosten)}</span>
          <span class="kachel-dauer">${fmtDauer(dauer)}${energieText ? ` · ${energieDelta >= 0 ? "+" : "−"}${fmt(Math.abs(Math.round(energieDelta)))} MW` : ""}</span>
          ${hatProduktion ? `<span class="kachel-gewinn">+${ratenBuendelText(produktionsDelta, true)}</span>` : ""}
          ${hatVerbrauch ? `<span class="kachel-verbrauch">−${ratenBuendelText(verbrauchsDelta, true)}</span>` : ""}
@@ -2266,9 +2301,28 @@ function kachelFuellen(state, root, opts, id, li) {
       }
     }
 
+    // A-044, Chris: „for the shipyard it was pretty unclear that I needed 60k
+    // population … had to look pretty closely". Die Bedingung stand nur im
+    // Tooltip -- also genau dort, wo man erst nachsieht, wenn man schon weiß,
+    // dass es eine gibt.
+    //
+    // Sie steht jetzt auf der Kachel, in EIGENER Zeile. Was hier NICHT
+    // hingehört, ist fehlendes Material: das ist keine Bedingung, sondern der
+    // Normalzustand kurz vor dem Bauen, und es stünde auf jeder zweiten
+    // Kachel. Die Unterscheidung gibt es bereits -- `nurGeld` (A-012) heißt
+    // genau „es fehlt nur Material".
+    //
+    // Der Fortschritt („aktuell 41.500") kommt aus `check.grund` und wandert
+    // sekündlich. Deshalb `textSetzen` in ein eigenes Feld statt Neubau der
+    // Zeile (8a, Lernpunkt 2).
     const sperre = li.querySelector(".kachel-sperre");
-    sperre.hidden = !vorOffen;
-    if (vorOffen) textSetzen(sperre, `🔒 ${voraussetzungenText(id)}`);
+    const bedingung = vorOffen
+      ? `🔒 ${voraussetzungenText(id)}`
+      : !check.ok && !check.nurGeld && !fertig
+        ? `🔒 ${check.grund}`
+        : "";
+    sperre.hidden = !bedingung;
+    if (bedingung) textSetzen(sperre, bedingung);
 
     // Abfrage über das Datenattribut, nicht über die Darstellungsklasse:
     // ein Selektor ".status.im-bau" sieht für die Übersetzungsprüfung wie
@@ -2281,6 +2335,11 @@ function kachelFuellen(state, root, opts, id, li) {
       const rest = istForschung
         ? forschungRestSekunden(state)
         : (opts.queue.fertigZeit - spielzeitJetzt(state)) / 1000;
+      // Läuft der Auftrag, ist es die Restdauer; wartet er auf Material, sagt
+      // er das (A-012/10a) -- dieselbe Auskunft wie in der Statusspalte.
+      const zeitText = istForschung
+        ? fmtDauer(rest)
+        : kopfZeitText(state, planetFuerKachel, opts.queue, "bau", spielzeitJetzt(state));
       // A-013: eine laufende ZAHLEN-Forschung wirkt schon anteilig -- also
       // muss sie das auch sagen (Prinzip 10a). Sonst sieht der Spieler eine
       // Rate steigen und findet keinen Grund dafuer. Freischaltungen zeigen
@@ -2294,7 +2353,15 @@ function kachelFuellen(state, root, opts, id, li) {
         : "";
       textSetzen(
         queueZeile.querySelector("[data-queue-text]"),
-        `→ ${opts.queue.zielLevel} · ${fmtDauer(rest)}${anteilText}`
+        `→ ${opts.queue.zielLevel} · ${zeitText}${anteilText}`
+      );
+      fortschrittSetzen(
+        li,
+        istForschung
+          ? anteilVon(opts.queue.fortschritt, opts.queue.aufwand)
+          : opts.queue.fertigZeit === null
+            ? 0 // A-012: wartet auf Material, es läuft noch nichts.
+            : 1 - anteilVon(rest, opts.queue.dauerSek)
       );
       attributSetzen(
         queueZeile.querySelector("button[data-abbrechen]"),
@@ -2303,6 +2370,10 @@ function kachelFuellen(state, root, opts, id, li) {
           ? t("Abbrechen – der bisherige Fortschritt ist verloren, gezahlt wurde mit Strom und Arbeitszeit")
           : t("Abbrechen, Kosten erstattet")
       );
+    } else {
+      // Zurück auf null, sobald nichts mehr läuft: sonst stünde beim nächsten
+      // Auftrag für einen Bildaufbau lang der ALTE, fast volle Balken da.
+      fortschrittSetzen(li, 0);
     }
 
     const aktion = li.querySelector("button.kachel-aktion");
@@ -2520,9 +2591,10 @@ function renderWerft(state, root, planet, jetzt) {
           <span class="kachel-stufe"></span>
         </div>
         <div class="kachel-mitte">
-          <span class="kachel-kosten"></span>
+          <span class="kachel-kosten"><span class="zeilen-marke" data-kosten-marke></span> <span data-kosten-wert></span></span>
           <span class="kachel-dauer"></span>
         </div>
+        <div class="kachel-sperre" hidden></div>
         <div class="schiff-knoepfe">
           <button class="kachel-aktion" data-schiff="${id}" data-anzahl="1"></button>
           <button data-schiff="${id}" data-anzahl="5">5×</button>
@@ -2547,6 +2619,48 @@ function renderWerft(state, root, planet, jetzt) {
   );
 }
 
+// Was in einer Zeitangabe steht: eine Restdauer, wenn der Auftrag LÄUFT --
+// und sonst, worauf er wartet (A-012, Prinzip 10a: Blockiertes erklärt sich
+// selbst).
+//
+// Bei Rate 0 steht dort ausdrücklich „keine Produktion" statt einer
+// gerechneten Phantasiezahl. Eine Restzeit, die aus einer Rate von null
+// entsteht, wäre unendlich — und „∞" ist keine Auskunft, sondern eine Ausrede.
+//
+// Stand seit A-012 in der Statusspalte, seit A-037 auch auf der Kachel: dort
+// zeigte der Wartezustand eine gerechnete Restzeit an (`null - jetzt` ergibt
+// eine große negative Zahl, `fmtDauer` macht daraus „unter 1 Tag"), und wenn
+// daneben ein Fortschrittsbalken auf null steht, widerspricht sich die Kachel
+// selbst. EINE Funktion beantwortet die Frage „wie lange noch" (Prinzip 5) --
+// deshalb hier auf Modulebene statt zweimal geschrieben.
+function kopfZeitText(state, planet, kopf, art, jetzt) {
+  if (kopf.fertigZeit !== null) return fmtDauer((kopf.fertigZeit - jetzt) / 1000);
+  const wartet = wartetAuf(state, planet, kopf, art);
+  if (!wartet) return t("wartet");
+  return wartet.sekunden === null
+    ? t("wartet auf {was} – keine Produktion", { was: wartet.text })
+    : t("wartet auf {was} – noch {dauer}", { was: wartet.text, dauer: fmtDauer(wartet.sekunden) });
+}
+
+// A-037: die Kachel IST der Fortschrittsbalken. Beide Helfer arbeiten auf dem
+// BESTEHENDEN Element -- nichts wird dafür neu gebaut (Prinzip 8a), und der
+// Wert geht als CSS-Variable raus, damit die Darstellung im Stylesheet bleibt.
+function anteilVon(teil, ganzes) {
+  if (!(ganzes > 0)) return 0;
+  const a = teil / ganzes;
+  // Geklemmt, weil beides vorkommt: eine Restzeit, die um Sekundenbruchteile
+  // negativ wird, und ein Fortschritt, der die Aufwandszahl minimal übertrifft
+  // (dieselben Krümel, die in A-042 eine Forschung festhielten).
+  return a < 0 ? 0 : a > 1 ? 1 : a;
+}
+
+function fortschrittSetzen(li, anteil) {
+  const wert = String(Math.round(anteil * 1000) / 1000);
+  if (li.style.getPropertyValue("--fortschritt") !== wert) {
+    li.style.setProperty("--fortschritt", wert);
+  }
+}
+
 // Die veränderlichen Teile einer Schiffskachel. Getrennt von ihrem Gerüst,
 // damit die beiden Knöpfe stehen bleiben (Prinzip 8a).
 function werftKachelFuellen(state, planet, li, id) {
@@ -2554,10 +2668,31 @@ function werftKachelFuellen(state, planet, li, id) {
     const def = SCHIFFE[id];
     const check = kannSchiffBauen(state, planet, id, 1);
     const fuenfCheck = kannSchiffBauen(state, planet, id, 5);
-    li.classList.toggle("item-aktiv", !!(planet.werftQueue && planet.werftQueue.schiffId === id));
+    const laeuft = !!(planet.werftQueue && planet.werftQueue.schiffId === id);
+    li.classList.toggle("item-aktiv", laeuft);
+    fortschrittSetzen(
+      li,
+      laeuft && planet.werftQueue.fertigZeit !== null
+        ? 1 -
+            anteilVon(
+              (planet.werftQueue.fertigZeit - spielzeitJetzt(state)) / 1000,
+              planet.werftQueue.dauerSek
+            )
+        : 0
+    );
     textSetzen(li.querySelector(".kachel-name"), t(def.name));
     textSetzen(li.querySelector(".kachel-stufe"), String(planet.schiffe[id] || 0));
-    textSetzen(li.querySelector(".kachel-kosten"), buendelSymbole(schiffKosten(planet, id)));
+    // A-044: dieselbe Form wie auf der Gebäudekachel -- Beschriftung und Wert
+    // getrennt, damit die Beschriftung beim Sprachwechsel mitkommt und der
+    // Wert im Takt geschrieben werden kann, ohne sie mitzunehmen.
+    textSetzen(li.querySelector("[data-kosten-marke]"), t("Kosten"));
+    textSetzen(li.querySelector("[data-kosten-wert]"), buendelSymbole(schiffKosten(planet, id)));
+    // Werftstufe, Bevölkerung, fehlende Forschung -- alles außer „gerade zu
+    // wenig Material" gehört sichtbar auf die Kachel (Chris' Punkt).
+    const schiffSperre = li.querySelector(".kachel-sperre");
+    const schiffBedingung = !check.ok && !check.nurGeld ? `🔒 ${check.grund}` : "";
+    schiffSperre.hidden = !schiffBedingung;
+    if (schiffBedingung) textSetzen(schiffSperre, schiffBedingung);
     textSetzen(
       li.querySelector(".kachel-dauer"),
       `${fmtDauer(schiffsBauzeitSek(planet, id, 1))} · ${def.verbrauchProStrecke}⚛️${
@@ -4500,6 +4635,144 @@ function bereichOeffnen(state, root, ziel) {
   aktiverBereich = ziel.bereich;
   render(state, root);
   if (!ziel.anker) return;
-  const marke = root.querySelector(`#handbuch-${ziel.anker}`);
+  // A-054: die Sprungmarke trägt den Bereichsnamen als Vorsilbe, nicht mehr
+  // fest „handbuch-". Seit es zwei Bereiche mit Ankern gibt (Handbuch und
+  // Development), wäre eine feste Vorsilbe der Grund, warum genau der neue
+  // Sprung ins Leere geht.
+  const marke = root.querySelector(`#${ziel.bereich}-${ziel.anker}`);
   if (marke && marke.scrollIntoView) marke.scrollIntoView({ block: "start" });
+}
+
+// --- Der Notausgang (A-046) ----------------------------------------------
+//
+// Erscheint VOR der Aufholung, wenn die letzte nie fertig wurde. Bewusst eine
+// eigene, kleine Funktion statt eines Zweigs in `render`: sie läuft genau
+// einmal, vor dem ersten Bild, und muss ihre Antwort ABWARTEN -- render()
+// wartet auf nichts.
+//
+// Der Ton ist mit Absicht harmlos. Ein `beforeunload` mitten in einer ganz
+// normalen langen Aufholung lässt den Marker völlig zu Recht stehen; wer dann
+// „Fehler!" liest, sucht einen, den es nicht gibt (Falle 2 des Auftrags).
+export function notausgangTafel(root, zaehler, eskalationAb) {
+  return new Promise((fertig) => {
+    const el = root.querySelector("#erstklaerung");
+    if (!el) return fertig("erneut");
+    // Wer mehrfach hintereinander hängt, will raus und nicht ein weiteres Mal
+    // dasselbe versuchen. Die Empfehlung dreht sich, die Wahl bleibt.
+    const raus = zaehler >= eskalationAb;
+    el.hidden = false;
+    el.innerHTML = `
+      <div class="erstklaerung-tafel">
+        <h2>${t("Die letzte Zeitaufholung kam nicht durch")}</h2>
+        <p>${t("Beim letzten Mal hat das Nachrechnen der vergangenen Zeit nicht bis zum Ende gereicht. Dein Spielstand ist unversehrt – offen ist nur die Strecke, die noch zu rechnen wäre.")}</p>
+        ${raus ? `<p>${t("Das ist jetzt der {zahl}. Versuch in Folge. Verwerfen ist der Weg, der sicher hinausführt.", { zahl: zaehler })}</p>` : ""}
+        <p class="dezent">${t("Verwerfen wirft nichts von deiner Welt weg – nur die noch nicht gerechnete Zeit.")}</p>
+        <div class="erstklaerung-knoepfe">
+          <button data-not="erneut" class="${raus ? "zweitrangig" : ""}">${t("Erneut versuchen")}</button>
+          <button data-not="verwerfen" class="${raus ? "" : "zweitrangig"}">${t("Zeitsprung verwerfen und weiterspielen")}</button>
+        </div>
+      </div>`;
+    // Ereignisse EINMAL, und die Tafel verschwindet mit der Antwort -- sie ist
+    // eine Frage, kein Zustand.
+    el.querySelectorAll("button[data-not]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        el.hidden = true;
+        el.innerHTML = "";
+        delete el.dataset.gezeichnet;
+        fertig(btn.dataset.not);
+      });
+    });
+  });
+}
+
+// --- Der Development-Bereich (A-054) --------------------------------------
+//
+// Tobis Ansage: die Tester-Dev-Interaktion bekommt einen eigenen Ort, „sonst
+// kriegen wir altes Feedback oder Feedback, an dem wir schon arbeiten".
+// Drei Abschnitte in fester Reihenfolge: was war, was kommt, wie man sich
+// meldet.
+//
+// GEBAUT WIRD EINMAL, nicht im Sekundentakt. Der Vergleich mit `sprache()`
+// ist derselbe Wächter wie im Handbuch: neu gezeichnet wird nur, wenn sich
+// die Sprache ändert. 45 Versionen Text jede Sekunde neu zusammenzusetzen
+// wäre die teuerste Art, nichts zu ändern.
+export function renderDevelopment(root) {
+  const block = root.querySelector("#development-block");
+  if (!block || block.dataset.gezeichnet === sprache()) return;
+  block.dataset.gezeichnet = sprache();
+
+  // Welche Sprache gilt gerade? Die Daten tragen beide selbst, statt durch
+  // t() zu laufen -- deshalb hier die einzige Stelle, die wählt.
+  const de = sprache() === "de";
+  const knoten = [];
+
+  const titel = (text, id) => {
+    const h3 = document.createElement("h3");
+    h3.textContent = text;
+    // Sprungmarke, damit eine Meldung direkt hierher führen kann (A-040).
+    if (id) h3.id = `development-${id}`;
+    return h3;
+  };
+  const absatz = (text) => {
+    const p = document.createElement("p");
+    p.textContent = text;
+    return p;
+  };
+
+  // --- Patchnotes ---------------------------------------------------------
+  knoten.push(titel(t("Patchnotes"), "patchnotes"));
+  knoten.push(
+    absatz(
+      t(
+        "Was sich seit der ersten veröffentlichten Fassung geändert hat, neueste zuoberst. Was hier steht, ist da – wenn es bei dir anders aussieht, ist das eine Meldung wert."
+      )
+    )
+  );
+  for (const eintrag of PATCHNOTES) {
+    const h4 = document.createElement("h4");
+    h4.textContent = `v${eintrag.version}`;
+    const ul = document.createElement("ul");
+    for (const punkt of de ? eintrag.de : eintrag.en) {
+      const li = document.createElement("li");
+      li.textContent = punkt;
+      ul.appendChild(li);
+    }
+    knoten.push(h4, ul);
+  }
+
+  // --- Roadmap ------------------------------------------------------------
+  knoten.push(titel(t("Roadmap"), "roadmap"));
+  knoten.push(
+    absatz(
+      t(
+        "Was auf dem Plan steht. Grob und ohne Datum – eine Demo, die Termine verspricht, hat schon verloren. Steht dein Fund hier, ist er bekannt."
+      )
+    )
+  );
+  for (const gruppe of ROADMAP_PUNKTE) {
+    const h4 = document.createElement("h4");
+    h4.textContent = de ? gruppe.de : gruppe.en;
+    const ul = document.createElement("ul");
+    for (const punkt of gruppe.punkte) {
+      const li = document.createElement("li");
+      li.textContent = de ? punkt.de : punkt.en;
+      ul.appendChild(li);
+    }
+    knoten.push(h4, ul);
+  }
+
+  // --- Feedback -----------------------------------------------------------
+  knoten.push(titel(t("Feedback"), "feedback"));
+  knoten.push(
+    absatz(
+      t(
+        "Was dir auffällt, gehört hierher – auch Kleinigkeiten, auch „das habe ich nicht verstanden“. Versionsnummer und Browser trägt das Formular selbst ein; bitte stehen lassen, ohne sie ist eine Meldung schwer einzuordnen."
+      )
+    )
+  );
+  const p = document.createElement("p");
+  p.appendChild(externerLink(feedbackAdresse(), t("Rückmeldung schreiben")));
+  knoten.push(p);
+
+  block.replaceChildren(...knoten);
 }

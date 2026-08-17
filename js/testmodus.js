@@ -5,9 +5,31 @@
 import { aufholen, deckelMelden } from "./aufholen.js";
 import { speichern, zuruecksetzen } from "./save.js";
 import { cacheLeeren } from "./systeme.js";
+import { zeitfaktorVon, zeitfaktorSetzen } from "./state.js";
 import { t } from "./sprache.js";
 
+// Welcher Faktor gerade gilt, steht an den Knöpfen selbst -- ein Zustand, den
+// man nicht sieht, ist im Testmodus so wertlos wie im Spiel (Prinzip 10a).
+export function zeitfaktorKnoepfeAbgleichen(state, root) {
+  const jetzt = zeitfaktorVon(state);
+  for (const btn of root.querySelectorAll("#testmodus-leiste button[data-zeitfaktor]")) {
+    btn.classList.toggle("aktiv", Number(btn.dataset.zeitfaktor) === jetzt);
+  }
+}
+
 export function testmodusEinrichten(state, root, renderFn) {
+  // Ereignisse EINMAL beim Einrichten (Prinzip 8a) -- die Leiste steht im
+  // index.html und wird nie neu gebaut.
+  root.querySelectorAll("#testmodus-leiste button[data-zeitfaktor]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      zeitfaktorSetzen(state, Number(btn.dataset.zeitfaktor));
+      zeitfaktorKnoepfeAbgleichen(state, root);
+      renderFn(state, root);
+      speichern(state);
+    });
+  });
+  zeitfaktorKnoepfeAbgleichen(state, root);
+
   root.querySelectorAll("#testmodus-leiste button[data-sprung-sek]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const sekunden = Number(btn.dataset.sprungSek);

@@ -116,6 +116,7 @@ import {
   lagerHinzufuegen,
   skalieren,
   buendelText,
+  formatZahl as fmt,
   name as resName,
 } from "./ressourcen.js";
 import { t } from "./sprache.js";
@@ -2927,13 +2928,65 @@ function befehlOrt(state, befehl) {
 // Treibstoffprüfung folgt derselben Wahl: ohne Rückkehr muss nur die
 // Hinstrecke gedeckt sein (`einweg`), sonst hin UND zurück (Prinzip 3:
 // verhindern statt hinterher stranden lassen).
+// --- Siedler an Bord (A-043) ---------------------------------------------
+//
+// Reicht die Heimatwelt dieser Flotte für eine Koloniegründung, und wer gibt
+// wie viele Menschen ab? EINE Funktion beantwortet das, weil zwei Wege sie
+// stellen: der Spieler über `kannGruendungsmission`, die Bots über
+// `botKolonisieren`. Prinzip 0b -- dieselbe Tür.
+//
+// DAS WAR HIER EIN ECHTER FEHLER, gefunden im Weltlauf: die Prüfung stand
+// zuerst nur in `gruendungBefehlen`, und `botKolonisieren` ruft
+// `missionBefehlen` DIREKT auf. Die Bots kolonisierten also weiter zum
+// Nulltarif -- der Weltlauf lieferte Zahl für Zahl das alte Ergebnis, und
+// genau diese Unauffälligkeit war der Hinweis.
+function siedlerPruefen(state, flotte) {
+  const heimat = planetById(state, flotte.heimatPlanet);
+  const noetig = SCHIFFE.kolonieschiff.siedler || 0;
+  const da = Math.floor((heimat && heimat.ressourcen.bevoelkerung) || 0);
+  // Strikt MEHR als nötig: wer alle mitschickt, lässt eine leere Welt zurück
+  // -- und aus null Menschen wächst niemand nach (siehe
+  // bevoelkerungVorruecken). Eine Kolonie zu gründen darf die Heimat nicht
+  // ausradieren.
+  if (da <= noetig) {
+    return {
+      ok: false,
+      grund: t("Braucht mehr als {noetig} Siedler auf {planet} – dort leben {da}.", {
+        noetig: fmt(noetig),
+        planet: heimat ? heimat.name : "?",
+        da: fmt(da),
+      }),
+    };
+  }
+  return { ok: true, heimat, siedler: noetig };
+}
+
+// Die Siedler gehen an Bord. Erst NACH einer erfolgreichen Mission -- vorher
+// abzuziehen und dann zu scheitern wären Menschen, die nirgends mehr sind.
+function siedlerEinschiffen(state, flotte) {
+  const { ok, heimat, siedler } = siedlerPruefen(state, flotte);
+  if (!ok) return;
+  heimat.ressourcen.bevoelkerung = Math.max(0, (heimat.ressourcen.bevoelkerung || 0) - siedler);
+  planetGeaendert(heimat);
+  // Sie leben jetzt IM SCHIFF. Geht es unterwegs verloren, sind sie es auch --
+  // es gibt keinen zweiten Ort, an dem sie noch stünden (Prinzip 7a).
+  flotte.siedler = siedler;
+}
+
 export function missionBefehlen(state, flotte, missionsart, systemId, orbit, optionen = {}, zeit = null) {
   const { rueckkehr = false, ...missionsOptionen } = optionen;
+  // A-043: DIE Tür, durch die Spieler und Bots gleichermaßen gehen.
+  if (missionsart === "kolonie") {
+    const siedlerCheck = siedlerPruefen(state, flotte);
+    if (!siedlerCheck.ok) return siedlerCheck;
+  }
   const befehle = [
     { art: "mission", missionsart, zielSystem: systemId, zielOrbit: orbit, ...missionsOptionen },
   ];
   if (rueckkehr) befehle.push({ art: "hafen", planetId: flotte.heimatPlanet });
-  return befehleSetzen(state, flotte, befehle, { einweg: !rueckkehr }, zeit);
+  const ergebnis = befehleSetzen(state, flotte, befehle, { einweg: !rueckkehr }, zeit);
+  if (missionsart === "kolonie" && ergebnis.ok) siedlerEinschiffen(state, flotte);
+  return ergebnis;
 }
 
 // --- Schnellversand -------------------------------------------------------
@@ -3829,7 +3882,18 @@ function stuetzpunktGruenden(state, flotte, befehl, typ, zeit) {
   // gemeinsamen state.letzterTick und würde beim nächsten Vorrücken für eine
   // Zeit mitproduzieren, in der es sie noch gar nicht gab.
   planet.letzterTick = zeit;
-  if (typ === "kolonie") insLager(state, planet, KOLONIE.startvorrat);
+  if (typ === "kolonie") {
+    insLager(state, planet, KOLONIE.startvorrat);
+    // A-043: GENAU die Menschen, die mitgereist sind -- keine Konstante, kein
+    // Aufrunden. Die Summe der Menschen bleibt über Start und Ankunft
+    // erhalten; das ist die eine Zahl, die beide Seiten verbindet.
+    //
+    // `|| 0` ist nicht Kosmetik: ein Kolonieschiff aus einem Spielstand VOR
+    // A-043 hat keine Siedler an Bord. Es gründet dann eine Welt ohne
+    // Menschen -- ehrlich, weil es tatsächlich keine mitgenommen hat.
+    planet.ressourcen.bevoelkerung = flotte.siedler || 0;
+    flotte.siedler = 0;
+  }
   state.planeten.push(planet);
 
   meldungHinzufuegen(
@@ -3924,6 +3988,14 @@ export function kannGruendungsmission(state, flotte, art, systemId, orbit) {
   if (art === "kolonie" && (flotte.schiffe.kolonieschiff || 0) < 1) {
     return { ok: false, grund: t("Flotte hat kein Kolonieschiff.") };
   }
+  // A-043: die Siedler reisen MIT. Geprüft wird schon hier, damit der Knopf
+  // den Grund nennen kann statt stumm zu bleiben (Prinzip 10a) -- ENTSCHIEDEN
+  // wird er in `siedlerPruefen`, derselben Funktion, durch die auch die Bots
+  // gehen.
+  if (art === "kolonie") {
+    const siedlerCheck = siedlerPruefen(state, flotte);
+    if (!siedlerCheck.ok) return siedlerCheck;
+  }
   if (art === "aussenposten" && schiffeGesamt(flotte) < 1) {
     return { ok: false, grund: t("Die Flotte hat keine Schiffe.") };
   }
@@ -3953,6 +4025,8 @@ export function gruendungBefehlen(state, flotte, art, systemId, orbit) {
   // Schnellversand heisst ausdruecklich "und wieder heim" -- der Kopf dieser
   // Sektion sagt es so, und die Sonden sind Einwegschiffe: was zurueckkommt,
   // ist die Flotte, nicht die Sonde.
+  // Die Siedler steigen in `missionBefehlen` zu -- dort, wo auch die Bots
+  // vorbeikommen (A-043). Hier steht bewusst nichts mehr darüber.
   return missionBefehlen(state, flotte, art, systemId, orbit, { rueckkehr: true });
 }
 
@@ -4250,9 +4324,12 @@ export function kannBauen(state, planet, gebaeudeId) {
     if (menschen < def.bevoelkerungAb) {
       return {
         ok: false,
+        // Mit Tausenderpunkten (A-044): seit dieser Satz nicht mehr im
+        // Tooltip steht, sondern auf der Kachel, wird er auf einen Blick
+        // gelesen -- und "60000" liest sich nicht auf einen Blick.
         grund: t("Braucht {noetig} Bevölkerung (aktuell {aktuell}).", {
-          noetig: Math.round(def.bevoelkerungAb),
-          aktuell: Math.round(menschen),
+          noetig: fmt(Math.round(def.bevoelkerungAb)),
+          aktuell: fmt(Math.round(menschen)),
         }),
       };
     }
