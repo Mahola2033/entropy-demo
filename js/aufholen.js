@@ -23,68 +23,52 @@
 // Wimpernschlag vorzuruecken, und der gibt dem Browser zwischendurch sein
 // Bild zurueck.
 
-import { vorspulenBisJetzt } from "./simulation.js";
+import { vorspulenBisJetzt, vorspulenSchrittweise } from "./simulation.js";
 import { spielzeitJetzt, meldungHinzufuegen } from "./state.js";
 import { phase } from "./stockung.js";
 import { t } from "./sprache.js";
 
-// IN WIE VIELE BLOECKE die Aufholung zerfaellt -- nicht, wie lange ein Block
-// rechnen darf.
+// WIE VIEL EIN BLOCK RECHNEN DARF -- gemessen, nicht geschaetzt.
 //
-// Der erste Entwurf machte es andersherum: klein anfangen und die Blockgroesse
-// an einer Ziel-Rechenzeit nachfuehren. Im Browser gemessen blieb die Anzeige
-// damit 20 Sekunden lang auf 0 % stehen. Der Grund ist ein FESTER Anteil je
-// Aufruf: `vorspulenBisJetzt` rueckt am Ende immer ALLE Planeten auf den
-// Zielzeitpunkt vor, bei 672 Planeten ist das allein schon Millisekunden.
-// Die Nachfuehrung stellte sich deshalb auf eine Blockgroesse ein, bei der
-// fast nur noch dieser Sockel bezahlt wurde -- viele Aufrufe, kaum Fortschritt.
+// Drei Anlaeufe, und die Geschichte gehoert dazu, weil jeder den naechsten
+// erklaert:
 //
-// Eine feste Zahl Bloecke dreht das um: der Sockel wird HUNDERTMAL bezahlt,
-// egal wie lang die Abwesenheit war, und der Balken rueckt je Block um rund
-// ein Prozent vor.
-const BLOECKE = 100;
-// ... aber nur, wenn es auch etwas zu verteilen gibt. Hundert Bloecke kosten
-// hundert abgewartete Bilder, und ein Bild sind rund 16 ms -- fuer einen
-// +1m-Sprung (246 ms Arbeit) waeren das 1,6 s Wanduhr statt 246 ms. Die
-// Aufteilung darf die kurze Rechnung nicht teurer machen als das Problem.
+//   v0.81  Feste Zahl Bloecke, aufgeteilt nach ZEITSPANNE. Ein erster
+//          Entwurf hatte die Groesse an einer Ziel-Rechenzeit nachgefuehrt
+//          und war gemessen gescheitert: ohne Untergrenze stellte er sich
+//          auf eine Groesse ein, bei der fast nur noch der FESTE SOCKEL je
+//          Aufruf bezahlt wurde (am Ende jedes Aufrufs ruecken ALLE Planeten
+//          vor, bei 672 allein Millisekunden). Balken 20 s auf 0 %.
+//   v0.86  Zeitbudget mit Untergrenze, Breite aus der gemessenen Rate. Besser,
+//          aber der erste Block jeder Spanne blieb blind (ueber Nacht 596 ms).
+//   v0.87  Wachstumsbremse dazu. Immer noch 187 von 1182 Bloecken ueber
+//          100 ms, Spitze 1238 ms.
 //
-// Deshalb bekommt ein Block eine ANGEPEILTE Groesse in Spielzeit, und die
-// Blockzahl faellt daraus (nach oben gedeckelt durch BLOECKE). Fuenf
-// Sekunden Spielzeit kosten gemessen rund 20 ms -- ungefaehr ein Bild.
-const ZIEL_BLOCK_SPIELZEIT_MS = 5 * 1000;
-// WIE LANGE EIN BLOCK RECHNEN DARF -- gemessen, nicht geschaetzt (A-030).
+//   v0.88  Budget als EREIGNISZAHL statt Zeitspanne (A-032, erster Anlauf).
+//          Schlimmster Block 1238 -> 265 ms. Immer noch 26 Bloecke ueber
+//          150 ms.
 //
-// Bis v0.85 kam die Blockgroesse allein aus der SPANNE: eine feste Zahl
-// Bloecke, plus eine Notbremse, die einen zu langen Block nachtraeglich
-// halbierte. Das hat zwei Loecher, und beide sind in Node gemessen:
+// WARUM ALLE VIER ZU KURZ GRIFFEN, und das ist die Lehre: JEDE Zaehlung im
+// Voraus schaetzt, was ein Schritt kosten wird. Und diese Schaetzung ist
+// strukturell unmoeglich:
 //
-//   1. Der ERSTE Block jeder Spanne ist blind. Ueber Nacht waren das 596 ms,
-//      bei +1 Tag 1192 ms -- am Stueck, ohne Bild. Die Notbremse greift erst
-//      danach.
-//   2. Auf langsamerer Hardware verschiebt sich alles proportional. Eine
-//      Aufteilung nach Spielzeit weiss nichts ueber das Geraet, auf dem sie
-//      laeuft.
+//   - nach Zeitspanne, weil die Ereignisdichte auf Minutenebene stossweise
+//     ist (gemessen 13 Ereignisse/s gegen 4,7 im Stundenmittel);
+//   - nach Ereigniszahl, weil Ereignisse sich um Groessenordnungen
+//     unterscheiden. Gemessen an 701 Planeten: 0,15 ms je Ereignis bis zu 200
+//     Stueck, 0,54 ms bei 400. Der Grund steht in `naechstesEreignis` -- ein
+//     Ereignis mit `planeten: null` ("beruehrt moeglicherweise alles") rueckt
+//     ALLE Planeten vor und kostet allein so viel wie hunderte lokale.
 //
-// Jetzt bestimmt die GEMESSENE Rate die naechste Blockgroesse: nach jedem
-// Block ist bekannt, was eine Millisekunde Spielzeit kostet, und daraus faellt
-// die Breite fuer das Zeitbudget. Der erste Block ist absichtlich klein und
-// dient als Messung.
-//
-// WARUM DAS NICHT DER GESCHEITERTE ERSTE ENTWURF IST: der fuehrte die
-// Blockgroesse an einer Ziel-Rechenzeit nach, OHNE Untergrenze -- und lief in
-// den festen Sockel je Aufruf (`vorspulenBisJetzt` rueckt am Ende immer alle
-// Planeten vor). Er stellte sich auf eine Groesse ein, bei der fast nur noch
-// der Sockel bezahlt wurde: viele Aufrufe, kaum Fortschritt, Balken 20 s auf
-// 0 %. Die Untergrenze `MIN_BLOCK_SPIELZEIT_MS` ist genau die Lehre daraus.
+// Was nicht schaetzt, ist die Uhr. `vorspulenSchrittweise` fragt sie nach
+// JEDEM Ereignis und haelt, wenn das Budget aufgebraucht ist. Die Blockdauer
+// ist damit hoechstens Budget plus ein Ereignis -- ohne Vorhersage, ohne
+// Nachfuehrung, ohne Annahme ueber das Geraet. Die drei Regelwerke davor sind
+// alle ersatzlos entfallen.
 const ZIEL_BLOCK_RECHENZEIT_MS = 50;
-// Kein Block ist schmaler als das -- sonst zahlt man nur noch den Sockel.
-const MIN_BLOCK_SPIELZEIT_MS = 5 * 1000;
-// Erster Block: schmal, er ist die Messung. Zwei Mindestbreiten, damit er
-// ueberhaupt etwas Messbares leistet.
-const PROBE_BLOCK_SPIELZEIT_MS = 2 * MIN_BLOCK_SPIELZEIT_MS;
-// Feiner als tausendstel Schritte wird nicht geteilt: darunter ueberwiegt der
-// Sockel wieder, und ein Prozentbalken braucht es auch nicht genauer.
-const BLOECKE_MAX = 1000;
+// Fangnetz, falls die Uhr nicht weiterlaeuft (angehaltene Zeit in einer
+// Testumgebung). Im Normalbetrieb greift immer das Zeitbudget zuerst.
+const EREIGNIS_FANGNETZ = 100_000;
 
 // Bis hierhin darf der Sekundentakt in einem Zug rechnen. Der Normalfall ist
 // eine Sekunde (rund 4 ms). Zehn Sekunden sind rund 40 ms und damit noch
@@ -235,37 +219,30 @@ export async function aufholen(state) {
         break;
       }
 
-      // Erster Block ist die Messung, danach fuehrt die gemessene Rate.
-      let block = ersterBlock(spanne);
-      let stand = start;
+      // KEINE Vorhersage mehr, wie viel in einen Block passt: das Budget ist
+      // die Wanduhr, und `vorspulenSchrittweise` fragt sie nach jedem
+      // Ereignis. Die Ereigniszahl ist nur noch ein Fangnetz fuer den Fall,
+      // dass die Uhr stillsteht. Warum das so sein muss, steht oben bei den
+      // Konstanten -- vier Anlaeufe, drei davon mit einer Schaetzung.
       let nummer = 0;
 
-      while (stand < ziel) {
-        const bis = Math.min(ziel, stand + block);
-        const breite = bis - stand;
+      for (;;) {
         nummer += 1;
         // Phase benennen, damit eine gemeldete Stockung sagen kann, WER sie
         // war -- ohne das liefert der Beobachter nur eine Zahl (A-030).
-        const phaseFertig = phase(`Aufholung Block ${nummer}, ${Math.round(breite / 1000)} s Spielzeit`);
-        const t0 = performance.now();
-        const diagnose = vorspulenBisJetzt(state, bis);
-        const dauer = performance.now() - t0;
+        const phaseFertig = phase(`Aufholung Block ${nummer}`);
+        const schritt = vorspulenSchrittweise(state, ziel, EREIGNIS_FANGNETZ, ZIEL_BLOCK_RECHENZEIT_MS);
         phaseFertig();
-        ereignisse += diagnose.ereignisse;
-        deckelGerissen = deckelGerissen || diagnose.deckelGerissen;
-        stand = bis;
+        ereignisse += schritt.ereignisse;
 
         // Die Anzeige kommt erst, wenn es sich lohnt -- und wenn sie einmal
         // da ist, bleibt sie bis zum Ende.
         if (!anzeige && performance.now() - begonnen > ANZEIGE_AB_MS) {
           anzeige = fortschrittsanzeige();
         }
-        if (anzeige) anzeige.setzen((stand - start) / spanne);
+        if (anzeige) anzeige.setzen((schritt.erreicht - start) / spanne);
 
-        // Aus dem, was dieser Block WIRKLICH gekostet hat, faellt die Breite
-        // des naechsten. Damit passt sich die Aufholung an das Geraet an,
-        // statt auf eine Annahme ueber es zu setzen.
-        block = naechsterBlock(breite, dauer, spanne);
+        if (schritt.fertig) break;
         await naechstesBild();
       }
 
@@ -280,56 +257,6 @@ export async function aufholen(state) {
   }
 
   return { ereignisse, deckelGerissen };
-}
-
-// Wie gross ist ein Block bei dieser Spanne? Eigene Funktion, damit
-// `tests/sprungmessung.mjs` dieselbe Rechnung benutzt und nicht dieselbe
-// IDEE ein zweites Mal umsetzt -- zwei Stellen, die dieselbe Grenze meinen
-// und getrennt gepflegt werden, sind in diesem Projekt schon einmal
-// auseinandergelaufen (siehe PRINZIPIEN.md zur Puffergrenze).
-export function blockGroesse(spanne) {
-  const bloecke = Math.min(BLOECKE, Math.max(1, Math.round(spanne / ZIEL_BLOCK_SPIELZEIT_MS)));
-  return Math.ceil(spanne / bloecke);
-}
-
-// Der Probeblock: schmal, damit der erste Griff nicht blind ins Volle geht.
-export function ersterBlock(spanne) {
-  return Math.min(spanne, PROBE_BLOCK_SPIELZEIT_MS);
-}
-
-// Wie breit darf der naechste Block sein? Aus der GEMESSENEN Rate des
-// letzten, nicht aus der Spanne.
-//
-//   breite  Spielzeit, die der letzte Block abgedeckt hat (ms)
-//   dauer   was er dafuer an Wanduhr gebraucht hat (ms)
-//   spanne  die ganze offene Luecke -- deckelt nach oben, damit der
-//           Fortschrittsbalken sich noch bewegt (mindestens hundert Schritte)
-//
-// Eigene Funktion, damit `tests/sprungmessung.mjs` dieselbe Rechnung benutzt
-// und nicht dieselbe IDEE ein zweites Mal umsetzt -- zwei Stellen, die
-// dieselbe Grenze meinen und getrennt gepflegt werden, sind in diesem Projekt
-// schon einmal auseinandergelaufen (siehe PRINZIPIEN.md zur Puffergrenze).
-export function naechsterBlock(breite, dauer, spanne) {
-  const obergrenze = Math.max(MIN_BLOCK_SPIELZEIT_MS, Math.ceil(spanne / BLOECKE));
-  // WACHSTUMSBREMSE -- die Lehre aus der ersten Messung dieses Umbaus.
-  //
-  // Die Regel schaut auf den LETZTEN Block und hinkt damit jeder Aenderung
-  // einen Block nach. Die Ereignisdichte ist aber nicht gleichmaessig: auf
-  // eine ruhige Strecke folgte ein grosszuegig bemessener Block, und traf der
-  // auf eine Dichtespitze, kostete er das Vielfache. Gemessen ueber einen
-  // ganzen Tag Spielzeit: schlimmster Block 928 ms, obwohl das Budget 50 ms
-  // sagt.
-  //
-  // Ein Block darf deshalb nur um die Haelfte wachsen, aber beliebig
-  // schrumpfen. Nach unten muss die Regel sofort reagieren duerfen -- nach
-  // oben hat sie Zeit, und Vorsicht kostet dort nur ein paar Bloecke mehr.
-  const gedeckelt = Math.min(obergrenze, Math.round(breite * 1.5));
-  // Ein Block, der nicht messbar gedauert hat, sagt nichts ueber die Rate --
-  // dann vorsichtig wachsen statt aus dem Rauschen zu rechnen.
-  if (!(dauer > 0.5) || !(breite > 0)) return Math.max(MIN_BLOCK_SPIELZEIT_MS, gedeckelt);
-  const proMs = dauer / breite;
-  const gewuenscht = ZIEL_BLOCK_RECHENZEIT_MS / proMs;
-  return Math.max(MIN_BLOCK_SPIELZEIT_MS, Math.min(gedeckelt, Math.round(gewuenscht)));
 }
 
 // EIN GERISSENER DECKEL MUSS DEN SPIELER ERREICHEN.

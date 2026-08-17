@@ -803,8 +803,8 @@ export const EN = {
   // wirklich gehangen hat -- dann ist es die wichtigste Meldung der Liste.
   "Anzeige hing {dauer} ms – Ursache: {wer}": "Display stalled for {dauer} ms – cause: {wer}",
   unbekannt: "unknown",
-  "[Stockung] Dieser Browser meldet keine langen Aufgaben.":
-    "[Stall] This browser does not report long tasks.",
+  "[Stockung] Dieser Browser meldet keine unbenannten langen Aufgaben. Die Phasen melden sich weiter selbst.":
+    "[Stall] This browser does not report unnamed long tasks. The named phases still report themselves.",
   "Jahr {jahr} · Tag {tag}": "Year {jahr} · Day {tag}",
   Förderung: "Extraction",
   Energie: "Power",

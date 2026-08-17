@@ -41,19 +41,53 @@ const phasen = [];
 let laufend = null;
 let beobachter = null;
 let stilleBisher = 0;
+// Der Spielstand, in dessen Meldungsliste geschrieben wird. Wird von
+// `stockungenBeobachten` gesetzt -- die Phasen sollen ihn nicht durchreichen
+// muessen, sonst haette jeder Aufrufer ihn im Gepaeck.
+let spielstand = null;
 
 // Eine Phase beginnt. Rückgabe ist die Funktion, die sie beendet -- damit
 // kann kein Aufrufer das Beenden vergessen, ohne dass es auffällt.
 export function phase(name) {
   const von = performance.now();
-  laufend = { name, von, bis: Infinity };
+  laufend = { name, von, bis: Infinity, gemeldet: false };
   phasen.push(laufend);
   if (phasen.length > GEDAECHTNIS) phasen.shift();
   const eigene = laufend;
   return () => {
     eigene.bis = performance.now();
     if (laufend === eigene) laufend = null;
+    // DIE PHASE MELDET SICH SELBST, und das ist der Weg, der in JEDEM Browser
+    // trägt. `longtask` gibt es nur in Chrome-Abkömmlingen -- Firefox und
+    // Safari kennen es nicht, und Tobis Umgebung IST Firefox (A-032). Ohne
+    // diesen Weg hätte er als einziger keine Telemetrie, obwohl er der einzige
+    // ist, der die Freezes gemeldet hat.
+    //
+    // Der Beobachter unten bleibt trotzdem: er faengt auch, was keine Phase
+    // hat (Fremdcode, Speicherbereinigung, ein Klick-Handler).
+    const dauer = eigene.bis - von;
+    if (dauer >= SCHWELLE_MS) {
+      eigene.gemeldet = true;
+      melden(Math.round(dauer), name);
+    } else {
+      stilleBisher += 1;
+    }
   };
+}
+
+// Eine Stockung nach draussen geben. Immer in die Konsole -- sie kostet nichts
+// und traegt die volle Reihe fuer ein Profil. In die Meldungsliste nur, wenn
+// ein Spielstand bekannt ist.
+function melden(dauer, wer) {
+  console.warn(`[Stockung] ${dauer} ms · ${wer}`);
+  if (!spielstand) return;
+  meldungHinzufuegen(
+    spielstand,
+    t("Anzeige hing {dauer} ms – Ursache: {wer}", { dauer, wer }),
+    // Gruppiert: bei einer Kette von Haengern soll daraus eine Meldung mit
+    // Zaehler werden und keine Lawine.
+    "stockung"
+  );
 }
 
 // Welche Phase lief zu diesem Zeitpunkt? Die jüngste, die ihn einschließt --
@@ -62,7 +96,7 @@ export function phase(name) {
 function phaseZu(zeitpunkt) {
   for (let i = phasen.length - 1; i >= 0; i--) {
     const p = phasen[i];
-    if (zeitpunkt >= p.von && zeitpunkt <= p.bis) return p.name;
+    if (zeitpunkt >= p.von && zeitpunkt <= p.bis) return p;
   }
   return null;
 }
@@ -76,6 +110,10 @@ export function stockungsBericht() {
 // Startet die Beobachtung. Ohne `state` schreibt sie nur in die Konsole --
 // das ist der Modus für eine Messung, die den Spielstand nicht anfassen soll.
 export function stockungenBeobachten(state = null) {
+  // AB HIER GIBT ES TELEMETRIE, auch ohne `longtask`: die Phasen melden sich
+  // selbst (siehe `phase`). Der Rueckgabewert sagt nur, ob ZUSAETZLICH der
+  // Beobachter laeuft, der auch unbenannte Aufgaben faengt.
+  spielstand = state;
   if (beobachter) return true;
   if (typeof PerformanceObserver !== "function") return false;
   // Nicht jeder Browser kennt `longtask` (Safari, Firefox). Dann bleibt es
@@ -90,19 +128,11 @@ export function stockungenBeobachten(state = null) {
         stilleBisher += 1;
         continue;
       }
-      const wer = phaseZu(eintrag.startTime) || t("unbekannt");
-      // Immer in die Konsole: sie überlebt einen Reload nicht, kostet aber
-      // nichts und trägt die volle Reihe für ein Profil.
-      console.warn(`[Stockung] ${dauer} ms · ${wer}`);
-      if (state) {
-        meldungHinzufuegen(
-          state,
-          t("Anzeige hing {dauer} ms – Ursache: {wer}", { dauer, wer }),
-          // Gruppiert: bei einer Kette von Hängern soll daraus eine Meldung
-          // mit Zähler werden und keine Lawine (Falle 2 im Auftrag).
-          "stockung"
-        );
-      }
+      const treffer = phaseZu(eintrag.startTime);
+      // Hat die Phase sich schon selbst gemeldet, ist hier Schluss --
+      // sonst stuende jede Stockung zweimal in der Liste.
+      if (treffer && treffer.gemeldet) continue;
+      melden(dauer, treffer ? treffer.name : t("unbekannt"));
     }
   });
   beobachter.observe({ type: "longtask", buffered: true });

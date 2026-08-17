@@ -3,7 +3,7 @@
 import { laden, speichern } from "./save.js";
 import { vorspulenBisJetzt } from "./simulation.js";
 import { aufholen, aufholenLaeuft, grosseLuecke, deckelMelden } from "./aufholen.js";
-import { render, renderProfilStarten, renderProfilLesen } from "./ui.js";
+import { render, renderProfilStarten, renderProfilLesen, renderProfilAnsichten } from "./ui.js";
 import { testmodusEinrichten } from "./testmodus.js";
 import { spracheLaden, t } from "./sprache.js";
 import { phase, stockungenBeobachten, stockungsBericht } from "./stockung.js";
@@ -32,14 +32,18 @@ const state = laden();
 // genau daran hat sich die Demo aufgehängt. Dort steht auch die Messung.
 
 // VOR allem anderen, damit auch die Startaufholung schon beobachtet wird.
-// Liefert false, wenn der Browser `longtask` nicht kennt (Safari, Firefox) --
-// dann ist das Schweigen kein Freispruch, sondern eine fehlende Messung.
+//
+// Liefert false, wenn der Browser `longtask` nicht kennt (Firefox, Safari).
+// Telemetrie gibt es dann trotzdem: die benannten Phasen melden sich selbst
+// (js/stockung.js). Was fehlt, sind nur die UNBENANNTEN Aufgaben -- Fremdcode,
+// Speicherbereinigung, ein Klick-Handler. Das ist eine Einschraenkung, keine
+// Blindheit, und sie gehoert in die Konsole statt in eine Annahme.
 const stockungenSichtbar = stockungenBeobachten(state);
 
 aufholen(state).then((diagnose) => {
   deckelMelden(state, diagnose);
   if (!stockungenSichtbar) {
-    console.info(t("[Stockung] Dieser Browser meldet keine langen Aufgaben."));
+    console.info(t("[Stockung] Dieser Browser meldet keine unbenannten langen Aufgaben. Die Phasen melden sich weiter selbst."));
   }
   render(state, root);
   testmodusEinrichten(state, root, render);
@@ -102,5 +106,6 @@ window.__entropy = {
   state,
   profilStarten: renderProfilStarten,
   profilLesen: renderProfilLesen,
+  profilAnsichten: () => renderProfilAnsichten(state, root),
   stockungen: stockungsBericht,
 };

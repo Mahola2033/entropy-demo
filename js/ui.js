@@ -420,6 +420,35 @@ export function renderProfilLesen() {
   return zeilen;
 }
 
+// Die Renderkosten JE ANSICHT, in einem Aufruf (A-032).
+//
+// Gebaut, damit die Messung in einem anderen Browser kein Bastelwerk ist:
+// Tobis Umgebung ist Firefox, die A-030-Zahlen kommen aus Chrome, und Firefox
+// hat andere DOM-Kosten. Ein Einzeiler in der Konsole liefert die
+// Vergleichstabelle:
+//
+//   __entropy.profilAnsichten()
+//
+// Er schaltet die Ansichten durch, rendert jede mehrfach und stellt danach die
+// ursprüngliche wieder her.
+export function renderProfilAnsichten(state, root, durchlaeufe = 15) {
+  const knoepfe = [...root.querySelectorAll("[data-bereich-knopf]")];
+  const vorher = (root.querySelector("[data-bereich-knopf].aktiv") || knoepfe[0] || {}).dataset;
+  const ergebnis = {};
+  for (const knopf of knoepfe) {
+    knopf.click();
+    render(state, root); // Aufwärmlauf verwerfen -- der erste trägt die JIT-Zeit
+    const t0 = performance.now();
+    for (let i = 0; i < durchlaeufe; i++) render(state, root);
+    ergebnis[knopf.dataset.bereichKnopf] = +((performance.now() - t0) / durchlaeufe).toFixed(1);
+  }
+  if (vorher && vorher.bereichKnopf) {
+    const zurueck = root.querySelector(`[data-bereich-knopf="${vorher.bereichKnopf}"]`);
+    if (zurueck) zurueck.click();
+  }
+  return ergebnis;
+}
+
 function teil(name, fn) {
   if (!profil) return fn();
   const t0 = performance.now();

@@ -610,15 +610,92 @@ export const EREIGNIS_DECKEL = 2000000;
  *   tests/skalierung.mjs. Bewusst ein Rückgabewert und kein Feld am State:
  *   es ist eine Messung des letzten Aufrufs, kein Spielstand.
  */
-export function vorspulenBisJetzt(state, jetzt = spielzeitJetzt(state), deckel = EREIGNIS_DECKEL) {
-  // Erstmalige Einplanung des Wachstums. Bewusst hier und nicht in
-  // naechstesEreignis: das ist eine reine Abfrage und soll nichts verändern.
+// Erstmalige Einplanung wiederkehrender Ereignisse. Bewusst hier und nicht in
+// naechstesEreignis: das ist eine reine Abfrage und soll nichts verändern.
+// Eigene Funktion, damit beide Vorspul-Wege sie garantiert gleich machen.
+function wiederkehrendeEinplanen(state) {
   for (const planet of state.planeten) {
     if (!planet.naechstesWachstum) planet.naechstesWachstum = state.letzterTick + BEVOELKERUNG.schrittMs;
   }
-  // Erste Einplanung der Banden-Pruefung, gleiche Stelle und gleiche
-  // Begruendung wie beim Bevoelkerungswachstum.
   if (!state.naechsteBandenPruefung) state.naechsteBandenPruefung = state.letzterTick + PIRAT.gruendung.taktMs;
+}
+
+// Rückt vor, HÄLT aber nach einem Budget und sagt, wie weit es kam (A-032).
+//
+// WARUM DAS BUDGET DIE WANDUHR IST und nicht die Ereigniszahl: gemessen an
+// einer vollen Galaxie (701 Planeten) kostet ein Ereignis 0,15 ms — bis 200
+// Ereignisse je Block. Bei 400 sind es plötzlich 0,54 ms, also das
+// Dreieinhalbfache. Der Grund steht in `naechstesEreignis`: ein Ereignis mit
+// `planeten: null` („berührt möglicherweise alles") rückt ALLE Planeten vor.
+// Ein einziges davon kostet so viel wie hunderte lokale.
+//
+// Damit kann keine Zählung die Blockdauer begrenzen — so wenig wie eine
+// Zeitspanne. Drei Anläufe (Spanne, Spanne mit Nachführung, Ereigniszahl)
+// haben das der Reihe nach gezeigt. Was begrenzt, ist die Uhr selbst: nach
+// jedem Ereignis wird gefragt, ob das Budget aufgebraucht ist. Die Blockdauer
+// ist dann höchstens Budget plus EIN Ereignis.
+//
+// `maxEreignisse` bleibt als Fangnetz für den Fall, dass die Uhr nicht
+// weiterläuft (Testumgebungen mit angehaltener Zeit).
+//
+// WARUM ES DAS BRAUCHT: `vorspulenBisJetzt` unten teilt seine Arbeit nach
+// ZEITSPANNE ein. Das kann Dichtespitzen nicht abfangen — gemessen an einem
+// Ein-Tages-Sprung lagen 187 von 1182 Blöcken über 100 ms, der teuerste bei
+// 1238 ms, weil die Ereignisdichte auf Minutenebene stoßweise ist (13
+// Ereignisse/s gegen 4,7 im Stundenmittel). Die Rechenzeit hängt an der
+// EREIGNISZAHL, also muss man die begrenzen, nicht die Zeitspanne.
+//
+// DER UNTERSCHIED ZUM EREIGNISDECKEL, und er ist der ganze Punkt: reißt der
+// Deckel in `vorspulenBisJetzt`, wird trotzdem bis `jetzt` gebucht — die
+// restliche Zeit fließt pauschal ein, und der Spielstand ist STILL verfälscht
+// (in einer Messung fand die Supernova dadurch einfach nicht statt). Diese
+// Variante tut das nie: sie rückt nur bis zum Zeitpunkt des nächsten, noch
+// NICHT ausgeführten Ereignisses vor. Alles davor ist echte, kontinuierliche
+// Produktion und darf gebucht werden; das Ereignis selbst bleibt liegen und
+// ist beim nächsten Aufruf das erste.
+//
+// Rückgabe: `{ ereignisse, erreicht, fertig }`. `fertig` heißt, dass bis
+// `jetzt` kein Ereignis mehr aussteht -- erst dann ist die Uhr am Ziel.
+export function vorspulenSchrittweise(state, jetzt, maxEreignisse, budgetMs = Infinity) {
+  wiederkehrendeEinplanen(state);
+  const begonnen = budgetMs === Infinity ? 0 : performance.now();
+  let ereignisse = 0;
+  let fertig = false;
+  // Nie hinter den Stand zurück: dieselbe Zusicherung wie bei
+  // "letzterTick läuft nie rückwärts".
+  let erreicht = state.letzterTick;
+
+  for (;;) {
+    const ereignis = naechstesEreignis(state);
+    if (!ereignis || ereignis.zeit > jetzt) {
+      fertig = true;
+      erreicht = Math.max(erreicht, jetzt);
+      break;
+    }
+    // Budget aufgebraucht? Die Uhr wird erst NACH dem ersten Ereignis
+    // befragt -- ein Aufruf muss immer mindestens einen Schritt schaffen,
+    // sonst käme die Aufholung nie voran.
+    const zeitAus = ereignisse > 0 && budgetMs !== Infinity && performance.now() - begonnen >= budgetMs;
+    if (zeitAus || ereignisse >= maxEreignisse) {
+      // HALT. Bis zum nächsten Ereignis darf gebucht werden, es selbst nicht.
+      erreicht = Math.max(erreicht, Math.min(jetzt, ereignis.zeit));
+      break;
+    }
+    ressourcenVorruecken(state, ereignis.zeit, ereignis.planeten);
+    logistiknetzPruefen(state, ereignis.zeit);
+    ereignis.ausfuehren(ereignis.zeit);
+    ereignisse += 1;
+    erreicht = Math.max(erreicht, ereignis.zeit);
+  }
+
+  // Genau bis `erreicht` -- NICHT bis `jetzt`.
+  ressourcenVorruecken(state, erreicht);
+  logistiknetzPruefen(state, erreicht, true);
+  return { ereignisse, erreicht, fertig };
+}
+
+export function vorspulenBisJetzt(state, jetzt = spielzeitJetzt(state), deckel = EREIGNIS_DECKEL) {
+  wiederkehrendeEinplanen(state);
   let iterationen = 0;
   let deckelGerissen = true;
   while (iterationen++ < deckel) {
