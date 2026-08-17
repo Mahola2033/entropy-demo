@@ -3,7 +3,7 @@
 import { laden, speichern } from "./save.js";
 import { vorspulenBisJetzt } from "./simulation.js";
 import { aufholen, aufholenLaeuft, grosseLuecke, deckelMelden } from "./aufholen.js";
-import { render, renderProfilStarten, renderProfilLesen, renderProfilAnsichten } from "./ui.js";
+import { render, renderProfilStarten, renderProfilLesen, renderProfilAnsichten, hotkeysEinrichten } from "./ui.js";
 import { testmodusEinrichten } from "./testmodus.js";
 import { spracheLaden, t } from "./sprache.js";
 import { phase, stockungenBeobachten, stockungsBericht } from "./stockung.js";
@@ -47,6 +47,10 @@ aufholen(state).then((diagnose) => {
   }
   render(state, root);
   testmodusEinrichten(state, root, render);
+  // Hotkeys EINMAL beim Start verdrahten (A-029). Der Listener haengt an
+  // document und ueberlebt jede Render-Runde -- ihn beim Zeichnen zu setzen,
+  // waere der 8a-Lernpunkt in neuer Verkleidung.
+  hotkeysEinrichten(state, root);
 
   // Jede Sekunde: Zeit vorrücken (Produktion + evtl. fertige Bauten) und neu
   // rendern.

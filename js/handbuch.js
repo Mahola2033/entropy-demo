@@ -177,6 +177,29 @@ export function handbuchAbschnitte() {
       ],
       link: { text: t("Rückmeldung geben"), adresse: feedbackAdresse() },
     },
+    // Steuerung (A-029). Steht VOR den Neuigkeiten, weil es zum Spiel
+    // gehoert und nicht zum Projekt -- und weil ein Nachschlagewerk seine
+    // Bedienung nicht ganz hinten versteckt.
+    {
+      id: "steuerung",
+      titel: t("Steuerung"),
+      absaetze: [
+        t(
+          "Alles geht mit der Maus. Wer die Hand lieber auf der Tastatur laesst, kann die Ansicht auch so wechseln – Tasten aendern nie etwas an der Welt, sie zeigen nur anderes."
+        ),
+      ],
+      gruppen: [
+        {
+          titel: t("Tasten"),
+          punkte: [
+            t("1 bis 9 – die Bereiche in der Reihenfolge der Leiste links"),
+            t("Q und E – eine Welt zurueck, eine Welt weiter"),
+            t("M – Galaxiekarte · H – Handbuch"),
+            t("Esc – schliesst ein offenes Fenster"),
+          ],
+        },
+      ],
+    },
     // Neuigkeiten & Roadmap (A-019, Zuschnitt und Titel nach A-040).
     //
     // WOHER DER INHALT KOMMT: aus AUFTRAEGE/ROADMAP.md, wörtlich. Diese Datei

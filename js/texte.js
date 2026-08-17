@@ -142,8 +142,8 @@ export const EN = {
     "Launches as many probes as there are unexplored simple targets in the system, in one click – instead of sending each one separately.",
   "Dasselbe für Erkunder: ein Klick deckt alle komplexen Ziele im System auf -- Anomalien, Strukturen, Gefahren.":
     "The same for explorers: one click reveals every complex target in the system – anomalies, structures, hazards.",
-  "Schaltet wiederkehrende Flottenrouten frei -- Schiffe fahren feste Strecken mit Lade-/Entladeregeln, ohne dass du jede Fahrt einzeln anstoßen musst.":
-    "Unlocks repeating fleet routes – ships run fixed circuits with load/unload rules, without you triggering each run.",
+  "Grundlage der selbständig handelnden Steuerungen. Routen fährst du auch ohne sie – hier beginnt, was ohne dich ENTSCHEIDET, statt nur zu wiederholen.":
+    "The basis of the steering systems that act on their own. You can run routes without it – this is where things start DECIDING for you instead of only repeating.",
   "Planeten gleichen konfigurierte Mindestbestände automatisch untereinander aus -- mit derselben Verzögerung, die die schnellstmögliche Flotte bräuchte, aber ohne dass du Schiffe schicken musst.":
     "Planets balance configured minimum stock levels among themselves automatically – with the same delay the fastest possible fleet would need, but without you sending ships.",
   "Verbessert die Ausbeute deiner Antimateriekollektoren um 10% pro Stufe.":
@@ -271,6 +271,43 @@ export const EN = {
   // Kurze Sätze, die im Spiel als Tooltip an einem gesperrten Knopf hängen.
   // Sie sagen, WAS fehlt, nicht was der Spieler falsch gemacht hat.
   "Nicht genug Ressourcen.": "Not enough resources.",
+  "Von den {gesamt} fremden Welten der Galaxie haben {ueberlebt} die Flut überstanden.":
+    "Of the {gesamt} foreign worlds in the galaxy, {ueberlebt} came through the flux.",
+  // Bandennamen (A-031). Eigennamen laufen als feste Tabelle je Sprache durch
+  // t() -- nicht als freier Text, sonst steht im englischen Spiel Deutsch.
+  Rostwölfe: "Rust Wolves",
+  "Leere Hand": "Empty Hand",
+  "Schwarze Bake": "Black Beacon",
+  Aschefahrer: "Ashrunners",
+  "Kalte Ernte": "Cold Harvest",
+  Splitterflotte: "Splinter Fleet",
+  Trockendock: "Drydock",
+  "Letzte Bahn": "Last Orbit",
+  Narbenzug: "Scar Convoy",
+  Schlackebrüder: "Slag Brothers",
+  "Stille Fracht": "Silent Cargo",
+  Eisenmeute: "Iron Pack",
+  Steuerung: "Controls",
+  Tasten: "Keys",
+  "Alles geht mit der Maus. Wer die Hand lieber auf der Tastatur laesst, kann die Ansicht auch so wechseln – Tasten aendern nie etwas an der Welt, sie zeigen nur anderes.":
+    "Everything works with the mouse. If you would rather keep your hand on the keyboard, you can switch the view that way too – keys never change anything in the world, they only show something else.",
+  "1 bis 9 – die Bereiche in der Reihenfolge der Leiste links": "1 to 9 – the sections in the order of the bar on the left",
+  "Q und E – eine Welt zurueck, eine Welt weiter": "Q and E – one world back, one world forward",
+  "M – Galaxiekarte · H – Handbuch": "M – galaxy map · H – manual",
+  "Esc – schliesst ein offenes Fenster": "Esc – closes an open window",
+  "{stand} / {ziel} {einheit}": "{stand} / {ziel} {einheit}",
+  "kein Projekt": "no project",
+  "FE = Forschungseinheiten. Deine Labore erzeugen sie laufend, und sie fließen in GENAU EIN Projekt – die Warteschlange darunter wird nacheinander abgearbeitet.":
+    "FE stands for research points (Forschungseinheiten). Your labs produce them continuously, and they flow into EXACTLY ONE project – the queue below is worked off one after another.",
+  "Braucht Werft Stufe {noetig} (aktuell {aktuell}).": "Needs shipyard level {noetig} (currently {aktuell}).",
+  "{anzahl} Sonden losschicken · {sprit} Deuterium": "Send {anzahl} probes · {sprit} deuterium",
+  "zurück": "return",
+  "Fliegt nach der Mission zum Heimathafen zurück. Ohne Haken bleibt die Flotte am Ziel und kann von dort weiter.":
+    "Flies back to the home port after the mission. Without the tick the fleet stays at the target and can continue from there.",
+  "wirkt bereits zu {prozent} %": "already {prozent} % in effect",
+  wartet: "waiting",
+  "wartet auf {was} – keine Produktion": "waiting for {was} – no production",
+  "wartet auf {was} – noch {dauer}": "waiting for {was} – {dauer} to go",
   "−{prozent} % im Jahr verdirbt": "−{prozent} % per year spoils",
   "Die Aufholung kam nicht voran: {bloecke} Blöcke ohne Fortschritt, hängengeblieben bei einem Ereignis der Art [{art}]. Der Rest der Zeit bleibt offen und wurde NICHT verrechnet.":
     "Catching up made no progress: {bloecke} blocks without advancing, stuck on an event of type [{art}]. The remaining time is left open and was NOT applied.",
@@ -555,6 +592,9 @@ export const EN = {
   "Diese Aufträge starten nacheinander, sobald der laufende fertig ist. Die Kosten sind bereits abgezogen – ein eingereihter Auftrag findet also garantiert statt. Zusammen noch {dauer} Bauzeit.":
     "These orders start one after another as soon as the running one is done. Their costs are already deducted – a queued order is therefore guaranteed to happen. {dauer} of build time left in total.",
   "Position {nr} · Bauzeit {dauer}": "Position {nr} · build time {dauer}",
+  "Aus der Warteschlange nehmen.": "Remove from the queue.",
+  "Diese Aufträge starten nacheinander, sobald der laufende fertig ist. Bezahlt wird erst, wenn einer vorn steht – bis dahin bindet er nichts. Zusammen noch {dauer} Bauzeit.":
+    "These orders start one after another as soon as the running one finishes. Payment happens only once an order is at the front – until then it ties up nothing. {dauer} of build time left in total.",
   "Aus der Warteschlange nehmen. Die bereits abgezogenen Kosten werden erstattet.":
     "Take it out of the queue. The costs already deducted are refunded.",
 

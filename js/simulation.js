@@ -27,6 +27,9 @@ import {
   BAUWARTESCHLANGE_MAX,
   HANDEL,
   SCHROTT_ANTEIL,
+  PIRATEN_NAMEN,
+  SCHIRM_MINDESTVERSORGUNG,
+  REST_BAGATELLE_SKALIERT,
   ANTIMATERIE_ERNTE,
   BEVOELKERUNG,
   SUPERNOVA,
@@ -69,7 +72,6 @@ import {
   forschungsFluss,
   hatLabor,
   handelVerfuegbar,
-  automatisierungFreigeschaltet,
   logistiknetzFreigeschaltet,
   wirtschaftsPlaneten,
   planetenVon,
@@ -105,7 +107,7 @@ import {
   schiffeText,
 } from "./flotten.js";
 import { findeObjekt, setzeOrbitZustand, holeSystem } from "./systeme.js";
-import { stromFuer } from "./zufall.js";
+import { stromFuer, waehle } from "./zufall.js";
 import {
   reichenAus,
   fehlende,
@@ -183,6 +185,54 @@ export function planetLetzterTick(state, planet) {
 // müsste man ihn bei jedem Blick gegen die Uhr des Planeten verrechnen.
 function planetGeaendert(planet) {
   planet.pufferGrenzeMerker = undefined;
+  // A-012: "bezahlbar ab" haengt am BESTAND und damit an genau denselben
+  // Aenderungen wie die Puffergrenze. Beide Merker fallen zusammen -- ein
+  // zweiter Invalidierungspfad waere eine zweite Gelegenheit, ihn zu
+  // vergessen (der neunte Fehlertyp, ausdrueckliche Falle in diesem Auftrag).
+  planet.bezahlbarMerker = undefined;
+}
+
+// Wann kann der wartende Kopf einer Warteschlange bezahlt werden? (A-012)
+//
+// Gerechnet aus den AKTUELLEN Nettoraten: je fehlender Ressource
+// (Kosten − Bestand) / Rate, und davon die spaeteste. Faellt eine benoetigte
+// Ressource nicht an (Rate ≤ 0), gibt es keinen Zeitpunkt -- , und der
+// Auftrag wartet ohne Ereignis. Das ist die ehrliche Antwort und zugleich der
+// Schutz vor einer Ereignis-Endlosschleife: kein Zeitpunkt, kein Ereignis.
+//
+// Der Wert ist gemerkt wie die Puffergrenze und wird mit ihr verworfen.
+function bezahlbarZeitpunkt(state, planet) {
+  if (planet.bezahlbarMerker !== undefined) return planet.bezahlbarMerker;
+  let spaeteste = null;
+  for (const art of ["bau", "werft"]) {
+    const kopf = wartenderKopf(planet, art);
+    if (!kopf) continue;
+    const kosten = kopfKosten(planet, kopf, art);
+    const { lager } = effektiveRaten(state, planet);
+    let dieser = planetLetzterTick(state, planet);
+    let moeglich = true;
+    for (const [resId, betrag] of Object.entries(kosten)) {
+      const fehlt = betrag - (planet.ressourcen[resId] || 0);
+      if (fehlt <= 0) continue;
+      const rate = lager[resId] || 0;
+      if (rate <= 0) { moeglich = false; break; }
+      // AUFRUNDEN UND EINE MILLISEKUNDE DRAUF. Der exakt gerechnete Zeitpunkt
+      // ist der, an dem der Bestand die Kosten GERADE erreicht -- und in
+      // Fliesskomma heisst das regelmaessig: eine Winzigkeit darunter. Das
+      // Ereignis feuerte dann, konnte nicht zahlen, plante sich neu auf
+      // denselben Moment und drehte im Kreis (gemessen: ein 12-h-Sprung kam
+      // nie an, waehrend dieselbe Spanne in 400 Schritten sauber durchlief).
+      // Das ist derselbe Kruemel-Fehlertyp wie in A-042, nur an anderer
+      // Stelle -- und hier ist er billig zu vermeiden.
+      dieser = Math.max(dieser, planetLetzterTick(state, planet) + Math.ceil((fehlt / rate) * MS_PRO_STUNDE) + 1);
+    }
+    if (!moeglich) continue;
+    // Die FRUEHESTE der beiden Warteschlangen gewinnt -- sie ist das naechste
+    // Ereignis. Die andere kommt beim naechsten Durchlauf dran.
+    if (spaeteste === null || dieser < spaeteste) spaeteste = dieser;
+  }
+  planet.bezahlbarMerker = spaeteste;
+  return planet.bezahlbarMerker;
 }
 
 function pufferGrenzeZeitpunkt(state, planet) {
@@ -379,10 +429,12 @@ function naechstesEreignis(state) {
   const planeten = state.planeten;
   for (let i = 0; i < planeten.length; i++) {
     const planet = planeten[i];
-    if (planet.bauQueue) {
+    //  heisst: der Kopf wartet noch auf Material (A-012).
+    // Ein Ereignis hat er dann nicht -- seines ist "bezahlbar" weiter unten.
+    if (planet.bauQueue && planet.bauQueue.fertigZeit !== null) {
       pruefe(planet.bauQueue.fertigZeit, "bau", planet);
     }
-    if (planet.werftQueue) {
+    if (planet.werftQueue && planet.werftQueue.fertigZeit !== null) {
       pruefe(planet.werftQueue.fertigZeit, "werft", planet);
     }
     // Verarbeitungsketten, die gerade aus dem Lager nachziehen: der Moment, in
@@ -406,6 +458,13 @@ function naechstesEreignis(state) {
         ? planet.pufferGrenzeMerker
         : pufferGrenzeZeitpunkt(state, planet);
     if (grenze !== null) pruefe(grenze, "puffer", planet);
+    // Wartet vorn ein Auftrag auf Material? Dann ist der Moment, in dem er
+    // bezahlbar wird, ein Ereignis wie jedes andere (A-012).
+    if (planet.bauQueue || planet.werftQueue) {
+      const bezahlbar =
+        planet.bezahlbarMerker !== undefined ? planet.bezahlbarMerker : bezahlbarZeitpunkt(state, planet);
+      if (bezahlbar !== null) pruefe(bezahlbar, "bezahlbar", planet);
+    }
     if (planet.naechstesWachstum) {
       pruefe(planet.naechstesWachstum, "wachstum", planet);
     }
@@ -496,6 +555,10 @@ function naechstesEreignis(state) {
 // derselbe Fehlertyp hat dieses Projekt schon mehrfach erwischt.
 function ereignisBauen(state, zeit, art, entitaet) {
   switch (art) {
+    case "bezahlbar":
+      // Der wartende Kopf zahlt und startet -- mit der EREIGNISZEIT, nicht der
+      // Wanduhr (der Zeit-Fehlertyp, ausdrueckliche Falle in A-012).
+      return { zeit, ausfuehren: (t) => kopfPruefen(state, entitaet, t), planeten: [entitaet] };
     case "bau":
       return { zeit, ausfuehren: (t) => bauAbschliessen(state, entitaet, t), planeten: [entitaet] };
     case "werft":
@@ -788,14 +851,11 @@ export function vorspulenBisJetzt(state, jetzt = spielzeitJetzt(state), deckel =
 function bauAbschliessen(state, planet, zeit) {
   planet.gebaeude[planet.bauQueue.gebaeudeId] = planet.bauQueue.zielLevel;
   const naechster = planet.bauWarteschlange.shift();
+  // Der Nachfolger ruecken WARTEND nach und zahlt erst, wenn er kann (A-012).
   planet.bauQueue = naechster
-    ? {
-        gebaeudeId: naechster.gebaeudeId,
-        zielLevel: naechster.zielLevel,
-        startZeit: zeit,
-        fertigZeit: zeit + naechster.dauerSek * 1000,
-      }
+    ? { ...naechster, startZeit: null, fertigZeit: null }
     : null;
+  kopfPruefen(state, planet, zeit);
 }
 
 // --- Piraten als Fraktion ---------------------------------------------
@@ -832,12 +892,59 @@ export function piratenWeltStart(state, zeit = state.letzterTick) {
   }
 }
 
+// Einen Bandennamen ziehen -- deterministisch aus dem Weltseed (A-031).
+//
+// Die Kennung ist die laufende Fraktionsnummer: damit bekommt jede Gruppe
+// ihren eigenen, stabilen Strom, und die Reihenfolge der Gründungen spielt
+// keine Rolle (dasselbe Muster wie bei den Systemen).
+//
+// NAMEN WIEDERHOLEN SICH, und das ist so gemeint. Eine Galaxie trägt
+// vierhundert Piratengruppen; vierhundert Eigennamen wären vierhundert
+// Gelegenheiten für einen schlechten. Ab der zweiten Runde durch die Tabelle
+// hängt eine Nummer dran („Rostwölfe 2"), damit nicht alles gleich heißt --
+// eindeutig macht das die Namen NICHT, und das ist kein Versehen.
+//
+// Was der Name leisten muss, ist auch ohne Eindeutigkeit erfüllt: eine
+// Angriffsmeldung soll sich nach einem ANGREIFER lesen und nicht nach einem
+// Wetterbericht. Wo genau er zuschlägt, sagt die Meldung ohnehin dazu.
+export function piratenName(state, nummer) {
+  const rng = stromFuer(state.galaxie ? state.galaxie.seed : 0, nummer + 7919);
+  const name = t(waehle(rng, PIRATEN_NAMEN));
+  const runde = Math.floor(nummer / PIRATEN_NAMEN.length);
+  return runde > 0 ? `${name} ${runde + 1}` : name;
+}
+
+// ALTE STAENDE NACHZIEHEN (A-031). Gruppen aus der Zeit davor tragen den
+// Namen ihres Orbitobjekts -- erkennbar daran, dass er NICHT in der
+// Namenstabelle steht. Sie bekommen beim Laden einen gezogen.
+//
+// Das ist das -Prinzip sinngemaess: ein fehlender (hier: falscher) Wert
+// wird beim Laden ergaenzt, statt einen SAVE_VERSION-Sprung zu erzwingen und
+// damit jedem Tester seinen Spielstand zu nehmen.
+export function piratenNamenNachziehen(state) {
+  if (!state.fraktionen) return;
+  let nummer = 0;
+  for (const fraktion of Object.values(state.fraktionen)) {
+    if (fraktion.art !== "pirat") continue;
+    const ohneZahl = String(fraktion.name || "").replace(/ \d+$/, "");
+    if (PIRATEN_NAMEN.includes(ohneZahl)) continue;
+    fraktion.name = piratenName(state, nummer++);
+  }
+}
+
 function piratenErwecken(state, systemId, objekt, zeit) {
   if (!objekt || objekt.typ !== "gefahr" || objekt.verteidigerBesiegt) return null;
   if (objekt.fraktionId && fraktionById(state, objekt.fraktionId)) return null;
 
   const id = `pirat-${state.naechsteFraktionId++}`;
-  state.fraktionen[id] = neueFraktion({ id, art: "pirat", name: objekt.bezeichnung });
+  // Der Name ist der der BANDE, nicht der des Felsens, auf dem sie sitzt.
+  // Das Herkunftsobjekt steht weiterhin im Tooltip der Basis -- es ergänzt,
+  // es ersetzt nicht (A-031).
+  state.fraktionen[id] = neueFraktion({
+    id,
+    art: "pirat",
+    name: piratenName(state, state.naechsteFraktionId),
+  });
 
   // Die Basis ist ein Planet wie jeder andere -- ohne Bevölkerung, ohne
   // Gebäude. Dass das ohne Sonderbehandlung durchrechnet, ist genau die
@@ -1011,7 +1118,7 @@ function piratenSchritt(state, fraktion, zeit) {
   const ziel = piratenBeute(state, fraktion, zeit);
   if (ziel) {
     // Exakt der Weg, den auch der Spieler nimmt -- Mission plus Heimflug.
-    missionBefehlen(state, flotte, "bergung", basis.systemId, ziel.objekt.orbit, {}, zeit);
+    missionBefehlen(state, flotte, "bergung", basis.systemId, ziel.objekt.orbit, { rueckkehr: true }, zeit);
     return;
   }
 
@@ -1116,7 +1223,7 @@ export function piratenNeugruendung(state, zeit) {
   if (!quelle) return false;
 
   const id = `pirat-${state.naechsteFraktionId++}`;
-  const fraktion = neueFraktion({ id, art: "pirat", name: regeln.name });
+  const fraktion = neueFraktion({ id, art: "pirat", name: piratenName(state, state.naechsteFraktionId) });
   fraktion.herkunft = fraktionVon(quelle);
   state.fraktionen[id] = fraktion;
 
@@ -1304,7 +1411,10 @@ function piratenTeilen(state, fraktion, basis, flotte, zeit) {
   if (!ziel) return false;
 
   const id = `pirat-${state.naechsteFraktionId++}`;
-  const splitter = neueFraktion({ id, art: "pirat", name: fraktion.name });
+  // EINE REGEL FÜR ALLE DREI WEGE: auch ein Splitter zieht einen eigenen
+  // Namen. Den Namen der Mutter zu erben wäre bequem und im Log unlesbar --
+  // zwei Gruppen mit demselben Namen, die einander bekämpfen.
+  const splitter = neueFraktion({ id, art: "pirat", name: piratenName(state, state.naechsteFraktionId) });
   state.fraktionen[id] = splitter;
 
   // Die Trennung ist einseitig: der Splitter geht und hat damit kein Problem,
@@ -1838,7 +1948,7 @@ export function botKolonisieren(state, fraktion, welt, zeit) {
   // Expansion unterbleibt. Das ist die ehrliche Antwort, solange es keinen
   // Handel gibt -- nicht jede Welt ist ein Sprungbrett.
   if (!botHatOderBaut(welt, "tritiumextraktor")) {
-    if (bauStarten(state, welt, "tritiumextraktor", zeit).ok) return true;
+    if (bauStarten(state, welt, "tritiumextraktor", zeit, true).ok) return true;
   }
 
   // 2. FERTIGUNG -- seit A-009 kostet die Werft Elektronik, und Elektronik
@@ -1847,17 +1957,27 @@ export function botKolonisieren(state, fraktion, welt, zeit) {
   // Vorrang vor Kraftwerk, Farm und Wohnmodul, und der Bot baute sich eine
   // Fabrik ohne Strom und ohne Belegschaft (gemessen, siehe BOT.nachschub).
   if (!botHatOderBaut(welt, "fertigung")) {
-    if (bauStarten(state, welt, "fertigung", zeit).ok) return true;
+    if (bauStarten(state, welt, "fertigung", zeit, true).ok) return true;
   }
 
-  // 3. Werft -- ohne sie gibt es keine Schiffe.
-  if (!botHatOderBaut(welt, "werft")) return bauStarten(state, welt, "werft", zeit).ok;
+  // 3. WERFT AUF DIE NOETIGE STUFE (A-027). Seit die Werftstufe entscheidet,
+  // welche Typen baubar sind, reicht "eine Werft steht" nicht mehr -- das
+  // Kolonieschiff verlangt Stufe 4.
+  //
+  //  zaehlt eingereihte Auftraege MIT. Ohne das
+  // bestellte der Bot in jedem Takt denselben Ausbau neu (der v0.5-Fehlertyp,
+  // im Auftrag ausdruecklich als Falle benannt) und kaeme nie ueber Stufe 1
+  // hinaus.
+  const werftNoetig = SCHIFFE.kolonieschiff.werftAb || 1;
+  if (naechstesGebaeudeLevel(welt, "werft") <= werftNoetig) {
+    if (bauStarten(state, welt, "werft", zeit, true).ok) return true;
+  }
 
   // Alles bestellt, aber noch nicht fertig: warten, nicht nachbestellen.
   if (
     (welt.gebaeude.tritiumextraktor || 0) <= 0 ||
     (welt.gebaeude.fertigung || 0) <= 0 ||
-    (welt.gebaeude.werft || 0) <= 0
+    (welt.gebaeude.werft || 0) < werftNoetig
   ) {
     return false;
   }
@@ -1867,7 +1987,7 @@ export function botKolonisieren(state, fraktion, welt, zeit) {
   const unterwegs = flotten.some((f) => (f.schiffe.kolonieschiff || 0) > 0);
   if (!unterwegs && (welt.schiffe.kolonieschiff || 0) <= 0) {
     if (welt.werftQueue) return false; // die Werft ist schon dran
-    return schiffBauen(state, welt, "kolonieschiff", 1, zeit).ok;
+    return schiffBauen(state, welt, "kolonieschiff", 1, zeit, true).ok;
   }
 
   // 3. Flotte bereitstellen und beladen.
@@ -1922,7 +2042,10 @@ function botSchritt(state, fraktion, zeit) {
   for (const gebaeudeId of kandidaten) {
     // Durch dieselbe Tür wie die Oberfläche: kannBauen prüft Kosten,
     // Voraussetzungen, Bevölkerungsschwellen und Affinitätssperren.
-    if (bauStarten(state, welt, gebaeudeId, zeit).ok) return;
+    // Bots bestehen auf Bezahlbarkeit (A-012): ein wartender Auftrag wuerde
+    // ihre Bauschleife belegen, waehrend sie in Wahrheit etwas anderes
+    // brauchen. Der Spieler darf warten, die KI soll entscheiden.
+    if (bauStarten(state, welt, gebaeudeId, zeit, true).ok) return;
   }
 
   // Nichts zu bauen? Dann Überschuss verkaufen. Steht ganz hinten, weil
@@ -2261,7 +2384,7 @@ function supernovaFlut(state, zeit) {
     const anteil = schildStufe > 0 ? effektiveRaten(state, planet).faktoren.magnetschild ?? 0 : 0;
     // Voll versorgt heißt voll versorgt. Ein Feld mit 80 % Leistung lenkt
     // nicht 80 % der Teilchen ab, es reißt an der falschen Stelle auf.
-    const ueberlebt = schildStufe > 0 && anteil >= 0.999;
+    const ueberlebt = schildStufe > 0 && anteil >= SCHIRM_MINDESTVERSORGUNG;
 
     if (fraktionVon(planet) === SPIELER_FRAKTION) {
       welten.push({
@@ -2324,9 +2447,8 @@ function werftAbschliessen(state, planet, zeit) {
     })
   );
   const naechster = planet.werftWarteschlange.shift();
-  planet.werftQueue = naechster
-    ? { schiffId: naechster.schiffId, anzahl: naechster.anzahl, startZeit: zeit, fertigZeit: zeit + naechster.dauerSek * 1000 }
-    : null;
+  planet.werftQueue = naechster ? { ...naechster, startZeit: null, fertigZeit: null } : null;
+  kopfPruefen(state, planet, zeit);
 }
 
 // --- Flotten: Hafenbetrieb ------------------------------------------------
@@ -2633,6 +2755,19 @@ function schrottVon(schiffId, anzahl = 1) {
 // leise: keine eigene Meldung (z.B. Sondenschrott, sonst flutet jede
 // Aufklärung die Meldungsliste -- die Entdeckung wird ohnehin gemeldet).
 function zurueckgelassen(state, ort, buendel, wer, leise = false, gruppe = null) {
+  // BAGATELLEN FALLEN WEG (A-022). Die Regel dahinter steht bei
+  // REST_BAGATELLE in data.js: Überreste werden modelliert, solange sie eine
+  // Verwendung haben. Drei Tonnen Deuterium an einem Orbit haben keine —
+  // niemand schickt einen Frachter dafür los. Was sie hätten, wäre eine
+  // Nebenwirkung: jede verbrauchte Sonde ließe ein Häufchen zurück.
+  //
+  // Gefiltert wird je Ressource, nicht über die Summe: sonst rettete ein
+  // großer Metallposten drei Tonnen Deuterium mit hinüber.
+  const lohnend = {};
+  for (const [resId, menge] of Object.entries(buendel)) {
+    if (menge >= REST_BAGATELLE_SKALIERT) lohnend[resId] = menge;
+  }
+  buendel = lohnend;
   if (!Object.values(buendel).some((m) => m > 0)) return;
 
   // Zwischen den Systemen gibt es keinen Ort, an dem etwas liegen könnte --
@@ -2770,18 +2905,35 @@ function befehlOrt(state, befehl) {
   return ortVonSystem(state, befehl.zielSystem, befehl.zielOrbit);
 }
 
-// Mission starten: hinfliegen, ausführen, heimkehren.
+// Mission starten: hinfliegen, ausführen -- und NUR AUF WUNSCH heimkehren.
+//
+// TOBIS ENTSCHEIDUNG (16.08., KONZEPT-FLOTTEN-UX): „Flotten sollten auch stehen
+// bleiben am zielort es sei denn man wählt vorher return aus." Standard ist
+// damit BLEIBEN, der Rückflug ist eine Wahl beim Losschicken.
+//
+// Warum das mehr ist als Bequemlichkeit: eine Flotte, die von selbst heimkehrt,
+// verbrennt den Treibstoff für die Rückstrecke IMMER -- auch wenn das nächste
+// Ziel in derselben Ecke der Galaxie liegt. Wer weiterziehen will, zahlte
+// bisher den Umweg über die Heimat. Reichweite ist in diesem Spiel die knappe
+// Größe (Prinzip 4: nichts teleportiert), also gehört diese Entscheidung dem
+// Spieler.
+//
+// TECHNISCH ist es dieselbe Befehlskette wie vorher, nur ohne den zweiten
+// Eintrag -- kein neuer Zustand, kein neues Feld an der Flotte. Eine Flotte
+// ohne weitere Befehle steht am Ziel; diesen Zustand gibt es seit v0.61
+// (Prinzip 5).
+//
+// `optionen.rueckkehr === true` hängt den Hafen-Befehl an. Die
+// Treibstoffprüfung folgt derselben Wahl: ohne Rückkehr muss nur die
+// Hinstrecke gedeckt sein (`einweg`), sonst hin UND zurück (Prinzip 3:
+// verhindern statt hinterher stranden lassen).
 export function missionBefehlen(state, flotte, missionsart, systemId, orbit, optionen = {}, zeit = null) {
-  return befehleSetzen(
-    state,
-    flotte,
-    [
-      { art: "mission", missionsart, zielSystem: systemId, zielOrbit: orbit, ...optionen },
-      { art: "hafen", planetId: flotte.heimatPlanet },
-    ],
-    {},
-    zeit
-  );
+  const { rueckkehr = false, ...missionsOptionen } = optionen;
+  const befehle = [
+    { art: "mission", missionsart, zielSystem: systemId, zielOrbit: orbit, ...missionsOptionen },
+  ];
+  if (rueckkehr) befehle.push({ art: "hafen", planetId: flotte.heimatPlanet });
+  return befehleSetzen(state, flotte, befehle, { einweg: !rueckkehr }, zeit);
 }
 
 // --- Schnellversand -------------------------------------------------------
@@ -2792,9 +2944,20 @@ export function missionBefehlen(state, flotte, missionsart, systemId, orbit, opt
 // Bewusst KEIN neuer Mechanismus: es werden dieselben Missionsbefehle
 // erzeugt, die man auch von Hand gäbe -- nur eben alle auf einmal. Dadurch
 // gelten Treibstoffprüfung, Ankunftslogik und Verbrauch unverändert weiter.
+// NUR NOCH SONDEN (A-021, Tobis Entscheidung 16.08.): "Die 1 Button Loesung
+// darf nur noch fuer Sonden funktionieren."
+//
+// Der Grund steckt in den Schiffen selbst: eine Sonde ist ein EINWEGSCHIFF und
+// deckt genau ein Ziel auf. Wieviele man braucht, ist damit eine Zahl, die man
+// hinschreiben kann -- und genau das macht den Ein-Klick-Versand ehrlich.
+//
+// Ein Erkunder kommt zurueck, kann mehrere Ziele nacheinander bearbeiten und
+// wird an einer Anomalie vielleicht gebraucht, waehrend er noch unterwegs ist.
+// Fuer ihn ist "schick einfach alle los" keine Vereinfachung, sondern eine
+// Entscheidung, die dem Spieler weggenommen wird. Er geht seit A-021 wieder
+// ueber den normalen Missionsdialog -- ein Klick mehr, dafuer seiner.
 const SCHNELLVERSAND = {
   sonde: { forschung: "sondenKi", missionsart: "sonde", schiff: "sonde" },
-  erkundung: { forschung: "erkunderKi", missionsart: "erkundung", schiff: "erkunder" },
 };
 
 // Welche Orbits im System wartet dieser Schiffstyp noch auf?
@@ -2821,7 +2984,30 @@ export function kannSchnellversand(state, flotte, art, systemId) {
 
   // Mehr Ziele als Schiffe ist kein Fehler -- dann wird eben nur ein Teil
   // abgearbeitet. Das ist ehrlicher als den Befehl ganz zu verweigern.
-  return { ok: true, ziele: ziele.slice(0, anBord), gesamtZiele: ziele.length, schiffe: anBord };
+  // Was der Versand KOSTEN wird, kommt mit zurueck -- der Knopf soll VOR dem
+  // Klick sagen, was er tut (A-021, Prinzip 10a). Gerechnet wird derselbe
+  // Einwegbedarf, den der Versand danach tankt; zwei Rechnungen waeren zwei
+  // Wahrheiten ueber denselben Flug.
+  const gewaehlt = ziele.slice(0, anBord);
+  const befehle = gewaehlt.map((orbit) => ({
+    art: "mission",
+    missionsart: regel.missionsart,
+    zielSystem: systemId,
+    zielOrbit: orbit,
+  }));
+  const gedachteFlotte = { ...flotte, schiffe: { ...flotte.schiffe, [regel.schiff]: gewaehlt.length } };
+  return {
+    ok: true,
+    ziele: gewaehlt,
+    gesamtZiele: ziele.length,
+    schiffe: anBord,
+    // MIT DER FLOTTE RECHNEN, DIE WIRKLICH FLIEGT: der Versand laedt im Hafen
+    // zuerst die ueberzaehligen Sonden aus (sie kaemen nach dem letzten Ziel
+    // nicht heim), und weniger Schiffe brauchen weniger Sprit. Ohne diesen
+    // Schritt kuendigte der Knopf 1650 an und tankte 300 -- gemessen beim
+    // Schreiben des Tests.
+    treibstoff: einwegBedarf(state, flotte.dockPlanet ? gedachteFlotte : flotte, befehle),
+  };
 }
 
 export function schnellversandBefehlen(state, flotte, art, systemId) {
@@ -3072,11 +3258,27 @@ function routeNaechstenHaltStarten(state, flotte, zeit) {
   abschnittStarten(state, flotte, zielOrt, zeit);
 }
 
-// --- Flotten: Routen (Automatisierung) -------------------------------------
-export function kannRouteBearbeiten(state) {
-  if (!automatisierungFreigeschaltet(state)) {
-    return { ok: false, grund: t("Automatisierungstechnik noch nicht erforscht.") };
-  }
+// --- Flotten: Routen -------------------------------------------------------
+//
+// SEIT A-034 IST DAS FREI (Tobis Entscheidung, 17.08.: "Automatisierung
+// erstmal komplett frei"). Vorher hingen Routen an der
+// Automatisierungstechnik -- rund 9.250 Laborsekunden ueber vier Vorstufen,
+// und damit in einer Demo praktisch unsichtbar.
+//
+// Der Grund ist keiner der Balance, sondern der Einordnung: eine Route ist
+// BEDIENKOMFORT. Sie tut nichts, was der Spieler nicht auch von Hand tun
+// koennte -- sie erspart ihm, es zwanzigmal zu tun. Komfort hinter Forschung
+// zu legen heisst, den Spieler fuer seine ersten Stunden zu bestrafen, und
+// zwar genau dort, wo er das Spiel noch kennenlernt.
+//
+// Was Forschung BLEIBT, sind die KI-Stufen (sondenKi, erkunderKi): die treffen
+// Entscheidungen selbst, und dafuer ist der Freischaltmoment aus Prinzip 12
+// richtig.
+//
+// Die Funktion bleibt stehen, statt ihre Aufrufe zu entfernen: sie ist der
+// eine Ort, an dem die Frage beantwortet wird, und ein spaeteres "doch wieder
+// mit Bedingung" waere eine Zeile statt einer Suche.
+export function kannRouteBearbeiten() {
   return { ok: true };
 }
 
@@ -3108,14 +3310,18 @@ export function routeLadenRegelSetzen(state, flotte, index, resId, modus, wert) 
   return { ok: true };
 }
 
-export function routeStarten(state, flotte) {
+/**
+ * @param zeit Startzeitpunkt des ersten Abschnitts -- der ZEHNTE Fall des
+ *   Zeit-Fehlertyps (A-003/A-024). Vorgabe wie ueberall die Spielzeit.
+ */
+export function routeStarten(state, flotte, zeit = null) {
   const check = kannRouteBearbeiten(state);
   if (!check.ok) return check;
   if (!flotte.route.halte.length) return { ok: false, grund: t("Route hat keine Stationen.") };
   if (flotteLeer(flotte)) return { ok: false, grund: t("Die Flotte hat keine Schiffe.") };
 
   flotte.route.aktiv = true;
-  if (!flotte.abschnitt) routeNaechstenHaltStarten(state, flotte, spielzeitJetzt(state));
+  if (!flotte.abschnitt) routeNaechstenHaltStarten(state, flotte, zeit === null ? spielzeitJetzt(state) : zeit);
   return { ok: true };
 }
 
@@ -3690,7 +3896,11 @@ export function missionFuerObjekt(state, objekt) {
 }
 
 // Kann diese Flotte diese Mission überhaupt fliegen?
-export function kannMission(state, flotte, missionsart, systemId, orbit) {
+// `rueckkehr` steuert die Treibstoffprüfung (A-020): ohne Rückflug muss nur
+// die Hinstrecke gedeckt sein. Die Oberfläche fragt beides ab — einmal für den
+// Knopf, einmal für den Aufpreis, den der Rückkehr-Schalter kostet
+// (Prinzip 10a: was eine Entscheidung kostet, steht dabei).
+export function kannMission(state, flotte, missionsart, systemId, orbit, rueckkehr = false) {
   const objekt = findeObjekt(state, systemId, orbit);
   if (!objekt) return { ok: false, grund: t("Unbekanntes Ziel.") };
 
@@ -3699,7 +3909,7 @@ export function kannMission(state, flotte, missionsart, systemId, orbit) {
     return { ok: false, grund: t("Flotte hat keine {schiff}.", { schiff: t(SCHIFFE[schiffId].name) }) };
   }
   const ziel = ortVonSystem(state, systemId, orbit);
-  return kannBefehlen(state, flotte, ziel);
+  return kannBefehlen(state, flotte, ziel, { einweg: !rueckkehr });
 }
 
 export function kannGruendungsmission(state, flotte, art, systemId, orbit) {
@@ -3740,7 +3950,10 @@ export function gruendungBefehlen(state, flotte, art, systemId, orbit) {
     abziehen(heimat.ressourcen, AUSSENPOSTEN.kosten);
     planetGeaendert(heimat);
   }
-  return missionBefehlen(state, flotte, art, systemId, orbit);
+  // Schnellversand heisst ausdruecklich "und wieder heim" -- der Kopf dieser
+  // Sektion sagt es so, und die Sonden sind Einwegschiffe: was zurueckkommt,
+  // ist die Flotte, nicht die Sonde.
+  return missionBefehlen(state, flotte, art, systemId, orbit, { rueckkehr: true });
 }
 
 // --- Markt ------------------------------------------------------------
@@ -4063,7 +4276,14 @@ export function kannBauen(state, planet, gebaeudeId) {
   }
   const level = naechstesGebaeudeLevel(planet, gebaeudeId);
   const kosten = gebaeudeKosten(planet, def, level);
-  if (!reichenAus(planet.ressourcen, kosten)) return { ...nichtGenug(planet.ressourcen, kosten), kosten, level };
+  //  heisst: alles stimmt ausser dem Kontostand. Seit A-012 darf man
+  // in dieser Lage trotzdem EINREIHEN -- der Auftrag wartet dann vorn in der
+  // Schlange, bis das Material da ist. Die Absage bleibt trotzdem eine Absage,
+  // damit die Oberflaeche weiter sagen kann, was fehlt (Prinzip 10a), und
+  // damit die Bot-Routine unveraendert nach Bezahlbarkeit auswaehlt.
+  if (!reichenAus(planet.ressourcen, kosten)) {
+    return { ...nichtGenug(planet.ressourcen, kosten), kosten, level, nurGeld: true };
+  }
   return { ok: true, kosten, level };
 }
 
@@ -4086,21 +4306,108 @@ export function kannBauen(state, planet, gebaeudeId) {
  *   befehleSetzen und der Puffergrenze) -- alle drei lagen latent, weil bis
  *   dahin nur die Oberfläche diese Funktionen aufrief.
  */
-export function bauStarten(state, planet, gebaeudeId, zeit = null) {
+// --- FIFO OHNE RESERVIERUNG (A-012, v0.96) --------------------------------
+//
+// Tobis Punkt 26 aus dem ersten Demo-Durchlauf: „Man sollte Dinge immer bauen
+// können, auch wenn die Ressourcen nicht da sind. Gerade für die Demo wichtig,
+// da Menschen nicht 24/7 durchspielen können."
+//
+// DIE ENTSCHEIDUNG (Tobi, 16.08.) und warum sie so und nicht anders lautet:
+// der vorderste Auftrag WARTET, bis der volle Betrag da ist, zahlt DANN und
+// startet. Keine eingefrorenen Ressourcen, keine Teilzahlung.
+//
+//   - Reservierung hätte bedeutet, dass ein eingereihter Bau Material bindet,
+//     das man gerade dringender braucht -- und der Spieler sähe einen Vorrat,
+//     über den er nicht verfügen kann. Ein Bestand, der lügt, ist schlimmer
+//     als eine Warteschlange, die wartet.
+//   - Teilzahlung hätte einen Zustand „halb bezahlt" erzeugt, den jeder
+//     Abbruch, jede Erstattung und jede Anzeige einzeln kennen müsste.
+//
+// Ein Kopf hat damit ZWEI Zustände, und `fertigZeit` unterscheidet sie:
+// `null` heißt wartend (nichts gezahlt), gesetzt heißt laufend (bezahlt).
+// Das ist bewusst kein neues Feld -- ein zweiter Merker könnte von der
+// Wahrheit abweichen, dieser kann es nicht.
+export function bauStarten(state, planet, gebaeudeId, zeit = null, nurWennBezahlbar = false) {
   const check = kannBauen(state, planet, gebaeudeId);
-  if (!check.ok) return check;
+  // Fehlt NUR das Material, wird trotzdem eingereiht -- ausser der Aufrufer
+  // besteht auf Bezahlbarkeit. Genau das tun die Bots: ihre Auswahl haengt
+  // daran, was sie sich JETZT leisten koennen, und ein wartender Auftrag
+  // wuerde ihre Bauschleife blockieren (zweiter Bot-Fehlertyp).
+  if (!check.ok && !(check.nurGeld && !nurWennBezahlbar)) return check;
 
-  abziehen(planet.ressourcen, check.kosten);
-  planetGeaendert(planet);
   const dauerSek = bauzeitFuerLevel(BUILDINGS[gebaeudeId], check.level);
-
   if (!planet.bauQueue) {
-    const jetzt = zeit === null ? spielzeitJetzt(state) : zeit;
-    planet.bauQueue = { gebaeudeId, zielLevel: check.level, startZeit: jetzt, fertigZeit: jetzt + dauerSek * 1000 };
+    // Als WARTENDER Kopf einreihen und sofort versuchen zu starten. Ist das
+    // Material da, ist der Unterschied zum alten Verhalten null -- genau das
+    // sichern die bestehenden Tests ab.
+    planet.bauQueue = { gebaeudeId, zielLevel: check.level, dauerSek, startZeit: null, fertigZeit: null };
+    kopfPruefen(state, planet, zeit === null ? spielzeitJetzt(state) : zeit);
   } else {
     planet.bauWarteschlange.push({ gebaeudeId, zielLevel: check.level, dauerSek });
   }
+  planetGeaendert(planet);
   return { ok: true };
+}
+
+// Was der wartende Kopf kostet. EINE Stelle für beide Warteschlangen, damit
+// „was fehlt noch" und „was wird abgebucht" nie auseinanderlaufen können.
+export function kopfKosten(planet, kopf, art) {
+  if (!kopf) return null;
+  return art === "bau"
+    ? gebaeudeKosten(planet, BUILDINGS[kopf.gebaeudeId], kopf.zielLevel)
+    : schiffKosten(planet, kopf.schiffId, kopf.anzahl);
+}
+
+// Worauf wartet der Kopf, und wie lange noch? Fuer die Anzeige (A-012).
+//
+// Gibt  zurueck, wenn nichts wartet.  heisst: es
+// fehlt etwas, das gar nicht nachlaeuft -- dann gibt es keine ehrliche
+// Restzeit, und die Oberflaeche sagt das auch so.
+//
+// Steht hier und nicht in ui.js, weil es dieselbe Rechnung ist wie in
+// : was fehlt, geteilt durch die Rate. Zwei Kopien davon
+// waeren zwei Wahrheiten darueber, wann ein Auftrag anlaeuft.
+export function wartetAuf(state, planet, kopf, art) {
+  if (!kopf || kopf.fertigZeit !== null) return null;
+  const kosten = kopfKosten(planet, kopf, art);
+  const { lager } = effektiveRaten(state, planet);
+  const fehlend = [];
+  let sekunden = 0;
+  for (const [resId, betrag] of Object.entries(kosten)) {
+    const fehlt = betrag - (planet.ressourcen[resId] || 0);
+    if (fehlt <= 0) continue;
+    fehlend.push({ resId, fehlt });
+    const rate = lager[resId] || 0;
+    if (rate <= 0) sekunden = null;
+    else if (sekunden !== null) sekunden = Math.max(sekunden, (fehlt / rate) * 3600);
+  }
+  if (!fehlend.length) return null;
+  return { fehlend, sekunden, text: buendelText(Object.fromEntries(fehlend.map((f) => [f.resId, Math.ceil(f.fehlt)]))) };
+}
+
+// Der Kopf einer Warteschlange, sofern er WARTET (noch nicht bezahlt).
+export function wartenderKopf(planet, art) {
+  const kopf = art === "bau" ? planet.bauQueue : planet.werftQueue;
+  return kopf && kopf.fertigZeit === null ? kopf : null;
+}
+
+// Zahlt den wartenden Kopf, wenn das Material da ist, und startet ihn.
+//
+// WIRD AN GENAU DREI STELLEN GERUFEN: beim Einreihen, beim Abschluss des
+// Vorgängers und aus dem Ereignis „bezahlbar". Mehr Stellen gibt es nicht,
+// und das ist Absicht -- ein vierter Aufrufer wäre eine vierte Gelegenheit,
+// die Zeit falsch durchzureichen.
+export function kopfPruefen(state, planet, zeit) {
+  for (const art of ["bau", "werft"]) {
+    const kopf = wartenderKopf(planet, art);
+    if (!kopf) continue;
+    const kosten = kopfKosten(planet, kopf, art);
+    if (!reichenAus(planet.ressourcen, kosten)) continue;
+    abziehen(planet.ressourcen, kosten);
+    kopf.startZeit = zeit;
+    kopf.fertigZeit = zeit + kopf.dauerSek * 1000;
+    planetGeaendert(planet);
+  }
 }
 
 // Storniert einen noch nicht gestarteten Warteschlangeneintrag und erstattet
@@ -4126,13 +4433,17 @@ export function bauWarteschlangeEntfernen(state, planet, index) {
 export function bauAbbrechen(state, planet) {
   if (!planet.bauQueue) return { ok: false, grund: t("Kein laufender Bauauftrag.") };
   const abgebrochen = planet.bauQueue;
+  // ERSTATTET WIRD NUR, WAS BEZAHLT WURDE (A-012). Ein wartender Auftrag hat
+  // nie gezahlt -- ihn zu erstatten waere eine Gelddruckmaschine: einreihen,
+  // abbrechen, kassieren. Der Erstattungspfad samt seiner Lager-voll-Meldung
+  // bleibt fuer laufende Auftraege unveraendert.
+  const laeuft = abgebrochen.fertigZeit !== null;
   const kosten = gebaeudeKosten(planet, BUILDINGS[abgebrochen.gebaeudeId], abgebrochen.zielLevel);
-  const { abgelehnt } = insLager(state, planet, kosten);
+  const { abgelehnt } = laeuft ? insLager(state, planet, kosten) : { abgelehnt: {} };
   const naechster = planet.bauWarteschlange.shift();
   const jetzt = spielzeitJetzt(state);
-  planet.bauQueue = naechster
-    ? { gebaeudeId: naechster.gebaeudeId, zielLevel: naechster.zielLevel, startZeit: jetzt, fertigZeit: jetzt + naechster.dauerSek * 1000 }
-    : null;
+  planet.bauQueue = naechster ? { ...naechster, startZeit: null, fertigZeit: null } : null;
+  kopfPruefen(state, planet, jetzt);
   if (Object.keys(abgelehnt).length) {
     meldungHinzufuegen(state, t("{planet}: Lager voll – Erstattung teilweise verloren.", { planet: planet.name }));
   }
@@ -4167,13 +4478,25 @@ export function kannForschen(state, planet, forschungId) {
 // Läuft schon eine Forschung, wird der neue Auftrag eingereiht -- gleiches
 // Muster wie bauStarten, nur ohne Zahlung: bezahlt wird durch den laufenden
 // Betrieb der Labore, nicht beim Klick.
-export function forschungStarten(state, planet, forschungId) {
+/**
+ * @param zeit Startzeitpunkt der Forschung. Vorgabe ist die Spielzeit --
+ *   richtig fuer die Oberflaeche, denn dort IST gerade jetzt. Werkzeuge und
+ *   KI reichen ihre Schleifenzeit durch.
+ *
+ *   DAS WAR DER NEUNTE FALL des Zeit-Fehlertyps und der erste, der NICHT
+ *   durch einen Fehler auffiel, sondern durch eine Messung, die nicht stimmen
+ *   konnte (A-003): solange die Funktion die Wanduhr las, wurde eine aus einem
+ *   Werkzeug-Takt gestartete Forschung sofort fertig, sobald die simulierte
+ *   Uhr der echten vorausgelaufen war. Kein Werkzeug hat die Forschung
+ *   deshalb je ehrlich gemessen.
+ */
+export function forschungStarten(state, planet, forschungId, zeit = null) {
   const check = kannForschen(state, planet, forschungId);
   if (!check.ok) return check;
 
   const eintrag = { forschungId, zielLevel: check.level, aufwand: check.aufwand };
   if (!state.forschungsQueue) {
-    state.forschungsQueue = neueForschungsQueue(eintrag, spielzeitJetzt(state));
+    state.forschungsQueue = neueForschungsQueue(eintrag, zeit === null ? spielzeitJetzt(state) : zeit);
   } else {
     state.forschungsWarteschlange.push(eintrag);
   }
@@ -4216,8 +4539,23 @@ export function kannSchiffBauen(state, planet, schiffId, anzahl = 1) {
     return { ok: false, grund: t("Warteschlange voll ({max}/{max}).", { max: BAUWARTESCHLANGE_MAX }) };
   }
 
+  // Werftstufe entscheidet, WELCHE Typen ueberhaupt gehen (A-027). Die
+  // Pruefung steht VOR der Kostenpruefung: "dafuer ist deine Werft zu klein"
+  // ist die naechstliegende Auskunft, und sie aendert sich nicht dadurch, dass
+  // man spaeter mehr Geld hat.
+  const noetigeStufe = SCHIFFE[schiffId].werftAb || 1;
+  const stufe = planet.gebaeude.werft || 0;
+  if (stufe < noetigeStufe) {
+    return {
+      ok: false,
+      grund: t("Braucht Werft Stufe {noetig} (aktuell {aktuell}).", { noetig: noetigeStufe, aktuell: stufe }),
+    };
+  }
+
   const kosten = schiffKosten(planet, schiffId, anzahl);
-  if (!reichenAus(planet.ressourcen, kosten)) return { ...nichtGenug(planet.ressourcen, kosten), kosten };
+  if (!reichenAus(planet.ressourcen, kosten)) {
+    return { ...nichtGenug(planet.ressourcen, kosten), kosten, nurGeld: true };
+  }
   return { ok: true, kosten };
 }
 
@@ -4227,6 +4565,16 @@ export function kannSchiffBauen(state, planet, schiffId, anzahl = 1) {
 // jetzt, da sind Wanduhr und Ereigniszeit dasselbe. Aus einem EREIGNIS heraus
 // (Bot-Takt) sind sie es nicht, und dann muss die übergebene Zeit gelten.
 //
+// FEHLERTYP-ZAEHLER, EINE STELLE (A-024): dieser Kommentar ist der Stand.
+// Zehn Faelle, der letzte am 17.08.2026 mit A-024 umgestellt --
+//  (neunter) und  (zehnter). Damit nehmen
+// ALLE bekannten zeitnehmenden Funktionen ihre Zeit entgegen. Andere
+// Fundstellen (js/data.js zur MASSSTAB-Falle, tests/README.md,
+// README.md) zaehlen ihre EIGENEN Fehlertypen und sind nicht dieselbe Reihe --
+// wer hier hochzaehlt, zaehlt nur diese eine.
+//
+// Wer einen elften findet, traegt ihn HIER ein und flickt nicht still.
+//
 // SECHSTER FALL desselben Fehlertyps in diesem Projekt, und er hat sich genau
 // so gezeigt wie die fünf davor: die Bot-Imperien bauten am 2026-08-16 ein
 // Kolonieschiff, dessen Fertigzeit nach der Wanduhr gerechnet wurde. In der
@@ -4235,20 +4583,18 @@ export function kannSchiffBauen(state, planet, schiffId, anzahl = 1) {
 // hundert Tagen stand die Warteschlange unverändert, und keine einzige Kolonie
 // war entstanden. Betroffen und behoben sind inzwischen: befehleSetzen,
 // missionBefehlen, bauStarten, die Puffergrenze und jetzt schiffBauen.
-export function schiffBauen(state, planet, schiffId, anzahl = 1, zeit = null) {
+export function schiffBauen(state, planet, schiffId, anzahl = 1, zeit = null, nurWennBezahlbar = false) {
   const check = kannSchiffBauen(state, planet, schiffId, anzahl);
-  if (!check.ok) return check;
+  if (!check.ok && !(check.nurGeld && !nurWennBezahlbar)) return check;
 
-  abziehen(planet.ressourcen, check.kosten);
-  planetGeaendert(planet);
   const dauerSek = schiffsBauzeitSek(planet, schiffId, anzahl);
-
   if (!planet.werftQueue) {
-    const jetzt = zeit ?? spielzeitJetzt(state);
-    planet.werftQueue = { schiffId, anzahl, startZeit: jetzt, fertigZeit: jetzt + dauerSek * 1000 };
+    planet.werftQueue = { schiffId, anzahl, dauerSek, startZeit: null, fertigZeit: null };
+    kopfPruefen(state, planet, zeit ?? spielzeitJetzt(state));
   } else {
     planet.werftWarteschlange.push({ schiffId, anzahl, dauerSek });
   }
+  planetGeaendert(planet);
   return { ok: true };
 }
 
@@ -4268,13 +4614,13 @@ export function werftWarteschlangeEntfernen(state, planet, index) {
 export function werftAbbrechen(state, planet) {
   if (!planet.werftQueue) return { ok: false, grund: t("Kein laufender Schiffbau.") };
   const abgebrochen = planet.werftQueue;
+  const laeuft = abgebrochen.fertigZeit !== null;
   const kosten = schiffKosten(planet, abgebrochen.schiffId, abgebrochen.anzahl);
-  const { abgelehnt } = insLager(state, planet, kosten);
+  const { abgelehnt } = laeuft ? insLager(state, planet, kosten) : { abgelehnt: {} };
   const naechster = planet.werftWarteschlange.shift();
   const jetzt = spielzeitJetzt(state);
-  planet.werftQueue = naechster
-    ? { schiffId: naechster.schiffId, anzahl: naechster.anzahl, startZeit: jetzt, fertigZeit: jetzt + naechster.dauerSek * 1000 }
-    : null;
+  planet.werftQueue = naechster ? { ...naechster, startZeit: null, fertigZeit: null } : null;
+  kopfPruefen(state, planet, jetzt);
   if (Object.keys(abgelehnt).length) {
     meldungHinzufuegen(state, t("{planet}: Lager voll – Erstattung teilweise verloren.", { planet: planet.name }));
   }

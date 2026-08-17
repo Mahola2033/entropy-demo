@@ -79,7 +79,6 @@ import {
   wirtschaftsPlaneten,
   planetenVon,
   flottenVon,
-  automatisierungFreigeschaltet,
   logistiknetzFreigeschaltet,
   logistikMindestbestandSetzen,
   verarbeitungsReserveFuer,
@@ -97,6 +96,7 @@ import {
   bauStarten,
   forschungStarten,
   kannBauen,
+  wartetAuf,
   bauWarteschlangeEntfernen,
   bauAbbrechen,
   kannForschen,
@@ -482,6 +482,99 @@ function bereichSichtbar(root, name) {
   // Kein Abschnitt gefunden heißt: zeichnen. Lieber zu viel Arbeit als eine
   // Anzeige, die stillschweigend einfriert.
   return !abschnitt || !abschnitt.hidden;
+}
+
+// --- Hotkeys (A-029) -------------------------------------------------------
+//
+// Tobis Wunsch: „können wir einfach hotkeys nehmen für bedienung und die mit in
+// die Manual hauen?"
+//
+// Belegung: 1–9 die Bereiche in Navigationsreihenfolge · Q/E voriger/nächster
+// eigener Planet · M Karte (Galaxie) · H Handbuch · Esc schließt eine offene
+// Tafel.
+//
+// DREI REGELN, die diese Belegung erklären:
+//
+//   1. KEINE Modifier-Kombos. Strg+irgendwas gehört dem Browser, und ein Spiel,
+//      das dem Browser Tasten wegnimmt, gewinnt diesen Streit nie.
+//   2. KEINE Hotkeys mit Wirkung auf die Welt — nur Navigation und Ansicht. Ein
+//      „Bauen"-Hotkey wäre ein verschluckter Klick in neuer Form: man drückt
+//      ihn versehentlich, und etwas passiert, das man nicht wollte. Prinzip 8a
+//      handelt davon, dass Klicks ankommen sollen; sein Gegenstück ist, dass
+//      nichts ankommt, was man nicht gedrückt hat.
+//   3. NICHTS, solange ein Eingabefeld den Fokus hat. Sonst kann niemand mehr
+//      eine „3" in das Rückzugsschwellen-Feld tippen.
+//
+// Der Listener hängt EINMAL an document — er überlebt jede Render-Runde, und
+// genau deshalb darf er nicht bei jedem Zeichnen neu gesetzt werden (Lernpunkt 1
+// aus Prinzip 8a: nach einer Stunde wären es sonst dreitausend Listener und ein
+// Tastendruck löste dreitausend Bereichswechsel aus).
+let hotkeysVerdrahtet = false;
+
+function tippendGerade() {
+  const el = typeof document !== "undefined" ? document.activeElement : null;
+  if (!el) return false;
+  const tag = (el.tagName || "").toLowerCase();
+  return tag === "input" || tag === "textarea" || tag === "select" || el.isContentEditable;
+}
+
+export function hotkeysEinrichten(state, root) {
+  if (hotkeysVerdrahtet || typeof document === "undefined") return;
+  hotkeysVerdrahtet = true;
+
+  document.addEventListener("keydown", (ereignis) => {
+    if (ereignis.ctrlKey || ereignis.altKey || ereignis.metaKey) return;
+    if (tippendGerade()) return;
+
+    const taste = ereignis.key;
+
+    // Esc schließt, was offen ist. Heute ist das die Erstklärung; künftige
+    // Tafeln kommen hier dazu, statt sich einen eigenen Weg zu bauen.
+    if (taste === "Escape") {
+      if (!state.erstklaerungGesehen && !state.ende) {
+        state.erstklaerungGesehen = true;
+        render(state, root);
+        ereignis.preventDefault();
+      }
+      return;
+    }
+
+    // 1–9: die Bereiche in der Reihenfolge, in der sie in der Leiste stehen.
+    // Dieselbe Liste, kein zweites Register — wer unten einen Bereich ergänzt,
+    // bekommt seine Taste automatisch.
+    const nummer = Number(taste);
+    if (Number.isInteger(nummer) && nummer >= 1 && nummer <= BEREICHE.length) {
+      aktiverBereich = BEREICHE[nummer - 1].id;
+      render(state, root);
+      ereignis.preventDefault();
+      return;
+    }
+
+    const klein = taste.toLowerCase();
+
+    // M und H sind Abkürzungen auf zwei dieser Bereiche — sie haben ohnehin
+    // eine Zahl, aber „Karte" und „Handbuch" merkt man sich als Buchstaben.
+    if (klein === "m" || klein === "h") {
+      aktiverBereich = klein === "m" ? "galaxie" : "handbuch";
+      render(state, root);
+      ereignis.preventDefault();
+      return;
+    }
+
+    // Q/E: durch die eigenen Welten blättern. Über dasselbe Feld wie die
+    // Planetenwahl im Kopf (state.aktiverPlanet), kein zweiter Mechanismus.
+    if (klein === "q" || klein === "e") {
+      const meine = planetenVon(state);
+      if (meine.length < 2) return;
+      const jetzt = meine.findIndex((p) => p.id === state.aktiverPlanet);
+      const schritt = klein === "e" ? 1 : -1;
+      // Modulo mit + meine.length: -1 % n ist in JavaScript negativ.
+      const naechster = meine[(((jetzt < 0 ? 0 : jetzt) + schritt) % meine.length + meine.length) % meine.length];
+      state.aktiverPlanet = naechster.id;
+      render(state, root);
+      ereignis.preventDefault();
+    }
+  });
 }
 
 export function render(state, root) {
@@ -920,6 +1013,30 @@ function renderRessourcen(state, root, planet) {
     const auslastung = prod > 0 ? braucht / prod : braucht > 0 ? 1 : 0;
     const frei = Math.max(0, prod - braucht);
     const speicherText = flussSpeicherZeile(planet, resId, fluss[resId] || 0);
+    // FORSCHUNG IST DER SONDERFALL DIESER KACHEL (A-028).
+    //
+    // Das Muster "verbraucht / erzeugt" passt fuer Strom und Arbeitskraft:
+    // dort steht auf beiden Seiten etwas. Forschung hat KEINE Verbraucher --
+    // sie fliesst in ein Projekt statt in Anlagen. Die Kachel las deshalb
+    // immer "0 / 540.000 FE", und das war Tobis Bug-Report "forschung zeigt
+    // immer 0/xxxx" (Chris unabhaengig: "I dont really understand why I have
+    // 0 research when I'm actively researching something").
+    //
+    // Es war also nie eine kaputte Fortschrittsanzeige, sondern eine Zahl, die
+    // hier nichts zu suchen hat. Was der Spieler an dieser Stelle wissen will,
+    // ist der Stand des LAUFENDEN Projekts -- und dass es genau eines ist.
+    const istForschungsFluss = resId === "forschung";
+    const lauf = istForschungsFluss ? state.forschungsQueue : null;
+    const laufAufwand = lauf ? lauf.aufwand ?? forschungsAufwand(RESEARCH[lauf.forschungId], lauf.zielLevel) : 0;
+    const wertText = istForschungsFluss
+      ? lauf
+        ? t("{stand} / {ziel} {einheit}", {
+            stand: fmt(Math.floor(lauf.fortschritt || 0)),
+            ziel: fmt(laufAufwand),
+            einheit: einheit(resId),
+          })
+        : t("kein Projekt")
+      : `${fmt(braucht)} / ${fmt(prod)} ${einheit(resId)}`;
     kapazitaeten += `
       <div class="res-kachel energie" title="${
         knapp
@@ -936,6 +1053,13 @@ function renderRessourcen(state, root, planet) {
               da: fmt(prod),
               frei: fmt(frei),
             })
+      }${
+        istForschungsFluss
+          ? "\n" +
+            t(
+              "FE = Forschungseinheiten. Deine Labore erzeugen sie laufend, und sie fließen in GENAU EIN Projekt – die Warteschlange darunter wird nacheinander abgearbeitet."
+            )
+          : ""
       }${speicherText ? "\n" + speicherText.titel : ""}">
         <span class="res-symbol">${def.symbol || "•"}</span>
         <span class="res-oben">
@@ -944,7 +1068,7 @@ function renderRessourcen(state, root, planet) {
         </span>
         <span class="res-unten" style="flex-direction:column;align-items:stretch;gap:.2rem">
           <span style="display:flex;justify-content:space-between;gap:.5rem">
-            <span class="res-wert ${knapp ? "warnung" : ""}">${fmt(braucht)} / ${fmt(prod)} ${einheit(resId)}</span>
+            <span class="res-wert ${knapp ? "warnung" : ""}">${wertText}</span>
             <span class="res-rate ${knapp ? "warnung" : ""}">${
               knapp
                 ? `${Math.round(effizienz * 100)}%`
@@ -1251,6 +1375,25 @@ function renderAbspann(state, root) {
   const gerettet = state.ende.welten.filter((w) => w.ueberlebt);
   const menschen = gerettet.reduce((summe, w) => summe + w.bevoelkerung, 0);
 
+  // Was aus der ÜBRIGEN Galaxie wurde (A-033). EINE Zahl, keine Aufzählung:
+  // bei bis zu 672 fremden Welten wäre alles andere eine Tabelle, und das hat
+  // A-001 bereits entschieden.
+  //
+  // Bei null Überlebenden steht DIESELBE Zeile mit der Null — keine
+  // Sonderformulierung. Die Null ist die Aussage.
+  //
+  // Stände, die VOR v0.83 zu Ende gingen, haben kein `fremd`-Feld. Sie zeigen
+  // die Zeile gar nicht, statt „undefined von undefined" zu behaupten: eine
+  // fehlende Angabe ist keine Angabe, und der Abspann ist der letzte Ort, an
+  // dem man raten sollte.
+  const fremd = state.ende.fremd;
+  const fremdZeile = fremd
+    ? `<p class="abspann-fremd dezent">${t(
+        "Von den {gesamt} fremden Welten der Galaxie haben {ueberlebt} die Flut überstanden.",
+        { gesamt: fmt(fremd.gesamt), ueberlebt: fmt(fremd.ueberlebt) }
+      )}</p>`
+    : "";
+
   const zeilen = state.ende.welten
     .map(
       (w) => `
@@ -1284,6 +1427,7 @@ function renderAbspann(state, root) {
         gesamt: state.ende.welten.length,
         menschen: fmt(menschen),
       })}</p>
+      ${fremdZeile}
       <div class="abspann-knoepfe">
         <button data-abspann-neustart title="${t(
           "Verwirft diesen Spielstand und beginnt eine frische Galaxie."
@@ -1648,12 +1792,28 @@ function renderStatus(state, root, planet, jetzt) {
 
   const block = root.querySelector("#status-block");
   const zeilen = [];
+  // Was in der Zeitspalte steht: eine Restdauer, wenn der Auftrag LÄUFT --
+  // und sonst, worauf er wartet (A-012, Prinzip 10a: Blockiertes erklärt sich
+  // selbst).
+  //
+  // Bei Rate 0 steht dort ausdrücklich „keine Produktion" statt einer
+  // gerechneten Phantasiezahl. Eine Restzeit, die aus einer Rate von null
+  // entsteht, wäre unendlich — und „∞" ist keine Auskunft, sondern eine
+  // Ausrede.
+  const kopfZeitText = (state, planet, kopf, art, jetzt) => {
+    if (kopf.fertigZeit !== null) return fmtDauer((kopf.fertigZeit - jetzt) / 1000);
+    const wartet = wartetAuf(state, planet, kopf, art);
+    if (!wartet) return t("wartet");
+    return wartet.sekunden === null
+      ? t("wartet auf {was} – keine Produktion", { was: wartet.text })
+      : t("wartet auf {was} – noch {dauer}", { was: wartet.text, dauer: fmtDauer(wartet.sekunden) });
+  };
   const zeile = (text, zeit) =>
     `<div class="status-zeile"><span>${text}</span><span class="status-zeit">${zeit}</span></div>`;
 
   if (planet.bauQueue) {
     const q = planet.bauQueue;
-    zeilen.push(zeile(`${t(BUILDINGS[q.gebaeudeId].name)} → ${q.zielLevel}`, fmtDauer((q.fertigZeit - jetzt) / 1000)));
+    zeilen.push(zeile(`${t(BUILDINGS[q.gebaeudeId].name)} → ${q.zielLevel}`, kopfZeitText(state, planet, q, "bau", jetzt)));
   }
   if (state.forschungsQueue) {
     const q = state.forschungsQueue;
@@ -1661,7 +1821,7 @@ function renderStatus(state, root, planet, jetzt) {
   }
   if (planet.werftQueue) {
     const q = planet.werftQueue;
-    zeilen.push(zeile(`${q.anzahl}× ${t(SCHIFFE[q.schiffId].name)}`, fmtDauer((q.fertigZeit - jetzt) / 1000)));
+    zeilen.push(zeile(`${q.anzahl}× ${t(SCHIFFE[q.schiffId].name)}`, kopfZeitText(state, planet, q, "werft", jetzt)));
   }
   // Die Statusspalte listet, was gerade LÄUFT -- gemeint sind die eigenen
   // Aufträge, nicht die Bewegungen der halben Galaxie.
@@ -1713,7 +1873,14 @@ function renderStatus(state, root, planet, jetzt) {
 // Löschung den FALSCHEN Auftrag -- die Positionen rücken nach. Der Handler
 // liest seinen Index deshalb erst beim Klick aus dem Element, und der Index
 // wird beim Aktualisieren nachgezogen.
-function renderWarteschlange(state, root, containerId, warteschlange, labelFn, entfernen, kontext = "") {
+// `dauerFn` (A-028): woher die Dauer eines Eintrags kommt. Bauten und Schiffe
+// tragen sie als `dauerSek` mit sich; die FORSCHUNG nicht -- ihre Eintraege
+// kennen nur den Aufwand, und wie lange der dauert, haengt am aktuellen Fluss
+// aller Labore. Ohne diese Funktion las die Anzeige `dauerSek`, fand undefined
+// und zeigte fuer JEDE Forschung "unter 1 Tag" -- die Summe der Warteschlange
+// ebenso. Das war Tobis zweiter Befund in A-028.
+function renderWarteschlange(state, root, containerId, warteschlange, labelFn, entfernen, kontext = "", dauerFn = null) {
+  const dauerVon = dauerFn || ((eintrag) => eintrag.dauerSek || 0);
   const el = root.querySelector(containerId);
   if (!el) return;
 
@@ -1728,7 +1895,7 @@ function renderWarteschlange(state, root, containerId, warteschlange, labelFn, e
   }
 
   const belegt = warteschlange.length + 1; // +1 für den laufenden Auftrag
-  const gesamtSek = warteschlange.reduce((summe, e) => summe + (e.dauerSek || 0), 0);
+  const gesamtSek = warteschlange.reduce((summe, e) => summe + dauerVon(e), 0);
 
   // `kontext` trägt die Planeten-Kennung: der Entfernen-Handler unten fängt
   // die `entfernen`-Funktion des Aufrufers ein, und die hängt an EINEM
@@ -1753,7 +1920,7 @@ function renderWarteschlange(state, root, containerId, warteschlange, labelFn, e
     titel,
     "title",
     t(
-      "Diese Aufträge starten nacheinander, sobald der laufende fertig ist. Die Kosten sind bereits abgezogen – ein eingereihter Auftrag findet also garantiert statt. Zusammen noch {dauer} Bauzeit.",
+      "Diese Aufträge starten nacheinander, sobald der laufende fertig ist. Bezahlt wird erst, wenn einer vorn steht – bis dahin bindet er nichts. Zusammen noch {dauer} Bauzeit.",
       { dauer: fmtDauer(gesamtSek) }
     )
   );
@@ -1772,7 +1939,7 @@ function renderWarteschlange(state, root, containerId, warteschlange, labelFn, e
         attributSetzen(
           btn,
           "title",
-          t("Aus der Warteschlange nehmen. Die bereits abgezogenen Kosten werden erstattet.")
+          t("Aus der Warteschlange nehmen.")
         );
         btn.addEventListener("click", () => {
           // NICHT der bei der Erzeugung eingefangene Index, sondern der
@@ -1780,7 +1947,10 @@ function renderWarteschlange(state, root, containerId, warteschlange, labelFn, e
           entfernen(Number(li.dataset.position));
           render(state, root);
         });
-        li.append(text, document.createTextNode(" "), btn);
+        // A-017 (Tobis Punkt 38): das × steht VOR dem Namen. Die feste
+        // Spalte dafuer kommt aus dem CSS, damit die Namen in allen drei
+        // Warteschlangen buendig beginnen.
+        li.append(btn, document.createTextNode(" "), text);
         return li;
       },
       aktualisieren: (li, { eintrag, i }) => {
@@ -1789,7 +1959,7 @@ function renderWarteschlange(state, root, containerId, warteschlange, labelFn, e
         attributSetzen(
           li,
           "title",
-          t("Position {nr} · Bauzeit {dauer}", { nr: i + 1, dauer: fmtDauer(eintrag.dauerSek || 0) })
+          t("Position {nr} · Bauzeit {dauer}", { nr: i + 1, dauer: fmtDauer(dauerVon(eintrag)) })
         );
       },
     }
@@ -2111,7 +2281,29 @@ function kachelFuellen(state, root, opts, id, li) {
       const rest = istForschung
         ? forschungRestSekunden(state)
         : (opts.queue.fertigZeit - spielzeitJetzt(state)) / 1000;
-      textSetzen(queueZeile.querySelector("[data-queue-text]"), `→ ${opts.queue.zielLevel} · ${fmtDauer(rest)}`);
+      // A-013: eine laufende ZAHLEN-Forschung wirkt schon anteilig -- also
+      // muss sie das auch sagen (Prinzip 10a). Sonst sieht der Spieler eine
+      // Rate steigen und findet keinen Grund dafuer. Freischaltungen zeigen
+      // nichts an, weil bei ihnen auch nichts anteilig wirkt.
+      const graduell =
+        istForschung && RESEARCH[id].boost && RESEARCH[id].boost.graduell && opts.queue.aufwand > 0;
+      const anteilText = graduell
+        ? ` · ${t("wirkt bereits zu {prozent} %", {
+            prozent: Math.floor(((opts.queue.fortschritt || 0) / opts.queue.aufwand) * 100),
+          })}`
+        : "";
+      textSetzen(
+        queueZeile.querySelector("[data-queue-text]"),
+        `→ ${opts.queue.zielLevel} · ${fmtDauer(rest)}${anteilText}`
+      );
+      fortschrittSetzen(
+        li,
+        istForschung
+          ? anteilVon(opts.queue.fortschritt, opts.queue.aufwand)
+          : opts.queue.fertigZeit === null
+            ? 0 // A-012: wartet auf Material, es läuft noch nichts.
+            : 1 - anteilVon(rest, opts.queue.dauerSek)
+      );
       attributSetzen(
         queueZeile.querySelector("button[data-abbrechen]"),
         "title",
@@ -2123,7 +2315,12 @@ function kachelFuellen(state, root, opts, id, li) {
 
     const aktion = li.querySelector("button.kachel-aktion");
     aktion.hidden = !!fertig;
-    aktion.disabled = !check.ok;
+    // A-012: fehlt NUR das Material, bleibt der Knopf benutzbar -- der Auftrag
+    // reiht sich ein und wartet. Alles andere (Forschung fehlt, Bevoelkerung
+    // zu klein, Rohstoff gibt es hier nicht) sperrt weiterhin, denn daran
+    // aendert kein Zuwarten etwas.
+    const einreihbar = check.ok || check.nurGeld === true;
+    aktion.disabled = !einreihbar;
     textSetzen(aktion, opts.aktionLabel());
     attributSetzen(aktion, "title", check.ok ? "" : check.grund);
 
@@ -2241,7 +2438,15 @@ function renderForschung(state, root, planet) {
   renderWarteschlange(
     state, root, "#forschung-warteschlange", state.forschungsWarteschlange,
     (e) => t("{name} → Stufe {stufe}", { name: t(RESEARCH[e.forschungId].name), stufe: e.zielLevel }),
-    (i) => forschungWarteschlangeEntfernen(state, i)
+    (i) => forschungWarteschlangeEntfernen(state, i),
+    "",
+    // Aufwand geteilt durch den AKTUELLEN Fluss aller Labore -- dieselbe
+    // Rechnung wie fuer die laufende Forschung, nur ohne Fortschritt.
+    (eintrag) => {
+      const fluss = forschungsFluss(state);
+      const aufwand = eintrag.aufwand ?? forschungsAufwand(RESEARCH[eintrag.forschungId], eintrag.zielLevel);
+      return fluss > 0 ? (aufwand / fluss) * 3600 : Infinity;
+    }
   );
 }
 
@@ -2370,9 +2575,9 @@ function werftKachelFuellen(state, planet, li, id) {
 
     const [einer, fuenfer] = li.querySelectorAll("button[data-schiff]");
     textSetzen(einer, t("Bauen"));
-    einer.disabled = !check.ok;
+    einer.disabled = !(check.ok || check.nurGeld === true);
     attributSetzen(einer, "title", check.ok ? "" : check.grund);
-    fuenfer.disabled = !fuenfCheck.ok;
+    fuenfer.disabled = !(fuenfCheck.ok || fuenfCheck.nurGeld === true);
     attributSetzen(fuenfer, "title", fuenfCheck.ok ? t("5 Stück auf einmal") : fuenfCheck.grund);
 
     attributSetzen(li, "title", [
@@ -2455,12 +2660,12 @@ function renderMarkt(state, root, planet) {
       Object.keys(MARKT_PREISE)
         .map(
           (resId) => `
-        <div class="markt-zeile" data-res="${resId}">
-          <span class="markt-name"></span>
-          <span class="dezent" data-bestand></span>
-          <span class="dezent" data-preise></span>
-          <button data-verkaufen="${resId}" data-menge="${MARKT.los}"></button>
-          <button data-kaufen="${resId}" data-menge="${MARKT.los}"></button>
+        <div class="markt-zeile bedienzeile" data-res="${resId}">
+          <span class="markt-name zeile-beschriftung"></span>
+          <span class="dezent zeile-zahl" data-bestand></span>
+          <span class="dezent zeile-eingabe" data-preise></span>
+          <button class="zeile-knopf-1" data-verkaufen="${resId}" data-menge="${MARKT.los}"></button>
+          <button class="zeile-knopf-2" data-kaufen="${resId}" data-menge="${MARKT.los}"></button>
         </div>`
         )
         .join("") +
@@ -2615,13 +2820,13 @@ function renderVerarbeitung(state, root, planet) {
     schluessel: (resId) => resId,
     bauen: (resId) => {
       const zeile = document.createElement("div");
-      zeile.className = "markt-zeile";
+      zeile.className = "markt-zeile bedienzeile";
       zeile.innerHTML = `
-        <span class="markt-name"></span>
-        <span class="dezent" data-lage></span>
-        <input type="number" min="0" step="100" data-reserve="${resId}" />
-        <button data-reserve-setzen></button>
-        <button data-reserve-loeschen hidden></button>`;
+        <span class="markt-name zeile-beschriftung"></span>
+        <span class="dezent zeile-zahl" data-lage></span>
+        <input class="zeile-eingabe" type="number" min="0" step="100" data-reserve="${resId}" />
+        <button class="zeile-knopf-1" data-reserve-setzen></button>
+        <button class="zeile-knopf-2" data-reserve-loeschen hidden></button>`;
 
       const feld = zeile.querySelector("input[data-reserve]");
       // Ereignisse EINMAL beim Bauen. Der Planet wird dabei bewusst NICHT
@@ -2741,13 +2946,13 @@ function renderLogistiknetz(state, root, planet, jetzt) {
     schluessel: (resId) => resId,
     bauen: (resId) => {
       const zeile = document.createElement("div");
-      zeile.className = "markt-zeile";
+      zeile.className = "markt-zeile bedienzeile";
       zeile.innerHTML = `
-        <span class="markt-name"></span>
-        <span class="dezent" data-lage></span>
-        <input type="number" min="0" step="100" data-mindest="${resId}" />
-        <button data-mindest-setzen></button>
-        <button data-mindest-loeschen hidden></button>`;
+        <span class="markt-name zeile-beschriftung"></span>
+        <span class="dezent zeile-zahl" data-lage></span>
+        <input class="zeile-eingabe" type="number" min="0" step="100" data-mindest="${resId}" />
+        <button class="zeile-knopf-1" data-mindest-setzen></button>
+        <button class="zeile-knopf-2" data-mindest-loeschen hidden></button>`;
 
       const feld = zeile.querySelector("input[data-mindest]");
       // Ereignisse EINMAL beim Bauen, und immer auf den GERADE gewählten
@@ -3179,19 +3384,19 @@ function flottenDetail(state, root, flotte) {
         </span>`).join("")}
     </div>
     <div class="flotte-reihe">
-      <span class="umlade-gruppe schieber-gruppe">
-        <span class="dezent" data-tritium-lage></span>
-        <input type="range" min="0" max="100" step="1" data-tanken-schieber="1" title="${t(
+      <span class="schieber-gruppe bedienzeile">
+        <span class="dezent zeile-beschriftung" data-tritium-lage></span>
+        <input class="zeile-regler" type="range" min="0" max="100" step="1" data-tanken-schieber="1" title="${t(
           "Anteil des hier gelagerten Deuteriums, das an Bord soll. Der Regler stellt nur ein -- erst „Tanken“ führt es aus."
         )}" />
-        <span class="schieber-wert" data-tanken-anzeige="1"></span>
-        <input type="number" class="menge-feld" min="0" step="1" placeholder="${t("genaue Menge")}" data-tanken-feld="1" title="${t(
+        <span class="schieber-wert zeile-zahl" data-tanken-anzeige="1"></span>
+        <input type="number" class="menge-feld zeile-eingabe" min="0" step="1" placeholder="${t("genaue Menge")}" data-tanken-feld="1" title="${t(
           "Genauer Betrag statt Prozent. Was hier steht, hat Vorrang vor dem Regler."
         )}" />
-        <button data-tanken-bestaetigen="1" title="${t(
+        <button class="zeile-knopf-1" data-tanken-bestaetigen="1" title="${t(
           "Übernimmt die eingestellte Menge aus dem Hafenlager in den Tank."
         )}">${t("Tanken")}</button>
-        <button data-tanken-alles-ab="1" ${flotte.treibstoff > 0 ? "" : "disabled"} title="${t(
+        <button class="zeile-knopf-2" data-tanken-alles-ab="1" ${flotte.treibstoff > 0 ? "" : "disabled"} title="${t(
           "Gesamten Treibstoff ans Lager zurückgeben"
         )}">${t("Alles abladen")}</button>
       </span>
@@ -3201,16 +3406,16 @@ function flottenDetail(state, root, flotte) {
     </div>
     <div class="flotte-reihe">
       ${LAGER_RESSOURCEN.filter((r) => r !== "credits").map((r) => `
-        <span class="umlade-gruppe schieber-gruppe">
-          <span class="dezent" data-lager-lage="${r}"></span>
-          <input type="range" min="0" max="100" step="1" data-laden-schieber="${r}" title="${t(
+        <span class="schieber-gruppe bedienzeile">
+          <span class="dezent zeile-beschriftung" data-lager-lage="${r}"></span>
+          <input class="zeile-regler" type="range" min="0" max="100" step="1" data-laden-schieber="${r}" title="${t(
             "Anteil der maximalen Frachtkapazität dieser Flotte -- nicht des gerade freien Platzes. Der Regler stellt nur ein, „Laden“ führt aus."
           )}" />
-          <span class="schieber-wert" data-laden-anzeige="${r}"></span>
-          <input type="number" class="menge-feld" min="0" step="1" placeholder="${t("genaue Menge")}" data-laden-feld="${r}" title="${t(
+          <span class="schieber-wert zeile-zahl" data-laden-anzeige="${r}"></span>
+          <input type="number" class="menge-feld zeile-eingabe" min="0" step="1" placeholder="${t("genaue Menge")}" data-laden-feld="${r}" title="${t(
             "Genauer Betrag statt Prozent. Was hier steht, hat Vorrang vor dem Regler."
           )}" />
-          <button data-laden-bestaetigen="${r}" title="${t(
+          <button class="zeile-knopf-1" data-laden-bestaetigen="${r}" title="${t(
             "Lädt die eingestellte Menge {res} aus dem Hafenlager in den Frachtraum.",
             { res: t(RESSOURCEN[r].name) }
           )}">${t("Laden")}</button>
@@ -3728,10 +3933,9 @@ function galaxieZeileFuellen(state, li, eintrag, reichweite) {
 // KI-Forschung vorhanden ist -- vorher gibt es den Knopf gar nicht, statt
 // ihn ausgegraut anzubieten (er wäre sonst dauerhaft im Weg).
 function schnellversandKnoepfe(state, flotte, systemId) {
-  const arten = [
-    { art: "sonde", forschung: "sondenKi", label: () => t("Sonden losschicken") },
-    { art: "erkundung", forschung: "erkunderKi", label: () => t("Erkunder losschicken") },
-  ];
+  // Nur noch Sonden (A-021). Der Erkunder geht wieder über den
+  // Missionsdialog — die Begründung steht an SCHNELLVERSAND in simulation.js.
+  const arten = [{ art: "sonde", forschung: "sondenKi", label: () => t("Sonden losschicken") }];
   let html = "";
   for (const { art, forschung, label } of arten) {
     if ((state.forschung[forschung] || 0) < 1) continue;
@@ -3743,9 +3947,16 @@ function schnellversandKnoepfe(state, flotte, systemId) {
           schiffe: check.schiffe,
         })
       : check.grund;
-    html += ` <button data-schnellversand="${art}" ${check.ok ? "" : "disabled"} title="${titel}">${label()}${
-      check.ok ? ` (${check.ziele.length})` : ""
-    }</button>`;
+    // Der Knopf sagt VOR dem Klick, was er tut: wieviele Sonden und wieviel
+    // Treibstoff (Prinzip 10a). „Losschicken (3)" ließ offen, ob die drei
+    // reichen und was sie kosten — genau die zwei Fragen, die man davor hat.
+    const beschriftung = check.ok
+      ? t("{anzahl} Sonden losschicken · {sprit} Deuterium", {
+          anzahl: check.ziele.length,
+          sprit: fmt(Math.ceil(check.treibstoff)),
+        })
+      : label();
+    html += ` <button data-schnellversand="${art}" ${check.ok ? "" : "disabled"} title="${titel}">${beschriftung}</button>`;
   }
   return html;
 }
@@ -3853,6 +4064,8 @@ function renderSystem(state, root, jetzt) {
       const mission = ereignis.target.closest("button[data-mission]");
       if (mission) {
         const optionen = {};
+        const rueck = liste.querySelector(`input[data-rueckkehr="${mission.dataset.mission}"]`);
+        optionen.rueckkehr = !!(rueck && rueck.checked);
         if (mission.dataset.art === "militaer") {
           const feld = liste.querySelector(`input[data-rueckzug="${mission.dataset.mission}"]`);
           const prozent = feld ? Number(feld.value) : KAMPF.standardRueckzugsSchwelle * 100;
@@ -4135,14 +4348,32 @@ function slotAktion(state, systemId, objekt, gesperrt, eigen, flotte) {
   if (!art) return `<span class="slot-hinweis">${objekt.verwertet ? t("erledigt") : "–"}</span>`;
 
   const check = kannMission(state, flotte, art, systemId, objekt.orbit);
+  // A-020: Standard ist BLEIBEN. Der Rückflug ist eine Wahl beim Losschicken
+  // — vorbelegt nur dort, wo der Rückweg der SINN der Mission ist (Bergung
+  // bringt Beute heim). Alles andere kann genauso gut am Ziel stehen bleiben
+  // und von dort weiterfliegen.
+  //
+  // Reicht der Treibstoff nur für den Hinflug, ist der Schalter gesperrt und
+  // sagt im Titel, warum — der Knopf daneben bleibt trotzdem benutzbar
+  // (Prinzip 10a: die teurere Wahl blockiert nicht die billigere).
+  const rueckKlar = kannMission(state, flotte, art, systemId, objekt.orbit, true);
+  const rueckVor = art === "bergung" && rueckKlar.ok;
+  const rueckTitel = rueckKlar.ok
+    ? t("Fliegt nach der Mission zum Heimathafen zurück. Ohne Haken bleibt die Flotte am Ziel und kann von dort weiter.")
+    : rueckKlar.grund;
+  const rueckSchalter =
+    `<label class="dezent flotten-rueckkehr" title="${rueckTitel}">` +
+    `<input type="checkbox" data-rueckkehr="${objekt.orbit}"${rueckVor ? " checked" : ""}` +
+    `${rueckKlar.ok ? "" : " disabled"} /> ${t("zurück")}</label>`;
   if (art === "militaer") {
     return `
       <label class="dezent">${t("Rückzug unter")}
         <input type="number" min="0" max="100" step="5" value="${KAMPF.standardRueckzugsSchwelle * 100}" data-rueckzug="${objekt.orbit}" />%
       </label>
+      ${rueckSchalter}
       <button data-mission="${objekt.orbit}" data-art="${art}" ${check.ok ? "" : "disabled"} title="${check.ok ? "" : check.grund}">${missionLabel(art)}</button>`;
   }
-  return `<button data-mission="${objekt.orbit}" data-art="${art}" ${check.ok ? "" : "disabled"} title="${check.ok ? "" : check.grund}">${missionLabel(art)}</button>`;
+  return `${rueckSchalter}<button data-mission="${objekt.orbit}" data-art="${art}" ${check.ok ? "" : "disabled"} title="${check.ok ? "" : check.grund}">${missionLabel(art)}</button>`;
 }
 
 // Der Umschalter über der Meldungsliste. Er wird EINMAL verdrahtet -- der

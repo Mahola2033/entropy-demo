@@ -1,7 +1,7 @@
 // Persistenz: Spielstand in localStorage speichern/laden.
 
 import { neuesSpiel, SAVE_VERSION, meldungHinzufuegen, meldungenNummerieren } from "./state.js";
-import { piratenWeltStart, botWeltStart } from "./simulation.js";
+import { piratenWeltStart, botWeltStart, piratenNamenNachziehen } from "./simulation.js";
 import { DEMO_SAAT } from "./data.js";
 import { t } from "./sprache.js";
 
@@ -90,6 +90,9 @@ export function laden() {
     // nicht bei jedem Zugriff: eine Stelle, die einmal läuft, statt einer
     // Bedingung an fünfzig Stellen (A-040).
     meldungenNummerieren(state);
+    // Piratengruppen aus der Zeit vor A-031 heissen nach ihrem Orbitobjekt --
+    // im Log liest sich das wie ein Naturereignis, das Flotten angreift.
+    piratenNamenNachziehen(state);
     return state;
   } catch (e) {
     altenStandSichern(raw, "unlesbar");

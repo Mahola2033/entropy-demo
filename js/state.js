@@ -500,9 +500,15 @@ export function eigenerPlanetAn(state, systemId, orbit) {
 // --- Produktion -----------------------------------------------------------
 export function kategorieBonus(state, kategorie) {
   let faktor = 1;
+  const laufend = state.forschungsQueue;
   for (const def of Object.values(RESEARCH)) {
     if (def.boost && def.boost.kategorie === kategorie) {
       faktor += (state.forschung[def.id] || 0) * def.boost.proLevel;
+      // A-013 (PROBE): die laufende Stufe wirkt anteilig mit ihrem Fortschritt.
+      if (laufend && laufend.forschungId === def.id && def.boost.graduell) {
+        const anteil = laufend.aufwand > 0 ? (laufend.fortschritt || 0) / laufend.aufwand : 0;
+        faktor += Math.min(1, Math.max(0, anteil)) * def.boost.proLevel;
+      }
     }
   }
   return faktor;

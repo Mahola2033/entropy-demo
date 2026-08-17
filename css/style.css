@@ -252,8 +252,13 @@ button[title]:disabled {
      neben den Bestand passte und mal nicht). Mit der Mindesthöhe steht der
      Platz für die zweite Zeile IMMER bereit, ob sie gebraucht wird oder nicht.
      `auto` als Obergrenze lässt extreme Inhalte trotzdem wachsen, statt sie
-     abzuschneiden. */
-  grid-auto-rows: minmax(3.25rem, auto);
+     abzuschneiden.
+
+     Seit A-010 (v0.95) traegt die Nahrungskachel eine dritte Zeile (Verderb).
+     Die Mindesthoehe rechnet sie mit ein -- aus demselben Grund wie oben: der
+     Platz steht IMMER bereit, damit beide Rasterzeilen der Leiste gleich hoch
+     bleiben und nichts springt. */
+  grid-auto-rows: minmax(5.35rem, auto);
 }
 
 .res-reihe-kapazitaet {
@@ -397,7 +402,7 @@ button[title]:disabled {
   letter-spacing: 0.05em;
   color: var(--text-dezent);
   background: transparent;
-  border: 1px solid var(--rahmen);
+  border: 1px solid var(--border);
   border-radius: 3px;
   cursor: pointer;
 }
@@ -909,13 +914,22 @@ button[title]:disabled {
   gap: 2px;
 }
 
+/* Feste Höhe statt Polsterung: ▲, • und ▼ kommen aus verschiedenen
+   Ersatzschriften und bringen verschiedene Zeilenhöhen mit -- damit waren
+   die drei Knöpfe unterschiedlich hoch (Tobis Punkt 24). Ein Kästchen mit
+   fester Höhe, in dem das Zeichen zentriert steht, hängt nicht mehr an der
+   Schrift. */
 .kachel-strom button {
-  padding: 1px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.15rem;
+  padding: 0;
   font-size: 0.7rem;
-  line-height: 1.2;
+  line-height: 1;
   color: var(--text-dezent);
   background: transparent;
-  border: 1px solid var(--rahmen);
+  border: 1px solid var(--border);
 }
 
 .kachel-strom button.aktiv {
@@ -939,6 +953,52 @@ button[title]:disabled {
   border-color: var(--akzent);
   border-left-width: 3px;
   background: color-mix(in srgb, var(--akzent) 8%, var(--bg-item));
+}
+
+/* Die Kachel IST der Balken (Tobis Punkt 22). Ein laufender Bau, eine
+   laufende Forschung, ein laufender Werftauftrag füllen ihre eigene Kachel
+   von links -- kein zusätzliches Balken-Element darunter.
+
+   Drei Eigenschaften, die nicht verhandelbar sind:
+   - Die Fläche ändert KEIN Maß. Sie ist absolut gelegt, die Kachel bekommt
+     dafür nur `position: relative`; Breite und Höhe der Kachel bleiben, was
+     sie waren (die v0.40/41-Regel: nichts, was springt).
+   - Sie liegt UNTER dem Inhalt. `z-index: -1` malt sie nach dem Hintergrund
+     der Kachel und vor deren Text -- das geht nur, solange die Kachel selbst
+     keinen Stapelkontext aufmacht (kein `z-index`, keine `opacity` < 1).
+   - Sie ist keine neue Farbe (Prinzip 11), sondern dieselbe Akzentfarbe wie
+     der aktive Rahmen, nur stark durchsichtig.
+
+   Die Breite kommt aus `--fortschritt` (0 bis 1), das der Sekundentakt per
+   `style.setProperty` nachführt -- kein DOM wird dafür neu gebaut (8a). */
+.gebaeude-item {
+  position: relative;
+  --fortschritt: 0;
+}
+
+.gebaeude-item::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: calc(var(--fortschritt) * 100%);
+  background: var(--akzent);
+  opacity: 0.16;
+  border-radius: 5px 0 0 5px;
+  pointer-events: none;
+  /* Der Takt liefert einmal je Sekunde einen neuen Wert; eine Sekunde
+     linear dazwischen macht daraus eine ruhige Bewegung statt eines
+     Sprungs. */
+  transition: width 1s linear;
+}
+
+/* Fertig oder abgebrochen: die Fläche verschwindet SOFORT, statt eine
+   Sekunde lang rückwärts zu laufen. */
+.gebaeude-item:not(.item-aktiv)::before {
+  width: 0;
+  transition: none;
 }
 
 .gebaeude-kopf {
@@ -1004,16 +1064,25 @@ button[title]:disabled {
   margin: 0;
 }
 
+/* Das × steht seit A-017 VORN (Tobis Punkt 38). Damit die Namen dahinter
+   bündig beginnen, bekommt es eine FESTE Spalte -- sonst richtet sich der
+   Name nach der Knopfbreite, und die hängt am Zeichensatz. Im Geist von
+   Prinzip 10b, auch wenn das Raster selbst noch ein eigener Auftrag ist.
+
+   Die frühere Verteilung über die ganze Zeile fällt weg: mit dem Knopf vorn
+   würde sie die Namen auseinanderziehen statt sie auszurichten. */
 .warteschlange-liste li {
   padding: 0.15rem 0;
   display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
+  align-items: baseline;
+  gap: 0.4rem;
 }
 
 .warteschlange-liste button {
-  padding: 0 0.4rem;
+  padding: 0;
   font-size: 0.85rem;
+  flex: 0 0 1.3rem;
+  text-align: center;
 }
 
 .sonden-status {
@@ -1102,11 +1171,75 @@ button[title]:disabled {
   color: var(--text-dezent);
 }
 
-.markt-zeile {
-  display: flex;
+/* ===== Das Raster für Bedienzeilen (Prinzip 10b) =========================
+   Eine Bedienzeile hat bis zu sechs Rollen -- Beschriftung, Regler, Zahl,
+   Eingabe und bis zu zwei Knöpfe. Jede Rolle hat ihre feste Spalte. Fehlt
+   einer Zeile eine Rolle (Marktzeilen haben keinen Regler), bleibt die
+   Spalte leer: die Ausrichtung entsteht aus der Struktur, nicht aus per
+   Hand gesetzten Maßen an jeder einzelnen Zeile.
+
+   Warum FESTE Breiten statt `auto`: jede Zeile trägt ihren eigenen Rahmen
+   und Hintergrund, ist also ihr eigenes Raster -- `display: contents` am
+   Behälter, das alle Zeilen dieselben Spalten teilen ließe, ginge nur ohne
+   Rahmen. Auto-Spalten fielen damit je Zeile anders aus, und das ist genau
+   die Unruhe, die 10b abstellen soll. Die Breiten stehen deshalb als
+   Variablen: EINE Stelle ändert alle Bedienzeilen des Spiels. */
+:root {
+  --zeile-beschriftung: 8rem;
+  --zeile-regler: 7rem;
+  --zeile-zahl: 10rem;
+  --zeile-eingabe: 8rem;
+  --zeile-knopf: 6rem;
+}
+
+.bedienzeile {
+  display: grid;
+  grid-template-columns:
+    var(--zeile-beschriftung)
+    var(--zeile-regler)
+    var(--zeile-zahl)
+    var(--zeile-eingabe)
+    minmax(var(--zeile-knopf), max-content)
+    minmax(var(--zeile-knopf), max-content);
   align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
+  column-gap: 0.6rem;
+  row-gap: 0.3rem;
+}
+
+/* Die Rollen. Ein Kind ohne Rollenklasse rutscht in die nächste freie
+   Spalte -- deshalb bekommt JEDES Kind einer Bedienzeile seine Rolle. */
+.zeile-beschriftung { grid-column: 1; font-weight: 600; }
+.zeile-regler { grid-column: 2; width: 100%; }
+/* Spalte 3 trägt mal eine reine Zahl („50 %"), mal eine Lage („253 Bedarf ·
+   0 Zustrom"). Deshalb hier nur Ziffernbreite, keine Ausrichtung -- rechts
+   ausgerichtet wird, wo tatsächlich eine Zahl steht. */
+.zeile-zahl {
+  grid-column: 3;
+  font-variant-numeric: tabular-nums;
+}
+.zeile-eingabe { grid-column: 4; min-width: 0; }
+.zeile-knopf-1 { grid-column: 5; }
+.zeile-knopf-2 { grid-column: 6; }
+
+/* Knöpfe in einer Bedienzeile sind gleich hoch. Ohne das hängt die Höhe am
+   Zeichen im Knopf -- ein Pfeil und ein Punkt kommen aus verschiedenen
+   Ersatzschriften und bringen verschiedene Metriken mit. Das war Tobis
+   Punkt 24 („Prio buttons nicht einheitlich hoch"). */
+.bedienzeile button { min-height: 1.9rem; }
+
+/* Schmal: das Raster fällt auf zwei Spalten zurück, die Beschriftung nimmt
+   eine eigene Zeile. Lieber ein anderes Raster als eines, das überläuft. */
+@media (max-width: 720px) {
+  .bedienzeile { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .zeile-regler,
+  .zeile-zahl,
+  .zeile-eingabe,
+  .zeile-knopf-1,
+  .zeile-knopf-2 { grid-column: auto; }
+  .zeile-beschriftung { grid-column: 1 / -1; }
+}
+
+.markt-zeile {
   background: var(--bg-item);
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -1115,12 +1248,11 @@ button[title]:disabled {
 }
 
 .markt-name {
-  min-width: 6rem;
   font-weight: 600;
 }
 
 .markt-zeile input[type="number"] {
-  width: 8rem;
+  width: 100%;
   background: var(--bg-item);
   color: var(--text);
   border: 1px solid var(--border);
@@ -1167,19 +1299,25 @@ button[title]:disabled {
   font-weight: 600;
 }
 
+/* Die Umlade-Gruppen sind Bedienzeilen im Sinne von 10b und liegen im
+   Raster oben. Sie stehen untereinander statt nebeneinander zu umbrechen --
+   sonst rutschen sechs Regler bei jeder Fensterbreite anders. */
 .schieber-gruppe {
-  flex-wrap: wrap;
-}
-
-.schieber-gruppe input[type="range"] {
-  width: 8rem;
+  width: 100%;
 }
 
 .schieber-wert {
-  min-width: 5.5rem;
   text-align: right;
-  font-variant-numeric: tabular-nums;
   color: var(--akzent);
+}
+
+.flotte-reihe .menge-feld {
+  width: 100%;
+  background: var(--bg-item);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
 }
 
 .auftrag-zeile {

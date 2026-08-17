@@ -17,7 +17,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.94";
+export const VERSION = "1.12";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von uebernehmen.mjs beim Kopieren auf "spielkopie"
@@ -418,7 +418,60 @@ export const UNBEKANNTE_RESSOURCEN = { slots: 0, symbol: "⬛" };
 // aber er muss ursächlich erreicht werden, und Überreste werden modelliert,
 // solange sie eine Verwendung haben. Gibt es keine Verwendung, dürfen sie
 // aus der Welt verschwinden, statt ewig mitgeführt zu werden.
+// Ab welcher Versorgung ein Magnetfeldgenerator die Teilchenflut wirklich
+// abhaelt (A-025). Voll versorgt heisst voll versorgt: ein Feld mit 80 %
+// Leistung lenkt nicht 80 % der Teilchen ab, es reisst an der falschen Stelle
+// auf.
+//
+// Die Zahl steht HIER und nicht in der Abrechnung, seit ein Test sie braucht:
+// eine Schwelle an zwei Orten ist eine Schwelle zu viel -- genau der Fehler,
+// der bei der Piraten-Neugruendung (v0.42) Zeit gekostet hat.
+export const SCHIRM_MINDESTVERSORGUNG = 0.999;
+
+// Namen für Piratengruppen (A-031).
+//
+// ANLASS: die Gruppen hießen nach dem Orbitobjekt ihrer Entstehung. Im
+// Meldungslog las sich ein Angriff dann als „Instabile Strahlungszone nimmt
+// Kurs auf …" -- ein Naturereignis, das Flotten überfällt. Seit A-002 die
+// fremden Basen sichtbar macht, stand das dauernd auf dem Bildschirm.
+//
+// Der Ton ist Absicht: rau, kurz, ohne Witzelei. Diese Gruppen sind die
+// Gegenspieler, nicht die Comic-Einlage -- sie leben von dem, was sie anderen
+// abnehmen, und ihr Name soll das tragen.
+//
+// Gezogen wird DETERMINISTISCH aus dem Weltseed (Regel seit v0.39: nie
+// Math.random für Weltinhalt). Gleiche Saat, gleiche Namen.
+export const PIRATEN_NAMEN = [
+  "Rostwölfe",
+  "Leere Hand",
+  "Schwarze Bake",
+  "Aschefahrer",
+  "Kalte Ernte",
+  "Splitterflotte",
+  "Trockendock",
+  "Letzte Bahn",
+  "Narbenzug",
+  "Schlackebrüder",
+  "Stille Fracht",
+  "Eisenmeute",
+];
+
 export const SCHROTT_ANTEIL = 0.3;
+
+// Ab welcher Menge sich ein Ueberrest ueberhaupt lohnt (A-022).
+//
+// Die Fortsetzung derselben Regel eine Zeile hoeher: Ueberreste werden
+// modelliert, SOLANGE SIE EINE VERWENDUNG HABEN. Drei Tonnen Deuterium an
+// einem Orbit haben keine -- niemand schickt einen Frachter dafuer los. Was
+// sie haetten, waere eine Nebenwirkung: jede verbrauchte Sonde liesse ein
+// Haeufchen zurueck, und nach ein paar Stunden ist die Galaxie mit
+// Kleinstmengen zugepflastert, durch die man sich beim Bergen wuehlen muss.
+//
+// Die Grenze ist eine MENGE und traegt deshalb den Massstab (unten in der
+// Skalierungsschleife). Roh 10 heisst: unter 500 Einheiten faellt der Rest
+// weg -- gemessen an einem Sondentank (400 roh = 20.000) ist das ein
+// Vierzigstel und damit sicher unter allem, wofuer jemand fliegen wuerde.
+export const REST_BAGATELLE = 10;
 
 // Handelslos: wie viel ein Klick am Markt bewegt. Waechst mit dem Massstab
 // mit -- ein fixes 100er-Los waere gegen Millionenbestaende bedeutungslos.
@@ -1646,7 +1699,7 @@ export const RESEARCH = {
     baseCost: { metall: 200, silizium: 100 },
     costFactor: 1.8,
     buildTimeDivisor: 1.5,
-    boost: { kategorie: "mine", proLevel: 0.05 },
+    boost: { kategorie: "mine", proLevel: 0.05, graduell: true },
     voraussetzungen: {},
   },
   energietechnik: {
@@ -1657,7 +1710,7 @@ export const RESEARCH = {
     baseCost: { metall: 150, silizium: 150 },
     costFactor: 1.8,
     buildTimeDivisor: 1.5,
-    boost: { kategorie: "energie", proLevel: 0.08 },
+    boost: { kategorie: "energie", proLevel: 0.08, graduell: true },
     voraussetzungen: {},
   },
   sondentechnik: {
@@ -1734,7 +1787,7 @@ export const RESEARCH = {
     baseCost: { metall: 200, silizium: 120 },
     costFactor: 1.5,
     buildTimeDivisor: 1.6,
-    boost: { kategorie: "lager", proLevel: 0.06 },
+    boost: { kategorie: "lager", proLevel: 0.06, graduell: true },
     voraussetzungen: {},
   },
   fusionstechnik: {
@@ -1745,7 +1798,7 @@ export const RESEARCH = {
     baseCost: { metall: 500, silizium: 400 },
     costFactor: 1.7,
     buildTimeDivisor: 1.4,
-    boost: { kategorie: "energie", proLevel: 0.1 },
+    boost: { kategorie: "energie", proLevel: 0.1, graduell: true },
     voraussetzungen: { energietechnik: 3 },
   },
   iridiumverarbeitung: {
@@ -1755,7 +1808,7 @@ export const RESEARCH = {
     baseCost: { metall: 300, silizium: 250 },
     costFactor: 1.8,
     buildTimeDivisor: 1.5,
-    boost: { kategorie: "iridium", proLevel: 0.07 },
+    boost: { kategorie: "iridium", proLevel: 0.07, graduell: true },
     voraussetzungen: { foerdertechnik: 1 },
   },
   // Aufklärungs-Automatisierung. Gleiche Denkweise wie
@@ -1786,7 +1839,10 @@ export const RESEARCH = {
   automatisierungstechnik: {
     id: "automatisierungstechnik",
     name: "Automatisierungstechnik",
-    beschreibung: "Schaltet wiederkehrende Flottenrouten frei -- Schiffe fahren feste Strecken mit Lade-/Entladeregeln, ohne dass du jede Fahrt einzeln anstoßen musst.",
+    // A-034: Routen sind seit v1.11 frei -- diese Forschung schaltet sie
+    // nicht mehr frei, sie ist die Grundlage der KI-Stufen darueber
+    // (Sonden- und Erkunder-KI). Die Beschreibung sagt das jetzt auch.
+    beschreibung: "Grundlage der selbständig handelnden Steuerungen. Routen fährst du auch ohne sie – hier beginnt, was ohne dich ENTSCHEIDET, statt nur zu wiederholen.",
     baseCost: { metall: 1200, silizium: 900 },
     costFactor: 1.4,
     buildTimeDivisor: 1.2,
@@ -1810,7 +1866,7 @@ export const RESEARCH = {
     baseCost: { metall: 900, silizium: 900, iridium: 300 },
     costFactor: 2.0,
     buildTimeDivisor: 1.2,
-    boost: { kategorie: "antimaterie", proLevel: 0.1 },
+    boost: { kategorie: "antimaterie", proLevel: 0.1, graduell: true },
     voraussetzungen: { iridiumverarbeitung: 3, fusionstechnik: 1 },
   },
 
@@ -1996,9 +2052,22 @@ export const TRANSPORT = {
 // wird. angriff: Schaden pro Kampfrunde. 0 heißt unbewaffnet -- aber auch
 // unbewaffnete Schiffe stehen im Verband mit im Feuer (siehe simulation.js
 // gefechtAufloesen), Zivilschiffe im Kampf mitzunehmen ist ein echtes Risiko.
+// : ab welcher Werftstufe dieser Typ gebaut werden kann (A-027).
+//
+// TOBIS ANSAGE (17.08.): "Werft level entscheidet was fuer Schiffe man bauen
+// kann." Bis dahin brachte jede Stufe nur +25 % Tempo -- der Ausbau war keine
+// Entscheidung, sondern eine Zahl. Jetzt aendert er, WORUEBER entschieden wird
+// (Prinzip 12), und zwar an derselben Sorte Moment, die Tobi an der
+// Werft-Freischaltung selbst gelobt hat, nur eine Ebene tiefer.
+//
+// Die Staffelung folgt dem Anspruch der Schiffe, nicht ihrem Preis: Sonde und
+// Frachter sind Blech mit Tank (1), der Erkunder traegt Menschen (2),
+// Forschungs- und Kriegsschiff brauchen Spezialausruestung (3), das
+// Kolonieschiff ist eine fliegende Stadtgruendung (4).
 export const SCHIFFE = {
   sonde: {
     id: "sonde",
+    werftAb: 1,
     name: "Sonde",
     beschreibung:
       "Billige Einwegsonde. Deckt einfache Ziele auf. Sie kehrt nicht zurück, weil Abbremsen genauso viel Treibstoff kostet wie Beschleunigen – eine Sonde, die heimkommen soll, ist ein ganz anderes Schiff.",
@@ -2014,6 +2083,7 @@ export const SCHIFFE = {
   },
   erkunder: {
     id: "erkunder",
+    werftAb: 2,
     name: "Erkunder",
     beschreibung: "Bemanntes Aufklärungsschiff. Nötig für komplexe Ziele – Anomalien, Strukturen, Gefahren.",
     kosten: { metall: 500, silizium: 350, elektronik: 70 },
@@ -2028,6 +2098,7 @@ export const SCHIFFE = {
   },
   forschungsschiff: {
     id: "forschungsschiff",
+    werftAb: 3,
     name: "Forschungsschiff",
     beschreibung: "Wertet Anomalien aus. Ohne Forschungsmission gibt eine Anomalie ihre Technologie nicht her.",
     kosten: { metall: 800, silizium: 800, elektronik: 180 },
@@ -2042,6 +2113,7 @@ export const SCHIFFE = {
   },
   frachter: {
     id: "frachter",
+    werftAb: 1,
     name: "Frachter",
     beschreibung: "Bringt Bergungsgut und Ressourcen nach Hause. Große Funde brauchen mehrere Fahrten.",
     kosten: { metall: 700, silizium: 300, elektronik: 90 },
@@ -2056,6 +2128,7 @@ export const SCHIFFE = {
   },
   kolonieschiff: {
     id: "kolonieschiff",
+    werftAb: 4,
     name: "Kolonieschiff",
     beschreibung: "Gründet eine vollwertige Kolonie. Wird dabei verbraucht.",
     kosten: { metall: 3500, silizium: 2200, elektronik: 400 },
@@ -2070,6 +2143,7 @@ export const SCHIFFE = {
   },
   kriegsschiff: {
     id: "kriegsschiff",
+    werftAb: 3,
     name: "Kriegsschiff",
     beschreibung:
       "Bewaffnetes Schiff. Einziger Schiffstyp, der Gefahren-Objekte angreifen kann. Verstecken kann es sich nicht: jedes Schiff strahlt seine Abwärme gegen einen drei Grad über dem absoluten Nullpunkt kalten Hintergrund ab. Wer im System ist, ist sichtbar.",
@@ -2301,6 +2375,8 @@ for (const feld of ["schiffKosten", "frachtKosten", "startVorrat"]) {
   for (const k of Object.keys(PIRAT[feld])) PIRAT[feld][k] = Math.round(PIRAT[feld][k] * MASSSTAB);
 }
 PIRAT.mindestBeute = Math.round(PIRAT.mindestBeute * MASSSTAB);
+// Bagatellgrenze fuer Ueberreste (A-022) -- eine MENGE, also mit Massstab.
+export const REST_BAGATELLE_SKALIERT = Math.round(REST_BAGATELLE * MASSSTAB);
 // Auch die Gruendungsschwellen sind MENGEN. Unskaliert qualifizierte sich
 // sofort jede Startwelt -- vierter Fall dieser Falle im Projekt.
 // Auch die Kolonieschwelle der Bots ist eine MENGE -- fünfter Fall dieser
