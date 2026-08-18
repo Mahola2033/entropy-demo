@@ -1,6 +1,14 @@
 // Persistenz: Spielstand in localStorage speichern/laden.
 
-import { neuesSpiel, SAVE_VERSION, meldungHinzufuegen, meldungenNummerieren, pauseNachziehen, speicherbarerVersatz } from "./state.js";
+import {
+  neuesSpiel,
+  SAVE_VERSION,
+  meldungHinzufuegen,
+  meldungenNummerieren,
+  momenteNachziehen,
+  pauseNachziehen,
+  speicherbarerVersatz,
+} from "./state.js";
 import { piratenWeltStart, botWeltStart, piratenNamenNachziehen } from "./simulation.js";
 import { notausgangLoeschen } from "./aufholen.js";
 import { DEMO_SAAT } from "./data.js";
@@ -96,6 +104,10 @@ export function laden() {
     piratenNamenNachziehen(state);
     // Eine Pause aus dem Testmodus ueberdauert das Neuladen (A-038).
     pauseNachziehen(state);
+    // Wer einen Moment schon hinter sich hat, bekommt seine Erklärung nicht
+    // nachträglich (A-060). Muss VOR dem ersten Takt laufen -- der würde sie
+    // sonst sofort schreiben.
+    momenteNachziehen(state);
     return state;
   } catch (e) {
     altenStandSichern(raw, "unlesbar");

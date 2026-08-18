@@ -735,15 +735,32 @@ button[title]:disabled {
   opacity: 0.55;
 }
 
-.zwei-spalten {
+/* Galaxie, System, Kommando (A-057). Die dritte Spalte ist die schmalste --
+   sie trägt Chips und eine Bedienzeile, keine Karte. Bei knapper Breite fällt
+   das Raster auf zwei Spalten zurück und das Kommando rutscht unter die
+   Karten, statt sie zu zerdrücken: lieber ein anderes Raster als eines, das
+   überläuft (dieselbe Regel wie bei .bedienzeile). */
+.drei-spalten {
   display: grid;
-  grid-template-columns: 1fr 1.4fr;
+  /* minmax(0, …) statt eines nackten fr: eine fr-Spur wird nie schmaler als ihr
+     min-content, und die Kommandospalte trägt eine Bedienzeile mit festen
+     Rollenbreiten. Ohne die 0 als Untergrenze zog genau die das Verhältnis
+     auseinander -- gemessen 219/308/548 px statt der gewollten Aufteilung,
+     die Kommandospalte war die BREITESTE. Ihre Untergrenze steht deshalb als
+     echte Zahl daneben: schmaler als 16,5rem liefe die Treibstoffzeile über,
+     breiter braucht sie nicht zu werden. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(16.5rem, 0.8fr);
   gap: 1rem;
   flex: 1;
   min-height: 0;
 }
 
-/* Beide Spalten sind gleich hoch und enden auf derselben Linie: fester
+@media (max-width: 1200px) {
+  .drei-spalten { grid-template-columns: 1fr 1.3fr; }
+  .drei-spalten > .spalte:last-child { grid-column: 1 / -1; }
+}
+
+/* Alle Spalten sind gleich hoch und enden auf derselben Linie: fester
    Kopf oben, die Liste darunter füllt den Rest und scrollt dort intern. */
 .spalte {
   display: flex;
@@ -1785,6 +1802,73 @@ button[title]:disabled {
   pointer-events: all;
 }
 
+/* Das Klickziel einer Flotte (A-056) -- dieselbe Rechnung wie bei
+   .karte-treffer: die sichtbare Raute ist 2,8 Einheiten hoch, ein Ziel dieser
+   Größe wäre keine Bedienung, sondern Glück. Geteilt durch den Maßstab behält
+   das Ziel seine Größe AUF DEM SCHIRM, statt beim Zoomen mitzuwachsen. */
+.karte-flotte-treffer {
+  r: calc(3.4px / var(--karte-zoom, 1));
+  fill: transparent;
+  pointer-events: all;
+  cursor: pointer;
+}
+
+/* Fremde Flotten sind nicht wählbar (so beauftragt). Ohne diese Zeile stünde
+   ein Zeigefinger über einer Marke, die auf keinen Klick reagiert. */
+.karte-flotte.karte-fremd .karte-flotte-treffer {
+  pointer-events: none;
+  cursor: help;
+}
+
+/* Die Auswahl-Raute: zweite, größere Raute um den Punkt. Sichtbar wird sie
+   allein über die Klasse der Gruppe -- ein Zustand, eine Stelle. */
+.karte-flotte-wahl {
+  fill: none;
+  stroke: var(--akzent);
+  stroke-width: 0.9;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.karte-flotte.karte-flotte-gewaehlt .karte-flotte-wahl {
+  visibility: visible;
+}
+
+/* Die Vorschaulinie der Kommandoleiste (A-057): wohin dieser Auftrag die
+   Flotte schicken WÜRDE. Deutlich anders als .karte-route, die einen
+   laufenden Flug zeigt -- ein Vorhaben und eine Tatsache dürfen nicht gleich
+   aussehen. Länger gestrichelt und heller. */
+.karte-vorschau {
+  stroke: var(--akzent);
+  stroke-width: 0.8;
+  stroke-dasharray: 4 3;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.karte-vorschau-text {
+  fill: var(--akzent);
+  font-size: 4px;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 1.2;
+  pointer-events: none;
+}
+
+/* Wie weit die GEWÄHLTE Flotte mit dem Treibstoff an Bord kommt. Dieselbe
+   Formensprache wie .karte-reichweite (gestrichelter Kreis = "bis hierhin"),
+   aber heller und feiner gestrichelt: der Stützpunkt-Ring gilt immer, dieser
+   hier gehört zu einer Auswahl und geht mit ihr wieder weg. */
+.karte-flottenring {
+  fill: none;
+  stroke: var(--akzent);
+  stroke-width: 0.5;
+  stroke-dasharray: 1.5 2.5;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
 /* Unterwegs: hohl statt gefüllt. Eine Flotte zwischen zwei Sternen ist nicht
    angekommen, und die Marke soll das nicht behaupten. */
 .karte-flotte.karte-unterwegs .karte-flotte-marke {
@@ -2465,4 +2549,200 @@ button:disabled {
 .erstklaerung-knoepfe .zweitrangig:hover:not(:disabled) {
   background: var(--bg-item);
   color: var(--text);
+}
+
+/* ===== Die Kommandoleiste (A-057) =======================================
+   Drei Stationen untereinander, jede mit eigenem Rahmen: der Weg Flotte →
+   Ziel → Auftrag soll als Weg zu sehen sein und nicht als Textblock. Sie
+   klappen nicht (Prinzip 8) -- eine Station, die manchmal da ist, zwingt zum
+   Suchen. */
+.kommando-station {
+  background: var(--bg-item);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.kommando-titel {
+  font-weight: 600;
+  color: var(--text-dezent);
+  font-size: 0.85rem;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.35rem;
+}
+
+/* Dieselben Chips wie die Planetenwahl -- so beauftragt. Sie brauchen hier
+   nur ihren Umbruch, weil die Spalte schmaler ist als die Kopfleiste. */
+.kommando-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 0.35rem;
+}
+
+.kommando-schalter {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+
+/* Die Treibstoffzeile ist eine Bedienzeile im Sinne von 10b und trägt deren
+   Rollenklassen. In dieser schmalen Spalte reichen die vollen Spaltenbreiten
+   nicht, deshalb hier -- und NUR hier -- engere Werte für dieselben Rollen.
+   Die Variablen sind genau dafür da: das Raster bleibt, die Maße passen sich
+   dem Ort an. */
+.kommando-sprit {
+  --zeile-beschriftung: 4.2rem;
+  --zeile-regler: 0;
+  /* Die Lagespalte ist hier NICHT fest: sie ist die einzige, deren Inhalt
+     mitwachsen darf, und in einer 16,5rem schmalen Spalte muss irgendeine
+     Spur nachgeben. Eine feste Breite lief hier über (gemessen 240 px Raster
+     in 220 px Platz). Dass das geht, ist der Sinn der 10b-Variablen: die
+     ROLLE bleibt Spalte 3, ihr Maß gehört dem Ort. */
+  --zeile-zahl: minmax(0, 1fr);
+  --zeile-eingabe: 4.2rem;
+  /* Null, nicht weggelassen: die beiden Knopfspalten des Rasters bleiben in
+     dieser Zeile leer (der Los-Knopf steht darunter, er ist der Hauptknopf
+     der Station und keine Zeilenschaltfläche). Mit --zeile-knopf: 0 fallen
+     sie auf Breite null zusammen, statt 12rem Luft zu reservieren. */
+  --zeile-knopf: 0;
+  column-gap: 0.4rem;
+  margin-bottom: 0.35rem;
+}
+
+/* .menge-feld bringt 6,5em Grundbreite mit (Zeile 2265) -- die passt in die
+   breiten Bedienzeilen des Hafens, nicht in diese Spalte. Hier füllt das Feld
+   seine Rasterspur und sonst nichts. */
+.kommando-sprit .menge-feld {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Der Los-Knopf ist der Hauptknopf der Leiste und darf danach aussehen. */
+.kommando-los {
+  width: 100%;
+  min-height: 2.1rem;
+  font-weight: 600;
+}
+
+/* --- „Diese Welt in Zahlen" (A-064) --------------------------------------
+   Fünf Gruppen nebeneinander, zwei bis drei Spalten je nach Breite des
+   Spielfelds. `auto-fit` mit einer Mindestbreite statt einer festen
+   Spaltenzahl: die Statusspalte lässt sich einklappen und gibt dabei 380 px
+   ans Spielfeld ab -- eine feste Spaltenzahl stünde bei einer der beiden
+   Breiten falsch.
+
+   Die Gruppen dürfen verschieden hoch sein (`align-items: start`); die
+   ZEILEN darin dürfen es nicht. Jede hat eine Mindesthöhe, damit ein leerer
+   Wert („Brennstoff —") die Spalte nicht um eine Zeile hochzieht, sobald er
+   erscheint oder verschwindet. Dieselbe Regel wie bei `.lager-prognose`
+   (A-051). */
+.uebersicht {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  /* Deckel bei drei Spalten. Ohne ihn legte auto-fit auf WQHD mit
+     eingeklappter Statusspalte alle fünf Gruppen in EINE Zeile -- fünf
+     schmale Säulen, in denen jede zweite Zahl umbricht. Der Auftrag will
+     zwei bis drei Spalten, und 76rem sind genau die Breite, ab der eine
+     vierte Spalte von 20rem nicht mehr hineinpasst. */
+  max-width: 76rem;
+  align-items: start;
+  gap: 0.5rem;
+  margin-bottom: 0.9rem;
+}
+
+.uebersicht-hinweis {
+  grid-column: 1 / -1;
+}
+
+.uebersicht-gruppe {
+  background: var(--bg-item);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.45rem 0.7rem 0.55rem;
+}
+
+.uebersicht-titel {
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dezent);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.2rem;
+  margin-bottom: 0.25rem;
+}
+
+/* Feste Beschriftungsspalte -- dieselbe Idee wie im 10b-Raster: die
+   Ausrichtung entsteht aus der Struktur, nicht aus per Hand gesetzten Maßen
+   an jeder Zeile. Schmaler als `--zeile-beschriftung`, weil hier weder
+   Regler noch Knopf danebenstehen. */
+.uebersicht-zeile {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr;
+  column-gap: 0.5rem;
+  align-items: baseline;
+  min-height: 1.4rem;
+  font-size: 0.85rem;
+}
+
+.uebersicht-marke {
+  color: var(--text-dezent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* `tabular-nums` ist hier Pflicht und kein Feinschliff: in diesem Block
+   stehen rund dreißig Zahlen nebeneinander, die im Sekundentakt wandern.
+   Mit proportionalen Ziffern zappelte die halbe Spalte bei jedem Takt --
+   dieselbe Ursache, die v0.40/41 schon in der Ressourcenleiste behoben
+   wurde. `min-width: 0` lässt lange Werte umbrechen, statt das Raster
+   aufzuspreizen. */
+.uebersicht-wert {
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+}
+
+.uebersicht-wert.warnung {
+  color: var(--warnung);
+}
+
+/* A-065: die Beschaffungszeile auf einer Ausbau-Kachel. Kleiner als der
+   Rest der Kachel und in der dezenten Farbe: sie ist eine Auskunft, keine
+   Sperre -- der Knopf daneben bleibt benutzbar (A-012, „es fehlt nur
+   Material").
+
+   GENAU EINE ZEILE, notfalls abgeschnitten. Das ist gemessen und nicht
+   Geschmack: die Kacheln liegen in einem Raster mit `grid-auto-rows: 1fr`,
+   eine dreizeilige Zeile am Magnetschild zog seine ganze Rasterzeile von
+   186 auf 245 px -- also auch alle Nachbarkacheln, die damit nichts zu tun
+   haben (Prinzip 10, A-053). Der vollstaendige Text mit Mengen und Anlagen
+   steht im Tooltip und im DOM, nur die Darstellung ist gekappt. */
+.kachel-beschaffung {
+  font-size: 0.75rem;
+  line-height: 1.25;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A-071: die Modus-Zeile auf der Extraktor-Kachel. Sie ist eine
+   Bedienzeile (10b-Raster) und traegt deshalb dieselben Spalten wie jede
+   andere -- nur schmaler gesetzt, weil sie in einer Kachel steht und nicht
+   in einer Liste ueber die volle Breite. */
+.kachel-modus {
+  --zeile-beschriftung: 6.5rem;
+  --zeile-zahl: 8rem;
+  --zeile-knopf: 5rem;
+  font-size: 0.78rem;
+  margin-top: 0.15rem;
+}
+
+.kachel-modus button {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.4rem;
 }

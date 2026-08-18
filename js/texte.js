@@ -73,8 +73,26 @@ export const EN = {
     "Extracts metal from the crust. Worlds close to their star are richer in metal because the light material was boiled away early on – Mercury is made up of a strikingly large share of iron.",
   "Baut Silizium für Bauteile und Elektronik ab. Sauerstoff und Silizium sind die beiden häufigsten Elemente jeder Gesteinskruste – neun Zehntel davon sind Silikate.":
     "Mines silicon for components and electronics. Oxygen and silicon are the two most common elements in any rocky crust – nine tenths of it is silicates.",
-  "Fusionsreaktor. Die Reaktion setzt schnelle Neutronen frei – ungeladen, also nur schwer abzuschirmen und nur als Wärme erntbar. Deshalb steckt in jedem Kraftwerk ein Dampfkreislauf, so altmodisch das klingt.":
-    "Fusion reactor. The reaction releases fast neutrons – uncharged, therefore hard to shield and harvestable only as heat. That is why every power plant contains a steam cycle, however old-fashioned that sounds.",
+  "Fusionsreaktor. Die Reaktion setzt schnelle Neutronen frei – ungeladen, also nur schwer abzuschirmen und nur als Wärme erntbar. Deshalb steckt in jedem Kraftwerk ein Dampfkreislauf, so altmodisch das klingt. Verbrennt Deuterium aus dem Lager – ohne Brennstoff zündet die Fusion nicht.":
+    "Fusion reactor. The reaction releases fast neutrons – uncharged, therefore hard to shield and harvestable only as heat. That is why every power plant contains a steam cycle, however old-fashioned that sounds. Burns deuterium from storage – without fuel the fusion does not ignite.",
+  Solarfeld: "Solar Field",
+  Hydrokultur: "Hydroponics",
+  "Baut Nahrung unter Kunstlicht in geschlossenen Regalen – unabhängig von Sonne und Ozonschicht. Teuer erkauft: Pflanzen verwerten nur rund ein Prozent des Lichts, und hier kommt jedes Photon aus der Steckdose. Die teure Antwort, wenn draußen nichts mehr wächst.":
+    "Grows food under artificial light in sealed racks – independent of sun and ozone layer. Dearly bought: plants convert only about one percent of the light, and here every photon comes out of the socket. The expensive answer when nothing grows outside any more.",
+  "Für Energie gibt es zwei Wege, und sie unterscheiden sich im Preis: Das Kraftwerk verbrennt Deuterium aus dem Lager – geht der Brennstoff aus, zündet die Fusion nicht mehr und der Reaktor steht, bis wieder Vorrat für den Anlauf da ist. Das Solarfeld braucht keinen Brennstoff und liefert sternnah am meisten – aber seine Halbleiter überstehen die Teilchenflut nicht: ungeschirmte Felder sind danach Schrott. Der bequeme Weg ist der verwundbare; ein Energiespeicher überbrückt Lücken in beiden.":
+    "There are two paths to power, and they differ in their price: the power plant burns deuterium from storage – once the fuel runs out, the fusion no longer ignites and the reactor stands still until there is stock for a fresh start-up. The solar field needs no fuel and yields the most close to the star – but its semiconductors do not survive the particle flood: unshielded fields are scrap afterwards. The convenient path is the vulnerable one; an energy storage bridges gaps in both.",
+  "Kein Brennstoff – der Reaktor ist aus. Er zündet wieder, sobald Deuterium für {dauer} im Lager liegt.":
+    "No fuel – the reactor is out. It ignites again once there is deuterium for {dauer} in storage.",
+  "Kein Brennstoff – Reaktor aus": "No fuel – reactor out",
+  "Deuterium im Lager geteilt durch den Verbrauch des Kraftwerks – Zufluss nicht eingerechnet.":
+    "Deuterium in storage divided by the power plant's consumption – inflow not included.",
+  "Brennstoff für {dauer}": "Fuel for {dauer}",
+  "Der Reaktor verbrennt bei jeder Last gleich viel: Stufe {stufe} zieht {rate}, ausgelastet wie im Leerlauf. Jede weitere Ausbaustufe zieht mehr – die Reichweite gilt für die jetzige Stufe.":
+    "The reactor burns the same at any load: level {stufe} draws {rate}, fully loaded or idling. Every further level draws more – the range holds for the current level.",
+  "Achtung: Ungeschirmte Solarfelder überstehen die Teilchenflut nicht.":
+    "Warning: unshielded solar fields will not survive the particle flood.",
+  "Photovoltaik in Feldern. Halbleiter ernten Licht direkt, ohne Brennstoff und ohne Dampfkreislauf – aber ihr Kristallgitter ist empfindlich: schnelle geladene Teilchen schlagen Atome von ihren Plätzen, und genau daraus besteht eine Teilchenflut. Sternnahe Orbits liefern mehr, weil die Bestrahlungsstärke mit dem Abstandsquadrat fällt.":
+    "Photovoltaics in fields. Semiconductors harvest light directly, with no fuel and no steam cycle – but their crystal lattice is delicate: fast charged particles knock atoms off their sites, and that is exactly what a particle flood is made of. Orbits close to the star yield more, because irradiance falls with the square of distance.",
   "Erhöht die Lagerkapazität aller lagerbaren Ressourcen.": "Increases storage capacity for all stockpiled resources.",
   "Gewinnt Deuterium aus Wasser – der Treibstoff, ohne den keine Flotte fliegt. Schwerer Wasserstoff ist stabil und steckt überall dort, wo Wasser ist: in jedem sechstausendsten Wasserstoffkern, in Eis, in Ozeanen, in feuchtem Gestein.":
     "Extracts deuterium from water – the fuel without which no fleet flies. Heavy hydrogen is stable and sits wherever water does: in every six-thousandth hydrogen nucleus, in ice, in oceans, in damp rock.",
@@ -303,6 +321,8 @@ export const EN = {
     "FE stands for research points (Forschungseinheiten). Your labs produce them continuously, and they flow into EXACTLY ONE project – the queue below is worked off one after another.",
   "Braucht Werft Stufe {noetig} (aktuell {aktuell}).": "Needs shipyard level {noetig} (currently {aktuell}).",
   "{anzahl} Sonden losschicken · {sprit} Deuterium": "Send {anzahl} probes · {sprit} deuterium",
+  // A-070: Einzahl-Vorlagen statt Pluralsystem, wie in A-068.
+  "1 Sonde losschicken · {sprit} Deuterium": "Send 1 probe · {sprit} deuterium",
   "zurück": "return",
   "Fliegt nach der Mission zum Heimathafen zurück. Ohne Haken bleibt die Flotte am Ziel und kann von dort weiter.":
     "Flies back to the home port after the mission. Without the tick the fleet stays at the target and can continue from there.",
@@ -622,6 +642,9 @@ export const EN = {
   // --- Imperiumsübersicht -------------------------------------------------
   "{anzahl} Stützpunkte · davon {wirtschaft} mit Wirtschaft":
     "{anzahl} bases · {wirtschaft} of them with an economy",
+  // A-068: eigene Einzahl-Vorlage statt eines Pluralsystems für zwei Stellen.
+  "1 Stützpunkt · davon {wirtschaft} mit Wirtschaft":
+    "1 base · {wirtschaft} with an economy",
   "Gekaufte Ware, die noch am Markt auf Abholung wartet":
     "Purchased goods still waiting at the market to be collected",
   "Kein Lager, keine Produktion – zählt nur für die Reichweite.":
@@ -645,6 +668,9 @@ export const EN = {
     "These orders start one after another as soon as the running one is done. Their costs are already deducted – a queued order is therefore guaranteed to happen. {dauer} of build time left in total.",
   "Position {nr} · Bauzeit {dauer}": "Position {nr} · build time {dauer}",
   "Aus der Warteschlange nehmen.": "Remove from the queue.",
+  "wartet als Nr. {nr}": "waiting as no. {nr}",
+  "wartet als Nr. {nr} · startet in ~{dauer}": "waiting as no. {nr} · starts in ~{dauer}",
+  "+{n} wartet": "+{n} waiting",
   "Diese Aufträge starten nacheinander, sobald der laufende fertig ist. Bezahlt wird erst, wenn einer vorn steht – bis dahin bindet er nichts. Zusammen noch {dauer} Bauzeit.":
     "These orders start one after another as soon as the running one finishes. Payment happens only once an order is at the front – until then it ties up nothing. {dauer} of build time left in total.",
   "Aus der Warteschlange nehmen. Die bereits abgezogenen Kosten werden erstattet.":
@@ -852,6 +878,8 @@ export const EN = {
   // --- Galaxie und Systemkarte --------------------------------------------
   "Reichweite {reichweite} · {stuetzpunkte} Stützpunkte · {systeme} Systeme":
     "Reach {reichweite} · {stuetzpunkte} bases · {systeme} systems",
+  "Reichweite {reichweite} · 1 Stützpunkt · {systeme} Systeme":
+    "Reach {reichweite} · 1 base · {systeme} systems",
   "{anzahl} in Reichweite · nach Entfernung sortiert": "{anzahl} within reach · sorted by distance",
   "{entfernung} von {planet} (nächster eigener Stützpunkt)": "{entfernung} from {planet} (your nearest base)",
   "Kein eigener Stützpunkt vorhanden": "You have no base yet",
@@ -859,7 +887,8 @@ export const EN = {
   "Fehlen {fehlt} – Antriebstechnik erhöht die Reichweite, ein näherer Stützpunkt verkürzt die Strecke.":
     "{fehlt} short – Propulsion Tech increases your reach, a closer base shortens the distance.",
   "Eigene Stützpunkte hier: {liste}": "Your bases here: {liste}",
-  "{anzahl} Orbit(s) bereits untersucht": "{anzahl} orbit(s) already surveyed",
+  "1 Orbit bereits untersucht": "1 orbit already surveyed",
+  "{anzahl} Orbits bereits untersucht": "{anzahl} orbits already surveyed",
   "Noch nicht besucht": "Not visited yet",
   "{anzahl}× eigen": "{anzahl}× yours",
   "Entfernung {entfernung}": "Distance {entfernung}",
@@ -1117,7 +1146,139 @@ export const EN = {
   "Was hier nicht steht und dir trotzdem auffällt, gehört in eine Rückmeldung – der Abschnitt darüber sagt, wie.":
     "Anything not listed here that strikes you anyway belongs in a piece of feedback – the section above says how.",
 
+  // --- Fertigungstechnik (A-062) --------------------------------------------
+  Fertigungstechnik: "Manufacturing technology",
+  "Verbessert die Ausbeute deiner Fertigungen um 7% pro Stufe. Was in der Halbleiterfertigung zählt, ist nicht Menge, sondern Ausbeute: von einer Scheibe wird nur der Teil brauchbar, auf dem kein einziger Defekt sitzt. Jede Verbesserung an Reinheit und Prozessführung verschiebt genau diesen Anteil – dieselbe Anlage, dieselbe Menge Silizium, mehr fertige Bauteile.":
+    "Improves the yield of your manufacturing plants by 7% per level. What counts in semiconductor manufacturing is not quantity but yield: of a wafer, only the part without a single defect becomes usable. Every improvement in purity and process control shifts exactly that share – same plant, same silicon, more finished components.",
+
+  // --- Laborbedarf: Forschung kostet Material am Ort (A-061) ----------------
+  " · gebremst: {res} fehlt den Laboren": " · slowed: the labs are short of {res}",
+  "{labore} Labor/Labore stehen still – es fehlt {res}":
+    "{labore} lab(s) are standing still – {res} is missing",
+
+  // --- Die drei Momente, die sich selbst erklären (A-060) -------------------
+  // Moment 3 (der Blitz) fehlt hier mit Absicht: er zitiert einen
+  // Handbuch-Absatz, der schon übersetzt ist.
+  "Deine Werft steht. Sonden sind Einwegschiffe – eine deckt genau ein Ziel auf und bleibt dort. Erkunder kommen zurück und arbeiten mehrere Orbits nacheinander ab. Frachter tragen, und ihr Frachtraum ist zugleich der einzige Platz für zusätzlichen Treibstoff. Welche Rümpfe überhaupt vom Band laufen, entscheidet die Stufe der Werft – sie baut nicht nur schneller, sie schaltet die größeren erst frei.":
+    "Your shipyard is up. Probes are one-way ships – each uncovers exactly one target and stays there. Scouts come back and work through several orbits one after another. Freighters carry, and their hold is also the only place for extra fuel. Which hulls leave the line at all depends on the shipyard's level – it does not just build faster, it unlocks the larger ones in the first place.",
+  "Piraten in deinem System. Sie sind kein Naturereignis: sie bauen, tanken und kämpfen nach denselben Regeln wie du. Sie greifen Fracht an und nie Planeten – deine Welten sind sicher, deine Transporte nicht. Und im All gibt es keine Tarnung: du siehst sie kommen, so wie sie dich. Ein Kriegsschiff im Verband ist die Antwort darauf.":
+    "Pirates in your system. They are not a force of nature: they build, refuel and fight by the same rules you do. They attack cargo and never planets – your worlds are safe, your transports are not. And there is no stealth in space: you see them coming, just as they see you. A warship in the group is the answer to that.",
+
+  // --- Ersteinstieg: was für ein Spiel das ist, und wo alles liegt (A-059) --
+  "Entropy ist deshalb ein Spiel für nebenbei. Es läuft langsam, und das ist Absicht und nicht dein Fehler: Fortschritt braucht hier Geduld, in den ersten Minuten passiert wenig, und die Welt arbeitet auch dann weiter, wenn du nicht hinsiehst. Wegzugehen ist kein Aussetzen – nur die Frist wartet eben auch nicht.":
+    "Entropy is therefore a game for the side of your day. It runs slowly, and that is on purpose and not your mistake: progress here takes patience, little happens in the first few minutes, and the world keeps working while you are not watching. Walking away is not pausing – it is only the deadline that does not wait either.",
+  "Die Oberfläche": "The screen",
+  "Der Bildschirm hat vier feste Zonen, und sie ändern ihre Plätze nie: der Kopf ganz oben, die beiden Ressourcenreihen darunter, links die Bereichsleiste – und rechts eine Spalte, die man auf- und zuklappen kann.":
+    "The screen has four fixed zones, and they never swap places: the header at the very top, the two resource rows below it, the area bar on the left – and on the right a column you can fold in and out.",
+  "Im Kopf stehen zwei Zeiten nebeneinander, und sie meinen Verschiedenes. Das Datum ist der Kalender deiner Welt und läuft immer. Die Uhr daneben ist die Frist: sie nennt das nächste Ereignis der Supernova und zeigt als Balken, wieviel davon schon vorbei ist. Gibt es gerade keine Frist, ist die Uhr weg – das Datum bleibt.":
+    "The header carries two times side by side, and they mean different things. The date is your world's calendar and always runs. The clock next to it is the deadline: it names the supernova's next event and shows as a bar how much of it has already passed. When there is no deadline, the clock is gone – the date stays.",
+  "Darunter liegen zwei Reihen, und der Unterschied zwischen ihnen ist der wichtigste in der ganzen Wirtschaft. Oben steht, was du HAST: Lagerbestände, die sich ansammeln. Unten steht, was du KANNST: Strom, Arbeitskraft und Lagerplatz – Größen, die pro Zeit anfallen oder als Platz begrenzt sind und nicht gespart werden können. Wer die untere Reihe für einen Vorrat hält, wundert sich früher oder später.":
+    "Below it lie two rows, and the difference between them is the most important one in the whole economy. The top row is what you HAVE: stored goods, which pile up. The bottom row is what you CAN DO: power, workforce and storage space – quantities that arrive per unit of time or are limited as room, and cannot be saved up. Mistake the bottom row for a stockpile and you will be surprised sooner or later.",
+  "Links wechselst du den Bereich; sichtbar ist immer genau einer. Ein Punkt an einem Eintrag heißt: dort läuft gerade etwas. Dieselben Bereiche erreichst du mit den Zifferntasten – der Abschnitt Steuerung listet sie.":
+    "On the left you switch areas; exactly one is visible at a time. A dot on an entry means something is running there. The same areas are on the number keys – the Controls section lists them.",
+  "Die Spalte rechts zeigt, was gerade läuft, egal welcher Bereich offen ist: Bauaufträge, Forschung, Werft, unterwegs befindliche Flotten – und die Meldungen. Sie ist der einzige Ort, an dem dein Spiel dich anspricht. Mit dem Griff an ihrem Rand klappt sie zu, wenn du den Platz brauchst; dann läuft alles weiter, du siehst es nur nicht mehr.":
+    "The column on the right shows what is running, whichever area is open: construction, research, the shipyard, fleets under way – and the messages. It is the one place where your game speaks to you. The handle on its edge folds it away when you need the room; everything keeps running then, you just stop seeing it.",
+
+  // --- Die Kommandoleiste an der Karte (A-057) ----------------------------
+  Kommando: "Command",
+  "1 · Flotte": "1 · Fleet",
+  "2 · Ziel": "2 · Target",
+  "3 · Auftrag": "3 · Order",
+  Verschicken: "Send out",
+  "Öffnet die Karte mit dieser Flotte in der Kommandoleiste – Ziel anklicken, Auftrag wählen, los.":
+    "Opens the map with this fleet in the command column – click a target, pick an order, go.",
+  "Wähle eine Flotte – als Chip oben oder mit einem Klick auf ihren Punkt in der Karte.":
+    "Pick a fleet – as a chip above or by clicking its dot on the map.",
+  "Wähle ein Ziel – klicke einen Orbit in der Systemkarte oder eine Zeile in der Systemliste an.":
+    "Pick a target – click an orbit on the system map or a row in the system list.",
+  "Dieser Orbit trägt nichts.": "There is nothing in this orbit.",
+  "{schiffe} · {sprit} Deuterium · Reichweite {weite}":
+    "{schiffe} · {sprit} deuterium · range {weite}",
+  "Kein Ziel gewählt": "No target selected",
+  "{system} · Orbit {orbit}{name}": "{system} · orbit {orbit}{name}",
+  "Entfernung {distanz}": "Distance {distanz}",
+  "Flug {dauer}": "Flight {dauer}",
+  "Erstflug – keine vermessene Route": "First flight – no surveyed route",
+  "zurück zum Heimathafen": "return to home port",
+  Nachtanken: "Refuel",
+  "{bedarf} nötig · {anBord} an Bord": "{bedarf} needed · {anBord} aboard",
+  "Nachtanken geht nur im Hafen – diese Flotte liegt nirgends an.":
+    "Refuelling only works in port – this fleet is not docked anywhere.",
+  "Wird vor dem Start aus dem Hafenlager übernommen. Vorgeschlagen ist genau das, was für diese Fahrt fehlt.":
+    "Taken from the port stores before departure. The suggested amount is exactly what this trip is short of.",
+  Los: "Go",
+  "Bereit: {auftrag}": "Ready: {auftrag}",
+  "Flotte → Ziel → Auftrag": "Fleet → target → order",
+
   // Der Hinweis nach einem Versionswechsel (A-040).
   "Neu in v{version} – was sich geändert hat": "New in v{version} – what changed",
   "Öffnet das Handbuch": "Opens the manual",
+
+  // --- „Diese Welt in Zahlen" (A-064) -------------------------------------
+  "Diese Welt in Zahlen": "This World in Numbers",
+  Standort: "Location",
+  Welt: "World",
+  Orbit: "Orbit",
+  Schwerkraft: "Gravity",
+  "{g} g · Bauen {bau} · Starten {start}": "{g} g · building {bau} · launching {start}",
+  "Bauen ist ein Traglastproblem und wächst linear mit der Schwerkraft. Starten ist ein Raketenproblem und wächst quadratisch – eine schwere Welt ist eine gute Mine und ein schlechter Raumhafen.":
+    "Building is a load-bearing problem and grows linearly with gravity. Launching is a rocket problem and grows quadratically – a heavy world is a good mine and a poor spaceport.",
+  Vorkommen: "Deposits",
+  "überall Durchschnitt": "average everywhere",
+  "{res}: keins": "{res}: none",
+  "Bestände & Kapazitäten": "Stocks & Capacities",
+  Warenlager: "Warehouse",
+  "{belegt} / {kapazitaet} m³": "{belegt} / {kapazitaet} m³",
+  "noch nicht gebaut": "not built yet",
+  "{bestand} / {kapazitaet}{einheit}": "{bestand} / {kapazitaet}{einheit}",
+  "Flüsse netto": "Net Flows",
+  "{erzeugt} erzeugt · {gebraucht} gebraucht · {netto} MW":
+    "{erzeugt} generated · {gebraucht} drawn · {netto} MW",
+  Brennstoff: "Fuel",
+  "reicht {dauer}": "lasts {dauer}",
+  "frei {frei} von {gesamt}": "{frei} free of {gesamt}",
+  "gedrosselt auf {anteil}%": "throttled to {anteil}%",
+  "Bevölkerung & Schwellen": "Population & Thresholds",
+  "Wohnraum voll": "housing full",
+  "wächst nicht": "not growing",
+  "Wohnraum voll in": "Housing full in",
+  Schwellen: "Thresholds",
+  "alle erreicht": "all reached",
+  "braucht {tech}": "needs {tech}",
+  "{ist} / {soll}": "{ist} / {soll}",
+  Laufendes: "In Progress",
+  Bau: "Construction",
+
+  // Orbitzonen und Wasservorrat stehen als Kennungen im Planeten und laufen
+  // erst seit A-064 durch t() -- vorher zeigte sie niemand einzeln an.
+  heiß: "hot",
+  warm: "warm",
+  habitabel: "habitable",
+  kalt: "cold",
+  äußer: "outer",
+  trocken: "dry",
+  "mäßig feucht": "moderately moist",
+  wasserreich: "water-rich",
+
+  // --- Beschaffungszeit auf der Ausbau-Kachel (A-065) ---------------------
+  "{res}: {dauer}": "{res}: {dauer}",
+  "{res}: keine Produktion": "{res}: no production",
+  "{res}: es fehlen {menge}, und es kommt nichts nach.":
+    "{res}: {menge} short, and nothing is coming in.",
+  "{res}: es fehlen {menge} – bei deiner {anlage} noch {dauer}.":
+    "{res}: {menge} short – at your {anlage} that is another {dauer}.",
+  "{res}: es fehlen {menge} – bei deinem Zufluss noch {dauer}.":
+    "{res}: {menge} short – at your current inflow that is another {dauer}.",
+
+  // --- Anreicherung: der zweite Betriebsmodus des Extraktors (A-071) -------
+  Anreicherung: "Enrichment",
+  "an · −{strom} MW → {menge}": "on · −{strom} MW → {menge}",
+  "aus · {kurs} MWh je t": "off · {kurs} MWh per t",
+  Einschalten: "Switch on",
+  Ausschalten: "Switch off",
+  "Trennt Deuterium aus Wasser, statt es zu fördern – bezahlt mit Strom. {kurs} MWh je Tonne, das {faktor}-fache dessen, was ein Kraftwerk aus derselben Tonne holt. Reicht der Strom nicht, drosselt die ganze Anlage – auch die Förderung.":
+    "Separates deuterium from water instead of extracting it – paid for in power. {kurs} MWh per tonne, {faktor} times what a power plant gets back out of that same tonne. If power runs short, the whole facility throttles – extraction included.",
+  Anreicherungstechnik: "Enrichment Technology",
+  "Schaltet am Deuterium-Extraktor einen zweiten Betriebsmodus frei: Anreicherung trennt schweren Wasserstoff aus Wasser, statt ihn zu fördern – bezahlt wird mit Strom. Deuterium steckt in jedem Wasser, aber nur in jedem sechstausendvierhundertsten Wasserstoffkern; die beiden Sorten unterscheiden sich chemisch fast nicht, und genau deshalb ist die Trennung Arbeit. Sie erzeugt nichts, sie sortiert – und wie jede Sortierung kostet sie mehr, als der Unterschied wert ist. Wieviel mehr, entscheidet in diesem Spiel die Spielbarkeit und nicht die Physik: wirklich liefert eine Tonne Deuterium in der Fusion um Größenordnungen mehr Energie, als ihre Abtrennung kostet.":
+    "Unlocks a second operating mode on the deuterium extractor: enrichment separates heavy hydrogen from water instead of extracting it – paid for in power. Deuterium is in every drop of water, but only in one hydrogen nucleus out of every six thousand four hundred; the two kinds are chemically almost identical, and that is exactly why separating them is work. It creates nothing, it sorts – and like any sorting it costs more than the difference is worth. How much more is decided in this game by playability, not by physics: in reality a tonne of deuterium yields orders of magnitude more energy in fusion than its separation costs.",
 };

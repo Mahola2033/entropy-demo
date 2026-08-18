@@ -3,6 +3,7 @@
 // Spielstand zurücksetzen. Kein Teil des eigentlichen Spieldesigns.
 
 import { aufholen, deckelMelden } from "./aufholen.js";
+import { STAND } from "./data.js";
 import { speichern, zuruecksetzen } from "./save.js";
 import { cacheLeeren } from "./systeme.js";
 import { zeitfaktorVon, zeitfaktorSetzen } from "./state.js";
@@ -17,7 +18,42 @@ export function zeitfaktorKnoepfeAbgleichen(state, root) {
   }
 }
 
+// --- Der +1-Tag-Sprung (A-058) --------------------------------------------
+//
+// TOBIS ENTSCHEIDUNG (18.08.): Tester behalten Skips und Zeitraffer, „aber
+// vielleicht nehmen wir den 1-Tag-Skip weg, der ist einfach zu viel des
+// Guten." Er hängt deshalb am STAND-Marker aus data.js -- an der Markierung,
+// die MIT DEN DATEIEN reist und nicht am Port hängt.
+//
+// Reine Frage an den Stand, kein Zustand und keine Verzweigung im
+// Spielverhalten. Als eigene Funktion, weil ein Test sie sonst nur über ein
+// DOM erreichte, das dieses Projekt nicht hat.
+export function tagessprungSichtbar(stand = STAND) {
+  return stand === "entwicklung";
+}
+
+// GEBAUT, nicht versteckt. `hidden` ist in diesem Projekt ein Vorgabestil
+// (v0.40-Lehre) und wäre schon deshalb wacklig -- vor allem aber bleibt ein
+// Knopf, der im DOM steht, über die Konsole klickbar. Was ein Demo-Stand
+// nicht anbieten soll, darf dort gar nicht erst entstehen.
+function tagessprungBauen(root) {
+  if (!tagessprungSichtbar()) return;
+  const leiste = root.querySelector("#testmodus-leiste");
+  if (!leiste || leiste.querySelector('button[data-sprung-sek="86400"]')) return;
+  const knopf = document.createElement("button");
+  knopf.dataset.sprungSek = "86400";
+  knopf.textContent = t("+1 Tag");
+  // Hinter den letzten Sprungknopf: die Leiste liest sich von kurz nach lang,
+  // und Pause/Zeitraffer sind eine andere Sorte Bedienung.
+  const letzter = Array.from(leiste.querySelectorAll("button[data-sprung-sek]")).pop();
+  leiste.insertBefore(knopf, letzter ? letzter.nextSibling : leiste.firstChild);
+}
+
 export function testmodusEinrichten(state, root, renderFn) {
+  // VOR dem Verdrahten: der Knopf soll seinen Handler aus derselben Schleife
+  // bekommen wie die vier festen -- ein zweiter Weg wäre ein zweiter Weg.
+  tagessprungBauen(root);
+
   // Ereignisse EINMAL beim Einrichten (Prinzip 8a) -- die Leiste steht im
   // index.html und wird nie neu gebaut.
   root.querySelectorAll("#testmodus-leiste button[data-zeitfaktor]").forEach((btn) => {

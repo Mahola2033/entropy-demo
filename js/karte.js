@@ -34,7 +34,7 @@
 
 import { GALAXIE_REGELN, SPIELER_FRAKTION } from "./data.js";
 import { systemPosition, systemName, sternFuer } from "./galaxie.js";
-import { flottePosition, schiffeText } from "./flotten.js";
+import { flottePosition, schiffeText, flotteRestreichweite } from "./flotten.js";
 import { holeSystem } from "./systeme.js";
 import {
   planetenVon,
@@ -83,10 +83,39 @@ function verschieben(el, x, y) {
   attributSetzen(el, "transform", `translate(${x.toFixed(2)} ${y.toFixed(2)})`);
 }
 
+// --- Flottenmarke (A-056) -------------------------------------------------
+//
+// Drei Teile statt einem, aus demselben Grund wie beim Stern:
+//   treffer  unsichtbare, GRÖSSERE Klickfläche. Die Raute ist 2,8 Einheiten
+//            hoch -- darauf zu zielen wäre keine Bedienung, sondern Glück.
+//   wahl     die zweite, größere Raute um den Punkt: die Markierung der
+//            gewählten Flotte. Sie liegt UNTER der eigentlichen Marke, damit
+//            sie sie umrahmt statt verdeckt.
+//   marke    der Punkt selbst, unverändert.
+// Ob die Auswahl-Raute zu sehen ist, entscheidet allein die Klasse der
+// Gruppe (`karte-flotte-gewaehlt`) -- kein zweiter Zustand im DOM.
+function flottenMarkeBauen(marke, wahl) {
+  const gruppe = svgEl("g", { class: "karte-flotte" });
+  gruppe.appendChild(svgEl("circle", { class: "karte-flotte-treffer" }));
+  gruppe.appendChild(svgEl("path", { class: "karte-flotte-wahl", d: wahl }));
+  gruppe.appendChild(svgEl("path", { class: "karte-flotte-marke", d: marke }));
+  gruppe.appendChild(svgEl("title"));
+  return gruppe;
+}
+
+// Eigene Flotten sind wählbar, fremde nicht (so beauftragt). Das Attribut ist
+// zugleich die Klickmarke -- der Handler sucht nichts anderes, eine fremde
+// Flotte kann deshalb gar nicht erst getroffen werden.
+function flottenMarkeWaehlbar(gruppe, flotte, klassen, aktiveFlotte) {
+  const eigen = fraktionVon(flotte) === SPIELER_FRAKTION;
+  attributSetzen(gruppe, "data-flotte", eigen ? flotte.id : null);
+  if (eigen && flotte.id === aktiveFlotte) klassen.push("karte-flotte-gewaehlt");
+}
+
 // Rückrufe liegen im Modul und nicht in der Ereignis-Funktion: der Handler
 // wird EINMAL angehängt (Prinzip 8a) und würde sonst für immer die Fassung aus
 // dem allerersten Takt festhalten.
-const rueckrufe = { system: null, orbit: null };
+const rueckrufe = { system: null, orbit: null, flotte: null };
 
 // Was der Mauszeiger für einen Tooltip braucht. Wird beim Zeichnen
 // nachgeführt, damit der Text erst beim Überfahren entsteht -- 500 Tooltips
@@ -111,12 +140,18 @@ function galaxieSkala() {
 function sternTitelText(state, systemId) {
   const entfernung = galaxieStand.abstand[systemId];
   const eigene = planetenVon(state).filter((p) => p.systemId === systemId);
+  const untersuchte = systemBesucht(state, systemId) ? untersuchteOrbits(state, systemId) : 0;
   return [
     systemName(state.galaxie.seed, systemId),
     Number.isFinite(entfernung) ? t("Entfernung {entfernung}", { entfernung: entfernung.toFixed(1) }) : "",
     eigene.length ? t("Eigene Stützpunkte hier: {liste}", { liste: eigene.map((p) => p.name).join(", ") }) : "",
-    systemBesucht(state, systemId)
-      ? t("{anzahl} Orbit(s) bereits untersucht", { anzahl: untersuchteOrbits(state, systemId) })
+    // A-070: dieselbe Zeile wie in der Galaxie-Liste, deshalb dieselbe
+    // Einzahl-Form. Waere sie hier bei „Orbit(s)" geblieben, stuende auf der
+    // Karte eine andere Sprache als eine Handbreit daneben in der Liste.
+    untersuchte > 0
+      ? untersuchte === 1
+        ? t("1 Orbit bereits untersucht")
+        : t("{anzahl} Orbits bereits untersucht", { anzahl: untersuchte })
       : t("Noch nicht besucht"),
     entfernung <= galaxieStand.reichweite ? t("Systemkarte öffnen") : t("außer Reichweite"),
   ]
@@ -157,10 +192,12 @@ function galaxieGeruestBauen(svg, state) {
   sternKlassen = [];
   svg.replaceChildren(
     svgEl("g", { "data-reichweite": "" }),
+    svgEl("g", { "data-flottenring": "" }),
     svgEl("g", { "data-sterne": "" }),
     svgEl("g", { "data-wahl": "" }),
     svgEl("g", { "data-treffer": "" }),
     svgEl("g", { "data-routen": "" }),
+    svgEl("g", { "data-vorschau": "" }),
     svgEl("g", { "data-flotten": "" })
   );
 
@@ -180,6 +217,16 @@ function galaxieGeruestBauen(svg, state) {
   }
 
   svg.querySelector("[data-wahl]").appendChild(svgEl("circle", { class: "karte-wahl", r: 4.6, hidden: "" }));
+  svg
+    .querySelector("[data-flottenring]")
+    .appendChild(svgEl("circle", { class: "karte-flottenring", cx: 0, cy: 0, r: 0, hidden: "" }));
+
+  // Die Vorschaulinie der Kommandoleiste (A-057): wohin dieser Auftrag die
+  // Flotte schicken WÜRDE, und wie lange sie unterwegs wäre. Zwei feste
+  // Elemente, kein Abgleich -- es gibt immer genau eine Vorschau.
+  const vorschau = svg.querySelector("[data-vorschau]");
+  vorschau.appendChild(svgEl("line", { class: "karte-vorschau", hidden: "" }));
+  vorschau.appendChild(svgEl("text", { class: "karte-vorschau-text", hidden: "" }));
 }
 
 // ===== Zoom und Verschieben (A-039) =======================================
@@ -372,6 +419,14 @@ function galaxieVerdrahten(svg) {
   // Reichweiten-Schranke. Zwei Wege zur selben Wirkung wären zwei Orte, an
   // denen sie auseinanderlaufen können (Prinzip 5).
   svg.addEventListener("click", (ereignis) => {
+    // Flotte VOR System: die Flottenmarken liegen über den Sternzielen, und
+    // wer auf einen Flottenpunkt klickt, meint die Flotte -- auch wenn sie
+    // gerade über ihrem Heimatstern steht.
+    const flotte = ereignis.target.closest("[data-flotte]");
+    if (flotte) {
+      if (rueckrufe.flotte) rueckrufe.flotte(Number(flotte.dataset.flotte));
+      return;
+    }
     const ziel = ereignis.target.closest("[data-system]");
     if (ziel && rueckrufe.system) rueckrufe.system(Number(ziel.dataset.system));
   });
@@ -391,7 +446,7 @@ function galaxieVerdrahten(svg) {
 // ein zweites Mal zu rechnen wäre dieselbe Schleife zweimal pro Sekunde.
 export function galaxieKarteZeichnen(svg, legende, state, opts) {
   if (!svg || !opts.sichtbar) return;
-  const { jetzt, reichweite, systeme, aufSystem } = opts;
+  const { jetzt, reichweite, systeme, aufSystem, aufFlotte, vorschau } = opts;
   const skala = galaxieSkala();
 
   const stand = `${state.galaxie.seed}:${state.galaxie.anzahlSysteme}`;
@@ -400,6 +455,7 @@ export function galaxieKarteZeichnen(svg, legende, state, opts) {
     galaxieGeruestBauen(svg, state);
   }
   rueckrufe.system = aufSystem;
+  rueckrufe.flotte = aufFlotte;
   galaxieVerdrahten(svg);
   legendeFuellen(legende);
 
@@ -486,19 +542,82 @@ export function galaxieKarteZeichnen(svg, legende, state, opts) {
 
   listeAbgleichen(svg.querySelector("[data-flotten]"), eigene, {
     schluessel: (flotte) => flotte.id,
-    bauen: () => {
-      const gruppe = svgEl("g", { class: "karte-flotte" });
-      gruppe.appendChild(svgEl("path", { class: "karte-flotte-marke", d: "M0,-2.8 L2.1,0 L0,2.8 L-2.1,0 Z" }));
-      gruppe.appendChild(svgEl("title"));
-      return gruppe;
-    },
+    bauen: () => flottenMarkeBauen("M0,-2.8 L2.1,0 L0,2.8 L-2.1,0 Z", "M0,-5.6 L4.2,0 L0,5.6 L-4.2,0 Z"),
     aktualisieren: (gruppe, flotte) => {
       const pos = flottePosition(state, flotte, jetzt);
       verschieben(gruppe, pos.x * skala, pos.y * skala);
-      attributSetzen(gruppe, "class", flotte.abschnitt ? "karte-flotte karte-unterwegs" : "karte-flotte");
+      const klassen = ["karte-flotte"];
+      if (flotte.abschnitt) klassen.push("karte-unterwegs");
+      flottenMarkeWaehlbar(gruppe, flotte, klassen, state.aktiveFlotte);
+      attributSetzen(gruppe, "class", klassen.join(" "));
       textSetzen(gruppe.querySelector("title"), flottenTitelText(state, flotte, jetzt));
     },
   });
+
+  // --- Der Reichweitenring der gewählten Flotte (A-056) -------------------
+  //
+  // Radius ist `flotteRestreichweite`: der Treibstoff AN BORD, nicht die
+  // Tankkapazität. Der Ring soll sagen "so weit kommst du JETZT" -- eine
+  // Anzeige, die den vollen Tank zeigt, während der halb leer ist, wäre
+  // genau die Sorte Auskunft, die man einmal glaubt.
+  //
+  // Umgerechnet wird mit `skala`, demselben Maßstab wie jede Position auf
+  // dieser Karte. Eine zweite Umrechnung gäbe es nur dafür, irgendwann von
+  // der ersten abzuweichen (die Falle aus dem Auftrag).
+  //
+  // Die Mitte ist die GERECHNETE Position, nicht der Ruheort: eine fliegende
+  // Flotte nimmt ihren Ring mit. Und weil der Treibstoff schon beim Abflug
+  // abgeht, schrumpft der Ring im Moment des Startens -- so muss es sein.
+  //
+  // EIN Element, nicht 376: der Ring gehört zur GEWÄHLTEN Flotte. Ohne
+  // Auswahl -- oder ohne Treibstoff für auch nur einen Abflug -- ist er weg.
+  const ring = svg.querySelector(".karte-flottenring");
+  const gewaehlteFlotte = eigene.find((flotte) => flotte.id === state.aktiveFlotte);
+  const ringWeite = gewaehlteFlotte ? flotteRestreichweite(gewaehlteFlotte) : 0;
+  if (ringWeite > 0) {
+    const pos = flottePosition(state, gewaehlteFlotte, jetzt);
+    attributSetzen(ring, "cx", (pos.x * skala).toFixed(2));
+    attributSetzen(ring, "cy", (pos.y * skala).toFixed(2));
+    attributSetzen(ring, "r", (ringWeite * skala).toFixed(2));
+    attributSetzen(ring, "hidden", null);
+  } else {
+    attributSetzen(ring, "hidden", "");
+  }
+
+  vorschauZeichnen(svg, skala, vorschau);
+}
+
+// Die Vorschaulinie der Kommandoleiste (A-057).
+//
+// Sie kommt FERTIG aus ui.js -- Anfang, Ende und Beschriftung. Die Karte
+// rechnet hier nichts über Missionen oder Flugzeiten nach: täte sie es, gäbe
+// es zwei Stellen, die dieselbe Dauer ausrechnen, und irgendwann zwei
+// verschiedene Antworten (Prinzip 5). Sie kann nur eins, was ui.js nicht
+// kann: Galaxie-Einheiten in Kartenkoordinaten bringen.
+//
+// Die Beschriftung sitzt in der Mitte der Strecke, leicht versetzt -- auf der
+// Linie wäre sie von ihr durchgestrichen.
+function vorschauZeichnen(svg, skala, vorschau) {
+  const linie = svg.querySelector(".karte-vorschau");
+  const text = svg.querySelector(".karte-vorschau-text");
+  if (!vorschau) {
+    attributSetzen(linie, "hidden", "");
+    attributSetzen(text, "hidden", "");
+    return;
+  }
+  const x1 = vorschau.von.x * skala;
+  const y1 = vorschau.von.y * skala;
+  const x2 = vorschau.nach.x * skala;
+  const y2 = vorschau.nach.y * skala;
+  attributSetzen(linie, "x1", x1.toFixed(2));
+  attributSetzen(linie, "y1", y1.toFixed(2));
+  attributSetzen(linie, "x2", x2.toFixed(2));
+  attributSetzen(linie, "y2", y2.toFixed(2));
+  attributSetzen(linie, "hidden", null);
+  attributSetzen(text, "x", ((x1 + x2) / 2).toFixed(2));
+  attributSetzen(text, "y", ((y1 + y2) / 2 - 2).toFixed(2));
+  textSetzen(text, vorschau.text || "");
+  attributSetzen(text, "hidden", vorschau.text ? null : "");
 }
 
 // Die Legende hängt an keinem Spielzustand, nur an der Sprache -- also wird
@@ -656,6 +775,13 @@ function systemVerdrahten(svg) {
   svg.dataset.verdrahtet = "1";
   zoomVerdrahten(svg);
   svg.addEventListener("click", (ereignis) => {
+    // Wie auf der Galaxiekarte: die Flotte hat Vorrang vor dem Orbit, über
+    // dem ihre Marke gerade steht.
+    const flotte = ereignis.target.closest("[data-flotte]");
+    if (flotte) {
+      if (rueckrufe.flotte) rueckrufe.flotte(Number(flotte.dataset.flotte));
+      return;
+    }
     const ziel = ereignis.target.closest("[data-orbit]");
     if (ziel && rueckrufe.orbit) rueckrufe.orbit(Number(ziel.dataset.orbit));
   });
@@ -663,7 +789,7 @@ function systemVerdrahten(svg) {
 
 export function systemKarteZeichnen(svg, state, opts) {
   if (!svg || !opts.sichtbar) return;
-  const { jetzt, systemId, gewaehlterOrbit, aufOrbit } = opts;
+  const { jetzt, systemId, gewaehlterOrbit, aufOrbit, aufFlotte } = opts;
   const system = holeSystem(state, systemId);
   const seed = state.galaxie.seed;
 
@@ -672,6 +798,7 @@ export function systemKarteZeichnen(svg, state, opts) {
     systemGeruestBauen(svg);
   }
   rueckrufe.orbit = aufOrbit;
+  rueckrufe.flotte = aufFlotte;
   systemVerdrahten(svg);
   attributSetzen(svg, "aria-label", t("Systemkarte von {system}", { system: system.name }));
 
@@ -732,17 +859,13 @@ export function systemKarteZeichnen(svg, state, opts) {
 
   listeAbgleichen(svg.querySelector("[data-sys-flotten]"), flotten, {
     schluessel: (eintrag) => eintrag.flotte.id,
-    bauen: () => {
-      const gruppe = svgEl("g", { class: "karte-flotte" });
-      gruppe.appendChild(svgEl("path", { class: "karte-flotte-marke", d: "M0,-3.4 L2.6,0 L0,3.4 L-2.6,0 Z" }));
-      gruppe.appendChild(svgEl("title"));
-      return gruppe;
-    },
+    bauen: () => flottenMarkeBauen("M0,-3.4 L2.6,0 L0,3.4 L-2.6,0 Z", "M0,-6.6 L5.0,0 L0,6.6 L-5.0,0 Z"),
     aktualisieren: (gruppe, eintrag) => {
       verschieben(gruppe, eintrag.punkt.x, eintrag.punkt.y);
       const klassen = ["karte-flotte"];
       if (fraktionVon(eintrag.flotte) !== SPIELER_FRAKTION) klassen.push("karte-fremd");
       if (eintrag.unterwegs) klassen.push("karte-unterwegs");
+      flottenMarkeWaehlbar(gruppe, eintrag.flotte, klassen, state.aktiveFlotte);
       attributSetzen(gruppe, "class", klassen.join(" "));
       textSetzen(gruppe.querySelector("title"), flottenTitelText(state, eintrag.flotte, jetzt));
     },

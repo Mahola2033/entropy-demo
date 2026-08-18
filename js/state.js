@@ -17,6 +17,8 @@ import {
   BEVOELKERUNG,
   GELD,
   affinitaetVon,
+  PLANETEN_KLASSEN,
+  WASSER_STUFEN,
   SCHWERKRAFT,
   SCHIFFE,
   LAGER_RESSOURCEN,
@@ -34,9 +36,12 @@ import {
   jahreInMs,
   lagerkapazitaet,
   rate,
+  verbrauchAb,
+  verbrauchLaeuft,
   kostenFuerLevel,
   bauzeitFuerLevel,
   voraussetzungenErfuellt,
+  solarLageFaktor,
 } from "./data.js";
 import { systemGenerieren } from "./welt.js";
 import { galaxiePlanen, entfernung, schluesselImSystem } from "./galaxie.js";
@@ -665,6 +670,12 @@ export function verarbeitungsReserveFuer(planet, resId) {
 }
 
 export function verarbeitungsReserveSetzen(planet, resId, menge) {
+  // A-066: Auf einem Stand, der älter ist als dieses Feld, gab es das Objekt
+  // nicht -- `delete undefined[resId]` warf beim ERSTEN Klick auf den Regler.
+  // Die Leseseite (verarbeitungsReserveFuer) fing das Fehlen längst ab, die
+  // Schreibseite nicht. Dasselbe Muster wie in stromPrioritaetSetzen, das es
+  // von Anfang an hatte.
+  if (!planet.verarbeitungsReserve) planet.verarbeitungsReserve = {};
   if (menge === null || menge === undefined || !Number.isFinite(menge) || menge <= 0) {
     delete planet.verarbeitungsReserve[resId];
   } else {
@@ -689,6 +700,120 @@ export function pufferReichweiteMs(vorrat, defizitProStunde) {
   if (defizitProStunde <= 0) return Infinity;
   if (vorrat <= 0) return 0;
   return (vorrat / defizitProStunde) * MS_PRO_STUNDE_STATE;
+}
+
+// --- Brennstoff aus dem Bestand (A-055, Weg B) -----------------------------
+//
+// Ein Gebäude mit `brennstoff` in data.js (das Kraftwerk) verbrennt eine
+// GELAGERTE Ressource -- aber ausdrücklich NICHT über die Ratenrechnung, die
+// das Modell verbietet (Energie hinge an Deuterium, Deuterium über den
+// Extraktor an Energie: der Kreis, an dem A-008 gescheitert ist). Stattdessen:
+//
+//   - Das TOR ist binär und liest nur den BESTAND -- eine Zahl aus dem
+//     letzten Takt, kein Fluss. Brennstoff da -> volle Leistung, leer -> aus.
+//     Physikalisch ehrlich: Fusion zündet oder zündet nicht.
+//   - Der ABZUG läuft als negative Lagerrate über planetRatenAnwenden, wie
+//     jede Verarbeitungskette (Reserve wird respektiert: wer Deuterium für
+//     die Flotte zurücklegt, verheizt es nicht im Reaktor).
+//   - Der ZÜNDSPEICHER (`planet.reaktorAus`) ist eine Hysterese: ein
+//     erloschener Reaktor springt erst wieder an, wenn Brennstoff für den
+//     ANLAUF da ist. Ohne sie würde ein Reaktor an der Leergrenze im
+//     Sekundentakt zünden und verlöschen -- jede Zündung ein Ereignis, und
+//     die Ereignisse kämen schneller, als die Welt sie verdient.
+//     Das Bit wandert NUR beim Fortschreiben der Planetenuhr
+//     (reaktorBitNachziehen), und die Schwellen sind Ereignis-Zeitpunkte
+//     (pufferGrenzeStunden) -- nur so rechnet ein großer Sprung dasselbe
+//     wie viele kleine Schritte.
+export const BRENNSTOFF_ANLAUF_MS = 10 * 60 * 1000;
+
+// Einmal beim Laden eingesammelt: die Gebäude mit Brennstoff (heute genau
+// eines). Die Prüfung läuft je Planet und je Ereignis -- ein
+// Object.entries über alle Gebäude wäre dort reine Allokationslast.
+const BRENNSTOFF_GEBAEUDE = Object.entries(BUILDINGS)
+  .filter(([, def]) => def.brennstoff)
+  .map(([id, def]) => [id, def]);
+
+// Zündet dieses Gebäude gerade? Liest ausschließlich Bestand, Reserve und
+// das Hysterese-Bit -- keine Raten, keine Flüsse (der Kreis-Schutz).
+export function brennstoffBereit(planet, def, level) {
+  if (!def.brennstoff || level <= 0) return true;
+  for (const [resId, spec] of Object.entries(def.brennstoff)) {
+    const proStunde = rate(spec, level);
+    if (proStunde <= 0) continue;
+    const vorrat =
+      ((planet.ressourcen && planet.ressourcen[resId]) || 0) - verarbeitungsReserveFuer(planet, resId);
+    const reichweite = pufferReichweiteMs(vorrat, proStunde);
+    if (reichweite < PUFFER_MINDESTDAUER_MS) return false;
+    if (planet.reaktorAus && reichweite < BRENNSTOFF_ANLAUF_MS) return false;
+  }
+  return true;
+}
+
+// Wie lange trägt der Brennstoff-Vorrat noch, gemessen am ROHEN Verbrauch
+// aller brennenden Gebäude (ohne Zufluss -- die konservative, lesbare Zahl
+// für Anzeige und Bot-Vorausschau)? Infinity, wenn nichts brennt.
+export function brennstoffReichweiteMs(planet) {
+  let knappste = Infinity;
+  for (const [id, def] of BRENNSTOFF_GEBAEUDE) {
+    const level = (planet.gebaeude && planet.gebaeude[id]) || 0;
+    if (level <= 0) continue;
+    for (const [resId, spec] of Object.entries(def.brennstoff)) {
+      const proStunde = rate(spec, level);
+      if (proStunde <= 0) continue;
+      const vorrat =
+        ((planet.ressourcen && planet.ressourcen[resId]) || 0) - verarbeitungsReserveFuer(planet, resId);
+      const reichweite = pufferReichweiteMs(vorrat, proStunde);
+      if (reichweite < knappste) knappste = reichweite;
+    }
+  }
+  return knappste;
+}
+
+// Was verbrennen die brennenden Gebäude dieses Planeten -- je Ressource die
+// Rate pro Echtzeitstunde, aus derselben Schleife wie die Reichweite oben,
+// nur ohne den Bestand.
+//
+// Die Anzeige braucht das, seit A-088 gemessen hat, WAS an dieser Reichweite
+// eigentlich hängt: nicht die Last, sondern die Ausbaustufe. Der Reaktor
+// verbrennt im Leerlauf exakt so viel wie unter Volllast (das Tor ist binär,
+// siehe oben) -- eine Reichweite ohne diese Bedingung liest sich deshalb als
+// Versprechen, das mit der nächsten Ausbaustufe zusammenfällt.
+export function brennstoffProStunde(planet) {
+  const raten = {};
+  for (const [id, def] of BRENNSTOFF_GEBAEUDE) {
+    const level = (planet.gebaeude && planet.gebaeude[id]) || 0;
+    if (level <= 0) continue;
+    for (const [resId, spec] of Object.entries(def.brennstoff)) {
+      const proStunde = rate(spec, level);
+      if (proStunde > 0) raten[resId] = (raten[resId] || 0) + proStunde;
+    }
+  }
+  return raten;
+}
+
+// Zieht das Hysterese-Bit nach -- aufgerufen beim Fortschreiben der
+// Planetenuhr (simulation.js), NIE aus einer reinen Abfrage heraus: eine
+// Abfrage, die den Zustand ändert, wäre für die Oberfläche und die
+// Messwerkzeuge unsichtbarer Spielverlauf.
+export function reaktorBitNachziehen(planet) {
+  let aus = planet.reaktorAus === true;
+  let hatBrennstoff = false;
+  for (const [id, def] of BRENNSTOFF_GEBAEUDE) {
+    const level = (planet.gebaeude && planet.gebaeude[id]) || 0;
+    if (level <= 0) continue;
+    hatBrennstoff = true;
+    for (const [resId, spec] of Object.entries(def.brennstoff)) {
+      const proStunde = rate(spec, level);
+      if (proStunde <= 0) continue;
+      const vorrat =
+        ((planet.ressourcen && planet.ressourcen[resId]) || 0) - verarbeitungsReserveFuer(planet, resId);
+      const reichweite = pufferReichweiteMs(vorrat, proStunde);
+      if (reichweite < PUFFER_MINDESTDAUER_MS) aus = true;
+      else if (reichweite >= BRENNSTOFF_ANLAUF_MS) aus = false;
+    }
+  }
+  if (aus && hatBrennstoff) planet.reaktorAus = true;
+  else delete planet.reaktorAus;
 }
 
 // Reihenfolge, in der Lager-Ressourcen aufgelöst werden müssen: ein Eingangs-
@@ -787,13 +912,39 @@ export function rohRaten(state, planet) {
     const level = planet.gebaeude[id] || 0;
     if (level <= 0) continue;
     const bonus = kategorieBonus(state, def.kategorie);
+    // Das Brennstoff-Tor (A-055): ein erloschener Reaktor liefert nichts und
+    // zieht nichts -- auch keine Arbeitskraft, die Belegschaft steht nicht in
+    // einer kalten Halle. Binär, damit kein Kreis entsteht (siehe
+    // brennstoffBereit). Das Solarfeld skaliert mit seiner Orbit-Zone.
+    const an = brennstoffBereit(planet, def, level) ? 1 : 0;
+    const lage = def.sonnenlage ? solarLageFaktor(planet) : 1;
 
     for (const [resId, spec] of Object.entries(def.produktion || {})) {
       produktion[resId] =
-        (produktion[resId] || 0) + rate(spec, level) * bonus * affinitaetFaktor(planet, resId);
+        (produktion[resId] || 0) + rate(spec, level) * bonus * affinitaetFaktor(planet, resId) * an * lage;
+    }
+    // Der zweite Betriebsmodus (A-071). OHNE `bonus` und OHNE `affinitaet`:
+    // beide würden die Perpetuum-mobile-Schranke aufweichen, weil die
+    // Ausbeute dann schon bei niedrigerer Stufe einen größeren Reaktor trägt
+    // (Herleitung an ANREICHERUNG_VERLUST in data.js). Auch hier gilt: was in
+    // rohRaten steht, muss in produktionsAufloesung genauso stehen.
+    if (anreicherungLaeuft(state, planet, id, def)) {
+      for (const [resId, spec] of Object.entries(def.anreicherung.produktion || {})) {
+        produktion[resId] = (produktion[resId] || 0) + rate(spec, level) * an;
+      }
+      for (const [resId, spec] of Object.entries(def.anreicherung.verbrauch || {})) {
+        verbrauch[resId] = (verbrauch[resId] || 0) + rate(spec, level) * an;
+      }
     }
     for (const [resId, spec] of Object.entries(def.verbrauch || {})) {
-      verbrauch[resId] = (verbrauch[resId] || 0) + rate(spec, level);
+      // Zwei Tore zusätzlich zum Brennstoff-Tor (A-061): einzelne Posten
+      // beginnen erst ab einer Stufe (`verbrauchAbLevel`), und der
+      // Laborbedarf fließt nur bei laufender Forschung. Beides steht als
+      // Daten am Gebäude -- und beides muss auch in produktionsAufloesung
+      // stehen, siehe dort.
+      if (!verbrauchAb(def, resId, level)) continue;
+      if (!verbrauchLaeuft(state, def, resId)) continue;
+      verbrauch[resId] = (verbrauch[resId] || 0) + rate(spec, level) * an;
     }
   }
   return { produktion, verbrauch };
@@ -839,6 +990,35 @@ export function effizienz(state, planet) {
 // Vorgabe und braucht keinen Eintrag -- ein Planet ohne gesetzte Prioritäten
 // verhält sich exakt wie vor v0.69.
 export const STROM_STUFEN = { vorrang: 2, normal: 1, nachrang: 0 };
+
+// --- Zweiter Betriebsmodus: Anreicherung (A-071) ---------------------------
+//
+// Ein Schalter je Gebäude, Vorgabe AUS -- ohne Eintrag verhält sich der
+// Planet exakt wie vorher (Kategorie 1, dasselbe Muster wie
+// `stromPrioritaet`). Als MAP und nicht als Bit am Planeten: die Regel steht
+// als Daten am Gebäude (`def.anreicherung`), und ein zweites Gebäude mit
+// einem Modus würde sich sonst denselben Schalter teilen.
+export function anreicherungAn(planet, gebaeudeId) {
+  return !!(planet && planet.anreicherung && planet.anreicherung[gebaeudeId]);
+}
+
+export function anreicherungSetzen(planet, gebaeudeId, an) {
+  // Feld bei Bedarf anlegen -- die A-066-Lehre: die Leseseite fängt das
+  // Fehlen ab, die Schreibseite muss es auch.
+  if (!planet.anreicherung) planet.anreicherung = {};
+  if (an) planet.anreicherung[gebaeudeId] = true;
+  else delete planet.anreicherung[gebaeudeId];
+}
+
+// Läuft der Modus gerade wirklich? Schalter UND Forschung. Die Forschung ist
+// ein SCHLÜSSEL (A-013): sie wirkt bei Abschluss, nicht anteilig -- deshalb
+// steht hier ein Vergleich gegen 1 und kein Fortschrittsanteil.
+export function anreicherungLaeuft(state, planet, gebaeudeId, def) {
+  if (!def || !def.anreicherung) return false;
+  const noetig = def.anreicherung.forschung;
+  if (((state && state.forschung && state.forschung[noetig]) || 0) < 1) return false;
+  return anreicherungAn(planet, gebaeudeId);
+}
 
 export function stromPrioritaet(planet, gebaeudeId) {
   const gesetzt = planet && planet.stromPrioritaet ? planet.stromPrioritaet[gebaeudeId] : undefined;
@@ -982,13 +1162,38 @@ export function produktionsAufloesung(state, planet) {
     // und sie reicht, denn ohne Ernte schrumpft die Bevölkerung über den
     // Hungerweg, den das Spiel ohnehin kennt.
     const lichtFaktor = def.brauchtSonnenlicht && !sonnenlichtNutzbar(state) ? 0 : 1;
+    // Brennstoff-Tor und Orbit-Lage (A-055) -- ZWINGEND dieselben Faktoren
+    // wie in rohRaten, sonst rechnen Zuteilung und Effizienz mit einer
+    // anderen Welt als die Ketten.
+    const an = brennstoffBereit(planet, def, level) ? 1 : 0;
+    const lage = def.sonnenlage ? solarLageFaktor(planet) : 1;
     for (const [resId, spec] of Object.entries(def.produktion || {})) {
       if (!LAGER_RESSOURCEN.includes(resId)) continue;
-      prod[resId] = rate(spec, level) * bonus * affinitaetFaktor(planet, resId) * lichtFaktor;
+      prod[resId] = rate(spec, level) * bonus * affinitaetFaktor(planet, resId) * lichtFaktor * an * lage;
     }
     for (const [resId, spec] of Object.entries(def.verbrauch || {})) {
       if (!LAGER_RESSOURCEN.includes(resId)) continue;
-      verb[resId] = rate(spec, level);
+      // DIESELBEN Tore wie in rohRaten (A-061). Der Kommentar oben in dieser
+      // Schleife sagt, warum das keine Wahl ist: „sonst rechnen Zuteilung und
+      // Effizienz mit einer anderen Welt als die Ketten." Ein Tor, das nur an
+      // einer der beiden Stellen steht, ist der wahrscheinlichste Fehler
+      // dieses Umbaus.
+      if (!verbrauchAb(def, resId, level)) continue;
+      if (!verbrauchLaeuft(state, def, resId)) continue;
+      verb[resId] = rate(spec, level) * an;
+    }
+    // Der zweite Betriebsmodus (A-071), zweite von zwei Stellen -- siehe
+    // rohRaten. Die Ausbeute geht in `prod` (sie ist eine Lager-Ressource
+    // und wird damit wie jede andere Produktion gedrosselt), der Strombedarf
+    // weiter unten in `fluss`: nur dort greift die Zuteilung nach Priorität,
+    // und genau die soll greifen -- reicht der Strom nicht, drosselt sie den
+    // GANZEN Extraktor, Förderung eingeschlossen.
+    const modusAn = anreicherungLaeuft(state, planet, id, def);
+    if (modusAn) {
+      for (const [resId, spec] of Object.entries(def.anreicherung.produktion || {})) {
+        if (!LAGER_RESSOURCEN.includes(resId)) continue;
+        prod[resId] = (prod[resId] || 0) + rate(spec, level) * an;
+      }
     }
     // Abgaben hängen an der BEVÖLKERUNG, gehören aber dem POSTEN -- er ist
     // die Stelle, die abrechnet, und teilt deshalb seinen Drosselfaktor.
@@ -1016,7 +1221,12 @@ export function produktionsAufloesung(state, planet) {
     // trug die Anlage nur `energie`).
     const fluss = {};
     for (const resId of FLUSS_RESSOURCEN) {
-      const menge = rate(def.verbrauch && def.verbrauch[resId], level);
+      let menge = rate(def.verbrauch && def.verbrauch[resId], level) * an;
+      // A-071: Der Strombedarf der Anreicherung gehört zum Bedarf DIESER
+      // Anlage. Damit teilt er ihre Priorität und ihre Drosselung -- eine
+      // Anreicherung, die bei Strommangel voll weiterliefe, während die
+      // Förderung daneben einbricht, wäre zwei Anlagen in einer.
+      if (modusAn) menge += rate(def.anreicherung.verbrauch && def.anreicherung.verbrauch[resId], level) * an;
       if (menge > 0) fluss[resId] = menge;
     }
     anlagen.push({ id, prod, verb, fluss, energie: fluss.energie || 0 });
@@ -1103,6 +1313,25 @@ export function produktionsAufloesung(state, planet) {
     lager[resId] = angebot - nachfrage;
   }
 
+  // Der Brennstoff-Abzug (A-055): NACH den Ketten, als schlichte negative
+  // Lagerrate. Er nimmt an der Regime-Wahl oben ausdrücklich NICHT teil --
+  // ein Reaktor drosselt nicht anteilig auf den Zustrom, er zündet oder
+  // nicht (das Tor steckt schon in den Anlagen-Faktoren). Die Rate wandert
+  // über planetRatenAnwenden ins Lager und über pufferGrenzeStunden in die
+  // Ereignis-Zeitpunkte -- beide lesen dieses `lager`-Feld, es gibt nur die
+  // eine Wahrheit.
+  for (const [id, def] of BRENNSTOFF_GEBAEUDE) {
+    const level = planet.gebaeude[id] || 0;
+    if (level <= 0 || !brennstoffBereit(planet, def, level)) continue;
+    for (const [resId, spec] of Object.entries(def.brennstoff)) {
+      const menge = rate(spec, level);
+      if (menge <= 0) continue;
+      lager[resId] = (lager[resId] || 0) - menge;
+      verbrauch[resId] = (verbrauch[resId] || 0) + menge;
+      bedarf[resId] = (bedarf[resId] || 0) + menge;
+    }
+  }
+
   // Fluss-Ressourcen zur Anzeige mitführen (unverändert zur bisherigen Form).
   // Nettorate der Fluss-Speicher (Energie: die Batterie lädt oder entlädt).
   const fluss = {};
@@ -1183,6 +1412,46 @@ export function pufferGrenzeStunden(state, planet) {
     if (dauerMs < PUFFER_MINDESTDAUER_MS || !Number.isFinite(dauerMs)) continue;
     const stunden = dauerMs / MS_PRO_STUNDE_STATE;
     if (frueheste === null || stunden < frueheste) frueheste = stunden;
+  }
+
+  // Die Brennstoff-Schwellen (A-055) sind eigene Ereignis-Zeitpunkte: der
+  // Moment, in dem das Tor kippt, trennt zwei Abschnitte mit konstanter
+  // Rate -- exakt wie eine Puffergrenze, nur dass die Schwelle nicht die
+  // Reserve ist, sondern die Zünd- bzw. Anlaufmenge. Sie laufen NICHT über
+  // die Mindestdauer-Schwelle oben: auch ein winziger Abstand zur Schwelle
+  // muss ein Ereignis geben, sonst rechnete ein großer Sprung über den
+  // Kipp-Punkt hinweg. Der +1-ms-Krümel schiebt das Ereignis strikt HINTER
+  // die Schwelle -- sonst landet es in Fließkomma genau darauf und plant
+  // sich endlos neu ein (der A-012-Fehlertyp).
+  for (const [id, def] of BRENNSTOFF_GEBAEUDE) {
+    const level = (planet.gebaeude && planet.gebaeude[id]) || 0;
+    if (level <= 0) continue;
+    const an = brennstoffBereit(planet, def, level);
+    for (const [resId, spec] of Object.entries(def.brennstoff)) {
+      const proStunde = rate(spec, level);
+      if (proStunde <= 0) continue;
+      const vorrat =
+        ((planet.ressourcen && planet.ressourcen[resId]) || 0) - verarbeitungsReserveFuer(planet, resId);
+      const netto = lager[resId] || 0;
+      let stunden = null;
+      if (an && netto < 0) {
+        // Brennt und zehrt: Ereignis, wenn der Vorrat die Zündschwelle
+        // erreicht (knapp ÜBER der Reserve -- dort kippt das Tor, nicht erst
+        // am Reserve-Anschlag).
+        const zuendMenge = (proStunde * PUFFER_MINDESTDAUER_MS) / MS_PRO_STUNDE_STATE;
+        stunden = (vorrat - zuendMenge) / -netto;
+      } else if (!an && netto > 0) {
+        // Erloschen, aber es läuft nach: Ereignis, wenn der Anlauf-Vorrat
+        // beisammen ist (mit Hysterese-Bit die Anlaufmenge, ohne die
+        // Zündmenge).
+        const zielMs = planet.reaktorAus ? BRENNSTOFF_ANLAUF_MS : PUFFER_MINDESTDAUER_MS;
+        const zielMenge = (proStunde * zielMs) / MS_PRO_STUNDE_STATE;
+        stunden = (zielMenge - vorrat) / netto;
+      }
+      if (stunden === null) continue;
+      stunden = Math.max(0, stunden) + 1 / MS_PRO_STUNDE_STATE;
+      if (frueheste === null || stunden < frueheste) frueheste = stunden;
+    }
   }
   return frueheste;
 }
@@ -1280,6 +1549,53 @@ export function speicherRessourceVon(gebaeudeId) {
   return null;
 }
 
+// --- Was die NÄCHSTE Ausbaustufe zusätzlich bringt (A-087) ----------------
+//
+// DER BEZUG IST `ziel - 1`, NICHT DIE HEUTIGE STUFE. Solange ein Bau läuft,
+// sind das zwei verschiedene Zahlen: `naechstesGebaeudeLevel` zählt die
+// Warteschlange mit (Ziel 2, während Stufe 1 gebaut wird), die heutige Stufe
+// steht dabei noch auf 0. Kosten und Bauzeit rechneten immer mit `ziel`; die
+// Zuwachs-Zeilen der Kachel nahmen die heutige Stufe als Basis -- und zeigten
+// damit den Sprung von 0 auf 2 statt von 1 auf 2. Gemessen an einem
+// Kraftwerk: „+11.520 MW · −1.322 AK" im Bau gegen „+6.720 MW · −747 AK"
+// danach, bei identischen Kosten und identischer Dauer.
+//
+// Die Rechnung steht hier und nicht in der Oberfläche, weil sie eine Aussage
+// über die WELT ist (was bringt diese Stufe) und weil sie sonst nicht prüfbar
+// wäre: ui.js läuft in keinem Test.
+export function ausbauVorschau(state, planet, def, ziel) {
+  const basis = Math.max(0, ziel - 1);
+  const bonus = def.kategorie ? kategorieBonus(state, def.kategorie) : 1;
+  const zuwachs = (spec) => rate(spec, ziel) - rate(spec, basis);
+
+  const produktion = {};
+  for (const [resId, spec] of Object.entries(def.produktion || {})) {
+    if (resId === "energie") continue; // steht separat als ⚡
+    // Planetare Affinität gehört zwingend hinein: auf einer Vulkanwelt bringt
+    // dieselbe Iridiummine fast das Doppelte.
+    const affin = planet ? affinitaetFaktor(planet, resId) : 1;
+    const mehr = zuwachs(spec) * bonus * affin;
+    if (mehr > 0) produktion[resId] = Math.round(mehr);
+  }
+  const verbrauch = {};
+  for (const [resId, spec] of Object.entries(def.verbrauch || {})) {
+    if (resId === "energie") continue;
+    const mehr = zuwachs(spec);
+    if (mehr > 0) verbrauch[resId] = Math.round(mehr);
+  }
+  const speicherRes = speicherRessourceVon(def.id);
+  return {
+    // Nettobilanz: was die Stufe erzeugt, minus was sie zieht.
+    energie: zuwachs(def.produktion && def.produktion.energie) - zuwachs(def.verbrauch && def.verbrauch.energie),
+    produktion,
+    verbrauch,
+    speicherRes,
+    speicher: speicherRes
+      ? speicherKapazitaetFuerLevel(speicherRes, ziel) - speicherKapazitaetFuerLevel(speicherRes, basis)
+      : 0,
+  };
+}
+
 // Was ein Planet von einer Ressource höchstens halten darf: die strengere von
 // eigener Speicherkapazität und selbstgesetzter Annahmeregel.
 export function aufnahmeGrenzeFuer(planet, resId) {
@@ -1294,6 +1610,10 @@ export function lagerLimitFuer(planet, resId) {
 }
 
 export function lagerRegelSetzen(planet, resId, maxMenge) {
+  // Dieselbe Lücke wie bei der Verarbeitungsreserve (A-066), gefunden beim
+  // Nachsehen bei den Geschwistern: derselbe Fehlertyp an drei Stellen ist
+  // in diesem Projekt die Regel, nicht die Ausnahme.
+  if (!planet.lagerRegeln) planet.lagerRegeln = {};
   if (maxMenge === null || maxMenge === undefined || !Number.isFinite(maxMenge)) {
     delete planet.lagerRegeln[resId];
   } else {
@@ -1310,6 +1630,245 @@ export function lagerNimmtAn(state, planet, resId, menge = 1) {
   const platzLimit = limit === Infinity ? Infinity : limit - (planet.ressourcen[resId] || 0);
   return Math.min(frei / lagerverbrauchVon(resId), platzLimit) >= Math.min(menge, 1);
 }
+
+// --- Wie lange, bis das fehlende Material da ist? (A-065) ------------------
+//
+// Herkunft: die Preisfrage aus A-050. Die Schirm-Elektronik braucht bei einer
+// Fertigung der Stufe 1 rund 25 Stunden, das Fenster nach dem Blitz ist etwa
+// 24 -- „exakt nicht genug", und nichts im Spiel sagte es. Diese Funktion
+// sagt es (Prinzip 10a), ohne eine einzige Zahl der Balance anzufassen.
+//
+// DIE RATEN KOMMEN VON AUSSEN, wie bei `lagerVollInStunden` (A-051), und aus
+// demselben Grund doppelt:
+//   - Es müssen die EFFEKTIVEN sein. Eine Prognose aus Nennleistung
+//     verspräche Material, das bei Strommangel nie ankommt.
+//   - Der Aufrufer hat sie ohnehin. Diese Rechnung steht auf JEDER Kachel;
+//     holte sie sich die Auflösung selbst, liefe sie je Bildaufbau ein
+//     Dutzend Mal statt einmal (der A-030-Fehlertyp).
+//
+// Gerechnet wird mit der NETTORATE (`raten.lager`), nicht mit der Produktion:
+// wenn eine Verarbeitungskette die Elektronik gleich wieder auffrisst, kommt
+// beim Bauvorrat nichts an, und genau das soll dastehen.
+//
+// `stunden: null` heißt „es kommt nichts nach". Das ist bewusst kein
+// Unendlich und kein „nie" -- dieselbe Regel wie bei der Lagerprognose: was
+// man nicht weiß, sagt man nicht, und eine Zahl ohne Deckung sieht aus wie
+// eine Auskunft.
+export function beschaffungsZeiten(planet, kosten, lagerRaten) {
+  const offen = [];
+  for (const [resId, betrag] of Object.entries(kosten || {})) {
+    const bestand = (planet && planet.ressourcen && planet.ressourcen[resId]) || 0;
+    const fehlt = betrag - bestand;
+    // Was auf Lager liegt, ist keine Frage mehr. Auch der Gleichstand nicht:
+    // genau so viel wie nötig REICHT.
+    if (fehlt <= 0) continue;
+    const proStunde = (lagerRaten && lagerRaten[resId]) || 0;
+    offen.push({ resId, fehlt, proStunde, stunden: proStunde > 0 ? fehlt / proStunde : null });
+  }
+  return offen;
+}
+
+
+// --- „Diese Welt in Zahlen" (A-064) ---------------------------------------
+//
+// EIN Aufruf, EIN Datenobjekt. Der Übersichtsblock zeigt fünf Gruppen
+// nebeneinander, und jede einzelne davon bräuchte für sich genommen die
+// Produktionsauflösung. Fünfmal je Takt wäre genau der Fehlertyp aus A-030:
+// nicht eine teure Rechnung, sondern eine mittlere, die zu oft läuft.
+// Deshalb rechnet DIESE Funktion `produktionsAufloesung` genau einmal und
+// reicht alles Abgeleitete fertig heraus.
+//
+// Sie gibt REINE DATEN zurück, keinen Text: Sprache, Einheiten und
+// Dauerformat gehören in die Oberfläche, die Rechnung gehört hierher, wo
+// Tests sie erreichen (die Auftragsvorgabe „prüfbare Schicht").
+//
+// Was hier NICHT steht: die laufenden Aufträge (Bau/Forschung/Werft). Die
+// sind keine Rechnung, sondern drei Felder am Zustand, und ihre Restzeit hat
+// in `kopfZeitText` bereits genau eine Stelle -- eine zweite wäre der
+// Doppelpflege-Fehler, an dem dieses Projekt mehrfach hing.
+export function planetUebersicht(state, planet) {
+  const aussenposten = !planet || planet.typ === "aussenposten";
+  const raten = produktionsAufloesung(state, planet);
+  const menschen = (planet && planet.ressourcen && planet.ressourcen.bevoelkerung) || 0;
+  const platz = planet ? speicherKapazitaet(planet, "bevoelkerung") : 0;
+
+  // --- 1. Standort --------------------------------------------------------
+  const klasseDef = planet && planet.klasse ? PLANETEN_KLASSEN[planet.klasse] : null;
+  const wasserDef = planet && planet.wasser ? WASSER_STUFEN[planet.wasser] : null;
+  // Reihenfolge aus der Ressourcentabelle, nicht nach Größe sortiert: eine
+  // Liste, die ihre Reihenfolge nach Werten wählt, springt beim ersten
+  // Terraforming um. Fester Platz schlägt schöne Sortierung (Prinzip 8).
+  const affinitaeten = [];
+  const tabelle = planetAffinitaet(planet);
+  for (const resId of LAGER_RESSOURCEN) {
+    const wert = tabelle[resId];
+    // 1 heißt „nichts Besonderes" und braucht keine Zeile. Die 0 dagegen ist
+    // die wichtigste Zahl der Gruppe -- „gibt es hier nicht" (siehe
+    // affinitaetFaktor), und sie MUSS sichtbar sein.
+    if (typeof wert !== "number" || Math.abs(wert - 1) < 0.005) continue;
+    affinitaeten.push({ resId, faktor: wert });
+  }
+
+  const standort = {
+    klasse: klasseDef ? klasseDef.id : null,
+    klasseName: klasseDef ? klasseDef.name : null,
+    zone: (planet && planet.zone) || null,
+    wasser: wasserDef ? wasserDef.id : null,
+    wasserName: wasserDef ? wasserDef.name : null,
+    orbit: planet ? planet.orbit : null,
+    schwerkraft: schwerkraftVon(planet),
+    bauFaktor: bauKostenFaktor(planet),
+    startFaktor: startKostenFaktor(planet),
+    affinitaeten,
+  };
+
+  // --- 4a. Bevölkerung (vor dem Lager: der Wohnraum braucht ihre Rate) -----
+  //
+  // Das Wachstum ist ein SCHRITT alle `schrittMs`, keine Rate -- hier wird es
+  // in eine Stundenrate umgerechnet, damit es neben den anderen Zahlen steht.
+  // Die drei Fälle sind dieselben wie in bevoelkerungSchritt (simulation.js),
+  // und das ist Absicht: eine Anzeige, die anders rechnet als die Simulation,
+  // ist eine Lüge mit Nachkommastellen.
+  const versorgt = (raten.drosselung.nahrung === undefined ? 1 : raten.drosselung.nahrung) >= 1;
+  const schrittProStunde = (BEVOELKERUNG.proSchritt * MS_PRO_STUNDE_STATE) / BEVOELKERUNG.schrittMs;
+  let wachstumProStunde = 0;
+  if (!aussenposten && menschen > 0) {
+    if (!versorgt) wachstumProStunde = -schrittProStunde;
+    else if (menschen < platz) wachstumProStunde = schrittProStunde;
+  }
+  const bevoelkerung = {
+    menschen,
+    platz,
+    versorgt,
+    proStunde: wachstumProStunde,
+    // Nur wenn sie wirklich wächst und der Deckel endlich ist. Sonst null --
+    // „nie" wäre eine Auskunft, die niemand geprüft hat (A-051-Regel).
+    stundenBisDeckel:
+      wachstumProStunde > 0 && Number.isFinite(platz) ? (platz - menschen) / wachstumProStunde : null,
+  };
+
+  // --- 2. Bestände & Kapazitäten ------------------------------------------
+  //
+  // „Lager" heißt hier: die SPEICHER dieser Welt, nicht die Bestandsliste
+  // (die steht seit A-052 vollständig in der Ressourcenleiste, und sie ein
+  // zweites Mal zu zeigen wäre Doppelpflege statt Übersicht). Das gemeinsame
+  // Warenlager rechnet in Volumen, die beiden Einzelspeicher in ihrer
+  // eigenen Einheit -- die A-051-Funktion bleibt die eine Prognose fürs
+  // Warenlager.
+  const kapazitaet = lagerKapazitaetGesamt(state, planet);
+  const belegt = lagerBelegung(planet);
+  const speicher = [];
+  for (const def of Object.values(RESSOURCEN)) {
+    if (!def.speicher) continue;
+    const eigen = speicherKapazitaet(planet, def.id);
+    const bestand = (planet && planet.ressourcen && planet.ressourcen[def.id]) || 0;
+    // Woher die Nettorate kommt, hängt an der Art: Fluss-Speicher (Energie)
+    // laden aus `fluss`, die Bevölkerung wächst in Schritten und hat gar
+    // keine Rate in der Auflösung.
+    const netto =
+      def.id === "bevoelkerung"
+        ? wachstumProStunde
+        : def.art === "fluss"
+          ? raten.fluss[def.id] || 0
+          : raten.lager[def.id] || 0;
+    speicher.push({
+      resId: def.id,
+      bestand,
+      kapazitaet: eigen,
+      netto,
+      vollInStunden:
+        netto > 0 && Number.isFinite(eigen) && eigen > bestand ? (eigen - bestand) / netto : null,
+    });
+  }
+  const lager = {
+    belegt,
+    kapazitaet,
+    frei: Math.max(0, kapazitaet - belegt),
+    vollInStunden: aussenposten ? null : lagerVollInStunden(state, planet, raten.lager),
+    speicher,
+  };
+
+  // --- 3. Flüsse netto ----------------------------------------------------
+  const fluesse = [];
+  for (const resId of LAGER_RESSOURCEN) {
+    const produktion = raten.produktion[resId] || 0;
+    const verbrauch = raten.verbrauch[resId] || 0;
+    // Wo weder produziert noch verbraucht wird, gibt es nichts zu berichten.
+    // Eine Zeile „0" für jede Ressource wäre der Nullzustand als Phantasie.
+    if (produktion === 0 && verbrauch === 0) continue;
+    fluesse.push({
+      resId,
+      produktion,
+      verbrauch,
+      netto: raten.lager[resId] || 0,
+      drosselung: raten.drosselung[resId] === undefined ? 1 : raten.drosselung[resId],
+    });
+  }
+
+  const brennstoffMs = planet ? brennstoffReichweiteMs(planet) : Infinity;
+  const energie = {
+    produktion: raten.produktion.energie || 0,
+    verbrauch: raten.verbrauch.energie || 0,
+    // Die BILANZ, nicht die Batterierate. `raten.fluss.energie` ist, was der
+    // Speicher gerade lädt oder trägt -- bei leerem Speicher und Mangel ist
+    // sie exakt 0, und genau dann stünde hier "0 erzeugt · 6.000 gebraucht ·
+    // ±0 MW". Für eine Übersicht ist das die falsche Zahl: gefragt ist, wie
+    // weit es reicht, nicht was die Batterie tut (die steht in der
+    // Ressourcenleiste).
+    netto: (raten.produktion.energie || 0) - (raten.verbrauch.energie || 0),
+    effizienz: raten.effizienz,
+    // Infinity heißt „nichts verbrennt hier" -- als null weitergereicht,
+    // damit die Anzeige nicht „unendlich Stunden Brennstoff" behauptet.
+    brennstoffStunden: Number.isFinite(brennstoffMs) ? brennstoffMs / MS_PRO_STUNDE_STATE : null,
+    // Die BEDINGUNG dieser Reichweite (A-088): der Verbrauch, an dem sie
+    // hängt. Ohne ihn steht in der Übersicht eine Dauer, die man weder
+    // nachrechnen noch auf die nächste Ausbaustufe umrechnen kann.
+    brennstoffRaten: planet ? brennstoffProStunde(planet) : {},
+  };
+  const arbeitskraft = {
+    produktion: raten.produktion.arbeitskraft || 0,
+    verbrauch: raten.verbrauch.arbeitskraft || 0,
+  };
+  arbeitskraft.frei = arbeitskraft.produktion - arbeitskraft.verbrauch;
+
+  // --- 4b. Anstehende Freischalt-Schwellen --------------------------------
+  //
+  // ANSTEHEND heißt: noch nicht erfüllt. Eine erfüllte Schwelle ist keine
+  // Auskunft mehr, sondern Grundrauschen -- und der Auftrag will genau die
+  // Zahl sichtbar machen, an der man gerade hängt („Werft: 41.500 / 60.000").
+  // Reihenfolge ist die der Gebäudetabelle und damit fest.
+  const schwellen = [];
+  if (!aussenposten) {
+    for (const [id, def] of Object.entries(BUILDINGS)) {
+      if (def.bevoelkerungAb && menschen < def.bevoelkerungAb) {
+        schwellen.push({
+          id,
+          name: def.name,
+          art: "bevoelkerung",
+          ist: menschen,
+          soll: def.bevoelkerungAb,
+        });
+      }
+      if (def.benoetigt && def.benoetigt.forschung) {
+        const stufe = (state.forschung && state.forschung[def.benoetigt.forschung]) || 0;
+        if (stufe < 1) {
+          schwellen.push({
+            id,
+            name: def.name,
+            art: "forschung",
+            techId: def.benoetigt.forschung,
+            techName: RESEARCH[def.benoetigt.forschung].name,
+            ist: stufe,
+            soll: 1,
+          });
+        }
+      }
+    }
+  }
+
+  return { aussenposten, standort, lager, fluesse, energie, arbeitskraft, bevoelkerung, schwellen };
+}
+
 
 // --- Schiffe --------------------------------------------------------------
 // Ladekapazität eines Frachters, durch Frachttechnik steigerbar.
@@ -1345,6 +1904,33 @@ export function forschungsFluss(state, fraktionId = SPIELER_FRAKTION) {
   return summe;
 }
 
+// WAS BREMST DIE FORSCHUNG GERADE? (A-061, Prinzip 10a)
+//
+// Der Laborbedarf drosselt wie jeder andere Eingangsstoff -- und eine
+// Forschung, die plötzlich halb so schnell läuft, ohne dass irgendwo steht
+// warum, ist genau der Fall aus A-050 („läuft nicht WEIL"). Geliefert werden
+// die Ressourcen-IDs, nicht fertiger Text: die Übersetzung gehört der
+// Oberfläche.
+//
+// Gefragt wird nur bei LAUFENDER Forschung. Ohne Projekt fließt nichts, also
+// bremst auch nichts -- eine Warnung dort wäre die Strafsteuer-Anmutung, die
+// der Auftrag ausdrücklich vermeiden will.
+export function laborbedarfKnapp(state, fraktionId = SPIELER_FRAKTION) {
+  if (!state.forschungsQueue) return [];
+  const knapp = new Set();
+  for (const planet of planetenVon(state, fraktionId)) {
+    const def = BUILDINGS.forschungslabor;
+    const level = (planet.gebaeude && planet.gebaeude.forschungslabor) || 0;
+    if (level <= 0) continue;
+    const aufloesung = produktionsAufloesung(state, planet);
+    for (const resId of def.nurBeiForschung || []) {
+      if (!verbrauchAb(def, resId, level)) continue;
+      if ((aufloesung.drosselung[resId] ?? 1) < 0.999) knapp.add(resId);
+    }
+  }
+  return [...knapp];
+}
+
 // Hat diese Fraktion überhaupt ein Labor? Für die Sperre am Forschungsknopf:
 // ein leeres Imperium darf nicht ewig auf einen Fortschritt warten, der nie
 // kommt (Prinzip 10a -- Blockiertes erklärt sich selbst).
@@ -1371,6 +1957,8 @@ export function logistiknetzFreigeschaltet(state) {
 }
 
 export function logistikMindestbestandSetzen(planet, resId, menge) {
+  // Dritte Stelle desselben Musters (A-066).
+  if (!planet.logistikMindestbestand) planet.logistikMindestbestand = {};
   if (menge === null || menge === undefined || !Number.isFinite(menge) || menge <= 0) {
     delete planet.logistikMindestbestand[resId];
   } else {
@@ -1604,6 +2192,98 @@ export function meldungenNummerieren(state) {
   state.meldungNr = hoechste;
 }
 
+// --- Die drei Momente (A-060) ---------------------------------------------
+//
+// Drei Stellen der ersten Spielstunden erklären sich, WENN sie passieren:
+// die erste Werft, der erste Piratenkontakt im eigenen System, der Blitz.
+// Führung durch Erklärung im Moment -- kein Tutorial, das vorher sagt, was man
+// klicken soll, und kein Overlay: die Erstklärung bleibt das einzige Fenster.
+//
+// HIER STEHT NUR DIE FRAGE „IST ES SO WEIT?", nicht der Text. Die Texte
+// gehören zur Oberfläche (ui.js), die Bedingungen zum Zustand -- und sie
+// werden von ZWEI Seiten gebraucht: vom Takt, der die Meldung auslöst, und
+// vom Nachziehen für alte Stände. Zwei Formulierungen derselben Bedingung
+// wären zwei Antworten auf dieselbe Frage.
+export const MOMENTE = ["werft", "piraten", "blitz"];
+
+// Steht in einem meiner Systeme ein Pirat? Das ist der „erste Kontakt" im
+// Sinne des Auftrags -- ausdrücklich NICHT das erste Piratenereignis der
+// Galaxie. Gemessen an einer Demo-Galaxie waren über 30 Minuten alle 30
+// Zeilen der Meldungsliste Überfälle fremder Piraten aufeinander (der Befund
+// hinter der Herkunfts-Mechanik aus v0.82); ein Hinweis, der daran hinge,
+// käme in Minute zwei und beträfe niemanden.
+//
+// Gezählt wird ANWESENHEIT, Basis wie Flotte: eine Bande, die im eigenen
+// System steht, ist gesehen, egal ob sie schon geschossen hat. Eine Flotte
+// zwischen zwei Sternen hat kein System (`ort.systemId === null`) und fällt
+// damit von selbst heraus.
+function piratenFraktionen(state) {
+  const ids = new Set();
+  for (const [id, f] of Object.entries(state.fraktionen || {})) {
+    if (f && f.art === "pirat") ids.add(Number(id));
+  }
+  return ids;
+}
+
+export function piratKontaktImEigenenSystem(state) {
+  const meine = new Set(planetenVon(state).map((p) => p.systemId));
+  if (!meine.size) return false;
+  const banden = piratenFraktionen(state);
+  if (!banden.size) return false;
+  for (const planet of state.planeten) {
+    if (banden.has(fraktionVon(planet)) && meine.has(planet.systemId)) return true;
+  }
+  for (const flotte of state.flotten) {
+    if (!flotte.ort || flotte.ort.systemId === null) continue;
+    if (banden.has(fraktionVon(flotte)) && meine.has(flotte.ort.systemId)) return true;
+  }
+  return false;
+}
+
+export function momentErreicht(state, id) {
+  switch (id) {
+    // Die Werft ist ein GEBÄUDE, kein Bereich: ohne sie ist werftTempo 0 und
+    // es läuft nichts vom Band. Irgendeine eigene Welt genügt.
+    case "werft":
+      return planetenVon(state).some((p) => ((p.gebaeude && p.gebaeude.werft) || 0) > 0);
+    case "piraten":
+      return piratKontaktImEigenenSystem(state);
+    // „Blitz vorbei" schließt die Flut mit ein: wer erst danach lädt, hat den
+    // Moment ebenfalls hinter sich.
+    case "blitz":
+      return !!state.supernova && (state.supernova.phase === "blitz" || state.supernova.phase === "flut");
+    default:
+      return false;
+  }
+}
+
+export function momentGesehen(state, id) {
+  return !!(state.momenteGesehen && state.momenteGesehen[id]);
+}
+
+export function momentMerken(state, id) {
+  if (!state.momenteGesehen) state.momenteGesehen = {};
+  state.momenteGesehen[id] = true;
+}
+
+// Alte Stände bekommen die Erklärung NICHT nachträglich. Wer seine Werft seit
+// zehn Spieljahren stehen hat, braucht nicht zu lesen, was eine Sonde tut --
+// und eine Meldung, die einen längst vergangenen Moment erklärt, sieht aus
+// wie ein Fehler.
+//
+// Läuft EINMAL beim Laden (save.js), nicht bei jedem Zugriff -- dieselbe
+// Stelle und dieselbe Begründung wie `meldungenNummerieren` (A-040). Das
+// Vorhandensein des Feldes ist zugleich die Unterscheidung: ein Stand, der es
+// schon führt, wurde bereits nachgezogen und wird nicht ein zweites Mal
+// bewertet.
+export function momenteNachziehen(state) {
+  if (state.momenteGesehen) return;
+  state.momenteGesehen = {};
+  for (const id of MOMENTE) {
+    if (momentErreicht(state, id)) state.momenteGesehen[id] = true;
+  }
+}
+
 // Der „Was ist neu"-Hinweis nach einem Versionswechsel (A-040).
 //
 // ANLASS (Tobi, 17.08.2026): „Prio hoch für alle User-Interaction-Geschichten:
@@ -1623,13 +2303,29 @@ export function meldungenNummerieren(state) {
 // Start daran, dass beides fehlt: eine gesehene Version UND das Erklärfenster.
 // Die Version wird trotzdem gemerkt -- sonst käme der Hinweis beim nächsten
 // Laden doch noch.
+//
+// SEIT A-047 SIND ES ZWEI MERKER, weil „gemeldet" und „gesehen" zwei
+// verschiedene Wahrheiten sind -- gemessen (A-040-Ergebnis): die Meldung
+// allein erreicht den Spieler kaum, die Liste läuft in ~1,6 Minuten über und
+// die Statusspalte startet eingeklappt.
+//   - `gemeldeteVersion`: bis zu welcher Version wurde die Meldung GEPOSTET.
+//     Sie schaltet die Einmaligkeit des Hinweises (dieser Funktion).
+//   - `gesehenVersion`: bis zu welcher Version hat der Spieler die
+//     Neuigkeiten GESEHEN. Sie wandert erst, wenn der Development-Bereich
+//     wirklich offen war (neuigkeitenGesehen) -- und speist den
+//     Aktivitätspunkt an der Navigation (neuigkeitenPunktAn).
+// Alte Stände tragen nur `gesehenVersion` (bis v1.27 wanderte sie beim
+// Posten): sie zählt deshalb als „gemeldet bis dort" mit -- so bekommt ein
+// v1.27-Stand für v1.28 genau EINE neue Meldung und den Punkt, aber keine
+// Meldungsflut für die Vergangenheit.
 export function neuigkeitenHinweisPruefen(state, version, text) {
-  const gesehen = state.gesehenVersion || null;
-  if (gesehen === version) return false;
+  const gemeldet = state.gemeldeteVersion || state.gesehenVersion || null;
+  if (gemeldet === version) return false;
 
-  const frischesSpiel = !gesehen && !state.erstklaerungGesehen;
+  const frischesSpiel = !state.gesehenVersion && !state.gemeldeteVersion && !state.erstklaerungGesehen;
   if (frischesSpiel) {
     state.gesehenVersion = version;
+    state.gemeldeteVersion = version;
     return false;
   }
 
@@ -1640,8 +2336,30 @@ export function neuigkeitenHinweisPruefen(state, version, text) {
     bereich: "development",
     anker: "patchnotes",
   });
-  state.gesehenVersion = version;
+  state.gemeldeteVersion = version;
   return true;
+}
+
+// Trägt der Development-Navigationspunkt den Aktivitätspunkt? (A-047)
+//
+// Ja, solange die gesehene Version hinter der laufenden liegt -- mit
+// derselben Frische-Ausnahme wie beim Hinweis: ein Spielstand, der noch NIE
+// einen der Merker oder das Erklärfenster gesehen hat, ist ein Neuling im
+// allerersten Takt (neuigkeitenHinweisPruefen setzt seine Merker gleich
+// mit); der kennt nichts Altes und bekommt keinen Punkt.
+export function neuigkeitenPunktAn(state, version) {
+  const neuling = !state.gesehenVersion && !state.gemeldeteVersion && !state.erstklaerungGesehen;
+  if (neuling) return false;
+  return (state.gesehenVersion || null) !== version;
+}
+
+// Der Spieler hat die Neuigkeiten gesehen: der Development-Bereich war
+// offen. BEIDE Wege führen hierher -- der Klick auf die Meldung (sie springt
+// dorthin) und der direkte Klick auf den Navigationspunkt --, weil die
+// Oberfläche den Merker beim Anzeigen des Bereichs setzt, egal wie er
+// aufging. Ein zweiter Weg wäre eine zweite Gelegenheit, ihn zu vergessen.
+export function neuigkeitenGesehen(state, version) {
+  state.gesehenVersion = version;
 }
 
 // Soll diese Meldung dem Spieler standardmäßig angezeigt werden?

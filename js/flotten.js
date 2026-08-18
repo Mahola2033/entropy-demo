@@ -146,25 +146,59 @@ export function flotteTankKapazitaet(state, flotte) {
   return flotteBasisTank(flotte) + Math.max(0, flotteKapazitaet(state, flotte) - ladungGesamt(flotte));
 }
 
+// Was der Verband je Streckeneinheit verbrennt. Stand dreimal ausgeschrieben
+// da (Reichweite bei vollem Tank, Reichweite mit dem Bestand, Verbrauch) --
+// dieselbe Summe an drei Orten ist dieselbe Grenze an drei Orten (Prinzip 5).
+function verbrauchProStrecke(flotte) {
+  let proStrecke = 0;
+  for (const [id, anzahl] of Object.entries(flotte.schiffe)) {
+    proStrecke += (SCHIFFE[id].verbrauchProStrecke || 0) * anzahl;
+  }
+  return proStrecke;
+}
+
 // Reichweite in Galaxie-Einheiten bei vollem Tank, einfache Strecke.
 // Entscheidungsrelevant und gehört deshalb sichtbar an die Flotte
 // (Prinzip 10a).
 export function flotteReichweite(state, flotte) {
-  let proStrecke = 0;
-  for (const [id, anzahl] of Object.entries(flotte.schiffe)) {
-    proStrecke += (SCHIFFE[id].verbrauchProStrecke || 0) * anzahl;
-  }
+  const proStrecke = verbrauchProStrecke(flotte);
   if (proStrecke <= 0) return 0;
   return flotteTankKapazitaet(state, flotte) / proStrecke;
 }
 
+// Wie weit die Flotte mit dem Treibstoff kommt, DER GERADE AN BORD IST --
+// einfache Strecke, in Galaxie-Einheiten. Das ist die Zahl, die der
+// Reichweitenring auf der Karte zeichnet (A-056), und sie ist bewusst die
+// EXAKTE UMKEHRUNG von treibstoffFuer: eine Strecke d ist genau dann gedeckt,
+// wenn d <= flotteRestreichweite(flotte). Deshalb steht hier ein `floor` und
+// die Mindestverbrauchs-Schranke, nicht nur eine Division --
+//   * treibstoffFuer rundet AUF (`Math.ceil`), die letzte bezahlbare Strecke
+//     gehört also zum abgerundeten Tankinhalt, nicht zum echten;
+//   * jeder Abflug kostet mindestens FLOTTE.mindestVerbrauch. Wer den nicht
+//     hat, kommt keinen Millimeter weit -- ein Ring mit "fast null" Radius
+//     würde etwas anderes behaupten.
+// Ein Verband ohne Schiffe (oder ohne Verbrauch) bekommt 0 statt unendlich:
+// er ist ohnehin nicht befehlbar, und ein Ring über die halbe Galaxie wäre
+// die falsche Auskunft.
+export function flotteRestreichweite(flotte) {
+  const proStrecke = verbrauchProStrecke(flotte);
+  if (proStrecke <= 0) return 0;
+  const tank = Math.floor(flotte.treibstoff || 0);
+  if (tank < FLOTTE.mindestVerbrauch) return 0;
+  const weite = tank / proStrecke;
+  // GLEITKOMMA, und zwar in 7 % aller Fälle (nachgemessen über 48.000
+  // Kombinationen aus Verbrauch und Tankinhalt): `proStrecke * (tank /
+  // proStrecke)` landet einen Hauch ÜBER tank -- 50.00000000000001 statt 50.
+  // treibstoffFuer rundet auf, der Ringrand kostete damit eine Einheit mehr,
+  // als der Ring verspricht, und die Zusage "gerade noch erreichbar" wäre
+  // falsch. EIN Schritt nach unten räumt das ab (gemessen: nie mehr als
+  // einer), und er ist auf der Karte um zwölf Nullen unsichtbar.
+  return Math.ceil(proStrecke * weite) > tank ? weite - Math.abs(weite) * Number.EPSILON : weite;
+}
+
 // Treibstoffverbrauch für eine Strecke.
 export function treibstoffFuer(flotte, distanz) {
-  let proStrecke = 0;
-  for (const [id, anzahl] of Object.entries(flotte.schiffe)) {
-    proStrecke += (SCHIFFE[id].verbrauchProStrecke || 0) * anzahl;
-  }
-  return Math.max(FLOTTE.mindestVerbrauch, Math.ceil(proStrecke * distanz));
+  return Math.max(FLOTTE.mindestVerbrauch, Math.ceil(verbrauchProStrecke(flotte) * distanz));
 }
 
 // "3× Kriegsschiff, 1× Frachter" -- wie buendelText, nur für Schiffe statt

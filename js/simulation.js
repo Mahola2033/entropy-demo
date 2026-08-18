@@ -47,6 +47,8 @@ import {
   effektiveRaten,
   pufferGrenzeStunden,
   verarbeitungsReserveFuer,
+  reaktorBitNachziehen,
+  brennstoffReichweiteMs,
   affinitaetFaktor,
   gebaeudeKosten,
   schiffKosten,
@@ -191,6 +193,12 @@ function planetGeaendert(planet) {
   // zweiter Invalidierungspfad waere eine zweite Gelegenheit, ihn zu
   // vergessen (der neunte Fehlertyp, ausdrueckliche Falle in diesem Auftrag).
   planet.bezahlbarMerker = undefined;
+  // A-035: derselbe eine Weg meldet den Planeten auch dem Ereignisplan --
+  // die ausdrueckliche Falle dieses Auftrags war, hier einen ZWEITEN
+  // Invalidierungspfad zu erfinden. Der Plan liest beim naechsten Nachsehen
+  // alle fuenf Quellen dieses Planeten neu, ueber dieselben Merker.
+  const plan = planVonPlanet.get(planet);
+  if (plan) plan.dirtyPlaneten.add(planet);
 }
 
 // Wann kann der wartende Kopf einer Warteschlange bezahlt werden? (A-012)
@@ -262,6 +270,11 @@ function planetVorruecken(state, planet, bisZeitpunkt) {
   // damit sie nicht ewig in der Vergangenheit hängt.
   if (planet.typ !== "aussenposten") {
     planetRatenAnwenden(state, planet, stunden);
+    // Das Zünd-Bit des Reaktors (A-055) wandert NUR hier: nach dem
+    // Fortschreiben, aus dem frischen Bestand. Die Schwellen sind
+    // Ereignis-Zeitpunkte (pufferGrenzeStunden), deshalb kippt das Bit in
+    // einem großen Sprung an denselben Stellen wie in vielen kleinen.
+    reaktorBitNachziehen(planet);
   }
 }
 
@@ -406,7 +419,15 @@ function ressourcenVorruecken(state, bisZeitpunkt, nur = null) {
 // STRIKTER Vergleich (der erste Kandidat einer Zeit gewinnt), gleiches
 // Ergebnis. Das ist keine Absichtserklärung, sondern geprüft --
 // tests/zeit.test.js vergleicht die Auswahl gegen die frühere Fassung.
-function naechstesEreignis(state) {
+//
+// SEIT A-035 IST DIESE FUNKTION DIE REFERENZ, nicht mehr der Normalweg: die
+// Auswahl läuft im Spiel über den Ereignisplan (Vorrangwarteschlange, siehe
+// unten). Diese Linearsuche bleibt als unabhängige zweite Wahrheit erhalten --
+// der Prüfmodus (ENTROPY_PRUEFMODUS=1) lässt beide parallel laufen und wirft
+// bei der ersten Abweichung. Sie ist die Wahrheit, der Plan die
+// Beschleunigung. Wer hier eine Ereignisquelle ändert oder ergänzt, muss sie
+// im Ereignisplan mitziehen (Suchreihenfolge = Rangordnung des Plans).
+function ereignisAuswahlLinear(state) {
   // `besteArt === null` steht für "noch nichts gefunden" und ersetzt das
   // frühere `!bestes` -- ausdrücklich nicht Infinity, damit sich auch ein
   // (theoretischer) unendlicher Zeitpunkt genauso verhält wie vorher.
@@ -530,13 +551,7 @@ function naechstesEreignis(state) {
     pruefe(transfer.ankunftZeit, "transfer", transfer);
   }
   if (besteArt === null) return null;
-  const gebaut = ereignisBauen(state, besteZeit, besteArt, besteEntitaet);
-  // Die ART kommt mit ans Ereignis (A-042). Sie wird für die Ausführung nicht
-  // gebraucht, aber für die Diagnose einer hängenden Aufholung: „welches
-  // Ereignis rückt die Uhr nicht vor" ist ohne sie nicht zu beantworten.
-  // Ein Feld an einem ohnehin erzeugten Objekt, kein zweiter Weg.
-  if (gebaut) gebaut.art = besteArt;
-  return gebaut;
+  return { zeit: besteZeit, art: besteArt, ent: besteEntitaet };
 }
 
 // Baut aus der Auswahl das fertige Ereignis -- EINMAL je Ereignis statt
@@ -617,6 +632,600 @@ function ereignisBauen(state, zeit, art, entitaet) {
     default:
       return null;
   }
+}
+
+// --- Ereignisplan (A-035): Vorrangwarteschlange statt Linearsuche ----------
+//
+// Die Linearsuche oben fragt bei JEDEM Ereignis jeden Planeten, jede Fraktion
+// und jede Flotte nach ihrem nächsten Zeitpunkt -- gemessen (2026-08-18,
+// volle Galaxie, 8 h Aufholung) sind das 29 % der gesamten Rechenzeit, nur
+// für das Durchgehen der Kandidaten. Der Plan merkt sich stattdessen alle
+// gemeldeten Zeitpunkte in einem Min-Heap; ein Ereignis kostet dann ein
+// Nachsehen an der Spitze statt eines Laufs über die Welt.
+//
+// DIE REIHENFOLGE IST NICHT VERHANDELBAR: gleiche Saat, exakt gleiche
+// Ereignis-Reihenfolge wie die Linearsuche. Dafür trägt jeder Eintrag neben
+// der Zeit einen Rang, der die Suchreihenfolge der Referenz nachbildet:
+// erst die Gruppe (Planeten vor Forschung vor Supernova vor Banden vor
+// Fraktionen vor Flotten vor Transfers), darin die Entität in Erzeugungs-
+// reihenfolge (= Array-Reihenfolge: es wird nur angehängt und gefiltert, nie
+// sortiert), darin die Quelle in Prüfreihenfolge (bau vor werft vor puffer
+// vor bezahlbar vor wachstum; ankunft vor gefecht). Bei Zeitgleichstand
+// gewinnt so derselbe Kandidat wie beim strikten Vergleich der Referenz.
+//
+// INVALIDIERUNG, der schwere Teil -- drei Wege, alle faul:
+//   1. Planeten melden sich über planetGeaendert (dieselbe eine Regel, an
+//      der schon die gemerkte Puffergrenze hängt -- Prinzip 5: der Weg wird
+//      verallgemeinert, nicht dupliziert). Der Plan rechnet ihre fünf
+//      Quellen beim nächsten Nachsehen neu, über DIESELBEN Merker wie die
+//      Referenz -- deshalb können beide gar nicht verschieden rechnen.
+//   2. Quellen, die sich nur NACH VORNE bewegen (ein Schritt plant den
+//      nächsten), heilen sich selbst: der veraltete Eintrag steigt an die
+//      Spitze, passt nicht mehr zur Quelle und wird durch den aktuellen
+//      Wert ersetzt. Dafür braucht es keinen einzigen Melde-Aufruf.
+//   3. Neue Quellen (Flotte bricht auf, Gefecht beginnt, Fraktion oder
+//      Planet entsteht, Transfer startet) und Entfernungen melden die
+//      wenigen Erzeuger-/Entferner-Stellen ausdrücklich.
+// Forschung, Supernova und Bandenprüfung bleiben AUSSERHALB des Heaps und
+// werden je Abfrage frisch gelesen wie in der Referenz: es sind einzelne
+// Feldzugriffe (die Forschungsprojektion rechnet über die Spielerplaneten,
+// wie bisher auch) -- ein Cache dafür wäre eine zweite Wahrheit mit eigenen
+// Invalidierungswegen, für Quellen, die zusammen O(1) je Abfrage kosten.
+//
+// Der Plan ist ABGELEITETER Zustand: er hängt in einer WeakMap am
+// State-Objekt, wird nie gespeichert und beim ersten Nachsehen aus dem
+// vollen Bestand aufgebaut (Laden/Testmodus/Klone bekommen so automatisch
+// einen frischen). Testwelten, die Planeten oder Flotten von Hand in die
+// Arrays schieben, fängt der Zahlenabgleich in planVon; von Hand angelegte
+// FRAKTIONEN sieht nur der Neuaufbau -- wer nach dem ersten Vorspulen noch
+// welche einsetzt, muss durch die Erzeuger-Funktionen gehen.
+
+// Betriebsart: "plan" ist der Normalfall. "linear" erzwingt die Referenz
+// (für Vorher/Nachher-Messungen), "beide" lässt beide laufen und wirft bei
+// der ERSTEN Abweichung -- der Äquivalenz-Nachweis aus A-035:
+// `ENTROPY_PRUEFMODUS=1 npm test` und ein Weltlauf im Prüfmodus.
+// Der process-Wächter hält die Spiellogik browserrein (Prinzip: kein
+// Browser-API, aber auch kein Node-Zwang).
+let EREIGNISSUCHE = (() => {
+  const env = typeof process !== "undefined" && process.env ? process.env : {};
+  if (env.ENTROPY_PRUEFMODUS === "1") return "beide";
+  if (env.ENTROPY_EREIGNISSUCHE === "linear" || env.ENTROPY_EREIGNISSUCHE === "beide") return env.ENTROPY_EREIGNISSUCHE;
+  return "plan";
+})();
+
+// NUR für Tests und Messwerkzeuge -- das Spiel schaltet nie um.
+export function ereignisSucheSetzen(modus) {
+  EREIGNISSUCHE = modus;
+}
+
+// Rang-Gruppen = Suchreihenfolge der Referenz. Die Lücken gibt es nicht:
+// jede Gruppe entspricht einem Block der Linearsuche.
+const GR_PLANET = 0;
+const GR_FORSCHUNG = 1;
+const GR_SUPERNOVA = 2;
+const GR_BANDEN = 3;
+const GR_FRAKTION = 4;
+const GR_FLOTTE = 5;
+const GR_TRANSFER = 6;
+
+// Ein Eintrag ist vor einem anderen dran, wenn sein Tupel (zeit, gruppe,
+// entitaet, quelle) lexikographisch kleiner ist -- exakt das "erster
+// Kandidat einer Zeit gewinnt" der Referenz.
+function eintragVor(a, b) {
+  if (a.zeit !== b.zeit) return a.zeit < b.zeit;
+  if (a.g !== b.g) return a.g < b.g;
+  if (a.s !== b.s) return a.s < b.s;
+  return a.a < b.a;
+}
+
+// INDIZIERTER Heap: jeder Eintrag kennt seine Position (`idx`). Das erlaubt,
+// einen ERSETZTEN Eintrag sofort zu entfernen, statt ihn als Leiche liegen zu
+// lassen. Ohne das wüchse der Heap im Sekundentakt des Spiels unbegrenzt:
+// das Vorspulen rückt am Ende jedes Aufrufs ALLE Planeten vor, die
+// Puffergrenze verschiebt sich dabei rechnerisch nicht, in Fließkomma aber
+// um Krümel -- je Planet und Sekunde ein neuer Eintrag, dessen Vorgänger
+// erst Stunden später an der Spitze abstürbe.
+function heapTausche(heap, i, j) {
+  const merk = heap[i];
+  heap[i] = heap[j];
+  heap[j] = merk;
+  heap[i].idx = i;
+  heap[j].idx = j;
+}
+
+function heapAufsteigen(heap, i) {
+  while (i > 0) {
+    const eltern = (i - 1) >> 1;
+    if (!eintragVor(heap[i], heap[eltern])) break;
+    heapTausche(heap, i, eltern);
+    i = eltern;
+  }
+}
+
+function heapAbsinken(heap, i) {
+  for (;;) {
+    const links = 2 * i + 1;
+    const rechts = links + 1;
+    let kleinster = i;
+    if (links < heap.length && eintragVor(heap[links], heap[kleinster])) kleinster = links;
+    if (rechts < heap.length && eintragVor(heap[rechts], heap[kleinster])) kleinster = rechts;
+    if (kleinster === i) return;
+    heapTausche(heap, i, kleinster);
+    i = kleinster;
+  }
+}
+
+function heapEinfuegen(heap, e) {
+  e.idx = heap.length;
+  heap.push(e);
+  heapAufsteigen(heap, e.idx);
+}
+
+function heapEntnehmen(heap) {
+  const spitze = heap[0];
+  const letzter = heap.pop();
+  if (heap.length && letzter !== spitze) {
+    heap[0] = letzter;
+    letzter.idx = 0;
+    heapAbsinken(heap, 0);
+  }
+  return spitze;
+}
+
+// Entfernt einen Eintrag an beliebiger Position. Der nachgerückte letzte
+// Eintrag kann in BEIDE Richtungen falsch stehen -- erst sinken lassen, dann
+// steigen (höchstens eine der beiden Schleifen bewegt ihn).
+function heapEntfernen(heap, e) {
+  const i = e.idx;
+  if (heap[i] !== e) return;
+  const letzter = heap.pop();
+  if (letzter !== e) {
+    heap[i] = letzter;
+    letzter.idx = i;
+    heapAbsinken(heap, i);
+    heapAufsteigen(heap, letzter.idx);
+  }
+}
+
+// Plan je Spielstand. WeakMap statt Feld am State: der Plan darf NIE in einen
+// Spielstand serialisiert werden, und ein geladener/geklonter State soll
+// automatisch frisch aufbauen.
+const plaene = new WeakMap();
+// planetGeaendert kennt den State nicht -- der Rückweg läuft über den
+// Planeten selbst. Ein Planet gehört immer genau einem State.
+const planVonPlanet = new WeakMap();
+
+function neuerPlan() {
+  return {
+    heap: [],
+    // Je Entität ein Merkzettel: der lebende Heap-Eintrag je Quelle (null =
+    // keiner). Ein Eintrag ist nur gültig, wenn der Merkzettel noch auf IHN
+    // zeigt UND die echte Quelle seine Zeit bestätigt -- alles andere wird
+    // an der Spitze verworfen oder ersetzt.
+    planeten: new WeakMap(),
+    flotten: new WeakMap(),
+    fraktionen: new WeakMap(),
+    transfers: new WeakMap(),
+    seqPlanet: 0,
+    seqFlotte: 0,
+    seqFraktion: 0,
+    seqTransfer: 0,
+    // Erwartete Array-Längen -- der billige Wächter gegen Testwelten, die an
+    // den Erzeuger-Funktionen vorbei direkt in die Arrays schieben.
+    planetenZahl: 0,
+    flottenZahl: 0,
+    transferZahl: 0,
+    dirtyPlaneten: new Set(),
+    dirtyFlotten: new Set(),
+    dirtyFraktionen: new Set(),
+    dirtyTransfers: new Set(),
+    entfernt: new WeakSet(),
+  };
+}
+
+function planPlanetRec(plan, planet) {
+  let rec = plan.planeten.get(planet);
+  if (!rec) {
+    rec = { seq: plan.seqPlanet++, bau: null, werft: null, puffer: null, bezahlbar: null, wachstum: null };
+    plan.planeten.set(planet, rec);
+    planVonPlanet.set(planet, plan);
+    plan.planetenZahl++;
+  }
+  return rec;
+}
+
+function planFlotteRec(plan, flotte) {
+  let rec = plan.flotten.get(flotte);
+  if (!rec) {
+    rec = { seq: plan.seqFlotte++, ankunft: null, gefecht: null };
+    plan.flotten.set(flotte, rec);
+    plan.flottenZahl++;
+  }
+  return rec;
+}
+
+function planFraktionRec(plan, fraktion) {
+  let rec = plan.fraktionen.get(fraktion);
+  if (!rec) {
+    rec = { seq: plan.seqFraktion++, schritt: null };
+    plan.fraktionen.set(fraktion, rec);
+  }
+  return rec;
+}
+
+function planTransferRec(plan, transfer) {
+  let rec = plan.transfers.get(transfer);
+  if (!rec) {
+    rec = { seq: plan.seqTransfer++, ankunft: null };
+    plan.transfers.set(transfer, rec);
+    plan.transferZahl++;
+  }
+  return rec;
+}
+
+// Voller Aufbau aus dem Bestand -- einmal je State, in der Reihenfolge der
+// Referenz-Suche, damit die Ränge die Array-Reihenfolge tragen.
+function planAufbauen(state) {
+  const plan = neuerPlan();
+  for (const planet of state.planeten) {
+    planPlanetRec(plan, planet);
+    plan.dirtyPlaneten.add(planet);
+  }
+  const fraktionen = state.fraktionen || {};
+  for (const id in fraktionen) {
+    planFraktionRec(plan, fraktionen[id]);
+    plan.dirtyFraktionen.add(fraktionen[id]);
+  }
+  for (const flotte of state.flotten) {
+    planFlotteRec(plan, flotte);
+    plan.dirtyFlotten.add(flotte);
+  }
+  for (const transfer of state.logistikTransfers) {
+    planTransferRec(plan, transfer);
+    plan.dirtyTransfers.add(transfer);
+  }
+  return plan;
+}
+
+function planVon(state) {
+  let plan = plaene.get(state);
+  if (!plan) {
+    plan = planAufbauen(state);
+    plaene.set(state, plan);
+    return plan;
+  }
+  // Direkteingriffe abfangen: Testwelten schieben Planeten (und theoretisch
+  // Flotten/Transfers) direkt in die Arrays. Stimmt die Länge nicht mehr,
+  // werden Unbekannte nachregistriert -- sie hängen am Ende, ihre Ränge
+  // stimmen damit weiter mit der Array-Reihenfolge überein.
+  if (plan.planetenZahl !== state.planeten.length) {
+    for (const planet of state.planeten) {
+      if (!plan.planeten.has(planet)) {
+        planPlanetRec(plan, planet);
+        plan.dirtyPlaneten.add(planet);
+      }
+    }
+    plan.planetenZahl = state.planeten.length;
+  }
+  if (plan.flottenZahl !== state.flotten.length) {
+    for (const flotte of state.flotten) {
+      if (!plan.flotten.has(flotte)) {
+        planFlotteRec(plan, flotte);
+        plan.dirtyFlotten.add(flotte);
+      }
+    }
+    plan.flottenZahl = state.flotten.length;
+  }
+  if (plan.transferZahl !== state.logistikTransfers.length) {
+    for (const transfer of state.logistikTransfers) {
+      if (!plan.transfers.has(transfer)) {
+        planTransferRec(plan, transfer);
+        plan.dirtyTransfers.add(transfer);
+      }
+    }
+    plan.transferZahl = state.logistikTransfers.length;
+  }
+  return plan;
+}
+
+// Aktueller Zeitpunkt einer Quelle -- null heißt "diese Quelle hat gerade
+// kein Ereignis". Die Bedingungen sind ZEICHENGLEICH mit der Referenz-Suche,
+// inklusive der faulen Merker: puffer und bezahlbar laufen über dieselben
+// Funktionen und damit über dieselben gemerkten Werte wie dort.
+function planQuellenZeit(state, art, ent) {
+  switch (art) {
+    case "bau":
+      return ent.bauQueue && ent.bauQueue.fertigZeit !== null ? ent.bauQueue.fertigZeit : null;
+    case "werft":
+      return ent.werftQueue && ent.werftQueue.fertigZeit !== null ? ent.werftQueue.fertigZeit : null;
+    case "puffer":
+      return pufferGrenzeZeitpunkt(state, ent);
+    case "bezahlbar":
+      return ent.bauQueue || ent.werftQueue ? bezahlbarZeitpunkt(state, ent) : null;
+    case "wachstum":
+      return ent.naechstesWachstum || null;
+    case "fraktion":
+      return ent.naechsterSchritt && VERHALTEN[fraktionArt(ent).verhalten] ? ent.naechsterSchritt : null;
+    case "ankunft":
+      return ent.abschnitt ? ent.abschnitt.ankunftZeit : null;
+    case "gefecht":
+      return ent.gefecht ? ent.gefecht.naechsteRundeZeit : null;
+    case "transfer":
+      return ent.ankunftZeit;
+    default:
+      return null;
+  }
+}
+
+function planRecUndFeld(plan, e) {
+  switch (e.g) {
+    case GR_PLANET:
+      return [plan.planeten.get(e.ent), e.art];
+    case GR_FRAKTION:
+      return [plan.fraktionen.get(e.ent), "schritt"];
+    case GR_FLOTTE:
+      return [plan.flotten.get(e.ent), e.art];
+    case GR_TRANSFER:
+      return [plan.transfers.get(e.ent), "ankunft"];
+    default:
+      return [null, null];
+  }
+}
+
+// Lebt die Entität noch? Fraktionen hängen in einem Objekt -- der Griff über
+// die Id ist billig und erkennt auch wiederverwendete Ids (das Objekt muss
+// DASSELBE sein). Der Rest läuft über die Entfernt-Markierung der wenigen
+// Entferner-Stellen.
+function planEntitaetLebt(state, plan, e) {
+  if (e.g === GR_FRAKTION) return !!state.fraktionen && state.fraktionen[e.ent.id] === e.ent;
+  return !plan.entfernt.has(e.ent);
+}
+
+// Ein Merkzettel-Feld hält den LEBENDEN Heap-Eintrag seiner Quelle (oder
+// null). Ändert sich der Zeitpunkt, wird der alte Eintrag sofort aus dem
+// Heap genommen -- deshalb gibt es zu jeder Quelle höchstens einen Eintrag,
+// und der Heap ist nie größer als die Zahl der aktiven Quellen.
+function planQuelleSetzen(plan, rec, feld, g, a, art, ent, zeit) {
+  const alt = rec[feld];
+  if (alt === null ? zeit === null : alt.zeit === zeit) return;
+  if (alt !== null) heapEntfernen(plan.heap, alt);
+  if (zeit === null) {
+    rec[feld] = null;
+    return;
+  }
+  const e = { zeit, g, s: rec.seq, a, art, ent, idx: 0 };
+  heapEinfuegen(plan.heap, e);
+  rec[feld] = e;
+}
+
+// Arbeitet die gemeldeten Änderungen ab: je schmutziger Entität die Quellen
+// neu lesen und geänderte Zeitpunkte einreihen. Das ist das Gegenstück zum
+// Merker-Verwerfen der Referenz -- gleiche Menge, gleiche Rechnungen, nur
+// dass das Ergebnis im Heap landet statt bei jedem Ereignis neu gesucht zu
+// werden.
+function planDirtyAbarbeiten(state, plan) {
+  if (plan.dirtyPlaneten.size) {
+    for (const planet of plan.dirtyPlaneten) {
+      if (plan.entfernt.has(planet)) continue;
+      const rec = planPlanetRec(plan, planet);
+      planQuelleSetzen(plan, rec, "bau", GR_PLANET, 0, "bau", planet, planQuellenZeit(state, "bau", planet));
+      planQuelleSetzen(plan, rec, "werft", GR_PLANET, 1, "werft", planet, planQuellenZeit(state, "werft", planet));
+      planQuelleSetzen(plan, rec, "puffer", GR_PLANET, 2, "puffer", planet, planQuellenZeit(state, "puffer", planet));
+      planQuelleSetzen(plan, rec, "bezahlbar", GR_PLANET, 3, "bezahlbar", planet, planQuellenZeit(state, "bezahlbar", planet));
+      planQuelleSetzen(plan, rec, "wachstum", GR_PLANET, 4, "wachstum", planet, planQuellenZeit(state, "wachstum", planet));
+    }
+    plan.dirtyPlaneten.clear();
+  }
+  if (plan.dirtyFraktionen.size) {
+    for (const fraktion of plan.dirtyFraktionen) {
+      if (!state.fraktionen || state.fraktionen[fraktion.id] !== fraktion) continue;
+      const rec = planFraktionRec(plan, fraktion);
+      planQuelleSetzen(plan, rec, "schritt", GR_FRAKTION, 0, "fraktion", fraktion, planQuellenZeit(state, "fraktion", fraktion));
+    }
+    plan.dirtyFraktionen.clear();
+  }
+  if (plan.dirtyFlotten.size) {
+    for (const flotte of plan.dirtyFlotten) {
+      if (plan.entfernt.has(flotte)) continue;
+      const rec = planFlotteRec(plan, flotte);
+      planQuelleSetzen(plan, rec, "ankunft", GR_FLOTTE, 0, "ankunft", flotte, planQuellenZeit(state, "ankunft", flotte));
+      planQuelleSetzen(plan, rec, "gefecht", GR_FLOTTE, 1, "gefecht", flotte, planQuellenZeit(state, "gefecht", flotte));
+    }
+    plan.dirtyFlotten.clear();
+  }
+  if (plan.dirtyTransfers.size) {
+    for (const transfer of plan.dirtyTransfers) {
+      if (plan.entfernt.has(transfer)) continue;
+      const rec = planTransferRec(plan, transfer);
+      planQuelleSetzen(plan, rec, "ankunft", GR_TRANSFER, 0, "transfer", transfer, planQuellenZeit(state, "transfer", transfer));
+    }
+    plan.dirtyTransfers.clear();
+  }
+}
+
+// Die gültige Spitze des Heaps -- NACHSEHEN, nicht entnehmen: die Vorspul-
+// Schleifen fragen nach dem nächsten Ereignis und führen es erst aus, wenn
+// es vor "jetzt" liegt. Veraltete Einträge werden hier entsorgt; bewegt sich
+// eine Quelle ohne Meldung (die selbstheilenden Fälle: ein Schritt plant den
+// nächsten), wird ihr aktueller Wert nachgereiht.
+function planSpitze(state, plan) {
+  for (;;) {
+    const e = plan.heap[0];
+    if (!e) return null;
+    const [rec, feld] = planRecUndFeld(plan, e);
+    if (rec && rec[feld] === e && planEntitaetLebt(state, plan, e)) {
+      const zeit = planQuellenZeit(state, e.art, e.ent);
+      if (zeit === e.zeit) return e;
+      // Selbstheilung: die Quelle hat sich ohne Meldung bewegt (ein Schritt
+      // plant den nächsten). Eintrag durch den aktuellen Wert ersetzen.
+      heapEntnehmen(plan.heap);
+      rec[feld] = null;
+      if (zeit !== null) {
+        const neu = { zeit, g: e.g, s: e.s, a: e.a, art: e.art, ent: e.ent, idx: 0 };
+        heapEinfuegen(plan.heap, neu);
+        rec[feld] = neu;
+      }
+      continue;
+    }
+    // Entität weg oder der Eintrag wurde längst ersetzt: Müll von gestern.
+    heapEntnehmen(plan.heap);
+    if (rec && rec[feld] === e) rec[feld] = null;
+  }
+}
+
+// Die Plan-Auswahl: Heap-Spitze gegen die frisch gelesenen Einzelquellen
+// (Forschung, Supernova, Banden) -- Bedingungen und Reihenfolge wie in der
+// Referenz, der Tupel-Vergleich erledigt den Gleichstand.
+function ereignisAuswahlPlan(state) {
+  const plan = planVon(state);
+  planDirtyAbarbeiten(state, plan);
+  const spitze = planSpitze(state, plan);
+  let zeit = 0;
+  let g = 0;
+  let s = 0;
+  let a = 0;
+  let art = null;
+  let ent = null;
+  const nimm = (nZeit, nG, nS, nA, nArt, nEnt) => {
+    if (art !== null) {
+      if (nZeit > zeit) return;
+      if (nZeit === zeit) {
+        if (nG > g) return;
+        if (nG === g && nS > s) return;
+        if (nG === g && nS === s && nA >= a) return;
+      }
+    }
+    zeit = nZeit;
+    g = nG;
+    s = nS;
+    a = nA;
+    art = nArt;
+    ent = nEnt;
+  };
+  if (spitze) nimm(spitze.zeit, spitze.g, spitze.s, spitze.a, spitze.art, spitze.ent);
+  if (state.forschungsQueue) {
+    const fertig = forschungFertigProjektion(state);
+    if (fertig !== null) nimm(fertig, GR_FORSCHUNG, 0, 0, "forschung", null);
+  }
+  const sn = state.supernova;
+  if (sn) {
+    if (sn.phase === "vorwarnung") nimm(sn.kollapsZeit, GR_SUPERNOVA, 0, 0, "snBlitz", null);
+    else if (sn.phase === "blitz" && sn.ozonKaputt && sn.ozonZeit) nimm(sn.ozonZeit, GR_SUPERNOVA, 0, 1, "snOzon", null);
+    if (sn.phase === "blitz") nimm(sn.flutZeit, GR_SUPERNOVA, 0, 2, "snFlut", null);
+  }
+  if (state.naechsteBandenPruefung) nimm(state.naechsteBandenPruefung, GR_BANDEN, 0, 0, "banden", null);
+  return art === null ? null : { zeit, art, ent };
+}
+
+// Die Melde-Stellen. Alle sind gefahrlos, wenn (noch) kein Plan existiert --
+// dann baut der erste Zugriff ohnehin aus dem vollen Bestand auf.
+function planPlanetNeu(state, planet) {
+  const plan = plaene.get(state);
+  if (!plan) return;
+  planPlanetRec(plan, planet);
+  plan.dirtyPlaneten.add(planet);
+}
+
+// Räumt alle Einträge eines Merkzettels aus dem Heap -- für entfernte
+// Entitäten, damit keine Geister-Ereignisse liegen bleiben.
+function planQuellenRaeumen(plan, rec) {
+  if (!rec) return;
+  for (const feld in rec) {
+    if (feld === "seq" || rec[feld] === null || typeof rec[feld] !== "object") continue;
+    heapEntfernen(plan.heap, rec[feld]);
+    rec[feld] = null;
+  }
+}
+
+function planPlanetEntfernt(state, planet) {
+  const plan = plaene.get(state);
+  if (!plan) return;
+  if (plan.planeten.has(planet)) plan.planetenZahl--;
+  planQuellenRaeumen(plan, plan.planeten.get(planet));
+  plan.entfernt.add(planet);
+}
+
+function planFlotteNeu(state, flotte) {
+  const plan = plaene.get(state);
+  if (!plan) return;
+  planFlotteRec(plan, flotte);
+}
+
+function planFlotteGeaendert(state, flotte) {
+  const plan = plaene.get(state);
+  if (!plan) return;
+  planFlotteRec(plan, flotte);
+  plan.dirtyFlotten.add(flotte);
+}
+
+function planFlotteEntfernt(state, flotte) {
+  const plan = plaene.get(state);
+  if (!plan || !flotte) return;
+  if (plan.flotten.has(flotte)) plan.flottenZahl--;
+  planQuellenRaeumen(plan, plan.flotten.get(flotte));
+  plan.entfernt.add(flotte);
+}
+
+function planFraktionNeu(state, fraktion) {
+  const plan = plaene.get(state);
+  if (!plan) return;
+  planFraktionRec(plan, fraktion);
+  plan.dirtyFraktionen.add(fraktion);
+}
+
+function planTransferNeu(state, transfer) {
+  const plan = plaene.get(state);
+  if (!plan) return;
+  planTransferRec(plan, transfer);
+  plan.dirtyTransfers.add(transfer);
+}
+
+function planTransferEntfernt(state, transfer) {
+  const plan = plaene.get(state);
+  if (!plan) return;
+  if (plan.transfers.has(transfer)) plan.transferZahl--;
+  planQuellenRaeumen(plan, plan.transfers.get(transfer));
+  plan.entfernt.add(transfer);
+}
+
+// NUR für Tests: Kennzahlen des Plans dieses States. Der Heap darf nicht mit
+// der Laufzeit wachsen -- tests/ereignisplan.test.js rechnet das nach.
+export function ereignisplanDiagnose(state) {
+  const plan = plaene.get(state);
+  return plan ? { heapGroesse: plan.heap.length } : null;
+}
+
+// Der eine Einstieg für beide Vorspul-Schleifen. Baut aus der Auswahl das
+// fertige Ereignis -- die Art kommt mit ans Objekt (A-042, Diagnose einer
+// hängenden Aufholung).
+function naechstesEreignis(state) {
+  let wahl;
+  if (EREIGNISSUCHE === "linear") {
+    wahl = ereignisAuswahlLinear(state);
+  } else if (EREIGNISSUCHE === "beide") {
+    // Erst der Plan, dann die Referenz: beide rechnen über dieselben Merker,
+    // die Reihenfolge der beiden Aufrufe ändert am Ergebnis nichts.
+    wahl = ereignisAuswahlPlan(state);
+    const referenz = ereignisAuswahlLinear(state);
+    const gleich =
+      wahl === null
+        ? referenz === null
+        : referenz !== null && wahl.zeit === referenz.zeit && wahl.art === referenz.art && wahl.ent === referenz.ent;
+    if (!gleich) {
+      // Entwickler-Diagnostik, kein Anzeigetext -- bewusst ohne t() und so
+      // formuliert, dass der Deutsch-Scanner (tests/sprache.test.js) sie
+      // nicht als vergessene Übersetzung meldet.
+      const zeig = (w) =>
+        w === null ? "leer" : `${w.art} @ ${w.zeit}${w.ent && w.ent.id !== undefined ? ` [${w.ent.id}]` : ""}`;
+      throw new Error(`Ereignisplan-Abweichung (A-035): Plan ${zeig(wahl)} / Referenz ${zeig(referenz)}`);
+    }
+  } else {
+    wahl = ereignisAuswahlPlan(state);
+  }
+  if (wahl === null) return null;
+  const gebaut = ereignisBauen(state, wahl.zeit, wahl.art, wahl.ent);
+  if (gebaut) gebaut.art = wahl.art;
+  return gebaut;
 }
 
 // Bevölkerungsschritt: wächst bei gedeckter Versorgung und freiem Wohnraum,
@@ -729,8 +1338,19 @@ export const EREIGNIS_DECKEL = 2000000;
 // naechstesEreignis: das ist eine reine Abfrage und soll nichts verändern.
 // Eigene Funktion, damit beide Vorspul-Wege sie garantiert gleich machen.
 function wiederkehrendeEinplanen(state) {
+  // Der Plan (A-035) existiert hier schon, wenn vorher einmal vorgespult
+  // wurde -- ein frisch gesetztes Wachstum ist eine NEUE Quelle und muss
+  // gemeldet werden (die Selbstheilung greift nur bei Quellen, die schon
+  // einmal im Heap standen).
+  const plan = plaene.get(state);
   for (const planet of state.planeten) {
-    if (!planet.naechstesWachstum) planet.naechstesWachstum = state.letzterTick + BEVOELKERUNG.schrittMs;
+    if (!planet.naechstesWachstum) {
+      planet.naechstesWachstum = state.letzterTick + BEVOELKERUNG.schrittMs;
+      if (plan) {
+        planPlanetRec(plan, planet);
+        plan.dirtyPlaneten.add(planet);
+      }
+    }
   }
   if (!state.naechsteBandenPruefung) state.naechsteBandenPruefung = state.letzterTick + PIRAT.gruendung.taktMs;
 }
@@ -946,6 +1566,7 @@ function piratenErwecken(state, systemId, objekt, zeit) {
     art: "pirat",
     name: piratenName(state, state.naechsteFraktionId),
   });
+  planFraktionNeu(state, state.fraktionen[id]);
 
   // Die Basis ist ein Planet wie jeder andere -- ohne Bevölkerung, ohne
   // Gebäude. Dass das ohne Sonderbehandlung durchrechnet, ist genau die
@@ -961,6 +1582,7 @@ function piratenErwecken(state, systemId, objekt, zeit) {
   basis.letzterTick = zeit;
   hinzufuegen(basis.ressourcen, skalieren(PIRAT.startVorrat, 1));
   state.planeten.push(basis);
+  planPlanetNeu(state, basis);
 
   // Die Flotte, die bisher im Objekt stand, wird eine echte Flotte.
   const flotte = flotteAufstellen(state, basis, objekt.bezeichnung);
@@ -1227,6 +1849,7 @@ export function piratenNeugruendung(state, zeit) {
   const fraktion = neueFraktion({ id, art: "pirat", name: piratenName(state, state.naechsteFraktionId) });
   fraktion.herkunft = fraktionVon(quelle);
   state.fraktionen[id] = fraktion;
+  planFraktionNeu(state, fraktion);
 
   // DIE BEVÖLKERUNG KOMMT VON DER FRAKTION -- sie wird dort wirklich abgezogen.
   quelle.ressourcen.bevoelkerung = Math.max(0, quelle.ressourcen.bevoelkerung - regeln.bevoelkerung);
@@ -1257,6 +1880,7 @@ export function piratenNeugruendung(state, zeit) {
   // dastand; der Test dazu prüfte nur den Abzug, nicht die Ankunft.
   basis.ressourcen.bevoelkerung = regeln.bevoelkerung;
   state.planeten.push(basis);
+  planPlanetNeu(state, basis);
 
   const flotte = flotteAufstellen(state, basis, fraktion.name);
   flotte.fraktion = id;
@@ -1347,6 +1971,7 @@ function piratenBeutezug(state, fraktion, basis, flotte, zeit) {
     saat: kampfSaatZiehen(state),
     naechsteRundeZeit: zeit + PIRAT.vorwarnungMs,
   };
+  planFlotteGeaendert(state, flotte);
 
   // Die Vorwarnung ist der Kern: der Überfallene erfährt es, BEVOR es losgeht.
   meldungHinzufuegen(
@@ -1417,6 +2042,7 @@ function piratenTeilen(state, fraktion, basis, flotte, zeit) {
   // zwei Gruppen mit demselben Namen, die einander bekämpfen.
   const splitter = neueFraktion({ id, art: "pirat", name: piratenName(state, state.naechsteFraktionId) });
   state.fraktionen[id] = splitter;
+  planFraktionNeu(state, splitter);
 
   // Die Trennung ist einseitig: der Splitter geht und hat damit kein Problem,
   // die Mutter verliert die halbe Flotte und schon. Beide Richtungen
@@ -1437,6 +2063,7 @@ function piratenTeilen(state, fraktion, basis, flotte, zeit) {
   }
   if (Object.values(reise.schiffe).every((n) => !n)) {
     // Nichts mitzunehmen -- Teilung findet nicht statt.
+    planFlotteEntfernt(state, reise);
     state.flotten = state.flotten.filter((f) => f.id !== reise.id);
     delete state.fraktionen[id];
     state.naechsteFraktionId--;
@@ -1483,6 +2110,7 @@ function piratenNiederlassung(state, flotte, befehl, zeit) {
   });
   basis.letzterTick = zeit;
   state.planeten.push(basis);
+  planPlanetNeu(state, basis);
 
   basis.gebaeude.handelsposten = 1;
   fraktion.basisPlanet = basis.id;
@@ -1515,11 +2143,13 @@ function piratenBasisAufgeben(state, basis) {
     fraktionId: null,
     ...(Object.keys(rest).length > 0 ? { restErtrag: rest } : {}),
   });
+  planPlanetEntfernt(state, basis);
   state.planeten = state.planeten.filter((p) => p.id !== basis.id);
 }
 
 function piratenAufloesen(state, fraktion) {
   piratenBasisAufgeben(state, planetById(state, fraktion.basisPlanet));
+  planFlotteEntfernt(state, flotteById(state, fraktion.flotteId));
   state.flotten = state.flotten.filter((f) => f.id !== fraktion.flotteId);
   delete state.fraktionen[fraktion.id];
 }
@@ -1743,6 +2373,7 @@ export function botWeltStart(state, zeit = state.letzterTick) {
     const id = `bot-${state.naechsteFraktionId++}`;
     const fraktion = neueFraktion({ id, art: "bot", name: `${FRAKTIONS_ARTEN.bot.name} ${gesetzt + 1}` });
     state.fraktionen[id] = fraktion;
+    planFraktionNeu(state, fraktion);
 
     const welt = neuerPlanet({
       id: state.naechstePlanetId++,
@@ -1771,6 +2402,7 @@ export function botWeltStart(state, zeit = state.letzterTick) {
     welt.ressourcen.credits = BOT.startKasse;
     welt.letzterTick = zeit;
     state.planeten.push(welt);
+    planPlanetNeu(state, welt);
     belegt.add(`${systemId}:${heimat.orbit}`);
     besetzteSysteme.add(systemId);
 
@@ -1792,6 +2424,15 @@ export function botWeltStart(state, zeit = state.letzterTick) {
 const ENGPASS_PRUEFUNGEN = {
   energie: (state, planet, lage) =>
     (lage.produktion.energie || 0) < (lage.verbrauch.energie || 0),
+
+  // Brennstoff-Vorausschau (A-055): gemeldet wird, BEVOR der Reaktor
+  // erlischt -- die Schwelle muss Bauzeit plus Förder-Anlauf tragen. Auf
+  // Welten ohne Deuterium-Affinität ist ein Extraktor keine Antwort; dort
+  // bleibt nur Handel oder der Speicher (dieselbe Regel wie beim Nachschub).
+  brennstoff: (state, planet) => {
+    if (affinitaetFaktor(planet, "tritium") <= 0) return false;
+    return brennstoffReichweiteMs(planet) < BOT.engpassSchwellen.brennstoffStunden * 60 * 60 * 1000;
+  },
 
   nahrung: (state, planet, lage) =>
     (lage.lager.nahrung || 0) < 0 ||
@@ -2160,14 +2801,16 @@ function logistiknetzPruefen(state, jetzt, erzwingen = false) {
       // Direkter Eingriff in einen Bestand, außerhalb von planetVorruecken --
       // der gemerkte Puffergrenzen-Zeitpunkt der Quelle ist damit hinfällig.
       planetGeaendert(beste.quelle);
-      state.logistikTransfers.push({
+      const transfer = {
         id: state.naechsteTransferId++,
         quellPlanet: beste.quelle.id,
         zielPlanet: ziel.id,
         resId,
         menge,
         ankunftZeit: jetzt + logistikVerzoegerungMs(state, beste.quelle, ziel),
-      });
+      };
+      state.logistikTransfers.push(transfer);
+      planTransferNeu(state, transfer);
       meldungHinzufuegen(
         state,
         t("Logistiknetz: {fracht} von {quelle} nach {ziel} unterwegs.", {
@@ -2182,6 +2825,7 @@ function logistiknetzPruefen(state, jetzt, erzwingen = false) {
 }
 
 function logistikTransferAnkommen(state, transfer) {
+  planTransferEntfernt(state, transfer);
   state.logistikTransfers = state.logistikTransfers.filter((tr) => tr.id !== transfer.id);
   const ziel = planetById(state, transfer.zielPlanet);
   if (!ziel) return;
@@ -2415,6 +3059,45 @@ function supernovaFlut(state, zeit) {
     }
   }
 
+  // SOLARFELDER STERBEN MIT DER FLUT (A-055): schnelle geladene Teilchen
+  // schlagen Atome aus dem Halbleitergitter -- ein Feld ohne haltenden
+  // Schirm ist danach Schrott. Unter einem haltenden Schirm überlebt es,
+  // wie eine Magnetosphäre es real leisten würde; ob der Schirm hält, ist
+  // oben bereits mit dem VOLLEN Strommix entschieden (auch dem solaren --
+  // solange der Schirm steht, liefern die Felder ja noch).
+  //
+  // Eigener Durchlauf über ALLE Planeten, nicht nur die bewohnten: auch
+  // eine leergezogene Kolonie kann Felder tragen. Sie verfallen nach
+  // Prinzip 13a zu Bergungsgut am eigenen Orbit, nicht ins Nichts.
+  for (const planet of state.planeten) {
+    const stufe = planet.gebaeude ? planet.gebaeude.solarfeld || 0 : 0;
+    if (stufe <= 0) continue;
+    const schildStufe = planet.gebaeude.magnetschild || 0;
+    const haelt =
+      schildStufe > 0 && (effektiveRaten(state, planet).faktoren.magnetschild ?? 0) >= SCHIRM_MINDESTVERSORGUNG;
+    if (haelt) continue;
+    const schrott = {};
+    for (let l = 1; l <= stufe; l++) {
+      for (const [resId, betrag] of Object.entries(gebaeudeKosten(planet, BUILDINGS.solarfeld, l))) {
+        schrott[resId] = (schrott[resId] || 0) + Math.floor(betrag * SCHROTT_ANTEIL);
+      }
+    }
+    planet.gebaeude.solarfeld = 0;
+    planetGeaendert(planet);
+    if (Object.values(schrott).some((menge) => menge > 0)) {
+      zurueckgelassen(
+        state,
+        ortVonPlanet(state, planet),
+        schrott,
+        planet.name,
+        // Nur der Spieler bekommt die Meldung -- eine Zeile je Bot-Welt wäre
+        // eine Flut in der Flut.
+        fraktionVon(planet) !== SPIELER_FRAKTION,
+        `solarflut-${planet.id}`
+      );
+    }
+  }
+
   state.ende = {
     zeit,
     welten,
@@ -2498,6 +3181,10 @@ export function flotteAufstellen(state, planet, name) {
     gefecht: null,
   };
   state.flotten.push(flotte);
+  // Für den Ereignisplan (A-035): den Rang in Erzeugungsreihenfolge sichern.
+  // Quellen hat eine frische Flotte noch keine -- die melden abschnittStarten
+  // und die Gefechts-Eröffnungen.
+  planFlotteNeu(state, flotte);
   return flotte;
 }
 
@@ -2691,6 +3378,7 @@ export function flotteAufloesen(state, flotte) {
     }
   }
   ladungLoeschen(state, flotte, planet);
+  planFlotteEntfernt(state, flotte);
   state.flotten = state.flotten.filter((f) => f.id !== flotte.id);
   return { ok: true };
 }
@@ -2736,6 +3424,7 @@ function flotteLeerAufloesen(state, flotte) {
     null,
     herkunftVon(flotte)
   );
+  planFlotteEntfernt(state, flotte);
   state.flotten = state.flotten.filter((f) => f.id !== flotte.id);
 }
 
@@ -2824,6 +3513,9 @@ function abschnittStarten(state, flotte, zielOrt, jetzt) {
     // sagen dürfen.
     unterlicht,
   };
+  // Neue Quelle für den Ereignisplan (A-035): eine ruhende Flotte hatte
+  // keinen Eintrag, die Selbstheilung greift deshalb hier nicht.
+  planFlotteGeaendert(state, flotte);
 }
 
 // Prüft einen Befehl, ohne ihn auszuführen.
@@ -3684,6 +4376,7 @@ function militaerStarten(state, flotte, befehl, zeit) {
     // (derselbe Fehler, der beim Flotten-Rückflug schon einmal auftrat).
     naechsteRundeZeit: zeit,
   };
+  planFlotteGeaendert(state, flotte);
   meldungHinzufuegen(state, t("{objekt}: Gefecht beginnt.", { objekt: objekt.name }), null, herkunftVon(flotte));
 }
 
@@ -3895,6 +4588,7 @@ function stuetzpunktGruenden(state, flotte, befehl, typ, zeit) {
     flotte.siedler = 0;
   }
   state.planeten.push(planet);
+  planPlanetNeu(state, planet);
 
   meldungHinzufuegen(
     state,
@@ -4460,6 +5154,37 @@ export function wartetAuf(state, planet, kopf, art) {
   }
   if (!fehlend.length) return null;
   return { fehlend, sekunden, text: buendelText(Object.fromEntries(fehlend.map((f) => [f.resId, Math.ceil(f.fehlt)]))) };
+}
+
+// Wann kommt der Eintrag an Position `index` einer Warteschlange dran? (A-086)
+//
+// Die Rechnung ist bewusst stumpf: Restzeit des laufenden Auftrags plus die
+// Bauzeiten aller Einträge davor. Genau deshalb ist sie MONOTON FALLEND und
+// steht bei Pause still -- beides Zusicherungen des Auftrags. Sie kommt aus
+// `fertigZeit` und festen Dauern, nicht aus Raten; eine Schätzung aus Raten
+// (wie `wartetAuf` sie für den wartenden KOPF braucht) springt, sobald die
+// Wirtschaft sich ändert, und war als Anzeige für wartende Einträge der
+// dritte Befund von A-086.
+//
+// `kopfRestSek === null` heißt: der laufende Auftrag hat selbst noch kein
+// Ende (er wartet auf Material). Dann ist der Startzeitpunkt UNBEKANNT, und
+// die Antwort ist null statt einer Phantasiezahl -- dieselbe Regel wie bei
+// der Lagerprognose: was man nicht weiß, sagt man nicht.
+export function warteStartSekunden(kopfRestSek, warteschlange, index, dauerVon = (e) => e.dauerSek || 0) {
+  if (kopfRestSek === null || kopfRestSek === undefined || !Number.isFinite(kopfRestSek)) return null;
+  let sekunden = Math.max(0, kopfRestSek);
+  for (let i = 0; i < index; i++) sekunden += dauerVon(warteschlange[i]) || 0;
+  // Unendlich kommt aus der FORSCHUNG: ohne Labor hat ein Eintrag keine Dauer.
+  // Auch das ist ein Nichtwissen und wird als solches gemeldet -- „startet in
+  // ~steht still" wäre der Satz, den diese Zeile gerade abstellt.
+  return Number.isFinite(sekunden) ? sekunden : null;
+}
+
+// Restzeit eines laufenden Kopfes in Sekunden -- null, solange er auf Material
+// wartet (`fertigZeit === null`, siehe die Zwei-Zustände-Regel bei bauStarten).
+export function kopfRestSekunden(kopf, jetzt) {
+  if (!kopf || kopf.fertigZeit === null || kopf.fertigZeit === undefined) return null;
+  return (kopf.fertigZeit - jetzt) / 1000;
 }
 
 // Der Kopf einer Warteschlange, sofern er WARTET (noch nicht bezahlt).

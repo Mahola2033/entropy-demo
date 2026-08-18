@@ -82,7 +82,11 @@
         <button data-sprung-sek="60">+1m</button>
         <button data-sprung-sek="600">+10m</button>
         <button data-sprung-sek="3600">+1h</button>
-        <button data-sprung-sek="86400" data-text="+1 Tag"></button>
+        <!-- Der +1-Tag-Sprung steht hier BEWUSST NICHT (A-058, Tobis
+             Entscheidung 18.08.: „der ist einfach zu viel des Guten").
+             js/testmodus.js baut ihn nur im Entwicklungsstand -- ein Knopf,
+             der bloß per CSS versteckt wäre, bliebe über die Konsole
+             klickbar. -->
         <!-- A-038: Dauerfaktor statt Sprung. 0 ist die Pause -- derselbe
              Regler, ein Wert weiter unten, kein zweiter Mechanismus. -->
         <button data-zeitfaktor="0" data-text="Pause"></button>
@@ -101,6 +105,12 @@
 
     <main class="spielfeld" id="spielfeld">
       <section class="bereich" data-bereich="planet">
+        <!-- A-064: „Diese Welt in Zahlen" -- fester Block ÜBER den
+             Gebäudegruppen, kein eigener Tab. Die Hülle steht hier, damit
+             sie nie neu entsteht; die fünf Gruppen baut js/ui.js einmalig
+             und füllt sie danach nur noch (Prinzip 8a). -->
+        <h2 data-text="Diese Welt in Zahlen"></h2>
+        <div id="planet-uebersicht" class="uebersicht"></div>
         <h2 data-text="Gebäude"></h2>
         <ul id="gebaeude-liste" class="kachel-raster"></ul>
         <div id="gebaeude-warteschlange" class="warteschlange"></div>
@@ -131,8 +141,13 @@
 
       <section class="bereich bereich-voll" data-bereich="galaxie" hidden>
         <h2><span data-text="Galaxie"></span> <span class="dezent" id="galaxie-info"></span></h2>
-        <div class="zwei-spalten">
-          <!-- Beide Spalten haben einen gleich hohen Kopfbereich (.spalte-kopf),
+        <!-- DREI Spalten seit A-057: Galaxie, System, Kommando. Die dritte ist
+             Tobis Ein-Screen-Vorgabe („Alles was man zum Bewegen der Flotte
+             braucht muss auf einem Screen zu sehen sein") -- sie steht FEST
+             daneben und klappt nicht, damit der Weg Flotte → Ziel → Auftrag
+             immer derselbe ist (Prinzip 8). -->
+        <div class="drei-spalten">
+          <!-- Alle Spalten haben einen gleich hohen Kopfbereich (.spalte-kopf),
                damit die Listen auf derselben Linie beginnen. Sonst schiebt die
                Flotten-Zeile rechts die Liste nach unten. -->
           <div class="spalte">
@@ -180,6 +195,19 @@
             </div>
             <div class="spalte-scrollt">
               <ul id="system-liste" class="system-liste"></ul>
+            </div>
+          </div>
+          <!-- Die Kommandoleiste (A-057). Drei Stationen von oben nach unten,
+               immer sichtbar. Leer im Markup: das Gerüst entsteht EINMAL in
+               js/ui.js und bleibt danach stehen (Prinzip 8a) -- ein Los-Knopf,
+               der jede Sekunde neu entsteht, verschluckt Klicks. -->
+          <div class="spalte">
+            <div class="spalte-kopf">
+              <h3 class="unter-titel" data-text="Kommando"></h3>
+              <div id="kommando-hinweis" class="sonden-status"></div>
+            </div>
+            <div class="spalte-scrollt">
+              <div id="kommando-leiste"></div>
             </div>
           </div>
         </div>

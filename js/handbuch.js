@@ -54,10 +54,13 @@ export function handbuchAbschnitte() {
     {
       id: "zeit",
       titel: t("Wie Zeit hier funktioniert"),
-      // Absatz 2 ist der, der einem Neuling am ehesten fehlt, bevor er zum
-      // ersten Mal den Rechner zuklappt -- deshalb geht er mit ins
-      // Erklärfenster.
-      erststart: 2,
+      // ZWEI Absätze gehen von hier ins Erklärfenster (A-059). Absatz 2 ist
+      // der, der einem Neuling am ehesten fehlt, bevor er zum ersten Mal den
+      // Rechner zuklappt. Absatz 3 ist neu und sagt, WAS FÜR EIN SPIEL das
+      // hier ist -- Chris hat mehrfach neu gestartet, weil er die Langsamkeit
+      // für seinen Fehler hielt („wasn't sure how idle it was supposed to
+      // be"). Das ist keine Balancing-Frage, sondern eine unbeantwortete.
+      erststart: [2, 3],
       absaetze: [
         t(
           "Eine Sekunde am Bildschirm ist ein Tag in der Welt. Das ist kein gewählter Trick, sondern folgt aus der Bevölkerung: sie ist die einzige Größe, deren echte Rate keine Technologie verschiebt. Setzt man ihr Wachstum auf einen realistischen Wert, ergibt sich dieser Maßstab von selbst."
@@ -67,6 +70,9 @@ export function handbuchAbschnitte() {
         ),
         t(
           "Wichtig: die Frist läuft weiter, während du nicht da bist. Das ist hart und beabsichtigt – eine Frist, die auf dich wartet, ist keine. Wer abends aufhört und morgens zurückkommt, findet eine Welt vor, die inzwischen gelebt hat."
+        ),
+        t(
+          "Entropy ist deshalb ein Spiel für nebenbei. Es läuft langsam, und das ist Absicht und nicht dein Fehler: Fortschritt braucht hier Geduld, in den ersten Minuten passiert wenig, und die Welt arbeitet auch dann weiter, wenn du nicht hinsiehst. Wegzugehen ist kein Aussetzen – nur die Frist wartet eben auch nicht."
         ),
       ],
     },
@@ -79,6 +85,11 @@ export function handbuchAbschnitte() {
         ),
         t(
           "Energie und Arbeitskraft sind keine Vorräte, sondern Flüsse. Sie werden in jedem Moment erzeugt und im selben Moment verbraucht. Reicht ein Fluss nicht, wird gedrosselt – und zwar alles, was daran hängt."
+        ),
+        // A-055: die Energie-Wahl samt ihrem Risiko -- Pflichttext, nicht
+        // Beiwerk (die Kachel warnt zwar, aber sie erklärt nicht das WARUM).
+        t(
+          "Für Energie gibt es zwei Wege, und sie unterscheiden sich im Preis: Das Kraftwerk verbrennt Deuterium aus dem Lager – geht der Brennstoff aus, zündet die Fusion nicht mehr und der Reaktor steht, bis wieder Vorrat für den Anlauf da ist. Das Solarfeld braucht keinen Brennstoff und liefert sternnah am meisten – aber seine Halbleiter überstehen die Teilchenflut nicht: ungeschirmte Felder sind danach Schrott. Der bequeme Weg ist der verwundbare; ein Energiespeicher überbrückt Lücken in beiden."
         ),
         t(
           "Arbeitskraft kommt aus deiner Bevölkerung, und Bevölkerung wächst nur, wenn Wohnraum frei ist. Deshalb ist ein Wohnmodul selten das, was am dringendsten aussieht, und oft das, was am meisten bringt: es hebt nicht eine Zahl, sondern die Obergrenze aller anderen."
@@ -183,6 +194,40 @@ export function handbuchAbschnitte() {
       ],
       link: { text: t("Rückmeldung geben"), adresse: feedbackAdresse() },
     },
+    // Die Oberfläche (A-059). Steht VOR der Steuerung: erst wo etwas liegt,
+    // dann wie man hinkommt.
+    //
+    // WARUM ALS ABSCHNITT UND NICHT ALS FÜHRUNG DURCH DIE OBERFLÄCHE: Tobis
+    // stehende Linie ist „Führung durch Erklärung, keine Schritt-für-Schritt-
+    // Anleitung". Ein Overlay, das nacheinander auf Kopfzeile, Leiste und
+    // Spalte zeigt, wäre genau die Anleitung -- und ein neues UI-Muster
+    // obendrein. Nachschlagbar ist hier auch deshalb besser, weil die Frage
+    // „wo war das nochmal" NICHT beim ersten Start kommt, sondern eine halbe
+    // Stunde später.
+    //
+    // KEINE ZAHLEN, wie im Kopf dieser Datei verlangt -- der Abschnitt sagt,
+    // was wo liegt und was es bedeutet, nicht wieviel es gerade ist.
+    {
+      id: "oberflaeche",
+      titel: t("Die Oberfläche"),
+      absaetze: [
+        t(
+          "Der Bildschirm hat vier feste Zonen, und sie ändern ihre Plätze nie: der Kopf ganz oben, die beiden Ressourcenreihen darunter, links die Bereichsleiste – und rechts eine Spalte, die man auf- und zuklappen kann."
+        ),
+        t(
+          "Im Kopf stehen zwei Zeiten nebeneinander, und sie meinen Verschiedenes. Das Datum ist der Kalender deiner Welt und läuft immer. Die Uhr daneben ist die Frist: sie nennt das nächste Ereignis der Supernova und zeigt als Balken, wieviel davon schon vorbei ist. Gibt es gerade keine Frist, ist die Uhr weg – das Datum bleibt."
+        ),
+        t(
+          "Darunter liegen zwei Reihen, und der Unterschied zwischen ihnen ist der wichtigste in der ganzen Wirtschaft. Oben steht, was du HAST: Lagerbestände, die sich ansammeln. Unten steht, was du KANNST: Strom, Arbeitskraft und Lagerplatz – Größen, die pro Zeit anfallen oder als Platz begrenzt sind und nicht gespart werden können. Wer die untere Reihe für einen Vorrat hält, wundert sich früher oder später."
+        ),
+        t(
+          "Links wechselst du den Bereich; sichtbar ist immer genau einer. Ein Punkt an einem Eintrag heißt: dort läuft gerade etwas. Dieselben Bereiche erreichst du mit den Zifferntasten – der Abschnitt Steuerung listet sie."
+        ),
+        t(
+          "Die Spalte rechts zeigt, was gerade läuft, egal welcher Bereich offen ist: Bauaufträge, Forschung, Werft, unterwegs befindliche Flotten – und die Meldungen. Sie ist der einzige Ort, an dem dein Spiel dich anspricht. Mit dem Griff an ihrem Rand klappt sie zu, wenn du den Platz brauchst; dann läuft alles weiter, du siehst es nur nicht mehr."
+        ),
+      ],
+    },
     // Steuerung (A-029). Steht VOR den Neuigkeiten, weil es zum Spiel
     // gehoert und nicht zum Projekt -- und weil ein Nachschlagewerk seine
     // Bedienung nicht ganz hinten versteckt.
@@ -243,6 +288,17 @@ export function handbuchAbschnitte() {
   ];
 }
 
+// Einen einzelnen Handbuch-Absatz holen, zum Zitieren an anderer Stelle
+// (A-060). Gleiches Muster wie der `erststart`-Zeiger darunter und aus
+// demselben Grund: wer den Text abschreibt, führt ab dann zwei Fassungen, und
+// gepflegt wird eine. Fehlt der Abschnitt oder der Absatz, kommt `null`
+// zurück -- der Aufrufer lässt die Meldung dann lieber ganz weg, als eine
+// leere zu schreiben.
+export function handbuchAbsatz(abschnittId, index) {
+  const abschnitt = handbuchAbschnitte().find((a) => a.id === abschnittId);
+  return (abschnitt && abschnitt.absaetze[index]) || null;
+}
+
 // Das Erklärfenster beim allerersten Start.
 //
 // ANLASS: Tobi hat die veröffentlichte Demo am 16.08.2026 zum ersten Mal selbst
@@ -261,9 +317,15 @@ export function handbuchAbschnitte() {
 // beim ersten Start von selbst öffnet, darf und muss dagegen sagen, wo man
 // anfängt -- sonst ist es nur eine weitere Wand aus Text.
 export function erststartTafel(planetName) {
+  // Der Zeiger darf seit A-059 auch MEHRERE Absätze benennen. Grund: der
+  // Identitäts-Absatz („ein Spiel für nebenbei") gehört sachlich in denselben
+  // Abschnitt wie der Hinweis auf die weiterlaufende Frist, und eine Sektion
+  // konnte bis dahin nur einen einzigen Absatz beisteuern. Die Alternative
+  // wäre gewesen, den Text ein zweites Mal ins Fenster zu schreiben -- genau
+  // die zweite Wahrheit, die der Zeiger verhindern soll.
   const geborgt = handbuchAbschnitte()
     .filter((a) => a.erststart !== undefined)
-    .map((a) => a.absaetze[a.erststart])
+    .flatMap((a) => (Array.isArray(a.erststart) ? a.erststart : [a.erststart]).map((i) => a.absaetze[i]))
     // Falls jemand oben Absätze umsortiert und den Zeiger vergisst: lieber
     // einen Absatz weniger als eine Lücke im Fenster.
     .filter(Boolean);

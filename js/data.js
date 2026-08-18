@@ -17,7 +17,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "1.27";
+export const VERSION = "1.49";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von uebernehmen.mjs beim Kopieren auf "spielkopie"
@@ -493,11 +493,34 @@ export const START = {
 // Zeile ändern lassen. Ressourcen tragen ihr Symbol dagegen direkt in
 // RESSOURCEN, weil es dort Teil der Ressourcen-Identität ist und in
 // Kostenangaben mitwandert.
+// Wie teuer die Anreicherung gegen den Reaktor gerechnet wird (A-071).
+//
+// DAS IST DIE SCHRANKE GEGEN DAS PERPETUUM MOBILE, und sie ist eine Zahl mit
+// Beweis dahinter -- hergeleitet im A-063-Ergebnis:
+//
+// Die Anreicherung spiegelt die BEIDEN Kurven des Kraftwerks. Ihre Ausbeute
+// ist dessen Brennstoffkurve, ihr Strombedarf dessen Energiekurve mal
+// VERLUST. Daraus folgt: Ein Extraktor der Stufe N liefert genau so viel
+// Deuterium, wie ein Kraftwerk der Stufe N verbrennt -- und kostet dabei das
+// VERLUST-fache dessen, was dieses Kraftwerk liefert.
+//
+// Der Kreis Strom -> Deuterium -> Strom kann sich nur schließen, wenn die
+// Ausbeute den Reaktor trägt, also bei Extraktorstufe >= Kraftwerksstufe.
+// Dort ist der Strombedarf mindestens VERLUST-fach. Der Kreis verliert also
+// bei JEDER Stufenkombination, solange VERLUST größer ist als der
+// Energie-Forschungsbonus (Energietechnik 8 %/Stufe plus Fusionstechnik
+// 10 %/Stufe). 5 deckt einen Bonus bis Faktor 5,0 ab -- das wären etwa
+// Energietechnik 25 oder Energietechnik 20 zusammen mit Fusionstechnik 20,
+// beides weit jenseits dessen, was die Kostenkurve 1,8^Stufe hergibt.
+// tests/anreicherung.test.js tastet den ganzen Bereich ab.
+export const ANREICHERUNG_VERLUST = 5;
+
 export const SYMBOLE = {
   // Gebäude
   metallmine: "🔩",
   siliziummine: "💠",
   kraftwerk: "⚡",
+  solarfeld: "☀️",
   energiespeicher: "🔋",
   lagerhalle: "📦",
   tritiumextraktor: "⚛️",
@@ -507,6 +530,7 @@ export const SYMBOLE = {
   forschungslabor: "🔬",
   handelsposten: "🏪",
   farm: "🌾",
+  hydrokultur: "🌱",
   wohnmodul: "🏘️",
   // Forschung
   foerdertechnik: "⛏️",
@@ -525,6 +549,7 @@ export const SYMBOLE = {
   automatisierungstechnik: "⚙️",
   logistiknetzwerk: "🕸️",
   antimaterietechnik: "🌀",
+  anreicherungstechnik: "⚗️",
   // Schiffe
   sonde: "📡",
   erkunder: "🛰️",
@@ -593,13 +618,43 @@ export const BUILDINGS = {
     gruppe: "energie",
     name: "Kraftwerk",
     beschreibung:
-      "Fusionsreaktor. Die Reaktion setzt schnelle Neutronen frei – ungeladen, also nur schwer abzuschirmen und nur als Wärme erntbar. Deshalb steckt in jedem Kraftwerk ein Dampfkreislauf, so altmodisch das klingt.",
+      "Fusionsreaktor. Die Reaktion setzt schnelle Neutronen frei – ungeladen, also nur schwer abzuschirmen und nur als Wärme erntbar. Deshalb steckt in jedem Kraftwerk ein Dampfkreislauf, so altmodisch das klingt. Verbrennt Deuterium aus dem Lager – ohne Brennstoff zündet die Fusion nicht.",
     kategorie: "energie",
     baseCost: { metall: 75, silizium: 30 },
     costFactor: 1.5,
     buildTimeDivisor: 2.5,
     produktion: { energie: { basis: 80, faktor: 1.2 } },
     verbrauch: { arbeitskraft: { basis: 10, faktor: 1.15 } },
+    // Brennstoff aus dem BESTAND (A-055, Weg B): der Abzug läuft beim
+    // Fortschreiben der Planetenuhr, NIE in der Ratenrechnung -- der Bestand
+    // ist eine Zahl aus dem letzten Takt, deshalb entsteht kein Fluss-Kreis
+    // (die dokumentierte Grenze über flussSpeicherDeckung bleibt unberührt).
+    // Binär: Brennstoff da -> volle Leistung, leer -> aus. Kein Drosseln.
+    //
+    // Der Faktor ist BEWUSST kleiner als der der Energie (1,1 gegen 1,2):
+    // höhere Stufen verbrennen je Megawatt weniger -- bessere Reaktoren.
+    // GEMESSEN, nicht gewählt: mit 1,2 fraß ein Stufe-15-Kraftwerk 1.387 t/h,
+    // mehr als jede realistische Förderung -- Bots sparten die Betankung
+    // ihres Kolonieschiffs nie zusammen, die Expansion stand galaxieweit.
+    brennstoff: { tritium: { basis: 3, faktor: 1.1 } },
+  },
+  // Die zweite Energiewahl (A-055): billig, brennstofffrei -- und die
+  // Teilchenflut zerstört ungeschirmte Felder. Der bequeme Pfad ist der,
+  // den die Supernova tötet; das ist der Sinn dieser Wahl, keine Nebenwirkung.
+  solarfeld: {
+    id: "solarfeld",
+    gruppe: "energie",
+    name: "Solarfeld",
+    beschreibung:
+      "Photovoltaik in Feldern. Halbleiter ernten Licht direkt, ohne Brennstoff und ohne Dampfkreislauf – aber ihr Kristallgitter ist empfindlich: schnelle geladene Teilchen schlagen Atome von ihren Plätzen, und genau daraus besteht eine Teilchenflut. Sternnahe Orbits liefern mehr, weil die Bestrahlungsstärke mit dem Abstandsquadrat fällt.",
+    kategorie: "energie",
+    baseCost: { metall: 45, silizium: 55 },
+    costFactor: 1.5,
+    buildTimeDivisor: 2.5,
+    produktion: { energie: { basis: 45, faktor: 1.2 } },
+    verbrauch: { arbeitskraft: { basis: 4, faktor: 1.15 } },
+    // Ertrag hängt an der Orbit-Zone des Planeten (SOLAR_ZONEN_FAKTOR).
+    sonnenlage: true,
   },
   // Speichert Strom. Die physikalische Wahl dahinter ist ein SUPRALEITENDER
   // MAGNETSPEICHER (SMES): der Strom kreist verlustfrei in einer gekühlten
@@ -651,6 +706,30 @@ export const BUILDINGS = {
     buildTimeDivisor: 2.5,
     produktion: { tritium: { basis: 75, faktor: 1.2 } },
     verbrauch: { energie: { basis: 14, faktor: 1.2 }, arbeitskraft: { basis: 18, faktor: 1.15 } },
+    // ZWEITER BETRIEBSMODUS statt eines zweiten Gebäudes (A-071, Prinzip 5):
+    // Anreicherung trennt Deuterium aus Wasser, statt es zu fördern -- sie
+    // zahlt mit Strom, was die Förderung an Vorkommen zahlt. Vorgabe ist AUS,
+    // freigeschaltet durch die Anreicherungstechnik.
+    //
+    // DIE ZAHLEN SIND KEINE WAHL, sondern eine Bindung: die Ausbeute ist die
+    // Brennstoffkurve des Kraftwerks (basis 3, faktor 1,1 -- Wort für Wort
+    // dieselbe wie dort), der Strombedarf dessen Energiekurve mal
+    // ANREICHERUNG_VERLUST (80 x 5 = 400, faktor 1,2). Warum das die einzige
+    // stufenunabhängig sichere Form ist, steht an ANREICHERUNG_VERLUST; ein
+    // Test rechnet die Gleichheit beider Kurvenpaare nach, damit die Bindung
+    // nicht bei der nächsten Balance-Runde still auseinanderläuft.
+    //
+    // KEINE Boni auf die Ausbeute -- weder `kategorieBonus` noch
+    // `affinitaetFaktor`. Das ist nicht Geschmack: beide würden die Schranke
+    // aufweichen, weil die Ausbeute dann schon bei NIEDRIGERER Extraktorstufe
+    // einen größeren Reaktor trägt (Herleitung im A-063-Ergebnis). Und es
+    // trägt fachlich: Anreicherung hängt an der Trenntechnik, nicht am
+    // Reichtum des Bodens.
+    anreicherung: {
+      forschung: "anreicherungstechnik",
+      produktion: { tritium: { basis: 3, faktor: 1.1 } },
+      verbrauch: { energie: { basis: 80 * ANREICHERUNG_VERLUST, faktor: 1.2 } },
+    },
   },
   werft: {
     id: "werft",
@@ -761,15 +840,37 @@ export const BUILDINGS = {
     // seit die Labore mehrerer Welten sich ADDIEREN, gäbe es dafür keinen
     // Ausgleich mehr.
     produktion: { forschung: { basis: 3600, faktor: 1.0 } },
-    // Bezahlt wird mit Energie und Menschen, NICHT mit Material.
+    // FORSCHUNG KOSTET MATERIAL -- AM ORT (A-061, Tobis Entscheidung 18.08.).
     //
-    // Ein Laborbedarf aus Silizium war der erste Entwurf und ist gescheitert:
-    // Verbrauch hängt am Gebäude, nicht am Auftrag, also hätte ein Labor auch
-    // OHNE laufendes Projekt dauerhaft Proben verbraucht. Ein leeres Labor,
-    // das Material frisst, ist kein Fluss, sondern ein Leck (Prinzip 0). Die
-    // Kosten sind deshalb genau die beiden Größen, die ein bereitgehaltenes
-    // Labor auch wirklich bindet -- Strom und Leute, die dann anderswo fehlen.
-    verbrauch: { energie: { basis: 6, faktor: 1.2 }, arbeitskraft: { basis: 25, faktor: 1.15 } },
+    // Hier stand bis v1.36 das Gegenteil, und die Begründung von damals ist
+    // der Grund, warum es jetzt geht: „Ein Laborbedarf aus Silizium war der
+    // erste Entwurf und ist gescheitert: Verbrauch hängt am Gebäude, nicht am
+    // Auftrag, also hätte ein Labor auch OHNE laufendes Projekt dauerhaft
+    // Proben verbraucht. Ein leeres Labor, das Material frisst, ist kein
+    // Fluss, sondern ein Leck (Prinzip 0)."
+    //
+    // Genau dieses Leck stopft `nurBeiForschung`: die dort genannten
+    // Ressourcen fließen nur, solange wirklich ein Projekt läuft. Ein
+    // bereitgehaltenes Labor bindet weiter Strom und Leute -- die sind an das
+    // GEBÄUDE gebunden, nicht an den Auftrag, und stehen deshalb bewusst
+    // NICHT in der Liste.
+    //
+    // Silizium ist der Laborbedarf: Proben, Substrate, Optik. Ab Stufe 3
+    // kommt Elektronik dazu -- Präzisionsgeräte, und damit die zweite Senke
+    // der Fertigungskette, die bisher nur Baukosten war. `verbrauchAbLevel`
+    // ist dasselbe Muster wie `baseCostAbLevel` an der Fertigung (A-009) und
+    // hat dieselbe Semantik: darunter fällt der Posten gar nicht an.
+    //
+    // Die A-008-Kreisfalle greift hier NICHT -- Forschung ist ein Fluss, der
+    // drosseln darf, und drosselt nichts, wovon sie selbst abhängt.
+    verbrauch: {
+      energie: { basis: 6, faktor: 1.2 },
+      arbeitskraft: { basis: 25, faktor: 1.15 },
+      silizium: { basis: 40, faktor: 1.15 },
+      elektronik: { basis: 6, faktor: 1.15 },
+    },
+    verbrauchAbLevel: { elektronik: 3 },
+    nurBeiForschung: ["silizium", "elektronik"],
   },
   farm: {
     id: "farm",
@@ -787,6 +888,27 @@ export const BUILDINGS = {
     buildTimeDivisor: 2.5,
     produktion: { nahrung: { basis: 120, faktor: 1.2 } },
     verbrauch: { energie: { basis: 12, faktor: 1.2 }, arbeitskraft: { basis: 20, faktor: 1.15 } },
+  },
+  // Der Ausweg mit Preis (A-011): Nahrung aus Strom statt Licht. Nach dem
+  // Blitz konkurrieren Essen und Schirm damit um dieselbe Steckdose -- die
+  // Stromprioritäten werden zur Krisenentscheidung. Bewusst KEIN
+  // brauchtSonnenlicht-Flag: sie fragt den Ozon-Pfad schlicht nicht ab.
+  // Gleiche Nahrungsleistung wie die Agrarkuppel (sonst rechnet niemand um),
+  // aber gut das Achtfache an Energie -- Photosynthese nutzt ~1 % des
+  // Lichts, und Kunstlicht muss die volle Beleuchtung aus der Steckdose
+  // zahlen.
+  hydrokultur: {
+    id: "hydrokultur",
+    gruppe: "versorgung",
+    name: "Hydrokultur",
+    beschreibung:
+      "Baut Nahrung unter Kunstlicht in geschlossenen Regalen – unabhängig von Sonne und Ozonschicht. Teuer erkauft: Pflanzen verwerten nur rund ein Prozent des Lichts, und hier kommt jedes Photon aus der Steckdose. Die teure Antwort, wenn draußen nichts mehr wächst.",
+    kategorie: "nahrung",
+    baseCost: { metall: 120, silizium: 90 },
+    costFactor: 1.4,
+    buildTimeDivisor: 2.5,
+    produktion: { nahrung: { basis: 120, faktor: 1.2 } },
+    verbrauch: { energie: { basis: 100, faktor: 1.2 }, arbeitskraft: { basis: 14, faktor: 1.15 } },
   },
   wohnmodul: {
     id: "wohnmodul",
@@ -1068,6 +1190,10 @@ export const BOT = {
   // nichts vernichtet. Die Welt wächst nur nicht weiter.
   engpaesse: [
     { gebaeude: "lagerhalle", wenn: "lager" },
+    // VOR dem Energie-Engpass (A-055): geht der Brennstoff zur Neige, ist
+    // ein weiteres Kraftwerk genau die falsche Antwort -- es stünde genauso
+    // dunkel da. Erst Nachschub sichern, dann Kapazität.
+    { gebaeude: "tritiumextraktor", wenn: "brennstoff" },
     { gebaeude: "kraftwerk", wenn: "energie" },
     { gebaeude: "farm", wenn: "nahrung" },
     { gebaeude: "wohnmodul", wenn: "wohnraum" },
@@ -1085,6 +1211,10 @@ export const BOT = {
     lagerFrei: 0.1,
     // Ab 90 % belegtem Wohnraum das nächste Modul.
     wohnraum: 0.9,
+    // Unter 24 h Brennstoff-Reichweite wird der Extraktor fällig (A-055) --
+    // eine MENGE an Stunden, kein Anteil: die Vorausschau muss die Bauzeit
+    // plus den Anlauf der Förderung tragen.
+    brennstoffStunden: 24,
   },
   ausbau: ["metallmine", "siliziummine", "kraftwerk", "farm", "wohnmodul", "handelsposten"],
 
@@ -1120,6 +1250,11 @@ export const BOT = {
   nachschub: [
     { resId: "metall", gebaeude: "metallmine" },
     { resId: "silizium", gebaeude: "siliziummine" },
+    // Der DEUTERIUM-EXTRAKTOR steht auch nach A-055 NICHT hier, obwohl das
+    // Kraftwerk jetzt Brennstoff verbrennt: die Nachschubliste baut, was
+    // FEHLT, noch vor der ersten Mine -- der Startvorrat trägt aber tagelang.
+    // Brennstoff ist deshalb ein ENGPASS (siehe engpaesse: greift, wenn die
+    // Reichweite unter die Schwelle fällt), keine Grundausstattung.
     // ELEKTRONIK STEHT HIER BEWUSST NICHT, obwohl seit A-009 alles
     // Industrielle sie kostet. Sie gehört zur selben Sorte wie das Deuterium:
     // kein Baustoff der Grundversorgung, sondern Voraussetzung fürs
@@ -1321,6 +1456,26 @@ export const ORBIT_ZONEN = [
     klassen: { kleinwelt: 3, felswelt: 1, miniNeptun: 2, eisriese: 3, gasriese: 4 },
     wasser: { trocken: 0, maessig: 2, reich: 8 } },
 ];
+
+// Solarertrag je Orbit-Zone (A-055). Die Zone steht am Planeten und kommt
+// aus derselben thermischen Lage wie Klasse und Wasser -- eine zweite
+// Abstandsrechnung wäre ein zweiter Maßstab. Die Staffelung folgt der
+// Physik grob (Bestrahlungsstärke ~ 1/r²), ohne sie nachzubauen: innen
+// lohnt sich das Feld richtig, außen ist es ein Notnagel.
+// Planeten ohne Zonen-Eintrag (Piratenbasen alter Stände) zählen als
+// habitabel -- neutraler Faktor 1.
+export const SOLAR_ZONEN_FAKTOR = {
+  "heiß": 1.6,
+  "warm": 1.25,
+  "habitabel": 1.0,
+  "kalt": 0.6,
+  "äußer": 0.35,
+};
+
+export function solarLageFaktor(planet) {
+  const faktor = planet && planet.zone ? SOLAR_ZONEN_FAKTOR[planet.zone] : undefined;
+  return faktor === undefined ? 1 : faktor;
+}
 
 // Relative Lage eines Orbits im System, 0 (innen) bis 1 (außen).
 export function orbitLage(orbit, orbitAnzahl) {
@@ -1658,6 +1813,31 @@ export function rate(spec, level) {
   return spec.basis * level * Math.pow(spec.faktor, level);
 }
 
+// Fällt dieser Verbrauchsposten bei dieser Stufe überhaupt an? (A-061)
+//
+// `verbrauchAbLevel` ist die laufende Entsprechung zu `baseCostAbLevel`
+// (A-009) und trägt dieselbe Semantik: darunter gibt es den Posten nicht,
+// ab der Stufe voll. Bewusst als Daten am Gebäude, nicht als Sonderfall im
+// Code -- wie dort.
+export function verbrauchAb(def, resId, level) {
+  const ab = def.verbrauchAbLevel && def.verbrauchAbLevel[resId];
+  return !ab || level >= ab;
+}
+
+// Fließt dieser Posten gerade? Ein Labor zieht sein Material nur, wenn
+// wirklich geforscht wird -- sonst wäre es eine Strafsteuer statt eines
+// Preises (A-061). Die Ressourcen, für die das gilt, stehen am Gebäude.
+// FALLE FUER SPAETER: gefragt wird die Forschung des SPIELERS, weil es keine
+// andere gibt -- `state.forschungsQueue` ist global. Heute stimmt das, weil
+// Bots keine Labore bauen (im ganzen simulation.js kommt `forschungslabor`
+// nicht vor, nachgesehen bei A-061). Sobald sie forschen, haengt ein
+// Bot-Labor am Projekt des Spielers -- dann braucht diese Zeile die Fraktion
+// des Planeten, nicht den globalen Zustand.
+export function verbrauchLaeuft(state, def, resId) {
+  if (!def.nurBeiForschung || !def.nurBeiForschung.includes(resId)) return true;
+  return !!(state && state.forschungsQueue);
+}
+
 // --- Forschung ------------------------------------------------------------
 // SEIT v0.6 KOSTET FORSCHUNG KEINE VORABZAHLUNG MEHR, sondern einen dauernden
 // Fluss -- Prinzip 0 in Reinform. Vorher zog ein einzelner Planet die vollen
@@ -1891,6 +2071,53 @@ export const RESEARCH = {
     buildTimeDivisor: 0.35,
     schluessel: true,
     voraussetzungen: { energietechnik: 3, fusionstechnik: 1 },
+  },
+  // Die letzte Kategorie ohne Boost-Forschung (A-062, Fund aus A-009).
+  //
+  // WARUM ANS ENDE DER TABELLE: der Baum gruppiert nach Tiefenstufe, und
+  // innerhalb einer Spalte folgt die Reihenfolge dieser Tabelle. Weiter oben
+  // eingehängt schöbe sie bestehende Kacheln in ihrer Spalte nach hinten --
+  // Prinzip 8 erlaubt Dazukommen, aber kein Umziehen.
+  //
+  // Voraussetzung `iridiumverarbeitung` wie beauftragt, und sie trägt
+  // fachlich: beides ist VEREDELUNG, nicht Förderung. Wer gelernt hat, aus
+  // Erz einen Werkstoff zu machen, kann den nächsten Schritt angehen. (Die
+  // Alternative wäre eine Energie-Vorstufe gewesen -- die Fertigung ist
+  // stromhungrig -- aber Strom hat jede Anlage, Veredelung nicht.)
+  // Die Antwort auf „kein Wasser, aber Strom" (A-071). ANS ENDE der Tabelle
+  // aus demselben Grund wie die Fertigungstechnik: der Baum ordnet innerhalb
+  // einer Tiefenstufe nach Tabellenreihenfolge, und weiter oben eingehängt
+  // schöbe sie bestehende Kacheln in ihrer Spalte nach hinten.
+  //
+  // `schluessel: true`, weil sie einen SCHALTER freigibt und keine Zahl hebt:
+  // der Modus ist da oder nicht. Das ist auch die A-013-Antwort -- eine
+  // Freischaltung wirkt bei Abschluss, nicht anteilig, und darf deshalb
+  // keinen `boost` tragen.
+  //
+  // Voraussetzung Energietechnik 2: Anreicherung IST angewandte Energietechnik
+  // (Trennkaskaden, Wärmeführung), und sie ergibt erst Sinn, wenn überhaupt
+  // Strom im Überfluss da sein kann.
+  anreicherungstechnik: {
+    id: "anreicherungstechnik",
+    name: "Anreicherungstechnik",
+    beschreibung:
+      "Schaltet am Deuterium-Extraktor einen zweiten Betriebsmodus frei: Anreicherung trennt schweren Wasserstoff aus Wasser, statt ihn zu fördern – bezahlt wird mit Strom. Deuterium steckt in jedem Wasser, aber nur in jedem sechstausendvierhundertsten Wasserstoffkern; die beiden Sorten unterscheiden sich chemisch fast nicht, und genau deshalb ist die Trennung Arbeit. Sie erzeugt nichts, sie sortiert – und wie jede Sortierung kostet sie mehr, als der Unterschied wert ist. Wieviel mehr, entscheidet in diesem Spiel die Spielbarkeit und nicht die Physik: wirklich liefert eine Tonne Deuterium in der Fusion um Größenordnungen mehr Energie, als ihre Abtrennung kostet.",
+    baseCost: { metall: 550, silizium: 450 },
+    costFactor: 1,
+    buildTimeDivisor: 1.4,
+    schluessel: true,
+    voraussetzungen: { energietechnik: 2 },
+  },
+  fertigungstechnik: {
+    id: "fertigungstechnik",
+    name: "Fertigungstechnik",
+    beschreibung:
+      "Verbessert die Ausbeute deiner Fertigungen um 7% pro Stufe. Was in der Halbleiterfertigung zählt, ist nicht Menge, sondern Ausbeute: von einer Scheibe wird nur der Teil brauchbar, auf dem kein einziger Defekt sitzt. Jede Verbesserung an Reinheit und Prozessführung verschiebt genau diesen Anteil – dieselbe Anlage, dieselbe Menge Silizium, mehr fertige Bauteile.",
+    baseCost: { metall: 450, silizium: 380 },
+    costFactor: 1.8,
+    buildTimeDivisor: 1.5,
+    boost: { kategorie: "fertigung", proLevel: 0.07, graduell: true },
+    voraussetzungen: { iridiumverarbeitung: 1 },
   },
 };
 
@@ -2341,14 +2568,46 @@ const skaliereRaten = (spezifikation) => {
   for (const spec of Object.values(spezifikation)) spec.basis = Math.round(spec.basis * MASSSTAB);
 };
 
+// ALLE Ratenfelder einer Gebäudedefinition -- also jedes Feld, das `rate(spec,
+// level)` liest und damit eine MENGE trägt. Sie stehen als LISTE und nicht als
+// drei Aufrufe da, und das ist der eigentliche Inhalt von A-069:
+//
+// Diese Falle hat neunmal zugeschlagen (`tank`, `siedler`, Piratenmengen,
+// Gründungsschwellen, Forschungsaufwand …), zuletzt an `brennstoff` aus
+// A-055. Ein Kraftwerk der Stufe 15 verbrannte dadurch 188 statt 9.400 t/h,
+// und eine Tonne Deuterium war im Reaktor bis zum Vierzigtausendfachen dessen
+// wert, was ihre Förderung kostete -- gemessen im A-063-Ergebnis, an dem die
+// Deuterium-Anreicherung deshalb gescheitert ist.
+//
+// Die Liste ist die EINE Wahrheit: die Skalierung unten läuft über sie, und
+// `tests/massstab.test.js` sucht in den Gebäudedaten nach Feldern, die wie
+// Raten aussehen, und schlägt an, wenn eines NICHT hier steht. Ein zehnter
+// Fall ist damit nicht unwahrscheinlich, sondern rot.
+//
+// Pfade mit Punkt sind erlaubt (`anreicherung.produktion`), damit auch ein
+// Ratenfeld in einem Unterobjekt erfasst wird.
+export const RATEN_FELDER = [
+  "produktion",
+  "verbrauch",
+  "brennstoff",
+  // A-071: Der zweite Betriebsmodus trägt eigene Raten, und sie sind Mengen
+  // wie alle anderen. Genau dafür kennt die Liste Punktpfade -- ohne diese
+  // zwei Zeilen wäre die Anreicherung der zehnte Fall gewesen, und der
+  // Wächter-Test hätte ihn gemeldet.
+  "anreicherung.produktion",
+  "anreicherung.verbrauch",
+];
+
+const feldAn = (objekt, pfad) =>
+  pfad.split(".").reduce((o, schluessel) => (o ? o[schluessel] : undefined), objekt);
+
 // Bauzeit leitet sich aus der KOSTENSUMME ab (bauzeitFuerLevel). Wachsen die
 // Kosten mit dem Maßstab, muss der Divisor mitwachsen -- sonst dauert alles
 // um den Maßstabsfaktor länger. Genau das ist bei der ersten Fassung
 // passiert und hat das Pacing verschoben.
 for (const def of Object.values(BUILDINGS)) {
   skaliereBuendel(def.baseCost);
-  skaliereRaten(def.produktion);
-  skaliereRaten(def.verbrauch);
+  for (const feld of RATEN_FELDER) skaliereRaten(feldAn(def, feld));
   def.buildTimeDivisor *= MASSSTAB;
 }
 for (const def of Object.values(RESEARCH)) {
