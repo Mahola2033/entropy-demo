@@ -30,9 +30,29 @@ body {
    Die Seite scrollt NIE -- nur einzelne Bereiche scrollen intern.
    Auf WQHD ausgelegt; Rails behalten ihre Breite, das Spielfeld wächst mit.
    ========================================================================== */
+/* A-081: DIE SCHIENEN GEBEN NACH, BEVOR DAS SPIELFELD VERSCHWINDET.
+   Tobis Befund bei reingezoomtem Browser: „Funktionen sind teilweise nicht
+   erreichbar." Browser-Zoom verkleinert den Viewport in CSS-Pixeln -- 150 %
+   auf einem 1280er Fenster sind 853 px. Mit festen 200 px links und 380 px
+   rechts blieben dem Spielfeld davon 273 px, und weil die Seite selbst NIE
+   scrollt (html/body overflow hidden, siehe unten), war alles Breitere
+   schlicht weg: gemessen bei 853 px ragten im Galaxie-Bereich 487 Elemente
+   bis zu 258 px nach rechts hinaus, die halbe Kommandospalte lag unter der
+   Statusspalte.
+
+   clamp() löst genau das und lässt das Zielbild bei 100 % unangetastet: ab
+   rund 1270 px Fensterbreite stehen wieder exakt 200 und 380 px da (die
+   v1.27-Abnahme gilt also weiter), darunter geben beide Schienen anteilig
+   nach, bis zu ihrer Untergrenze. Die Untergrenzen sind gemessen, nicht
+   geraten: 150 px trägt die Navigation samt „Development", 240 px die
+   Meldungszeilen ohne Umbruch im Zeitstempel.
+
+   SCHRIFTGRÖSSEN BLEIBEN, WIE SIE SIND -- Tobis Vorgabe: „Drauf achten, den
+   Text nicht zu doll mitzuschrumpfen, wenn du Sachen kleiner machen musst."
+   Hier schrumpfen nur Spaltenbreiten. */
 :root {
-  --nav-breite: 200px;
-  --status-breite: 380px;
+  --nav-breite: clamp(150px, 16vw, 200px);
+  --status-breite: clamp(240px, 30vw, 380px);
   --kopf-hoehe: 52px;
   --ressourcen-hoehe: auto;
 }
@@ -291,9 +311,17 @@ button[title]:disabled {
   flex-wrap: wrap;
 }
 
+/* A-078: EINE Spalte, nicht zwei.
+   Bis v1.56 stand das Symbol in einer eigenen linken Spalte und lief über
+   beide Zeilen. Damit schwebte es zwischen Name und Zahl, gehörte optisch zu
+   keinem von beiden, und die Zeilen daneben begannen erst hinter ihm --
+   Tobis Befund: "Ressourcen-Icon sollte neben der Zahl sein, dieser Space
+   zwischen den zwei Spalten macht auch keinen Sinn."
+   Das Symbol sitzt jetzt in der unteren Zeile direkt vor seiner Zahl
+   (.res-zahl), und die Kachel braucht keine zweite Spalte mehr. */
 .res-kachel {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: 1fr;
   grid-template-rows: auto auto;
   align-items: center;
   gap: 0 0.5rem;
@@ -305,9 +333,18 @@ button[title]:disabled {
 }
 
 .res-symbol {
-  grid-row: 1 / 3;
   font-size: 1.35rem;
   line-height: 1;
+}
+
+/* Symbol und Zahl sind EINE Gruppe (A-078): sie rücken zusammen und bleiben
+   zusammen, wenn die Zeile umbricht. Der Abstand ist bewusst kleiner als der
+   Zeilenabstand (0.35rem gegen 0.5rem) -- er soll binden, nicht trennen. */
+.res-zahl {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  min-width: 0;
 }
 
 .res-oben {
@@ -564,6 +601,13 @@ button[title]:disabled {
   grid-area: spielfeld;
   padding: 1rem 1.25rem;
   overflow-y: auto; /* nur DIESER Bereich scrollt, nie die Seite */
+  /* A-081: und waagerecht ebenso. Das ist das Sicherheitsnetz hinter den
+     nachgebenden Schienen: was trotz allem breiter ist als der Platz --
+     eine Bedienzeile mit ihren festen Rollenbreiten (Prinzip 10b), eine
+     Tabelle mit vielen Ressourcenspalten --, ist dann erreichbar statt
+     unsichtbar. Vorher lief es unter die Statusspalte und war weg: die Seite
+     scrollt nie, und ohne Scroll hier gab es keinen Weg dorthin. */
+  overflow-x: auto;
 }
 
 .bereich h2 {
@@ -678,6 +722,36 @@ button[title]:disabled {
   margin-bottom: 0.25rem;
 }
 
+
+/* Spielstand-Abschnitt im Development-Bereich (A-073). Das Textfeld ist die
+   GRUNDLÖSUNG und kein Beiwerk -- deshalb bekommt es Monospace und feste
+   Höhe: ein Stand ist eine lange Zeile ohne Leerzeichen, und in einer
+   Proportionalschrift sieht das aus wie ein Fehler statt wie Daten. */
+.spielstand-knoepfe {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.spielstand-feld {
+  display: block;
+  width: 100%;
+  background: var(--bg-item);
+  color: var(--text-dezent);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.5rem;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  resize: vertical;
+}
+
+.spielstand-meldung {
+  min-height: 1.2em; /* fester Platz: die Zeile darf den Block nicht springen lassen (Prinzip 8) */
+}
+
 /* MUSS nach jeder display-Regel stehen, die ein verstecktes Element treffen
    könnte. `hidden` ist nur ein Browser-Vorgabestil (`display:none`) und wird
    von JEDER Klassenregel überstimmt -- `.bereich-voll { display:flex }` hat
@@ -756,8 +830,45 @@ button[title]:disabled {
 }
 
 @media (max-width: 1200px) {
-  .drei-spalten { grid-template-columns: 1fr 1.3fr; }
+  .drei-spalten {
+    grid-template-columns: 1fr 1.3fr;
+    /* A-081: Sobald das Raster in MEHRERE Reihen faellt, muss jede Reihe die
+       Hoehe ihres Inhalts bekommen. Mit dem `flex: 1` von oben behaelt das
+       Raster die Hoehe EINER Reihe und teilt sie auf: die Karte der zweiten
+       Reihe ragt dann aus ihrer Spur und legt sich ueber die Bedienzeilen
+       der ersten -- gemessen bei 1024 px, die Kommandozeile war unter der
+       Systemkarte nicht mehr anklickbar. Gescrollt wird im Spielfeld. */
+    flex: none;
+    min-height: auto;
+    grid-auto-rows: auto;
+  }
+  .drei-spalten > .spalte { min-height: auto; }
   .drei-spalten > .spalte:last-child { grid-column: 1 / -1; }
+}
+
+/* A-081: Unter 950 px Fensterbreite (Browser-Zoom 150 % auf 1280) bleibt für
+   das Spielfeld kein Platz mehr für zwei Karten nebeneinander. Dann stehen
+   alle Spalten untereinander -- jede in voller Breite, keine halb unter der
+   Statusspalte. Die Karten bleiben quadratisch und schrumpfen mit, ihre
+   Zoom-Knöpfe sitzen ohnehin im Kartenrahmen (position: relative an
+   .karte-huelle) und wandern deshalb nicht aus dem Bild. */
+@media (max-width: 950px) {
+  .drei-spalten {
+    grid-template-columns: 1fr;
+    /* Untereinander heisst: jede Spalte bekommt die Hoehe, die sie braucht.
+       Ohne das behaelt das Raster die Hoehe EINER Reihe (flex: 1 in einer
+       Flexspalte mit fester Hoehe) und teilt sie durch drei -- die Karten
+       ragen dann aus ihrer Reihe und liegen uebereinander. Gemessen: zwei
+       Kartenrahmen mit 144 px Ueberlappung, die untere Karte verdeckte die
+       Zoom-Knoepfe der oberen. Gescrollt wird im Spielfeld, das kann das. */
+    flex: none;
+    min-height: auto;
+    grid-auto-rows: auto;
+  }
+  .drei-spalten > .spalte {
+    min-height: auto;
+  }
+  .drei-spalten > .spalte:last-child { grid-column: auto; }
 }
 
 /* Alle Spalten sind gleich hoch und enden auf derselben Linie: fester
@@ -1044,6 +1155,43 @@ button[title]:disabled {
 
 /* Aktion sitzt immer unten -- dadurch fluchten die Knöpfe über alle
    Kacheln hinweg, egal wie viel Inhalt darüber steht. */
+/* A-095: Aktionsknopf und Rückbau stehen nebeneinander in einer Zeile --
+   der Rückbau schmal und dezent daneben, nicht darunter: er ist die seltene
+   Gegenrichtung zum Ausbauen, kein zweiter Hauptknopf. Die Zeile erbt das
+   `margin-top: auto` des Aktionsknopfes, damit sie wie bisher am Kachelboden
+   klebt und alle Kacheln ihre Knöpfe auf einer Linie haben. */
+.kachel-zeile-aktion {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: auto;
+}
+
+.kachel-zeile-aktion .kachel-aktion {
+  flex: 1;
+  margin-top: 0;
+}
+
+.kachel-rueckbau {
+  flex: 0 0 auto;
+  background: none;
+  color: var(--text-dezent);
+  border: 1px solid var(--border);
+  padding: 0 0.5rem;
+}
+
+.kachel-rueckbau:hover:not(:disabled) {
+  color: var(--warnung);
+  border-color: var(--warnung);
+}
+
+/* Die gestellte Frage sieht anders aus als der ruhende Knopf -- sonst wäre
+   der zweite Klick derselbe wie der erste. */
+.kachel-rueckbau.fragt {
+  color: var(--warnung);
+  border-color: var(--warnung);
+  flex: 0 0 auto;
+}
+
 .kachel-aktion,
 .schiff-knoepfe {
   margin-top: auto;
@@ -1161,6 +1309,20 @@ button[title]:disabled {
   margin-bottom: 0.25rem;
 }
 
+/* A-077: was die WARTENDEN Auftraege zusammen kosten -- Tobis Frage war
+   "wie viel man an Kosten in der Warteschlange hat". Dieselbe Schreibweise wie
+   die Kostenzeile einer Kachel (Symbol + Menge) und dieselbe Groesse wie der
+   Titel darueber: die Zeile ist eine Auskunft zur Liste, kein zweiter Titel.
+
+   Kein min-height noetig (anders als bei .lager-prognose): die Zeile gehoert
+   zum Geruest der Warteschlange, und das steht nur, solange ueberhaupt etwas
+   wartet. Sie kommt und geht also mit der ganzen Liste, nicht im Takt. */
+.warteschlange-kosten {
+  font-size: 0.8rem;
+  margin-bottom: 0.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .warteschlange-liste {
   list-style: decimal inside;
   font-size: 0.85rem;
@@ -1180,6 +1342,32 @@ button[title]:disabled {
   display: flex;
   align-items: baseline;
   gap: 0.4rem;
+}
+
+/* A-080: Die beiden Schieber stehen direkt hinter dem × und vor dem Namen --
+   alle Bedienelemente einer Zeile in einer Spaltengruppe, damit die Namen
+   weiter bündig beginnen (die Begründung des × in A-017 gilt für sie mit).
+   Schmaler als das ×, weil ein Dreieck weniger Platz braucht als ein Kreuz,
+   und mit gedämpfter Farbe: sie sind Feinjustierung, nicht die Hauptsache. */
+/* A-080: Rückmeldung beim Ziehen. Die gezogene Zeile blasst ab, die Zeile
+   unter dem Zeiger bekommt eine Linie an der Oberkante -- dort landet sie.
+   Bewusst keine Farbe und keine Animation: es ist eine Ortsangabe, kein
+   Ereignis (Prinzip 11, der Farbbestand bleibt knapp). */
+.warteschlange-liste li.zug-quelle {
+  opacity: 0.4;
+}
+
+.warteschlange-liste li.zug-ziel {
+  box-shadow: inset 0 2px 0 0 var(--akzent);
+}
+
+.warte-schieber {
+  flex: 0 0 1rem !important;
+  color: var(--text-dezent);
+}
+
+.warte-schieber:disabled {
+  opacity: 0.3;
 }
 
 .warteschlange-liste button {
@@ -1244,6 +1432,17 @@ button[title]:disabled {
 .schiff-knoepfe {
   display: flex;
   gap: 0.35rem;
+}
+
+/* A-079: Das Stückzahl-Feld steht VOR dem Knopf und bleibt schmal -- der
+   Knopf soll die Zeile füllen, nicht das Feld. Schmaler als das allgemeine
+   .menge-feld (6.5em), weil hier Stückzahlen stehen und keine Frachtmengen. */
+.schiff-knoepfe .menge-feld {
+  width: 4.2em;
+}
+
+.schiff-knoepfe .kachel-aktion {
+  flex: 1;
 }
 
 .route-tag {
@@ -2530,6 +2729,19 @@ button:disabled {
   font-size: 0.9rem;
 }
 
+/* A-084: Die Sprachwahl im Erstklaerungs-Fenster. Sie steht oben rechts,
+   weil das Fenster als Vollbild-Overlay ueber dem Kopf liegt und die Knoepfe
+   dort deshalb unerreichbar sind -- ein englischsprachiger Tester bekam sonst
+   den wichtigsten Text des Spiels nur auf Deutsch zu sehen.
+   Gleiche Optik wie im Kopf (die Knopf-Grundregeln greifen ueber button),
+   nur rechtsbuendig und mit Abstand nach unten. */
+.erstklaerung-sprachen {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
 .erstklaerung-knoepfe {
   display: flex;
   justify-content: flex-end;
@@ -2657,6 +2869,14 @@ button:disabled {
   grid-column: 1 / -1;
 }
 
+/* A-082: Die Namenszeile der Welt steht ganz oben in „Diese Welt in Zahlen"
+   -- vor den Werten, weil sie sagt, WESSEN Zahlen darunter stehen. Sie folgt
+   dem Bedienzeilen-Raster (Prinzip 10b), damit sie sich wie jede andere
+   Eingabezeile im Spiel anfühlt. */
+.uebersicht-name {
+  margin-bottom: 0.6rem;
+}
+
 .uebersicht-gruppe {
   background: var(--bg-item);
   border: 1px solid var(--border);
@@ -2734,12 +2954,42 @@ button:disabled {
    Bedienzeile (10b-Raster) und traegt deshalb dieselben Spalten wie jede
    andere -- nur schmaler gesetzt, weil sie in einer Kachel steht und nicht
    in einer Liste ueber die volle Breite. */
+/* A-090: DIE ZEILE MUSS IN IHRE KACHEL PASSEN.
+   Tobis Screenshot („Wo ist der rest von ihm"): Der Anreicherungs-Schalter
+   stand außerhalb der Kachel und lag über der Nachbarkachel, lesbar war nur
+   noch „…schalten".
+
+   Gemessen: Das Raster der Zeile forderte 104 + 112 + 128 + 128 + 80 + 80 px
+   plus fünf Abstände -- rund 680 px in einer 317 px breiten Kachel; der
+   Schalter ragte 289 px hinaus. Die beiden dicken Posten waren Spuren, die
+   diese Zeile GAR NICHT BENUTZT: Regler (112 px) und Eingabefeld (128 px)
+   standen auf ihren globalen Werten, weil hier nur drei der fünf Rollen
+   überschrieben waren.
+
+   Dieselbe Lösung wie bei .kommando-sprit: das 10b-Raster bleibt, die MASSE
+   gehören dem Ort. Unbenutzte Spuren auf null, die Lagespalte darf nachgeben
+   (sie ist die einzige, deren Inhalt mitwächst -- „aus · 189 MWh je t"), der
+   Schalter bekommt genau seine Textbreite.
+
+   Damit steht die Zeile im Kachelfluss, bricht nie aus und drückt die Kachel
+   bei Bedarf höher -- die Reihe bleibt bündig, weil alle Kacheln einer Reihe
+   ihre Höhe teilen (.kachel-raster, A-052/A-053). */
 .kachel-modus {
-  --zeile-beschriftung: 6.5rem;
-  --zeile-zahl: 8rem;
-  --zeile-knopf: 5rem;
+  --zeile-beschriftung: minmax(0, auto);
+  --zeile-regler: 0;
+  --zeile-zahl: minmax(0, 1fr);
+  --zeile-eingabe: 0;
+  --zeile-knopf: 0;
+  column-gap: 0.4rem;
   font-size: 0.78rem;
   margin-top: 0.15rem;
+}
+
+/* Die Lagespalte ist die, die nachgibt -- also muss sie auch nachgeben
+   DÜRFEN: ohne min-width: 0 hält ein Gitterkind seine Mindestbreite aus dem
+   Inhalt und schiebt die Zeile doch wieder auf. */
+.kachel-modus .zeile-zahl {
+  min-width: 0;
 }
 
 .kachel-modus button {

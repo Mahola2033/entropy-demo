@@ -74,6 +74,16 @@ export function handbuchAbschnitte() {
         t(
           "Entropy ist deshalb ein Spiel für nebenbei. Es läuft langsam, und das ist Absicht und nicht dein Fehler: Fortschritt braucht hier Geduld, in den ersten Minuten passiert wenig, und die Welt arbeitet auch dann weiter, wenn du nicht hinsiehst. Wegzugehen ist kein Aussetzen – nur die Frist wartet eben auch nicht."
         ),
+        // A-073: die zwei Sätze zum Spielstand stehen HIER und nicht in einem
+        // eigenen Abschnitt -- wer über das Weggehen liest, ist genau der,
+        // dessen Stand zwischendurch verschwinden kann. Ein Tester hat ihn so
+        // verloren (18.08., Firefox nach PC-Neustart).
+        t(
+          "Damit das Weggehen sicher ist, muss dein Stand die Pause überleben – und er liegt im Speicher deines Browsers. Der räumt ihn unter Umständen von selbst weg: beim Löschen der Chronik, im Privatmodus oder wenn ihm der Platz ausgeht."
+        ),
+        t(
+          "Vorsorge dagegen steht im Bereich Development unter „Spielstand“: dort holst du deinen Stand als Text heraus und legst ihn ab, wo er dir gehört – und spielst ihn von dort auch wieder ein."
+        ),
       ],
     },
     {
@@ -236,7 +246,7 @@ export function handbuchAbschnitte() {
       titel: t("Steuerung"),
       absaetze: [
         t(
-          "Alles geht mit der Maus. Wer die Hand lieber auf der Tastatur laesst, kann die Ansicht auch so wechseln – Tasten aendern nie etwas an der Welt, sie zeigen nur anderes."
+          "Alles geht mit der Maus. Wer die Hand lieber auf der Tastatur lässt, kann die Ansicht auch so wechseln – Tasten ändern nie etwas an der Welt, sie zeigen nur anderes."
         ),
       ],
       gruppen: [
@@ -244,9 +254,9 @@ export function handbuchAbschnitte() {
           titel: t("Tasten"),
           punkte: [
             t("1 bis 9 – die Bereiche in der Reihenfolge der Leiste links"),
-            t("Q und E – eine Welt zurueck, eine Welt weiter"),
+            t("Q und E – eine Welt zurück, eine Welt weiter"),
             t("M – Galaxiekarte · H – Handbuch"),
-            t("Esc – schliesst ein offenes Fenster"),
+            t("Esc – schließt ein offenes Fenster"),
           ],
         },
       ],

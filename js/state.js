@@ -27,6 +27,7 @@ import {
   START,
   FRAKTIONS_ARTEN,
   SPIELER_FRAKTION,
+  HEIMATWELT_NAMEN,
   BEZIEHUNG,
   SUPERNOVA,
   LJ_PRO_EINHEIT,
@@ -43,7 +44,13 @@ import {
   voraussetzungenErfuellt,
   solarLageFaktor,
 } from "./data.js";
+import { stromFuer, waehle } from "./zufall.js";
 import { systemGenerieren } from "./welt.js";
+// A-082: eigener Zufallsstrom für den Heimatweltnamen. Die Kennung ist eine
+// beliebige feste Zahl -- wichtig ist nur, dass sie keiner Systemkennung in
+// die Quere kommt und sich nie wieder ändert (sonst hieße jede bestehende
+// Partie beim nächsten Laden anders).
+const HEIMATWELT_NAMEN_KENNUNG = 900001;
 import { galaxiePlanen, entfernung, schluesselImSystem } from "./galaxie.js";
 import { skalieren } from "./ressourcen.js";
 import { t } from "./sprache.js";
@@ -229,13 +236,22 @@ export function neuesSpiel(saat) {
     systemId: galaxie.heimatSystem,
     orbit: start.heimatOrbit,
     // Der EINZIGE Planetenname, der ein Wort ist -- alle späteren heißen nach
-    // ihrem Orbit ("35-XII") und sind damit sprachlos. Er wird hier einmal
-    // festgelegt und danach wie ein Eigenname behandelt: ein Sprachwechsel
-    // benennt einen bestehenden Planeten nicht um. main.js legt die Sprache
-    // vor dem Laden fest, ein neues Spiel im englischen Browser beginnt also
-    // auf "Homeworld". Gleiche Entscheidung wie beim Vorgabenamen einer Flotte
-    // (siehe flotteAufstellen).
-    name: t("Heimatwelt"),
+    // ihrem Orbit ("35-XII") und sind damit sprachlos.
+    //
+    // Bis v1.60 stand hier t("Heimatwelt"), und Tobis Befund dazu war kurz:
+    // „Dein Planet Heimatwelt klingt nicht gut." Seit A-082 kommt der Name
+    // aus HEIMATWELT_NAMEN und wird mit der SAAT gezogen -- dieselbe Saat,
+    // dieselbe Welt, derselbe Name. Damit trägt auch die Demo-Partie
+    // reproduzierbar ihren Namen, und ein Fehlerbericht
+    // („auf Kestra stimmt X nicht") ist nachstellbar.
+    //
+    // Ein eigener Zufallsstrom mit fester Kennung, nicht der Weltstrom: sonst
+    // hätte das Ziehen eines Namens jede Welt hinter ihm verschoben.
+    //
+    // Der Name geht NICHT durch t() -- er ist ein Eigenname. Ein
+    // Sprachwechsel benennt einen bestehenden Planeten nicht um (dieselbe
+    // Entscheidung wie beim Vorgabenamen einer Flotte).
+    name: waehle(stromFuer(seed, HEIMATWELT_NAMEN_KENNUNG), HEIMATWELT_NAMEN),
     typ: "heimat",
     startvorrat: true,
     // Echte Welt statt Generalist: dieselben Felder, die auch eine Bot-Welt
@@ -887,6 +903,23 @@ export function bevoelkerungsAnteile(planet) {
   };
 }
 
+// Was ein Handelsposten dieser Stufe auf diesem Planeten an Abgaben abrechnet.
+//
+// EINE Formel für drei Leser (A-075): die Rohraten, die Drosselungsrechnung
+// und die Ausbau-Vorschau der Kachel. Bis dahin stand sie zweimal im Modell
+// und GAR NICHT in der Vorschau -- deshalb zeigte die Kachel nur die
+// Betriebskosten und damit ein Minus vor den Credits, obwohl der Posten
+// welche einbringt.
+//
+// Warum die Stufe multipliziert: ein größerer Posten erfasst mehr von der
+// Wirtschaft seines Planeten. Die Betriebskosten wachsen dagegen überlinear
+// (1,2^Stufe) -- daraus folgt die beste Stufe je Weltgröße, und das ist die
+// Entscheidung, die dieses Gebäude interessant macht.
+export function handelsAbgaben(planet, stufe) {
+  if (!planet || stufe <= 0) return 0;
+  return bevoelkerungsAnteile(planet).abgaben * stufe;
+}
+
 export function rohRaten(state, planet) {
   const produktion = {};
   const verbrauch = {};
@@ -903,10 +936,8 @@ export function rohRaten(state, planet) {
   //
   // Das hier ist der ROHWERT. Gedrosselt wird er in produktionsAufloesung,
   // und zwar mit dem Faktor des POSTENS, nicht dem der Bevölkerung.
-  const postenStufe = planet.gebaeude.handelsposten || 0;
-  if (postenStufe > 0 && menschen.abgaben > 0) {
-    produktion.credits = (produktion.credits || 0) + menschen.abgaben * postenStufe;
-  }
+  const abgaben = handelsAbgaben(planet, planet.gebaeude.handelsposten || 0);
+  if (abgaben > 0) produktion.credits = (produktion.credits || 0) + abgaben;
 
   for (const [id, def] of Object.entries(BUILDINGS)) {
     const level = planet.gebaeude[id] || 0;
@@ -1029,6 +1060,37 @@ export function stromPrioritaetSetzen(planet, gebaeudeId, stufe) {
   if (!planet.stromPrioritaet) planet.stromPrioritaet = {};
   if (stufe === STROM_STUFEN.normal) delete planet.stromPrioritaet[gebaeudeId];
   else planet.stromPrioritaet[gebaeudeId] = stufe;
+}
+
+// Eine Anlage um EINE Stufe zurückbauen (A-095).
+//
+// Tobis Wunsch war knapp: „Gebäude zurückbauen." Die Form dahinter ist eine
+// Entscheidung der Planung, und sie passt zum Namen des Spiels: **keine
+// Materialerstattung.** Abriss vernichtet Wert -- was verbaut ist, ist
+// verbaut. Was zurückkommt, ist der laufende Betrieb: Arbeitskraft und Strom
+// der abgerissenen Stufe stehen sofort wieder anderen Anlagen zur Verfügung,
+// weil die Flüsse aus der STUFE gerechnet werden und nirgends gespeichert
+// sind.
+//
+// Zwei Sperren, beide aus demselben Grund: solange dieselbe Anlage baut oder
+// in der Warteschlange steht, wäre der Rückbau ein Rennen zwischen zwei
+// Zahlen. Der Bau hat Kosten gebucht und eine Zielstufe im Kopf; zöge man ihm
+// die Ausgangsstufe unter den Füßen weg, käme am Ende irgendetwas heraus.
+// Erst abbrechen, dann abreißen -- und der Abbruch erstattet ohnehin.
+//
+// Rückgabe wie bei den übrigen Operationen: { ok } oder { ok: false, grund }.
+export function rueckbauen(planet, gebaeudeId) {
+  if (!planet || !planet.gebaeude) return { ok: false, grund: t("Kein Planet gewählt.") };
+  const stufe = planet.gebaeude[gebaeudeId] || 0;
+  if (stufe <= 0) return { ok: false, grund: t("Hier steht nichts, was sich abreißen ließe.") };
+  if (planet.bauQueue && planet.bauQueue.gebaeudeId === gebaeudeId) {
+    return { ok: false, grund: t("Diese Anlage wird gerade gebaut – erst den Bau abbrechen.") };
+  }
+  if ((planet.bauWarteschlange || []).some((e) => e.gebaeudeId === gebaeudeId)) {
+    return { ok: false, grund: t("Diese Anlage steht in der Warteschlange – erst den Auftrag herausnehmen.") };
+  }
+  planet.gebaeude[gebaeudeId] = stufe - 1;
+  return { ok: true, stufe: stufe - 1 };
 }
 
 // Teilt einen knappen Fluss von der höchsten Prioritätsstufe abwärts zu.
@@ -1214,7 +1276,7 @@ export function produktionsAufloesung(state, planet) {
     // Weil die Kosten überlinear und die Einnahmen linear wachsen, gibt es zu
     // jeder Bevölkerung eine beste Stufe -- und die verschiebt sich, wenn die
     // Welt wächst. Genau die Art Entscheidung, die Prinzip 12 verlangt.
-    if (id === "handelsposten" && menschen.abgaben > 0) prod.credits = menschen.abgaben * level;
+    if (id === "handelsposten" && handelsAbgaben(planet, level) > 0) prod.credits = handelsAbgaben(planet, level);
     // Fluss-Bedarf je Anlage wird MITGEFÜHRT, nicht nur in der Summe: er wird
     // nach Prioritaet zugeteilt, und dafuer muss bekannt sein, wer wieviel
     // davon will. Seit v0.8 gilt das fuer Strom UND Arbeitskraft (vorher
@@ -1583,6 +1645,25 @@ export function ausbauVorschau(state, planet, def, ziel) {
     const mehr = zuwachs(spec);
     if (mehr > 0) verbrauch[resId] = Math.round(mehr);
   }
+  // A-075: Der Handelsposten ist die einzige Anlage, deren EINNAHME nicht in
+  // data.js steht -- sie hängt an der Bevölkerung und nicht an der Stufe. Die
+  // Vorschau las deshalb nur `def.verbrauch.credits` ab, also die halbe
+  // Wahrheit: ein Minus vor den Credits an einem Gebäude, das welche
+  // einbringt (Tobis Meldung 18.08.).
+  //
+  // Das Vorzeichen kommt jetzt aus dem WERT und nicht aus der Zeile, in der er
+  // zufällig steht: netto positiv -> Ertragszeile, netto negativ ->
+  // Kostenzeile. Dass beides vorkommt, IST das Design -- unter rund 36.000
+  // Einwohnern trägt sich schon die erste Stufe nicht.
+  if (planet && def.id === "handelsposten") {
+    const netto = Math.round(
+      handelsAbgaben(planet, ziel) - handelsAbgaben(planet, basis) - zuwachs(def.verbrauch && def.verbrauch.credits)
+    );
+    delete verbrauch.credits;
+    if (netto > 0) produktion.credits = netto;
+    else if (netto < 0) verbrauch.credits = -netto;
+  }
+
   const speicherRes = speicherRessourceVon(def.id);
   return {
     // Nettobilanz: was die Stufe erzeugt, minus was sie zieht.
@@ -2153,11 +2234,64 @@ export function forschungVoraussetzungenErfuellt(state, forschungId) {
 // die noch keine mitgibt -- gilt damit als "betrifft mich" und bleibt sichtbar.
 // Der Filter kann also nie still etwas verschlucken; er kann höchstens zu wenig
 // ausblenden. Genau diese Richtung ist die verzeihliche (Save-Kategorie 1).
+// `herkunft` entscheidet über den Filter der Meldungsliste (A-074) und kennt
+// drei Werte:
+//   "eigen"  -- Subjekt ist ein eigenes Objekt. Vorgabe.
+//   "fremd"  -- Subjekt gehört einer anderen Fraktion. Nur unter "alles".
+//   "welt"   -- existenzielles Weltereignis (Blitz, Ozon, Flut). IMMER sichtbar.
+// Wer eine Meldung schreibt, in deren Nähe ein Planet oder eine Flotte liegt,
+// gibt `herkunftVon(objekt)` mit -- die Vorgabe "eigen" ist für die Fälle
+// gedacht, in denen es gar kein fremdes Subjekt geben KANN (Speicherfehler,
+// Zeitaufholung, Forschung, Logistiknetz).
+// Die VORLAGE hinter einem Meldungstext (A-083): derselbe Satz, andere Zahlen.
+//
+// Aus „Ilmar: 4.200 t geladen – Frachtraum voll." wird „Ilmar: # t geladen –
+// Frachtraum voll.". Zwei Meldungen mit derselben Vorlage sind für den Leser
+// dieselbe Nachricht, auch wenn die Menge um drei Tonnen abweicht.
+//
+// Bewusst über die ZAHLEN und nicht über einen Vorlagen-Schlüssel an jeder
+// Erzeugungsstelle: der Auftrag verbietet ausdrücklich, an der Erzeugung zu
+// drehen, und es gibt über hundert Stellen, die Meldungen schreiben. Was hier
+// zusammenfällt, fällt für das Auge ohnehin zusammen.
+export function meldungsVorlage(text) {
+  return String(text).replace(/[\d.,]*\d/g, "#");
+}
+
 export function meldungHinzufuegen(state, text, gruppe = null, herkunft = "eigen", ziel = null) {
   const oben = state.meldungen[0];
   if (gruppe && oben && oben.gruppe === gruppe) {
     oben.text = text; // jüngster Text bleibt sichtbar, der Zähler wächst
     oben.anzahl += 1;
+    oben.zeit = spielzeitJetzt(state);
+    return;
+  }
+  // A-083: DIESELBE NACHRICHT ZWEIMAL IST EINE NACHRICHT MIT ZÄHLER.
+  //
+  // Gemessen in der UI-Abnahme zu v1.46: eine Dauer-Frachtroute mit vollem
+  // Frachtraum erzeugte in rund 185 Spieltagen 49.234 Meldungen desselben
+  // Satzes. Die Liste hält nur dreißig -- alles andere war damit aus dem
+  // Logbuch geschoben, und zwar das Wichtige zuerst.
+  //
+  // Zusammengefasst wird nur mit der OBERSTEN Meldung: eine Nachricht, die
+  // zwischen anderen wieder auftaucht, ist eine neue Nachricht, und die
+  // Reihenfolge des Logbuchs bleibt die Reihenfolge der Ereignisse. Damit
+  // bleibt auch die Position stabil (die Falle des Auftrags): der Eintrag
+  // behält seine `nr` und wandert nicht ans Listenende.
+  //
+  // Anklickbare Meldungen (mit `ziel`) sind ausgenommen -- sie sind Wege,
+  // keine Protokollzeilen, und es gibt sie einmal je Anlass.
+  if (
+    oben &&
+    !gruppe &&
+    !oben.gruppe &&
+    !ziel &&
+    !oben.ziel &&
+    oben.herkunft === herkunft &&
+    meldungsVorlage(oben.text) === meldungsVorlage(text)
+  ) {
+    oben.text = text; // die jüngsten Zahlen bleiben sichtbar
+    oben.anzahl += 1;
+    oben.zeit = spielzeitJetzt(state);
     return;
   }
   // `nr` ist eine STABILE KENNUNG, kein Zähler zum Anzeigen. Seit A-040 kann
@@ -2166,7 +2300,11 @@ export function meldungHinzufuegen(state, text, gruppe = null, herkunft = "eigen
   // braucht jeder Eintrag einen Schlüssel, der ihm gehört. Die Position taugt
   // dafür nicht -- jede neue Meldung schiebt alle anderen nach unten.
   state.meldungNr = (state.meldungNr || 0) + 1;
-  const eintrag = { text, gruppe, anzahl: 1, herkunft, nr: state.meldungNr };
+  // `zeit` (A-083): wann diese Meldung zuletzt zu hören war. Steht am Eintrag,
+  // damit eine zusammengefasste Meldung sagen kann, wann sie zuletzt kam --
+  // sonst hieße es "×49.234" ohne jeden Bezug. Alt-Stände haben das Feld
+  // nicht; die Anzeige lässt den Zusatz dann weg (`||`-Muster).
+  const eintrag = { text, gruppe, anzahl: 1, herkunft, nr: state.meldungNr, zeit: spielzeitJetzt(state) };
   // `ziel` = { bereich, anker }: wohin ein Klick auf die Meldung führt. Fehlt
   // es, ist die Meldung ein reiner Logbucheintrag -- also fast immer.
   if (ziel) eintrag.ziel = ziel;
@@ -2368,6 +2506,26 @@ export function neuigkeitenGesehen(state, version) {
 // ihrer Darstellung -- und ein Testlauf ohne DOM kann sie so prüfen.
 // Das `||`-Muster ist der Grund, warum alte Spielstände weiterlaufen: eine
 // Meldung ohne Feld ist "eigen".
+//
+// DIE REGEL (A-074, Entscheidung der Planung): Eine Meldung ist "meine", wenn
+// ihr SUBJEKT ein eigenes Objekt ist -- eigener Planet, eigene Flotte, eigener
+// Bau-/Forschungsabschluss, eigene Wirtschaft. Alles andere (fremde
+// Fraktionen, Piraten in fremden Systemen, Weltgeschehen ohne eigenen Bezug)
+// gehört nur in "alles".
+//
+// MIT EINER AUSNAHME, und die ist kein Detail: existenzielle Weltereignisse
+// ("welt" -- Blitz, Ozon, Flut) stehen in BEIDEN Ansichten. Ein Filter, der
+// jemanden die Rettung verpassen lässt, ist ein Fehler und keine
+// Bequemlichkeit.
+//
+// WARUM DAS EINMAL NICHT FUNKTIONIERT HAT: Die Vorgabe von `herkunft` ist
+// "eigen", und 43 der 55 Meldungsstellen im Projekt haben das Feld gar nicht
+// gesetzt. Der Filter ließ damit alles durch, was niemand ausdrücklich als
+// fremd markiert hatte -- also fast alles, inklusive jeder Piratenflotte, die
+// irgendwo im Nichts Erz lädt. Das Prädikat war nie falsch; ihm fehlte die
+// Angabe. Deshalb steht die Klassifizierung jetzt AN DER QUELLE
+// (`herkunftVon(flotte)` / `herkunftVon(planet)` an der Meldungsstelle), und
+// nicht als Textmustererkennung hier.
 export function meldungBetrifftSpieler(meldung) {
   return (meldung.herkunft || "eigen") !== "fremd";
 }
@@ -2437,6 +2595,64 @@ export function gebaeudeKosten(planet, def, level) {
 
 export function schiffKosten(planet, schiffId, anzahl = 1) {
   return skalieren(SCHIFFE[schiffId].kosten, anzahl * startKostenFaktor(planet));
+}
+
+// Was EIN wartender Auftrag kostet (A-077).
+//
+// Die Falle steht im Auftrag und ist echt: die Kosten einer Stufe hängen an
+// der ZIELSTUFE, und die steht im Eintrag -- `zielLevel` wurde beim Einreihen
+// gebucht. Aus der heutigen Gebäudestufe zurückzurechnen wäre bei zwei
+// Einträgen desselben Gebäudes schon falsch (der zweite zielt eine Stufe
+// höher), und beim laufenden Kopf noch einmal.
+//
+// Ein Eintrag sagt selbst, was er ist: Bauten tragen `gebaeudeId`, Schiffe
+// `schiffId`. Forschung trägt keins von beidem und kostet seit v0.6 kein
+// Material mehr -- ihre Summe ist leer, und die Anzeige lässt die Zeile dann
+// ganz weg (Null-Zustand).
+export function auftragKosten(planet, eintrag) {
+  if (!eintrag) return {};
+  if (eintrag.gebaeudeId) return gebaeudeKosten(planet, BUILDINGS[eintrag.gebaeudeId], eintrag.zielLevel);
+  if (eintrag.schiffId) return schiffKosten(planet, eintrag.schiffId, eintrag.anzahl || 1);
+  return {};
+}
+
+// Was ALLE wartenden Aufträge zusammen kosten (A-077).
+//
+// Tobis Frage: „müsste irgendwo angezeigt werden, wie viel man an Kosten in
+// der Warteschlange hat." Gemeint sind die WARTENDEN -- der laufende Kopf hat
+// seit A-012 bereits bezahlt, seine Kosten sind kein offener Posten mehr.
+//
+// Beträge von null kommen nicht in die Summe: eine Zeile „0 Iridium" wäre
+// Rauschen, und die Anzeige entscheidet an genau dieser Stelle, welche
+// Ressourcen sie überhaupt nennt.
+export function warteschlangeKosten(planet, warteschlange) {
+  const summe = {};
+  for (const eintrag of warteschlange || []) {
+    for (const [resId, betrag] of Object.entries(auftragKosten(planet, eintrag))) {
+      if (!betrag) continue;
+      summe[resId] = (summe[resId] || 0) + betrag;
+    }
+  }
+  return summe;
+}
+
+// Was in einem Stückzahl-Feld steht, als Stückzahl gelesen (A-079).
+//
+// Gibt NULL zurück, wenn daraus kein Auftrag werden kann -- leer, null,
+// negativ, gar keine Zahl. Die Anzeige macht daraus einen gesperrten Knopf
+// mit Grund; die Alternative (still auf 1 aufrunden) würde einen Auftrag
+// auslösen, den niemand eingetippt hat.
+//
+// Hier und nicht in ui.js, weil die Definition von fertig einen Test auf
+// dieser Funktion verlangt -- und `node --test` hat kein DOM.
+//
+// Das Komma wird zum Punkt: wer 2,5 tippt, meint zweieinhalb und bekommt 2
+// statt einer Ablehnung. Abgeschnitten wird immer nach unten -- ein halbes
+// Schiff gibt es nicht, und aufzurunden hieße mehr zu bauen als verlangt.
+export function stueckzahlAus(text) {
+  const zahl = Math.floor(Number(String(text ?? "").trim().replace(",", ".")));
+  if (!Number.isFinite(zahl) || zahl < 1) return null;
+  return zahl;
 }
 
 export { kostenFuerLevel, bauzeitFuerLevel };

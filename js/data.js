@@ -17,7 +17,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "1.49";
+export const VERSION = "1.69";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von uebernehmen.mjs beim Kopieren auf "spielkopie"
@@ -1392,6 +1392,34 @@ export const STERN_TYPEN = {
 };
 
 // Das Heimatsystem bekommt immer einen gelben Zwerg. Gleiche Denkweise wie bei
+// --- Namen für die eigene Heimatwelt (A-082) -------------------------------
+//
+// Tobis Vorgabe: „Heimatwelt bekommt einen zufälligen Namen am Anfang. Der
+// muss vor allem im Intro stehen. ‚Dein Planet Heimatwelt' klingt nicht gut."
+//
+// DREI REGELN, nach denen diese Liste zusammengestellt ist:
+//
+//   1. SPRACHNEUTRAL. Jeder Name liest sich im Deutschen wie im Englischen
+//      gleich und heißt in beiden Sprachen dasselbe -- er ist ein Eigenname
+//      und geht deshalb NICHT durch t(). Ein Planet, der beim Sprachwechsel
+//      seinen Namen wechselt, wäre ein anderer Planet.
+//   2. ERDIG, nicht heroisch. Das hier ist die Welt, auf der jemand wohnt,
+//      keine Schlachtflotte. Kurze, aussprechbare Wörter mit Klang, keine
+//      Kennnummern -- "35-XII" haben schon alle anderen Planeten.
+//   3. KEINE ANLEIHEN. Nichts aus bekannten SciFi-Werken, nichts aus echten
+//      Sternkatalogen mit belegter Bedeutung. Erfundene Wörter und
+//      lateinisch/griechisch klingende Bildungen, die niemandem gehören.
+//
+// Dreißig Stück: genug, dass zwei Partien nebeneinander selten denselben
+// Namen tragen, wenig genug, dass jeder einzelne durchgesehen ist.
+export const HEIMATWELT_NAMEN = [
+  "Aurin", "Calder", "Doran", "Elaris", "Ferrun", "Galen",
+  "Halcyon", "Ilmar", "Jorvik", "Kestra", "Lumen", "Marek",
+  "Novis", "Orin", "Petra", "Quenna", "Rasmus", "Selene",
+  "Tarim", "Umbra", "Valen", "Wendel", "Xanthe", "Ysolde",
+  "Zephyr", "Alder", "Brenna", "Cygna", "Delphi", "Eryn",
+];
+
 // der Heimatwelt (Generalist, keine Affinität): der Start darf nicht am Würfel
 // hängen. Ein roter Zwerg als Startsystem wäre eine andere Anfangspartie.
 export const HEIMAT_STERN = "g";

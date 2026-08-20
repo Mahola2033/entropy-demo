@@ -72,6 +72,7 @@ import {
   supernovaRestMs,
   stromPrioritaet,
   stromPrioritaetSetzen,
+  rueckbauen,
   anreicherungAn,
   anreicherungSetzen,
   anreicherungLaeuft,
@@ -96,6 +97,8 @@ import {
   verarbeitungsReserveSetzen,
   gebaeudeKosten,
   schiffKosten,
+  warteschlangeKosten,
+  stueckzahlAus,
   speicherKapazitaet,
   flussSpeicherDeckung,
   pufferReichweiteMs,
@@ -115,6 +118,8 @@ import {
   warteStartSekunden,
   kopfRestSekunden,
   bauWarteschlangeEntfernen,
+  warteschlangeVerschieben,
+  warteschlangeUmordnen,
   bauAbbrechen,
   kannForschen,
   forschungWarteschlangeEntfernen,
@@ -128,6 +133,8 @@ import {
   flotteAufstellen,
   flotteUmbenennen,
   FLOTTENNAME_MAX,
+  planetUmbenennen,
+  PLANETENNAME_MAX,
   flotteAufloesen,
   schiffeUmladen,
   tanken,
@@ -164,6 +171,8 @@ import {
   routeLadenRegelSetzen,
   routeStarten,
   routeStoppen,
+  routeMindestbeladungSetzen,
+  routeBeladungAnteil,
 } from "./simulation.js";
 import {
   flottePosition,
@@ -179,13 +188,15 @@ import {
   flugdauerMs,
   schiffeStaerke,
   schiffeText,
+  frachtraumFrei,
+  flotteTankKapazitaet,
 } from "./flotten.js";
 import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js";
-import { holeSystem, cacheLeeren } from "./systeme.js";
+import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js";
 // Nur für den Neustart-Knopf im Abspann. Der Weg dorthin ist derselbe wie im
 // Testmodus (js/testmodus.js) -- ein zweiter Reset wäre eine zweite Wahrheit
 // darüber, was "neu anfangen" bedeutet.
-import { zuruecksetzen } from "./save.js";
+import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen } from "./save.js";
 import { systemName, sternFuer } from "./galaxie.js";
 // Die beiden Karten. Sie holen sich von hier `listeAbgleichen` zurück -- ein
 // Ringtausch, der trägt, weil keine der beiden Dateien beim LADEN etwas aus
@@ -663,7 +674,7 @@ export function render(state, root) {
     teil("system", () => renderSystem(state, root, jetzt));
   }
   if (sichtbar("handbuch")) teil("handbuch", () => renderHandbuch(root));
-  if (sichtbar("development")) teil("development", () => renderDevelopment(root));
+  if (sichtbar("development")) teil("development", () => renderDevelopment(state, root));
   // Nach dem Handbuch, damit der Hinweis im selben Takt in der Liste landet.
   handbuchHinweisPruefen(state);
   momenteHinweisPruefen(state);
@@ -850,10 +861,14 @@ function speicherEinheit(resId) {
 // Die Einheit kommt aus dem speicher-Eintrag und NICHT aus def.einheit: der
 // Fluss ist eine Leistung (MW), der Bestand eine Arbeit (MWh). Das ist kein
 // Detail -- stünde am Speicherstand "MW", wäre die Anzeige physikalisch falsch.
+
 // Brennstoff-Zeile der Energie-Kachel (A-055, Prinzip 10a): WANN geht dem
 // Reaktor das Deuterium aus -- bevor es passiert, nicht danach. Die Zahl ist
 // bewusst konservativ (Bestand ÷ Verbrauch, ohne Zufluss): sie ist eine
 // Warnung, keine Prognose. Dieselbe Bauform wie die Speicher-Zeile darunter.
+//
+// A-076: liefert WERTE, kein HTML. Die Zeile ist ein fester Knoten in der
+// Kachel und bekommt bloß frische Werte -- siehe renderRessourcen.
 function brennstoffZeile(planet) {
   const stufe = (planet.gebaeude && planet.gebaeude.kraftwerk) || 0;
   if (stufe <= 0) return null;
@@ -861,10 +876,7 @@ function brennstoffZeile(planet) {
     const text = t("Kein Brennstoff – der Reaktor ist aus. Er zündet wieder, sobald Deuterium für {dauer} im Lager liegt.", {
       dauer: fmtDauer(BRENNSTOFF_ANLAUF_MS / 1000),
     });
-    return {
-      titel: text,
-      html: `<span class="dezent warnung" title="${text}">⚛️ ${t("Kein Brennstoff – Reaktor aus")}</span>`,
-    };
+    return { titel: text, text: `⚛️ ${t("Kein Brennstoff – Reaktor aus")}`, warnung: true };
   }
   const reichweite = brennstoffReichweiteMs(planet);
   if (!Number.isFinite(reichweite)) return null;
@@ -897,9 +909,8 @@ function brennstoffZeile(planet) {
   const knapp = reichweite < 24 * 3600 * 1000;
   return {
     titel,
-    html: `<span class="dezent ${knapp ? "warnung" : ""}" title="${titel}">⚛️ ${t("Brennstoff für {dauer}", {
-      dauer: fmtDauer(reichweite / 1000),
-    })}</span>`,
+    text: `⚛️ ${t("Brennstoff für {dauer}", { dauer: fmtDauer(reichweite / 1000) })}`,
+    warnung: knapp,
   };
 }
 
@@ -931,41 +942,216 @@ function flussSpeicherZeile(planet, resId, netto) {
 
   return {
     titel: zeilen.join("\n"),
-    html: `
-      <span style="display:flex;justify-content:space-between;gap:.5rem" title="${zeilen.join("\n")}">
-        <span class="dezent">🔋 ${fmt(bestand)} / ${fmt(grenze)} ${einh}</span>
-        <span class="dezent ${netto < 0 ? "warnung" : ""}">${zustand}</span>
-      </span>
-      <span class="energie-balken-rahmen">
-        <span class="energie-balken speicher" style="width:${(anteil * 100).toFixed(1)}%"></span>
-      </span>`,
+    stand: `🔋 ${fmt(bestand)} / ${fmt(grenze)} ${einh}`,
+    zustand,
+    warnung: netto < 0,
+    anteil,
   };
 }
 
-function resKachel({ symbol, name, wert, stufe, rate, rateKlasse = "", klassen = "", titel = "", farbe = "", zusatz = "" }) {
-  return `
-    <div class="res-kachel ${klassen}" title="${titel}"${farbe ? ` style="--res-farbe:${farbe}"` : ""}>
-      <span class="res-symbol">${symbol}</span>
+// --- Die Ressourcenleiste: Gerüst einmal, Werte im Takt (A-076) -------------
+//
+// DAS WAR DIE URSACHE VON „das Hovern braucht mehrere Anläufe" (Tobis Bericht,
+// 18.08., Firefox). Hier stand `leiste.innerHTML = …` in JEDEM Sekundentakt --
+// damit war jede Kachel dieser Leiste einmal je Sekunde ein ANDERES
+// DOM-Element. Ein nativer `title`-Hinweis braucht rund eine Sekunde ruhigen
+// Zeigers, bis der Browser ihn zeigt; wird der Knoten unterm Zeiger in dieser
+// Sekunde ersetzt, verwirft der Browser den angelaufenen Hinweis und wartet
+// auf die nächste Mausbewegung. Genau das fühlt sich wie „mehrfach drauflegen"
+// an -- und es traf ausgerechnet die Leiste, die in JEDEM Bereich zu sehen ist.
+//
+// Gemessen im Browser (drei Renderdurchläufe, alle neun Bereiche): von 119
+// Knoten mit `title` im ganzen Spiel überlebten 102 -- die 17 der
+// Ressourcenleiste waren die einzigen, die es NICHT taten, und zwar 0 von 17
+// in jedem einzelnen Bereich. Der Rest des Spiels folgt längst dem Muster aus
+// Prinzip 8a; hier fehlte es als letzte Stelle.
+//
+// Deshalb dasselbe Muster wie überall sonst: Gerüst einmal bauen,
+// `listeAbgleichen` hält die Kacheln, `textSetzen`/`attributSetzen` bringen die
+// Werte. Die Hinweistexte selbst bleiben unverändert -- sie wandern nur ins
+// Attribut eines Knotens, der stehen bleibt.
+function resKachelGeruest() {
+  const div = document.createElement("div");
+  div.innerHTML = `
       <span class="res-oben">
-        <span class="res-name">${name}</span>
-        <span class="res-stufe">${stufe}</span>
+        <span class="res-name"></span>
+        <span class="res-stufe"></span>
       </span>
       <span class="res-unten">
-        <span class="res-wert">${wert}</span>
-        <span class="res-rate ${rateKlasse}">${rate}</span>
+        <span class="res-zahl">
+          <span class="res-symbol"></span>
+          <span class="res-wert"></span>
+        </span>
+        <span class="res-rate"></span>
       </span>
-      ${zusatz ? `<span class="res-zusatz">${zusatz}</span>` : ""}
-    </div>`;
+      <span class="res-zusatz" hidden></span>`;
+  return div;
+}
+
+function resKachelFuellen(
+  div,
+  { symbol, name, wert, stufe, rate, rateKlasse = "", klassen = "", titel = "", farbe = "", zusatz = "" }
+) {
+  div.className = `res-kachel ${klassen}`;
+  attributSetzen(div, "title", titel);
+  // Genau die Schreibweise von vorher: `.res-kachel[style*="--res-farbe"]`
+  // (css/style.css) prüft das ATTRIBUT, nicht die berechnete Eigenschaft --
+  // ohne Farbe darf deshalb gar kein style-Attribut dastehen.
+  attributSetzen(div, "style", farbe ? `--res-farbe:${farbe}` : null);
+  textSetzen(div.querySelector(".res-symbol"), symbol);
+  textSetzen(div.querySelector(".res-name"), name);
+  textSetzen(div.querySelector(".res-stufe"), stufe);
+  textSetzen(div.querySelector(".res-wert"), wert);
+  const rateEl = div.querySelector(".res-rate");
+  rateEl.className = `res-rate ${rateKlasse}`;
+  textSetzen(rateEl, rate);
+  // `.res-zusatz` ist seit A-052 leer und bleibt es. Der Knoten steht im
+  // Gerüst, damit er beim nächsten Gebrauch nicht neu erfunden wird -- als
+  // `hidden` ist er kein Rasterkind und kostet keine Zeile (die Warnung in
+  // css/style.css gilt weiter: wer ihn füllt, misst vorher die Reihenhöhe).
+  const zusatzEl = div.querySelector(".res-zusatz");
+  zusatzEl.hidden = !zusatz;
+  textSetzen(zusatzEl, zusatz);
+}
+
+// Die Kachel einer Fluss-Ressource. Zwei Zeilen mehr als die Bestandskachel:
+// Speicherstand und Brennstoff. Beide sind FESTE Knoten und werden versteckt,
+// wenn es sie gerade nicht gibt -- `[hidden]` nimmt sie aus dem Fluss, die
+// Kachelhöhe ist also dieselbe wie zuvor mit dem bedingten Einfügen.
+function flussKachelGeruest() {
+  const div = document.createElement("div");
+  div.innerHTML = `
+        <span class="res-oben">
+          <span class="res-name"></span>
+          <span class="res-stufe"></span>
+        </span>
+        <span class="res-unten" style="flex-direction:column;align-items:stretch;gap:.2rem">
+          <span style="display:flex;justify-content:space-between;gap:.5rem">
+            <span class="res-zahl">
+              <span class="res-symbol"></span>
+              <span class="res-wert"></span>
+            </span>
+            <span class="res-rate"></span>
+          </span>
+          <span class="energie-balken-rahmen">
+            <span class="energie-balken"></span>
+          </span>
+          <span class="speicher-zeile" style="display:flex;justify-content:space-between;gap:.5rem" hidden>
+            <span class="dezent speicher-stand"></span>
+            <span class="speicher-zustand"></span>
+          </span>
+          <span class="energie-balken-rahmen speicher-rahmen" hidden>
+            <span class="energie-balken speicher"></span>
+          </span>
+          <span class="brennstoff-zeile" hidden></span>
+        </span>`;
+  return div;
+}
+
+function flussKachelFuellen(div, { symbol, name, stufe, wert, rate, knapp, auslastung, speicher, brennstoff, titel }) {
+  div.className = "res-kachel energie";
+  attributSetzen(div, "title", titel);
+  textSetzen(div.querySelector(".res-symbol"), symbol);
+  textSetzen(div.querySelector(".res-name"), name);
+  textSetzen(div.querySelector(".res-stufe"), stufe);
+
+  const wertEl = div.querySelector(".res-wert");
+  wertEl.className = `res-wert ${knapp ? "warnung" : ""}`;
+  textSetzen(wertEl, wert);
+  const rateEl = div.querySelector(".res-rate");
+  rateEl.className = `res-rate ${knapp ? "warnung" : ""}`;
+  textSetzen(rateEl, rate);
+
+  const balken = div.querySelector(".energie-balken");
+  balken.className = `energie-balken ${knapp ? "warnung" : ""}`;
+  attributSetzen(balken, "style", `width:${Math.min(100, auslastung * 100).toFixed(1)}%`);
+
+  const speicherZeile = div.querySelector(".speicher-zeile");
+  speicherZeile.hidden = !speicher;
+  div.querySelector(".speicher-rahmen").hidden = !speicher;
+  if (speicher) {
+    attributSetzen(speicherZeile, "title", speicher.titel);
+    textSetzen(div.querySelector(".speicher-stand"), speicher.stand);
+    const zustandEl = div.querySelector(".speicher-zustand");
+    zustandEl.className = `dezent speicher-zustand ${speicher.warnung ? "warnung" : ""}`;
+    textSetzen(zustandEl, speicher.zustand);
+    attributSetzen(
+      div.querySelector(".energie-balken.speicher"),
+      "style",
+      `width:${(speicher.anteil * 100).toFixed(1)}%`
+    );
+  }
+
+  const brennEl = div.querySelector(".brennstoff-zeile");
+  brennEl.hidden = !brennstoff;
+  if (brennstoff) {
+    brennEl.className = `dezent brennstoff-zeile ${brennstoff.warnung ? "warnung" : ""}`;
+    attributSetzen(brennEl, "title", brennstoff.titel);
+    textSetzen(brennEl, brennstoff.text);
+  }
+}
+
+function lagerKachelGeruest() {
+  const div = document.createElement("div");
+  div.className = "res-kachel lager";
+  div.innerHTML = `
+      <span class="res-oben">
+        <span class="res-name"></span>
+        <span class="res-stufe"></span>
+      </span>
+      <span class="res-unten" style="flex-direction:column;align-items:stretch;gap:.2rem">
+        <span class="res-zahl">
+          <span class="res-symbol">📦</span>
+          <span class="res-wert"></span>
+        </span>
+        <span class="lager-balken-rahmen"></span>
+        <span class="lager-prognose"></span>
+      </span>`;
+  return div;
+}
+
+function lagerKachelFuellen(div, { titel, stufe, wert, segmente, prognose }) {
+  attributSetzen(div, "title", titel);
+  textSetzen(div.querySelector(".res-name"), t("Lager"));
+  textSetzen(div.querySelector(".res-stufe"), stufe);
+  textSetzen(div.querySelector(".res-wert"), wert);
+  textSetzen(div.querySelector(".lager-prognose"), prognose);
+  // Auch die Segmente werden abgeglichen. Sie tragen `transition: width`
+  // (css/style.css) -- ein Segment, das jede Sekunde neu entsteht, kann gar
+  // nicht überblenden, weil es keinen Vorzustand hat.
+  listeAbgleichen(div.querySelector(".lager-balken-rahmen"), segmente, {
+    schluessel: (s) => s.resId,
+    bauen: () => {
+      const span = document.createElement("span");
+      span.className = "lager-segment";
+      return span;
+    },
+    aktualisieren: (span, s) => {
+      attributSetzen(span, "title", s.titel);
+      attributSetzen(span, "style", `width:${Math.min(100, s.anteil * 100).toFixed(2)}%;background:${s.farbe}`);
+    },
+  });
 }
 
 function renderRessourcen(state, root, planet) {
   const leiste = root.querySelector("#ressourcen-leiste");
-  leiste.innerHTML = "";
 
+  // Außenposten: eine Zeile statt der Leiste. Der Wechsel wird EINMAL
+  // geschrieben, nicht in jedem Takt -- sonst wäre die Ausnahme genau der
+  // Fehler, den der Rest dieser Funktion behebt.
   if (planet.typ === "aussenposten") {
-    leiste.innerHTML = t('<div class="dezent">Außenposten haben kein Lager – sie verschieben nur deine Reichweite.</div>');
+    if (leiste.dataset.form !== "aussenposten") {
+      leiste.dataset.form = "aussenposten";
+      leiste.innerHTML = t('<div class="dezent">Außenposten haben kein Lager – sie verschieben nur deine Reichweite.</div>');
+    }
     return;
   }
+  if (leiste.dataset.form !== "leiste") {
+    leiste.dataset.form = "leiste";
+    leiste.innerHTML = `<div class="res-reihe"></div><div class="res-reihe res-reihe-kapazitaet"></div>`;
+  }
+  const reiheVorraete = leiste.firstElementChild;
+  const reiheKapazitaeten = leiste.lastElementChild;
 
   const { lager, fluss, produktion, verbrauch, bedarf, drosselung, effizienz } = effektiveRaten(state, planet);
   // Nur die Stufe der Förderanlage -- welches Gebäude gemeint ist, steht im
@@ -980,8 +1166,8 @@ function renderRessourcen(state, root, planet) {
   // 2026-08-16): oben was man HAT, unten was man KANN. Das trennt zwei
   // verschiedene Fragen und macht nebenbei den springenden Umbruch unmöglich
   // -- siehe .ressourcenleiste in style.css.
-  let vorraete = "";
-  let kapazitaeten = "";
+  const vorraete = [];
+  const kapazitaeten = [];
 
   for (const resId of LAGER_RESSOURCEN) {
     const def = RESSOURCEN[resId];
@@ -1055,7 +1241,8 @@ function renderRessourcen(state, root, planet) {
         : t(" · Platz für {platz}", { platz: fmt(eigenerSpeicher) });
     }
 
-    vorraete += resKachel({
+    vorraete.push({
+      schluessel: resId,
       symbol: def.symbol || "•",
       name: t(def.name),
       wert: hatSpeicher
@@ -1124,8 +1311,8 @@ function renderRessourcen(state, root, planet) {
     const knapp = braucht > 0 && prod < braucht && !gedeckt;
     const auslastung = prod > 0 ? braucht / prod : braucht > 0 ? 1 : 0;
     const frei = Math.max(0, prod - braucht);
-    const speicherText = flussSpeicherZeile(planet, resId, fluss[resId] || 0);
-    const brennstoffText = resId === "energie" ? brennstoffZeile(planet) : null;
+    const speicherDaten = flussSpeicherZeile(planet, resId, fluss[resId] || 0);
+    const brennstoffDaten = resId === "energie" ? brennstoffZeile(planet) : null;
     // FORSCHUNG IST DER SONDERFALL DIESER KACHEL (A-028).
     //
     // Das Muster "verbraucht / erzeugt" passt fuer Strom und Arbeitskraft:
@@ -1150,9 +1337,22 @@ function renderRessourcen(state, root, planet) {
           })
         : t("kein Projekt")
       : `${fmt(braucht)} / ${fmt(prod)} ${einheit(resId)}`;
-    kapazitaeten += `
-      <div class="res-kachel energie" title="${
-        knapp
+    kapazitaeten.push({
+      schluessel: resId,
+      art: "fluss",
+      symbol: def.symbol || "•",
+      name: t(def.name),
+      stufe: stufeVon(resId),
+      wert: wertText,
+      rate: knapp
+        ? `${Math.round(effizienz * 100)}%`
+        : t("{frei} {einheit} frei", { frei: fmt(frei), einheit: einheit(resId) }),
+      knapp,
+      auslastung,
+      speicher: speicherDaten,
+      brennstoff: brennstoffDaten,
+      titel:
+        (knapp
           ? t("{res} fehlt: {braucht} {einheit} gebraucht, nur {da} verfügbar – alle Anlagen laufen mit {anteil}%", {
               res: t(def.name),
               braucht: fmt(braucht),
@@ -1165,36 +1365,16 @@ function renderRessourcen(state, root, planet) {
               einheit: einheit(resId),
               da: fmt(prod),
               frei: fmt(frei),
-            })
-      }${
-        istForschungsFluss
+            })) +
+        (istForschungsFluss
           ? "\n" +
             t(
               "FE = Forschungseinheiten. Deine Labore erzeugen sie laufend, und sie fließen in GENAU EIN Projekt – die Warteschlange darunter wird nacheinander abgearbeitet."
             )
-          : ""
-      }${speicherText ? "\n" + speicherText.titel : ""}${brennstoffText ? "\n" + brennstoffText.titel : ""}">
-        <span class="res-symbol">${def.symbol || "•"}</span>
-        <span class="res-oben">
-          <span class="res-name">${t(def.name)}</span>
-          <span class="res-stufe">${stufeVon(resId)}</span>
-        </span>
-        <span class="res-unten" style="flex-direction:column;align-items:stretch;gap:.2rem">
-          <span style="display:flex;justify-content:space-between;gap:.5rem">
-            <span class="res-wert ${knapp ? "warnung" : ""}">${wertText}</span>
-            <span class="res-rate ${knapp ? "warnung" : ""}">${
-              knapp
-                ? `${Math.round(effizienz * 100)}%`
-                : t("{frei} {einheit} frei", { frei: fmt(frei), einheit: einheit(resId) })
-            }</span>
-          </span>
-          <span class="energie-balken-rahmen">
-            <span class="energie-balken ${knapp ? "warnung" : ""}" style="width:${Math.min(100, auslastung * 100).toFixed(1)}%"></span>
-          </span>
-          ${speicherText ? speicherText.html : ""}
-          ${brennstoffText ? brennstoffText.html : ""}
-        </span>
-      </div>`;
+          : "") +
+        (speicherDaten ? "\n" + speicherDaten.titel : "") +
+        (brennstoffDaten ? "\n" + brennstoffDaten.titel : ""),
+    });
   }
 
   // A-051: „voll in ~5 h 40". Die Antwort auf das A-023-Zurück -- die Messung
@@ -1218,7 +1398,6 @@ function renderRessourcen(state, root, planet) {
   // Lagerauslastung als eigene Kachel in derselben Leiste.
   const gesamt = lagerKapazitaetGesamt(state, planet);
   const belegt = lagerBelegung(planet);
-  const anteil = gesamt > 0 ? Math.min(1, belegt / gesamt) : 0;
 
   // Der Balken ist gestapelt: jedes Segment zeigt, wie viel Volumen EINE
   // Ressource belegt, in ihrer eigenen Farbe. Ohne das sagt ein Lager von
@@ -1232,39 +1411,30 @@ function renderRessourcen(state, root, planet) {
     .filter((s) => s.volumen > 0)
     .sort((a, b) => b.volumen - a.volumen);
 
-  const balkenHtml = segmente
-    .map(
-      (s) =>
-        `<span class="lager-segment" style="width:${Math.min(100, s.anteil * 100).toFixed(2)}%;background:${
-          s.def.farbe
-        }" title="${t("{res}: {volumen} m³ ({anteil}% des Lagers)", {
-          res: t(s.def.name),
-          volumen: fmt(s.volumen),
-          anteil: Math.round(s.anteil * 100),
-        })}"></span>`
-    )
-    .join("");
-  kapazitaeten += `
-    <div class="res-kachel lager" title="${t("{belegt} von {gesamt} m³ belegt", {
-      belegt: fmt(belegt),
-      gesamt: fmt(gesamt),
-    })}">
-      <span class="res-symbol">📦</span>
-      <span class="res-oben">
-        <span class="res-name">${t("Lager")}</span>
-        <span class="res-stufe">Lv ${planet.gebaeude.lagerhalle || 0}</span>
-      </span>
-      <span class="res-unten" style="flex-direction:column;align-items:stretch;gap:.2rem">
-        <span class="res-wert">${formatKurz(belegt)} / ${formatKurz(gesamt)} m³</span>
-        <span class="lager-balken-rahmen">${balkenHtml}</span>
-        <span class="lager-prognose">${lagerPrognoseText(state, planet, lager)}</span>
-      </span>
-    </div>`;
+  kapazitaeten.push({
+    schluessel: "lager",
+    art: "lager",
+    titel: t("{belegt} von {gesamt} m³ belegt", { belegt: fmt(belegt), gesamt: fmt(gesamt) }),
+    stufe: `Lv ${planet.gebaeude.lagerhalle || 0}`,
+    wert: `${formatKurz(belegt)} / ${formatKurz(gesamt)} m³`,
+    prognose: lagerPrognoseText(state, planet, lager),
+    segmente: segmente.map((s) => ({
+      resId: s.resId,
+      farbe: s.def.farbe,
+      anteil: s.anteil,
+      titel: t("{res}: {volumen} m³ ({anteil}% des Lagers)", {
+        res: t(s.def.name),
+        volumen: fmt(s.volumen),
+        anteil: Math.round(s.anteil * 100),
+      }),
+    })),
+  });
 
   // Verdeckte Platzhalter: zeigen Tiefe, ohne zu spoilern. Sie gehören zu den
   // VORRÄTEN -- es sind künftige Ressourcen, und dort ist der Platz für sie.
   for (let i = 0; i < UNBEKANNTE_RESSOURCEN.slots; i++) {
-    vorraete += resKachel({
+    vorraete.push({
+      schluessel: `unbekannt-${i}`,
       symbol: UNBEKANNTE_RESSOURCEN.symbol,
       name: "???",
       wert: "???",
@@ -1275,9 +1445,16 @@ function renderRessourcen(state, root, planet) {
     });
   }
 
-  leiste.innerHTML =
-    `<div class="res-reihe">${vorraete}</div>` +
-    `<div class="res-reihe res-reihe-kapazitaet">${kapazitaeten}</div>`;
+  listeAbgleichen(reiheVorraete, vorraete, {
+    schluessel: (k) => k.schluessel,
+    bauen: () => resKachelGeruest(),
+    aktualisieren: (div, k) => resKachelFuellen(div, k),
+  });
+  listeAbgleichen(reiheKapazitaeten, kapazitaeten, {
+    schluessel: (k) => k.schluessel,
+    bauen: (k) => (k.art === "lager" ? lagerKachelGeruest() : flussKachelGeruest()),
+    aktualisieren: (div, k) => (k.art === "lager" ? lagerKachelFuellen(div, k) : flussKachelFuellen(div, k)),
+  });
 }
 
 // --- Navigation ---------------------------------------------------------
@@ -1692,41 +1869,97 @@ function renderErstklaerung(state, root, planet) {
     return;
   }
   el.hidden = false;
-  if (el.dataset.gezeichnet === sprache()) return;
-  el.dataset.gezeichnet = sprache();
+
+  // A-084: DAS GERÜST STEHT EINMAL, DIE TEXTE WECHSELN.
+  //
+  // Bis v1.62 baute dieses Fenster sich bei jedem Sprachwechsel komplett neu.
+  // Das ging, solange die Sprache nur draußen im Kopf umgestellt werden konnte
+  // -- und genau das war das Problem: das Fenster liegt als Vollbild-Overlay
+  // ÜBER dem Kopf (inset: 0, z-index: 100), die DE/EN-Knöpfe dort sind
+  // unerreichbar, solange es offen ist. Ein englischsprachiger Tester musste
+  // also die ganze deutsche Erstklärung wegklicken, bevor er umschalten
+  // konnte -- beim wichtigsten Text des Spiels.
+  //
+  // Die Sprachknöpfe stehen deshalb jetzt IM Fenster. Und weil sie es sind,
+  // die den Neuaufbau auslösen würden, darf es keinen Neuaufbau mehr geben:
+  // sonst verschwände beim Klick der Knoten unter dem Zeiger (8a) und der
+  // Scrollstand des Textes gleich mit. Gerüst einmal, Text im Wechsel.
+  if (!el.dataset.gebaut) {
+    el.dataset.gebaut = "1";
+    el.innerHTML = `
+      <div class="erstklaerung-tafel">
+        <div class="erstklaerung-sprachen" data-erst-sprachen></div>
+        <h2 data-erst-titel></h2>
+        <div data-erst-absaetze></div>
+        <p class="dezent" data-erst-hinweis></p>
+        <div class="erstklaerung-knoepfe">
+          <button data-erst-handbuch class="zweitrangig"></button>
+          <button data-erst-los></button>
+        </div>
+      </div>`;
+
+    // ERST die Tafel wegnehmen, DANN der Merker -- dieselbe Reihenfolge und
+    // dieselbe Begründung wie beim Handbuch-Hinweis weiter unten: ein Merker,
+    // der sagt "ist erledigt", gehört hinter die Sache, die er bezeugt.
+    const schliessen = () => {
+      el.hidden = true;
+      state.erstklaerungGesehen = true;
+    };
+
+    // Der Weg ins Handbuch führt über denselben Schalter wie die Navigation
+    // (aktiverBereich) -- kein zweiter Mechanismus fürs Bereichswechseln.
+    el.querySelector("[data-erst-handbuch]").addEventListener("click", () => {
+      schliessen();
+      aktiverBereich = "handbuch";
+      render(state, root);
+    });
+    el.querySelector("[data-erst-los]").addEventListener("click", () => {
+      schliessen();
+      render(state, root);
+    });
+
+    // Die Sprachknöpfe: dieselbe Beschriftung und dieselbe Optik wie im Kopf,
+    // aber ein eigener Satz Knöpfe -- die im Kopf liegen unter dem Overlay und
+    // sind nicht anklickbar. Verdrahtet wird EINMAL; welche Sprache aktiv ist,
+    // steht beim Zeichnen unten.
+    const sprachen = el.querySelector("[data-erst-sprachen]");
+    for (const s of SPRACHEN) {
+      const btn = document.createElement("button");
+      btn.dataset.sprache = s.code;
+      btn.textContent = s.code.toUpperCase();
+      attributSetzen(btn, "title", s.name);
+      btn.addEventListener("click", () => {
+        spracheSetzen(s.code);
+        // Die Leiste im Kopf baut sich an ihrem eigenen Merker neu auf.
+        const kopf = root.querySelector("#sprach-leiste");
+        if (kopf) kopf.dataset.gezeichnet = "";
+        render(state, root);
+      });
+      sprachen.appendChild(btn);
+    }
+  }
+
+  for (const btn of el.querySelectorAll("[data-erst-sprachen] button")) {
+    btn.classList.toggle("aktiv", btn.dataset.sprache === sprache());
+  }
 
   const tafel = erststartTafel(planet.name);
-  el.innerHTML = `
-    <div class="erstklaerung-tafel">
-      <h2>${tafel.titel}</h2>
-      ${tafel.absaetze.map((p) => `<p>${htmlText(p)}</p>`).join("")}
-      <p class="dezent">${tafel.hinweis}</p>
-      <div class="erstklaerung-knoepfe">
-        <button data-erst-handbuch class="zweitrangig">${t("Handbuch öffnen")}</button>
-        <button data-erst-los>${t("Los geht's")}</button>
-      </div>
-    </div>`;
+  textSetzen(el.querySelector("[data-erst-titel]"), tafel.titel);
+  textSetzen(el.querySelector("[data-erst-hinweis]"), tafel.hinweis);
+  textSetzen(el.querySelector("[data-erst-handbuch]"), t("Handbuch öffnen"));
+  textSetzen(el.querySelector("[data-erst-los]"), t("Los geht's"));
+  // Die Absätze werden abgeglichen statt neu gebaut: ihre Zahl ist in beiden
+  // Sprachen dieselbe, es wechselt nur der Text.
+  listeAbgleichen(
+    el.querySelector("[data-erst-absaetze]"),
+    tafel.absaetze.map((text, i) => ({ text, i })),
+    {
+      schluessel: (a) => a.i,
+      bauen: () => document.createElement("p"),
+      aktualisieren: (p, a) => textSetzen(p, a.text),
+    }
+  );
 
-  // ERST die Tafel wegnehmen, DANN der Merker -- dieselbe Reihenfolge und
-  // dieselbe Begründung wie beim Handbuch-Hinweis weiter unten: ein Merker,
-  // der sagt "ist erledigt", gehört hinter die Sache, die er bezeugt. Hier ist
-  // das billig zu haben, weil beides in einer Funktion steht.
-  const schliessen = () => {
-    el.hidden = true;
-    state.erstklaerungGesehen = true;
-  };
-
-  // Der Weg ins Handbuch führt über denselben Schalter wie die Navigation
-  // (aktiverBereich) -- kein zweiter Mechanismus fürs Bereichswechseln.
-  el.querySelector("[data-erst-handbuch]").addEventListener("click", () => {
-    schliessen();
-    aktiverBereich = "handbuch";
-    render(state, root);
-  });
-  el.querySelector("[data-erst-los]").addEventListener("click", () => {
-    schliessen();
-    render(state, root);
-  });
 }
 
 // Die Navigation ist der meistgeklickte Bereich des Spiels und war der erste,
@@ -2088,8 +2321,20 @@ function renderStatus(state, root, planet, jetzt) {
 // aller Labore. Ohne diese Funktion las die Anzeige `dauerSek`, fand undefined
 // und zeigte fuer JEDE Forschung "unter 1 Tag" -- die Summe der Warteschlange
 // ebenso. Das war Tobis zweiter Befund in A-028.
-function renderWarteschlange(state, root, containerId, warteschlange, labelFn, entfernen, kontext = "", dauerFn = null) {
+// `kostenFn` (A-077): was die WARTENDEN Einträge zusammen kosten. Bauten und
+// Schiffe reichen `warteschlangeKosten` durch, die Forschung gar nichts --
+// sie kostet seit v0.6 kein Material, und eine leere Summe bekommt keine
+// Zeile statt einer leeren.
+// `verschiebbar` (A-080): darf diese Schlange umsortiert werden? Alle drei
+// dürfen es -- der Schalter steht trotzdem hier, weil die Zeile sonst Knöpfe
+// bekäme, die je nach Aufrufer ins Leere zeigen.
+function renderWarteschlange(state, root, containerId, warteschlange, labelFn, entfernen, kontext = "", dauerFn = null, kostenFn = null, verschiebbar = true) {
   const dauerVon = dauerFn || ((eintrag) => eintrag.dauerSek || 0);
+  // A-080: Die Schieber greifen auf die Liste zu, die BEIM KLICK gilt. Sie
+  // liegt im Spielstand und wird von `renderWarteschlange` bei jedem
+  // Bildaufbau frisch hereingereicht -- eingefangen wäre sie nach einem
+  // Planetenwechsel die Liste der alten Welt (die Lehre aus A-091).
+  const warteschlangeJetzt = () => warteschlange;
   const el = root.querySelector(containerId);
   if (!el) return;
 
@@ -2113,7 +2358,10 @@ function renderWarteschlange(state, root, containerId, warteschlange, labelFn, e
   const geruest = `warteschlange:${sprache()}:${kontext}`;
   if (el.dataset.geruest !== geruest) {
     el.dataset.geruest = geruest;
-    el.innerHTML = `<div class="dezent warteschlange-titel"></div><ol class="warteschlange-liste"></ol>`;
+    el.innerHTML =
+      `<div class="dezent warteschlange-titel"></div>` +
+      `<div class="dezent warteschlange-kosten" hidden><span class="zeilen-marke" data-summe-marke></span> <span data-summe-wert></span></div>` +
+      `<ol class="warteschlange-liste"></ol>`;
   }
 
   const titel = el.querySelector(".warteschlange-titel");
@@ -2133,6 +2381,26 @@ function renderWarteschlange(state, root, containerId, warteschlange, labelFn, e
       { dauer: fmtDauer(gesamtSek) }
     )
   );
+
+  // A-077: was hier noch zu zahlen ist, in einer Zeile. Dieselbe Schreibweise
+  // wie die Kostenzeile einer Kachel (Symbol + Menge), damit die beiden Zahlen
+  // vergleichbar bleiben; der ausgeschriebene Text steht im Tooltip, damit
+  // niemand ein Symbol raten muss.
+  const summe = kostenFn ? kostenFn(warteschlange) : {};
+  const summenZeile = el.querySelector(".warteschlange-kosten");
+  const hatSumme = Object.keys(summe).length > 0;
+  summenZeile.hidden = !hatSumme;
+  if (hatSumme) {
+    textSetzen(summenZeile.querySelector("[data-summe-marke]"), t("Kosten zusammen"));
+    textSetzen(summenZeile.querySelector("[data-summe-wert]"), buendelSymbole(summe));
+    attributSetzen(
+      summenZeile,
+      "title",
+      t("Diese Aufträge kosten zusammen {buendel}. Abgebucht wird erst, wenn einer von ihnen vorn steht.", {
+        buendel: buendelText(summe),
+      })
+    );
+  }
 
   listeAbgleichen(
     el.querySelector(".warteschlange-liste"),
@@ -2156,14 +2424,81 @@ function renderWarteschlange(state, root, containerId, warteschlange, labelFn, e
           entfernen(Number(li.dataset.position));
           render(state, root);
         });
+        // A-080: einen Platz nach vorn / nach hinten. Beide Knöpfe lesen ihren
+        // Index beim Klick aus dem Element -- dieselbe Falle wie beim ×, und
+        // hier zusätzlich, weil ein Verschieben die Positionen der Nachbarn
+        // sofort verändert.
+        const hoch = document.createElement("button");
+        hoch.className = "warte-schieber";
+        hoch.textContent = "▲";
+        attributSetzen(hoch, "title", t("Einen Platz nach vorn."));
+        const runter = document.createElement("button");
+        runter.className = "warte-schieber";
+        runter.textContent = "▼";
+        attributSetzen(runter, "title", t("Einen Platz nach hinten."));
+        const schieben = (richtung) => {
+          warteschlangeVerschieben(warteschlangeJetzt(), Number(li.dataset.position), richtung);
+          render(state, root);
+        };
+        hoch.addEventListener("click", () => schieben(-1));
+        runter.addEventListener("click", () => schieben(1));
         // A-017 (Tobis Punkt 38): das × steht VOR dem Namen. Die feste
         // Spalte dafuer kommt aus dem CSS, damit die Namen in allen drei
         // Warteschlangen buendig beginnen.
-        li.append(btn, document.createTextNode(" "), text);
+        li.append(btn, hoch, runter, document.createTextNode(" "), text);
+
+        // A-080, Tobis eigentlicher Wunsch: mit der Maus ziehen. Mit
+        // Bordmitteln, ohne Bibliothek -- HTML kann das selbst.
+        //
+        // DASS ES HIER ÜBERHAUPT GEHT, ist ein Ergebnis von A-076: Bis v1.53
+        // wurden Listenzeilen im Takt ersetzt, und ein Zug über einen
+        // ersetzten Knoten bricht ab. Seit die Zeilen stehen bleiben
+        // (listeAbgleichen) überlebt ein Zug jeden Sekundentakt. Die Knöpfe
+        // bleiben trotzdem: sie sind der tastaturtaugliche Weg, und sie sind
+        // der Weg, der auf jedem Gerät funktioniert.
+        li.draggable = true;
+        li.addEventListener("dragstart", (ereignis) => {
+          li.classList.add("zug-quelle");
+          if (ereignis.dataTransfer) {
+            ereignis.dataTransfer.effectAllowed = "move";
+            // Nutzlast ist die POSITION, nicht der Eintrag: was verschoben
+            // wird, steht im Spielstand, nicht im Zwischenspeicher der Maus.
+            ereignis.dataTransfer.setData("text/plain", String(li.dataset.position));
+          }
+        });
+        li.addEventListener("dragend", () => {
+          li.classList.remove("zug-quelle");
+          for (const zeile of li.parentElement ? li.parentElement.children : []) zeile.classList.remove("zug-ziel");
+        });
+        li.addEventListener("dragover", (ereignis) => {
+          ereignis.preventDefault(); // ohne das nimmt der Browser den Abwurf nicht an
+          if (ereignis.dataTransfer) ereignis.dataTransfer.dropEffect = "move";
+          li.classList.add("zug-ziel");
+        });
+        li.addEventListener("dragleave", () => li.classList.remove("zug-ziel"));
+        li.addEventListener("drop", (ereignis) => {
+          ereignis.preventDefault();
+          li.classList.remove("zug-ziel");
+          const von = Number(ereignis.dataTransfer ? ereignis.dataTransfer.getData("text/plain") : NaN);
+          const nach = Number(li.dataset.position);
+          if (!Number.isInteger(von) || !Number.isInteger(nach)) return;
+          warteschlangeUmordnen(warteschlangeJetzt(), von, nach);
+          render(state, root);
+        });
         return li;
       },
       aktualisieren: (li, { eintrag, i }) => {
         li.dataset.position = i;
+        // A-080: Der erste kann nicht weiter nach vorn, der letzte nicht
+        // weiter nach hinten. Gesperrt statt versteckt -- ein Knopf, der
+        // verschwindet, lässt die Zeile springen (Prinzip 8).
+        const [, hochKnopf, runterKnopf] = li.querySelectorAll("button");
+        if (hochKnopf && runterKnopf) {
+          hochKnopf.hidden = !verschiebbar;
+          runterKnopf.hidden = !verschiebbar;
+          hochKnopf.disabled = i === 0;
+          runterKnopf.disabled = i === warteschlange.length - 1;
+        }
         textSetzen(li.querySelector("[data-label]"), labelFn(eintrag));
         attributSetzen(
           li,
@@ -2302,10 +2637,41 @@ function verbindungenZeichnen(liste, defs) {
   liste.appendChild(svg);
 }
 
+// DER AUFTRAGSKONTEXT EINER KACHEL -- und warum er NEBEN dem Element liegt
+// (A-091).
+//
+// Die Kacheln überleben seit Prinzip 8a jeden Takt, und das ist richtig. Sie
+// überleben aber auch den PLANETENWECHSEL, und genau da lag der Fehler: die
+// Klick-Handler in `kachelGeruest` fingen das `opts`-Bündel ein, das beim
+// BAUEN galt -- und darin steckt `starten: (id) => bauStarten(state, planet, id)`
+// mit dem Planeten von damals. Wer auf einer Kolonie „Ausbauen" drückte, baute
+// auf der Heimatwelt; vor Ort sah das aus wie „der Klick macht gar nichts"
+// (Tobis Meldung, 19.08.).
+//
+// Werft, Markt und Warteschlangen lösen dasselbe über die Planeten-Kennung im
+// SCHLÜSSEL -- ihre Elemente werden beim Wechsel neu gebaut. Hier ist der
+// andere Weg richtig, und er steht schon zweimal in `kachelGeruest` selbst
+// (Stromvorrang, Betriebsmodus): nicht einfangen, sondern beim Klick lesen.
+// Die Kachel bleibt damit stehen -- was A-076 gerade erst als Wert
+// nachgewiesen hat -- und trifft trotzdem die Welt, die der Spieler ansieht.
+//
+// `kachelFuellen` läuft in JEDEM Bildaufbau mit dem frischen Bündel, auch für
+// eine eben erst gebaute Kachel (`listeAbgleichen` ruft `bauen` und direkt
+// danach `aktualisieren`). Was hier liegt, ist deshalb nie älter als der
+// letzte Bildaufbau.
+const kachelAuftraege = new WeakMap();
+
+// A-095: Welche Kachel gerade nach der Bestätigung fragt. UI-lokal und
+// bewusst NICHT im Spielstand -- eine halb gestellte Frage gehört nicht in
+// eine Datei, die man morgen wieder lädt. Nur EINE Frage gleichzeitig: wer
+// eine zweite Kachel anfasst, hat die erste offensichtlich nicht gemeint.
+let rueckbauFrage = null;
+
 // Füllt eine bestehende Kachel mit frischen Werten. Erzeugt NICHTS -- das
 // Gerüst kommt aus kachelGeruest und bleibt über die ganze Lebensdauer der
 // Liste dasselbe DOM-Element.
 function kachelFuellen(state, root, opts, id, li, lagerRaten) {
+  kachelAuftraege.set(li, opts);
   {
     const def = opts.defs[id];
     // Gebäudekacheln beziehen sich immer auf den aktiven Planeten -- nur dort
@@ -2476,6 +2842,33 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
     // Strom in Deuterium zu wandeln ist bewusst teuer, und wie teuer, muss vor
     // dem Klick dastehen. Die Zahl wandert mit der Ausbaustufe, deshalb ein
     // eigenes Feld und `textSetzen` (8a).
+    // A-095: Der Rückbau-Knopf. Er zeigt sich nur, wo etwas steht (Stufe 0 hat
+    // nichts abzureißen), und nur an Gebäuden -- eine Forschung lässt sich
+    // nicht abreißen.
+    const rueckbauKnopfF = li.querySelector("button[data-rueckbau]");
+    if (rueckbauKnopfF) {
+      const istGebaeude = opts.defs === BUILDINGS;
+      const stufeJetzt = istGebaeude ? planetFuerKachel.gebaeude[id] || 0 : 0;
+      const gesperrt =
+        (planetFuerKachel.bauQueue && planetFuerKachel.bauQueue.gebaeudeId === id) ||
+        (planetFuerKachel.bauWarteschlange || []).some((e) => e.gebaeudeId === id);
+      rueckbauKnopfF.hidden = !istGebaeude || stufeJetzt <= 0;
+      rueckbauKnopfF.disabled = !!gesperrt;
+      const gefragt = rueckbauFrage && rueckbauFrage.li === li && rueckbauFrage.id === id;
+      if (!gefragt) delete rueckbauKnopfF.dataset.gefragt;
+      rueckbauKnopfF.classList.toggle("fragt", !!gefragt);
+      textSetzen(rueckbauKnopfF, gefragt ? t("Wirklich?") : "⌫");
+      attributSetzen(
+        rueckbauKnopfF,
+        "title",
+        gesperrt
+          ? t("Erst den laufenden Auftrag abbrechen oder aus der Warteschlange nehmen.")
+          : gefragt
+            ? t("Noch einmal klicken: Stufe {stufe} wird abgerissen, ohne Erstattung.", { stufe: stufeJetzt })
+            : t("Eine Stufe abreißen – keine Erstattung. Arbeitskraft und Strom werden frei.")
+      );
+    }
+
     const modusZeile = li.querySelector(".kachel-modus");
     const modusDef = opts.defs === BUILDINGS ? def.anreicherung : null;
     const modusFrei =
@@ -2743,7 +3136,15 @@ function kachelGeruest(state, root, opts, id) {
     <div class="kachel-sperre" hidden></div>
     <div class="kachel-beschaffung dezent" hidden></div>
     <div class="status im-bau" data-queue-zeile hidden><span data-queue-text></span> <button data-abbrechen="1">✕</button></div>
-    <button class="kachel-aktion" ${opts.attribut}="${id}"></button>`;
+    <div class="kachel-zeile-aktion">
+      <button class="kachel-aktion" ${opts.attribut}="${id}"></button>
+      <button class="kachel-rueckbau" data-rueckbau hidden>⌫</button>
+    </div>`;
+
+  // Das gerade gültige Auftragsbündel dieser Kachel -- siehe kachelAuftraege.
+  // Der Rückfall auf `opts` greift nur vor dem allerersten Füllen, und dann
+  // ist es dasselbe Bündel.
+  const auftrag = () => kachelAuftraege.get(li) || opts;
 
   li.querySelector("button[data-abbrechen]").addEventListener("click", () => {
     // Zwei Bedeutungen, ein Knopf: auf der Kachel des LAUFENDEN Auftrags
@@ -2751,14 +3152,35 @@ function kachelGeruest(state, root, opts, id) {
     // (A-086). Welche gilt, steht am Element und wird beim Klick gelesen --
     // die Position rückt nach, ein eingefangener Index träfe den Falschen.
     const pos = li.dataset.wartePosition;
-    if (pos !== undefined && opts.warteschlangeEntfernen) opts.warteschlangeEntfernen(Number(pos));
-    else opts.abbrechen();
+    const jetzt = auftrag();
+    if (pos !== undefined && jetzt.warteschlangeEntfernen) jetzt.warteschlangeEntfernen(Number(pos));
+    else jetzt.abbrechen();
     render(state, root);
   });
   li.querySelector("button.kachel-aktion").addEventListener("click", () => {
-    opts.starten(id);
+    auftrag().starten(id);
     render(state, root);
   });
+  // A-095: Rückbau. Der Planet wird beim Klick gelesen (A-091), und der
+  // Doppelklick-Schutz ist keine Zeitsperre, sondern die Bestätigung selbst:
+  // der erste Klick fragt, der zweite reißt ab. Eine Zeitsperre würde einen
+  // entschlossenen Doppelklick durchlassen -- genau das, wovor sie schützen
+  // soll.
+  const rueckbauKnopf = li.querySelector("button[data-rueckbau]");
+  if (rueckbauKnopf) {
+    rueckbauKnopf.addEventListener("click", () => {
+      if (rueckbauKnopf.dataset.gefragt !== "1") {
+        rueckbauKnopf.dataset.gefragt = "1";
+        rueckbauFrage = { id, li };
+        render(state, root);
+        return;
+      }
+      delete rueckbauKnopf.dataset.gefragt;
+      rueckbauFrage = null;
+      rueckbauen(aktiverPlanet(state), id);
+      render(state, root);
+    });
+  }
   // Stromvorrang. Ereignisse EINMAL beim Bauen -- wie alles andere hier auch,
   // sonst verschluckt genau dieser Knopf im Notfall den Klick (Prinzip 8a).
   for (const knopf of li.querySelectorAll("button[data-strom]")) {
@@ -2794,7 +3216,11 @@ function kachelGeruest(state, root, opts, id) {
 // und ruft die Produktionsauflösung dabei genau einmal auf.
 const UEBERSICHT_LEER = "—";
 
-function uebersichtGeruest(box) {
+// A-082: Das Umbenennen-Feld gehört zum Gerüst und wird EINMAL verdrahtet --
+// im Sekundentakt neu gebaut verlöre es beim Tippen den Fokus (8a). Welcher
+// Planet gemeint ist, wird beim Klick gelesen und nicht eingefangen: die
+// Übersicht überlebt den Planetenwechsel (die Lehre aus A-091).
+function uebersichtGeruest(box, state, root) {
   const zeile = (schluessel) =>
     `<div class="uebersicht-zeile">
        <span class="uebersicht-marke" data-marke="${schluessel}"></span>
@@ -2807,12 +3233,29 @@ function uebersichtGeruest(box) {
        <div data-liste="${id}"></div>
      </div>`;
   box.innerHTML = `
+    <div class="uebersicht-name bedienzeile">
+      <span class="zeile-beschriftung" data-namen-marke></span>
+      <input type="text" class="zeile-eingabe" maxlength="${PLANETENNAME_MAX}" data-planet-name />
+      <button class="zeile-knopf-1" data-planet-umbenennen></button>
+    </div>
     <div class="uebersicht-hinweis dezent" data-hinweis hidden></div>
     ${gruppe("standort", ["welt", "orbit", "schwerkraft", "vorkommen"])}
     ${gruppe("bestaende", ["warenlager"])}
     ${gruppe("fluesse", ["energie", "brennstoff", "arbeitskraft"])}
     ${gruppe("bevoelkerung", ["menschen", "wohnraum"])}
     ${gruppe("laufendes", ["bau", "forschung", "werftauftrag"])}`;
+
+  const feld = box.querySelector("[data-planet-name]");
+  const uebernehmen = () => {
+    planetUmbenennen(state, aktiverPlanet(state), feld.value);
+    render(state, root);
+  };
+  box.querySelector("[data-planet-umbenennen]").addEventListener("click", uebernehmen);
+  // Enter ist bei einem Textfeld der erwartete Weg -- gleiche Überlegung wie
+  // beim Flottennamen.
+  feld.addEventListener("keydown", (ereignis) => {
+    if (ereignis.key === "Enter") uebernehmen();
+  });
 }
 
 // Eine Rate steht in den Tabellen pro ECHTZEITSTUNDE und wird -- wie überall
@@ -2854,7 +3297,7 @@ function renderUebersicht(state, root, planet) {
   const box = root.querySelector("#planet-uebersicht");
   if (!box.dataset.gebaut) {
     box.dataset.gebaut = "1";
-    uebersichtGeruest(box);
+    uebersichtGeruest(box, state, root);
   }
   const u = planetUebersicht(state, planet);
   const marke = (schluessel, text) => textSetzen(box.querySelector(`[data-marke="${schluessel}"]`), text);
@@ -2865,6 +3308,17 @@ function renderUebersicht(state, root, planet) {
   // Schwellen und Aufträge. Die vier Gruppen werden VERSTECKT statt mit
   // Nullen gefüllt: eine Zeile „Energie 0 MW" behauptete, hier stünde ein
   // Kraftwerk auf null. Was es nicht gibt, wird nicht gezeigt.
+  // A-082: Der Name der Welt, umbenennbar. Das Feld wird nur beschrieben,
+  // solange niemand darin tippt -- sonst zöge der Sekundentakt die halb
+  // getippte Eingabe auf den gespeicherten Namen zurück (dasselbe
+  // `!== document.activeElement` wie bei den Zahlenfeldern).
+  const namensFeld = box.querySelector("[data-planet-name]");
+  textSetzen(box.querySelector("[data-namen-marke]"), t("Name"));
+  textSetzen(box.querySelector("[data-planet-umbenennen]"), t("Umbenennen"));
+  attributSetzen(box.querySelector("[data-planet-umbenennen]"), "title", t("Neuen Namen übernehmen"));
+  attributSetzen(namensFeld, "title", t("Name dieser Welt. Reine Beschriftung – ändert nichts an ihr."));
+  if (namensFeld !== document.activeElement && namensFeld.value !== planet.name) namensFeld.value = planet.name;
+
   const hinweis = box.querySelector("[data-hinweis]");
   hinweis.hidden = !u.aussenposten;
   if (u.aussenposten) textSetzen(hinweis, t("Außenposten haben keine Wirtschaft."));
@@ -3136,7 +3590,9 @@ function renderGebaeude(state, root, planet) {
     state, root, "#gebaeude-warteschlange", planet.bauWarteschlange,
     (e) => t("{name} → Stufe {stufe}", { name: t(BUILDINGS[e.gebaeudeId].name), stufe: e.zielLevel }),
     (i) => bauWarteschlangeEntfernen(state, planet, i),
-    String(planet.id)
+    String(planet.id),
+    null,
+    (w) => warteschlangeKosten(planet, w)
   );
 }
 
@@ -3301,16 +3757,39 @@ function renderWerft(state, root, planet, jetzt) {
         </div>
         <div class="kachel-sperre" hidden></div>
         <div class="schiff-knoepfe">
-          <button class="kachel-aktion" data-schiff="${id}" data-anzahl="1"></button>
-          <button data-schiff="${id}" data-anzahl="5">5×</button>
+          <input type="number" class="menge-feld" min="1" step="1" value="1" data-schiff-menge="${id}" />
+          <button class="kachel-aktion" data-schiff="${id}"></button>
         </div>`;
-      // Ereignisse EINMAL, hier beim Bauen (Lernpunkt 1 aus PRINZIPIEN.md 8a).
-      for (const btn of li.querySelectorAll("button[data-schiff]")) {
-        btn.addEventListener("click", () => {
-          schiffBauen(state, planet, btn.dataset.schiff, Number(btn.dataset.anzahl));
-          render(state, root);
-        });
-      }
+      // A-079: EIN Knopf und ein Zahlenfeld statt 1×/5×.
+      //
+      // Ereignisse EINMAL, hier beim Bauen (Lernpunkt 1 aus PRINZIPIEN.md 8a) --
+      // und das Feld ebenso: würde es im Takt neu entstehen, verlöre es beim
+      // Tippen den Fokus und die halb getippte Zahl. Es überlebt jeden Takt,
+      // der Schlüssel dieser Liste trägt aber den Planeten, also beginnt jede
+      // Welt mit ihrer eigenen 1.
+      //
+      // Der Wert bleibt im FELD und wandert nicht in den Zwischenspeicher
+      // `feldEingabe` wie bei Reserve und Mindestbestand: dort gibt es einen
+      // gespeicherten Stand, der zurückschriebe. Hier gibt es keinen -- die
+      // Stückzahl gehört keinem Spielstand, sie ist die Frage „wie viele
+      // jetzt".
+      const feld = li.querySelector("input[data-schiff-menge]");
+      const bauen = () => {
+        const menge = stueckzahlAus(feld.value);
+        if (menge === null) return; // leer, 0, negativ, kein Zahlwert: kein Auftrag
+        schiffBauen(state, planet, id, menge);
+        render(state, root);
+      };
+      li.querySelector("button[data-schiff]").addEventListener("click", bauen);
+      // Enter ist bei einem Zahlenfeld der erwartete Weg (gleiche Überlegung
+      // wie bei Reserve, Mindestbestand und Flottenname).
+      feld.addEventListener("keydown", (ereignis) => {
+        if (ereignis.key === "Enter") bauen();
+      });
+      // Beim Tippen neu zeichnen, damit die Kostenzeile mitrechnet (10a: was
+      // der Knopf kostet, steht am Knopf). Das Feld hat dabei den Fokus und
+      // wird von `werftKachelFuellen` nicht angefasst.
+      feld.addEventListener("input", () => render(state, root));
       return li;
     },
     aktualisieren: (li, id) => werftKachelFuellen(state, planet, li, id),
@@ -3320,7 +3799,9 @@ function renderWerft(state, root, planet, jetzt) {
     state, root, "#werft-warteschlange", planet.werftWarteschlange,
     (e) => `${e.anzahl}× ${t(SCHIFFE[e.schiffId].name)}`, // reine Zahl plus Name, kein Satz
     (i) => werftWarteschlangeEntfernen(state, planet, i),
-    String(planet.id)
+    String(planet.id),
+    null,
+    (w) => warteschlangeKosten(planet, w)
   );
 }
 
@@ -3371,8 +3852,13 @@ function fortschrittSetzen(li, anteil) {
 function werftKachelFuellen(state, planet, li, id) {
   {
     const def = SCHIFFE[id];
-    const check = kannSchiffBauen(state, planet, id, 1);
-    const fuenfCheck = kannSchiffBauen(state, planet, id, 5);
+    // A-079: Alles auf dieser Kachel rechnet mit der eingetragenen Stückzahl.
+    // Steht dort Unsinn (leer, 0, negativ), bleibt die Anzeige beim Einzelstück
+    // und der Knopf sperrt mit Grund -- eine Zahl zu erfinden wäre die
+    // schlechtere Auskunft.
+    const feldMenge = stueckzahlAus((li.querySelector("input[data-schiff-menge]") || {}).value);
+    const menge = feldMenge === null ? 1 : feldMenge;
+    const check = kannSchiffBauen(state, planet, id, menge);
     const laeuft = !!(planet.werftQueue && planet.werftQueue.schiffId === id);
     li.classList.toggle("item-aktiv", laeuft);
     fortschrittSetzen(
@@ -3391,7 +3877,7 @@ function werftKachelFuellen(state, planet, li, id) {
     // getrennt, damit die Beschriftung beim Sprachwechsel mitkommt und der
     // Wert im Takt geschrieben werden kann, ohne sie mitzunehmen.
     textSetzen(li.querySelector("[data-kosten-marke]"), t("Kosten"));
-    textSetzen(li.querySelector("[data-kosten-wert]"), buendelSymbole(schiffKosten(planet, id)));
+    textSetzen(li.querySelector("[data-kosten-wert]"), buendelSymbole(schiffKosten(planet, id, menge)));
     // Werftstufe, Bevölkerung, fehlende Forschung -- alles außer „gerade zu
     // wenig Material" gehört sichtbar auf die Kachel (Chris' Punkt).
     const schiffSperre = li.querySelector(".kachel-sperre");
@@ -3400,23 +3886,27 @@ function werftKachelFuellen(state, planet, li, id) {
     if (schiffBedingung) textSetzen(schiffSperre, schiffBedingung);
     textSetzen(
       li.querySelector(".kachel-dauer"),
-      `${fmtDauer(schiffsBauzeitSek(planet, id, 1))} · ${def.verbrauchProStrecke}⚛️${
+      `${fmtDauer(schiffsBauzeitSek(planet, id, menge))} · ${def.verbrauchProStrecke}⚛️${
         def.kapazitaet ? ` · ${fmt(def.kapazitaet)}📦` : ""
       }`
     );
 
-    const [einer, fuenfer] = li.querySelectorAll("button[data-schiff]");
-    textSetzen(einer, t("Bauen"));
-    einer.disabled = !(check.ok || check.nurGeld === true);
-    attributSetzen(einer, "title", check.ok ? "" : check.grund);
-    fuenfer.disabled = !(fuenfCheck.ok || fuenfCheck.nurGeld === true);
-    attributSetzen(fuenfer, "title", fuenfCheck.ok ? t("5 Stück auf einmal") : fuenfCheck.grund);
+    const knopf = li.querySelector("button[data-schiff]");
+    const mengenFeld = li.querySelector("input[data-schiff-menge]");
+    attributSetzen(mengenFeld, "title", t("Wie viele auf einmal gebaut werden sollen."));
+    textSetzen(knopf, t("Bauen"));
+    knopf.disabled = feldMenge === null || !(check.ok || check.nurGeld === true);
+    attributSetzen(
+      knopf,
+      "title",
+      feldMenge === null ? t("Trag eine Stückzahl ein – mindestens 1.") : check.ok ? "" : check.grund
+    );
 
     attributSetzen(li, "title", [
       t(def.beschreibung),
       t("Kosten: {kosten} · {dauer}", {
-        kosten: buendelText(schiffKosten(planet, id)),
-        dauer: fmtDauer(schiffsBauzeitSek(planet, id, 1)),
+        kosten: buendelText(schiffKosten(planet, id, menge)),
+        dauer: fmtDauer(schiffsBauzeitSek(planet, id, menge)),
       }),
       def.kapazitaet
         ? t("{menge} Deuterium pro Strecke · Frachtraum {frachtraum}", {
@@ -3971,6 +4461,7 @@ function renderFlotten(state, root, planet, jetzt) {
   if (aktive && aktive.dockPlanet) {
     flottenDetailZahlen(state, detailBox, aktive, planetById(state, aktive.dockPlanet));
   }
+  if (aktive) routenDetailZahlen(state, routenBox, aktive);
 }
 
 // Tauscht den Inhalt eines Detailbereichs -- aber nur, wenn er sich WIRKLICH
@@ -4045,6 +4536,12 @@ function flottenZeileFuellen(state, li, flotte, jetzt) {
             nr: flotte.route.index + 1,
           })
         : "",
+      flotte.route && flotte.route.aktiv && flotte.route.wartetAn != null
+        ? t("wartet auf Beladung: {ist}/{soll} %", {
+            ist: Math.floor(routeBeladungAnteil(state, flotte) * 100),
+            soll: flotte.route.mindestBeladung || 0,
+          })
+        : "",
       flotte.gefecht ? t("Im Gefecht – nicht umleitbar") : "",
     ]
       .filter(Boolean)
@@ -4107,6 +4604,105 @@ function schadenAnteilAnzeige(flotte, typ) {
 // Füllt die Live-Zahlen des Flottendetails. Wird sowohl beim Aufbau als auch
 // bei jedem Takt gerufen -- deshalb fasst sie ausschließlich Textknoten an
 // und niemals Struktur.
+// WAS DIESER KNOPF GLEICH NEHMEN WIRD (A-093).
+//
+// Eine Rechnung, drei Leser: die Zahl neben dem Regler, der Zuhörer beim
+// Ziehen/Tippen und der Knopf selbst. Vorher stand sie ZWEIMAL da, und zwar
+// verschieden: die Anzeige kannte nur den Regler, der Knopf gab dem
+// Eingabefeld den Vorrang. Genau dieser Unterschied war Tobis Befund --
+// gemessen stand daneben "10% (20.000)", geladen wurden die 5.000 aus dem
+// Feld. Zwei Stellen, die dieselbe Frage getrennt beantworten, laufen
+// auseinander; hier taten sie es dort, wo es weh tut.
+//
+// `grundlage` und `vorrat` sind BEWUSST getrennt: der Regler rechnet Prozent
+// der Flottenkapazität (Tanken: des Hafenvorrats), das Feld wird gegen den
+// Hafenvorrat gedeckelt. Das ist bestehende Mechanik, keine neue Regel.
+export function mengeEinstellung(regler, feld, grundlage, vorrat) {
+  const genau = Number((feld && feld.value) || 0);
+  if (genau > 0) return { menge: Math.min(genau, vorrat), genau: true, gedeckelt: genau > vorrat };
+  const prozent = Number(regler.value) || 0;
+  return { menge: Math.round((prozent / 100) * grundlage), genau: false, prozent };
+}
+
+// Der Text zur Einstellung. Prozentform bleibt, wie sie war -- die genaue
+// Menge bekommt eine eigene, weil "5.000%" gelogen wäre.
+export function mengeEinstellungText(einstellung) {
+  return einstellung.genau
+    ? t("genau {menge}", { menge: fmt(einstellung.menge) })
+    : `${einstellung.prozent}% (${fmt(einstellung.menge)})`;
+}
+
+// WORAUF SICH DIE PROZENTE BEZIEHEN -- eine Antwort je Zeile, gelesen von der
+// Anzeige und vom Knopf.
+//
+// A-093 (2), Tobis Wort: der Regler orientiert sich "immer noch nicht" am
+// freien Laderaum. Er rechnete Prozent der GESAMTkapazität, während
+// `ladungAufnehmen` alles über dem freien Rest RUNDWEG ABLEHNT -- und der
+// Knopf las den Rückgabewert nicht. Ergebnis: Bei halb voller Flotte tat ein
+// Klick über 50 % schlicht nichts, ohne ein Wort dazu. Prozent des freien
+// Rests kann dagegen gar nichts anderes ergeben als eine ausführbare Menge,
+// und der Bezug zieht nach jeder Ladung von selbst nach.
+//
+// Der Bezug ist deshalb, was HIER UND JETZT ladbar ist: der freie Rest,
+// begrenzt durch den Lagerbestand. Der Auftrag nennt nur den freien Rest --
+// im Normalfall ist er auch die Grenze. Der Lagerbestand steht daneben, weil
+// `ladungAufnehmen` auch ihn rundweg ablehnt: bei 1.234 t im Lager und 200.000
+// freiem Platz stünde sonst wieder eine Zahl da, die der Knopf wortlos
+// verwirft -- derselbe Fehler, nur mit vertauschten Rollen. Ein Testfall hält
+// genau das fest.
+//
+// Regler und Feld teilen sich diese Grenze: das Feld hat Vorrang, und eine
+// Zahl, die die Anzeige verspricht, muss ladbar sein.
+export function ladeEinstellung(state, flotte, hafen, resId, regler, feld) {
+  const ladbar = Math.min(frachtraumFrei(state, flotte), Math.floor(hafen.ressourcen[resId] || 0));
+  return mengeEinstellung(regler, feld, ladbar, ladbar);
+}
+
+// Dieselbe Frage für die Tankzeile.
+//
+// NICHT im Wortlaut von A-093 (der spricht von der Beladen-Zeile), aber
+// dieselbe Lüge: `tanken` deckelt seit v0.64 auf den freien Tankplatz --
+// der Kommentar dort nennt Tobis alte Meldung "Tritium-Regler orientiert
+// sich an Max Lager des Planeten, nicht an Max Tank der Flotte" beim Namen.
+// Die Oberfläche rechnete weiter nur mit dem Lagerbestand. Solange die
+// Anzeige nur "50 %" sagte, fiel das nicht auf; seit sie einen BETRAG
+// verspricht, wäre es eine Zusage, die `tanken` stillschweigend kürzt.
+export function tankEinstellung(state, flotte, hafen, regler, feld) {
+  const platz = Math.max(0, flotteTankKapazitaet(state, flotte) - (flotte.treibstoff || 0));
+  const vorrat = Math.min(Math.floor(hafen.ressourcen.tritium || 0), platz);
+  return mengeEinstellung(regler, feld, vorrat, vorrat);
+}
+
+// Füllt die Zahlen neben allen Reglern der Flottenübersicht.
+//
+// Steht HIER und nicht mehr allein in den Zuhörern aus `flottenDetail`: das
+// dort gebaute Kästchen wird von `detailAustauschen` verworfen, sobald sich
+// das Gerüst nicht geändert hat -- und dann schrieb an diesen Zahlen niemand
+// mehr. Gemessen (A-093): nach einem Klick auf "Laden" sprang der Regler auf
+// 0 zurück, während daneben unverändert "25% (50.000)" stehenblieb, Takt für
+// Takt. Von hier aus läuft es über `flottenDetailZahlen` mit, also im
+// Sekundentakt UND nach jeder Aktion.
+function mengenAnzeigenFuellen(state, box, flotte, hafen) {
+  const tankRegler = box.querySelector("input[data-tanken-schieber]");
+  if (tankRegler) {
+    textSetzen(
+      box.querySelector('[data-tanken-anzeige="1"]'),
+      mengeEinstellungText(
+        tankEinstellung(state, flotte, hafen, tankRegler, box.querySelector("input[data-tanken-feld]"))
+      )
+    );
+  }
+  for (const regler of box.querySelectorAll("input[data-laden-schieber]")) {
+    const resId = regler.dataset.ladenSchieber;
+    textSetzen(
+      box.querySelector(`[data-laden-anzeige="${resId}"]`),
+      mengeEinstellungText(
+        ladeEinstellung(state, flotte, hafen, resId, regler, box.querySelector(`input[data-laden-feld="${resId}"]`))
+      )
+    );
+  }
+}
+
 function flottenDetailZahlen(state, box, flotte, hafen) {
   if (!hafen) return;
 
@@ -4146,9 +4742,10 @@ function flottenDetailZahlen(state, box, flotte, hafen) {
   );
   textSetzen(
     box.querySelector("[data-frachtraum-lage]"),
-    t("Frachtraum {menge}/{kapazitaet} · Regler = % der max. Flottenkapazität", {
+    t("Frachtraum {menge}/{kapazitaet} · noch frei: {frei}", {
       menge: fmt(ladungGesamt(flotte)),
       kapazitaet: fmt(flotteKapazitaet(state, flotte)),
+      frei: fmt(frachtraumFrei(state, flotte)),
     })
   );
   for (const r of LAGER_RESSOURCEN) {
@@ -4156,6 +4753,7 @@ function flottenDetailZahlen(state, box, flotte, hafen) {
     if (!feld) continue;
     textSetzen(feld, t("{res} ({lager} im Lager)", { res: t(RESSOURCEN[r].name), lager: fmt(hafen.ressourcen[r] || 0) }));
   }
+  mengenAnzeigenFuellen(state, box, flotte, hafen);
 }
 
 // Namenszeile der gewählten Flotte. Steht VOR allen Zustandsfällen, weil
@@ -4236,7 +4834,7 @@ function flottenDetail(state, root, flotte) {
       <span class="schieber-gruppe bedienzeile">
         <span class="dezent zeile-beschriftung" data-tritium-lage></span>
         <input class="zeile-regler" type="range" min="0" max="100" step="1" data-tanken-schieber="1" title="${t(
-          "Anteil des hier gelagerten Deuteriums, das an Bord soll. Der Regler stellt nur ein -- erst „Tanken“ führt es aus."
+          "Anteil dessen, was noch in den Tank passt und im Lager liegt – 100 % füllt ihn auf. Der Regler stellt nur ein, erst „Tanken“ führt es aus."
         )}" />
         <span class="schieber-wert zeile-zahl" data-tanken-anzeige="1"></span>
         <input type="number" class="menge-feld zeile-eingabe" min="0" step="1" placeholder="${t("genaue Menge")}" data-tanken-feld="1" title="${t(
@@ -4258,7 +4856,7 @@ function flottenDetail(state, root, flotte) {
         <span class="schieber-gruppe bedienzeile">
           <span class="dezent zeile-beschriftung" data-lager-lage="${r}"></span>
           <input class="zeile-regler" type="range" min="0" max="100" step="1" data-laden-schieber="${r}" title="${t(
-            "Anteil der maximalen Frachtkapazität dieser Flotte -- nicht des gerade freien Platzes. Der Regler stellt nur ein, „Laden“ führt aus."
+            "Anteil dessen, was gerade wirklich ladbar ist: freier Frachtraum, begrenzt durch den Lagerbestand – 100 % nimmt alles davon. Der Regler stellt nur ein, „Laden“ führt aus."
           )}" />
           <span class="schieber-wert zeile-zahl" data-laden-anzeige="${r}"></span>
           <input type="number" class="menge-feld zeile-eingabe" min="0" step="1" placeholder="${t("genaue Menge")}" data-laden-feld="${r}" title="${t(
@@ -4350,27 +4948,32 @@ function flottenDetail(state, root, flotte) {
   // Regler = Position wählen, Button = Aktion.
   // % vom lokal gelagerten Tritium (es gibt keinen Tank-Höchststand im
   // Datenmodell -- "100%" heißt hier "alles Verfügbare", nicht "voller Tank").
+  // Beim Ziehen UND beim Tippen sofort -- der Sekundentakt wäre für eine
+  // Rückmeldung auf die eigene Eingabe zu spät. Die Zahl selbst kommt aus
+  // `mengenAnzeigenFuellen`, damit hier keine zweite Rechnung entsteht.
   box.querySelectorAll("input[data-tanken-schieber]").forEach((input) => {
-    const schluessel = `tanken:${flotte.id}`;
-    const anzeige = box.querySelector(`[data-tanken-anzeige="1"]`);
-    const menge = () => Math.round((Number(input.value) / 100) * (hafen.ressourcen.tritium || 0));
-    const aktualisieren = () => { anzeige.textContent = `${input.value}% (${fmt(menge())})`; };
-    aktualisieren();
     input.addEventListener("input", () => {
-      reglerPosition[schluessel] = Number(input.value);
-      aktualisieren();
+      reglerPosition[`tanken:${flotte.id}`] = Number(input.value);
+      mengenAnzeigenFuellen(state, box, flotte, hafen);
     });
+  });
+  box.querySelectorAll("input[data-tanken-feld]").forEach((feld) => {
+    feld.addEventListener("input", () => mengenAnzeigenFuellen(state, box, flotte, hafen));
   });
   box.querySelectorAll("button[data-tanken-bestaetigen]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const input = box.querySelector("input[data-tanken-schieber]");
       // Das Eingabefeld hat Vorrang: wer eine genaue Zahl hinschreibt, meint
       // sie auch. Der Regler ist die grobe, das Feld die feine Einstellung
       // (Tobis Wunsch -- Prozent allein trifft keine krummen Beträge).
-      const genau = Number(box.querySelector("input[data-tanken-feld]").value);
-      const menge = genau > 0
-        ? Math.min(genau, hafen.ressourcen.tritium || 0)
-        : Math.round((Number(input.value) / 100) * (hafen.ressourcen.tritium || 0));
+      // Seit A-093 rechnet das `mengeEinstellung` -- dieselbe Funktion, aus
+      // der auch die Zahl daneben kommt.
+      const { menge } = tankEinstellung(
+        state,
+        flotte,
+        hafen,
+        box.querySelector("input[data-tanken-schieber]"),
+        box.querySelector("input[data-tanken-feld]")
+      );
       if (menge > 0) tanken(state, flotte, menge);
       delete reglerPosition[`tanken:${flotte.id}`];
       render(state, root);
@@ -4381,24 +4984,25 @@ function flottenDetail(state, root, flotte) {
   // bestätigt.
   box.querySelectorAll("input[data-laden-schieber]").forEach((input) => {
     const resId = input.dataset.ladenSchieber;
-    const schluessel = `laden:${flotte.id}:${resId}`;
-    const anzeige = box.querySelector(`[data-laden-anzeige="${resId}"]`);
-    const menge = () => Math.round((Number(input.value) / 100) * flotteKapazitaet(state, flotte));
-    const aktualisieren = () => { anzeige.textContent = `${input.value}% (${fmt(menge())})`; };
-    aktualisieren();
     input.addEventListener("input", () => {
-      reglerPosition[schluessel] = Number(input.value);
-      aktualisieren();
+      reglerPosition[`laden:${flotte.id}:${resId}`] = Number(input.value);
+      mengenAnzeigenFuellen(state, box, flotte, hafen);
     });
+  });
+  box.querySelectorAll("input[data-laden-feld]").forEach((feld) => {
+    feld.addEventListener("input", () => mengenAnzeigenFuellen(state, box, flotte, hafen));
   });
   box.querySelectorAll("button[data-laden-bestaetigen]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const resId = btn.dataset.ladenBestaetigen;
-      const input = box.querySelector(`input[data-laden-schieber="${resId}"]`);
-      const genau = Number(box.querySelector(`input[data-laden-feld="${resId}"]`).value);
-      const menge = genau > 0
-        ? Math.min(genau, hafen.ressourcen[resId] || 0)
-        : Math.round((Number(input.value) / 100) * flotteKapazitaet(state, flotte));
+      const { menge } = ladeEinstellung(
+        state,
+        flotte,
+        hafen,
+        resId,
+        box.querySelector(`input[data-laden-schieber="${resId}"]`),
+        box.querySelector(`input[data-laden-feld="${resId}"]`)
+      );
       if (menge > 0) ladungAufnehmen(state, flotte, { [resId]: menge });
       delete reglerPosition[`laden:${flotte.id}:${resId}`];
       render(state, root);
@@ -4447,6 +5051,28 @@ function flottenDetail(state, root, flotte) {
 
 // Route: unabhängig davon, ob die Flotte gerade im Hafen liegt -- eine
 // Route lässt sich jederzeit planen, auch während die Flotte unterwegs ist.
+// Die Live-Zahl der Routenbox. Eine wartende Route sieht sonst aus wie eine
+// hängende -- der Text nennt beide Zahlen: wo sie steht und wohin sie muss.
+//
+// Eigene Funktion aus demselben Grund wie `flottenDetailZahlen`: Der Bereich
+// bleibt zwischen den Takten stehen, also muss jemand seine Zahlen nachziehen,
+// der NICHT das verworfene Kästchen ist (A-093).
+function routenDetailZahlen(state, box, flotte) {
+  const feld = box.querySelector("[data-route-wartet]");
+  if (!feld) return;
+  const route = flotte.route;
+  const wartet = !!(route && route.aktiv && route.wartetAn != null);
+  feld.hidden = !wartet;
+  if (!wartet) return;
+  textSetzen(
+    feld,
+    t("wartet auf Beladung: {ist}/{soll} %", {
+      ist: Math.floor(routeBeladungAnteil(state, flotte) * 100),
+      soll: route.mindestBeladung || 0,
+    })
+  );
+}
+
 function routenDetail(state, root, flotte) {
   const box = document.createElement("div");
   box.className = "flotte-detail route-box";
@@ -4462,7 +5088,13 @@ function routenDetail(state, root, flotte) {
   const startCheck = { ok: route.halte.length > 0 && schiffeGesamt(flotte) > 0 };
 
   box.innerHTML = `
-    <h3 class="unter-titel">${t("Route")} ${route.aktiv ? `<span class="basis-tag route-tag">${t("aktiv – Halt {nr}/{gesamt}", { nr: route.index + 1, gesamt: route.halte.length })}</span>` : ""}</h3>
+    <h3 class="unter-titel">${t("Route")} ${route.aktiv ? `<span class="basis-tag route-tag">${t("aktiv – Halt {nr}/{gesamt}", { nr: route.index + 1, gesamt: route.halte.length })}</span>` : ""}<span class="basis-tag warnung" data-route-wartet hidden></span></h3>
+    <div class="flotte-reihe">
+      <label class="dezent">${t("Abflug erst ab")}
+        <input type="number" class="menge-feld" min="0" max="100" step="5" value="${route.mindestBeladung || 0}" data-route-schwelle title="${t("Die Route wartet am Ladehalt, bis der Frachtraum so voll ist. 0 heißt: sofort weiter, wie bisher. An einem reinen Entladehalt gilt die Schwelle nicht – dort käme nie Fracht dazu.")}" />
+        % ${t("Beladung")}
+      </label>
+    </div>
     <div class="flotte-reihe">
       <select id="route-planet-wahl" title="${t(
         "Zielhafen für den nächsten Halt. Die Route fährt ihre Halte danach der Reihe nach ab und beginnt wieder von vorn."
@@ -4489,6 +5121,13 @@ function routenDetail(state, root, flotte) {
       `<div class="dezent">${t("Noch keine Stationen. Halte hinzufügen, dann Route starten.")}</div>`}
   `;
 
+  // Die Signatur VOR dem Füllen -- sonst stünde die wandernde Beladungszahl
+  // mit drin, der Bereich würde bei jeder Ladung ausgetauscht, und wer gerade
+  // die Schwelle eintippt, verlöre das Feld unter den Fingern. Genau die Falle,
+  // vor der der Auftrag warnt (und dieselbe wie bei den Reglern nebenan).
+  box.dataset.geruest = box.innerHTML;
+  routenDetailZahlen(state, box, flotte);
+
   box.querySelector("#route-halt-hinzufuegen").addEventListener("click", () => {
     const planetId = Number(box.querySelector("#route-planet-wahl").value);
     routeHaltHinzufuegen(state, flotte, planetId);
@@ -4501,6 +5140,18 @@ function routenDetail(state, root, flotte) {
   box.querySelector("#route-stop").addEventListener("click", () => {
     routeStoppen(state, flotte);
     render(state, root);
+  });
+  // "change" statt "input": Beim Tippen von "80" stünde zwischendurch "8" da,
+  // und eine gesenkte Schwelle greift sofort -- die Route führe bei der ersten
+  // Ziffer los. Übernommen wird, was am Ende dasteht (Verlassen oder Enter).
+  box.querySelectorAll("input[data-route-schwelle]").forEach((feld) => {
+    feld.addEventListener("change", () => {
+      routeMindestbeladungSetzen(state, flotte, feld.value);
+      render(state, root);
+    });
+    feld.addEventListener("keydown", (ereignis) => {
+      if (ereignis.key === "Enter") feld.blur();
+    });
   });
   box.querySelectorAll("input[data-entladen-index]").forEach((cb) => {
     cb.addEventListener("change", () => {
@@ -5442,8 +6093,7 @@ function slotZeileFuellen(state, systemId, objekt, flotte, li) {
   // Die Zeile ist die Bedienfläche des Objekts -- die Karte zeigt hin, die
   // Liste handelt.
   if (orbitWahl.systemId === systemId && orbitWahl.orbit === objekt.orbit) li.classList.add("slot-gewaehlt");
-  const gesperrt =
-    objekt.entdeckt && objekt.benoetigt && (state.forschung[objekt.benoetigt.forschung] || 0) < 1;
+  const gesperrt = objektGesperrt(state, objekt);
   // `eigen` ist SPIELREGEL, nicht Anzeige: daran hängt, welche Missionen der
   // Orbit anbietet (slotAktion) und was in der Detailzeile steht. Deshalb
   // fragt es seit v0.83 nach der Fraktion -- vorher galt jeder Planet an
@@ -5485,8 +6135,11 @@ function slotZeileFuellen(state, systemId, objekt, flotte, li) {
             schiff: t(SCHIFFE[MISSIONS_SCHIFF[naechsteMission]].name),
           })
         : t("Nächster Schritt: {mission}", { mission: missionLabel(naechsteMission) || naechsteMission })
-      : objekt.entdeckt && !eigen && !besetzer
-      ? t("Hier ist nichts mehr zu holen.")
+      : objekt.entdeckt && !eigen && !besetzer && !gesperrt
+      ? // A-092: NICHT am verschlossenen Orbit -- dort ist sehr wohl etwas zu
+        // holen, nur eben erst mit der Forschung. Die Zeile "Verschlossen --
+        // benötigt X" steht eine Zeile darüber und sagt schon alles.
+        t("Hier ist nichts mehr zu holen.")
       : "",
     eigen ? t("Dein Stützpunkt: {name}", { name: eigen.name }) : "",
     besetzer
@@ -5586,7 +6239,13 @@ function slotDetail(state, objekt, gesperrt, eigen) {
       ? t(" · Ertrag: {ertrag}", { ertrag: buendelText(offenerErtrag(state, objekt)) })
       : "";
     const sperre = t("verschlossen – benötigt {tech}", { tech: t(RESEARCH[objekt.benoetigt.forschung].name) });
-    return `<span class="gesperrt-text">${sperre}</span>${ertrag}`;
+    // A-092: Der Nachlass gehört sichtbar an die Zeile. Er ist das EINZIGE
+    // hier, was ohne die Forschung mitgeht -- stünde er nur im Tooltip, wäre
+    // die frisch freigegebene Bergung praktisch unauffindbar.
+    const rest = restLiegtAn(objekt)
+      ? t(" · liegengeblieben: {rest} (bergbar)", { rest: buendelText(objekt.restErtrag) })
+      : "";
+    return `<span class="gesperrt-text">${sperre}</span>${rest}${ertrag}`;
   }
   switch (objekt.typ) {
     case "heimat": return t("Heimatplanet");
@@ -5645,9 +6304,12 @@ function slotDetail(state, objekt, gesperrt, eigen) {
 // Systemliste fragt mit `false` -- ihr Knopf prüft seit je die Hinstrecke, der
 // Schalter daneben trägt seinen eigenen Grund. Die Kommandoleiste fragt mit
 // dem, was ihr Schalter gerade sagt.
-function orbitAngebot(state, systemId, objekt, flotte, rueckkehrGewaehlt = false) {
-  const gesperrt =
-    objekt.entdeckt && objekt.benoetigt && (state.forschung[objekt.benoetigt.forschung] || 0) < 1;
+// Exportiert seit A-092, obwohl nur diese Datei sie ruft -- gleicher Grund wie
+// bei `tankVorschlag`: hier lag der Fehler, also gehört der Wächter an genau
+// diese Funktion und nicht an eine Schicht darunter, die ohnehin richtig lag.
+// ui.js lädt in Node ohne DOM, solange nichts `document` anfasst.
+export function orbitAngebot(state, systemId, objekt, flotte, rueckkehrGewaehlt = false) {
+  const gesperrt = objektGesperrt(state, objekt);
   const eigen = eigenerPlanetAn(state, systemId, objekt.orbit);
 
   if (eigen) {
@@ -5673,9 +6335,17 @@ function orbitAngebot(state, systemId, objekt, flotte, rueckkehrGewaehlt = false
     };
   }
   if (!flotte) return { hinweis: "–" };
-  if (gesperrt) return { gesperrt: true, hinweis: `🔒 ${t("gesperrt")}` };
+  // A-092 -- HIER hing Tobis Deuterium fest. Die Zeile sperrte den ganzen
+  // Orbit, bevor irgendjemand fragte, WAS hier eigentlich liegt: seine Sonde
+  // war an einem verschlossenen Vorkommen verglüht und hatte ihren Resttank
+  // dort abgelegt. Verschlossen ist die QUELLE, nicht der eigene Nachlass --
+  // liegt hier etwas, geht die Bergung, und `missionFuerObjekt` (dieselbe
+  // Regel, eine Ebene tiefer) bietet dafür genau die Bergung an.
+  if (gesperrt && !restLiegtAn(objekt)) return { gesperrt: true, hinweis: `🔒 ${t("gesperrt")}` };
 
-  if (objekt.entdeckt && objekt.typ === "planet" && objekt.daten.kolonisierbar) {
+  // `!gesperrt` steht seitdem ausdrücklich da: bis A-092 kam dieser Zweig nur
+  // an einem offenen Orbit vorbei, weil die Sperre eine Zeile höher abbrach.
+  if (!gesperrt && objekt.entdeckt && objekt.typ === "planet" && objekt.daten.kolonisierbar) {
     const aussen = kannGruendungsmission(state, flotte, "aussenposten", systemId, objekt.orbit);
     const kolonie = kannGruendungsmission(state, flotte, "kolonie", systemId, objekt.orbit);
     return {
@@ -5863,10 +6533,23 @@ function renderMeldungen(state, root) {
       // liegt so im Spielstand -- eine Meldung von gestern bleibt in ihrer
       // Sprache stehen, wie ein Logbucheintrag. Nur der Zähler drumherum ist
       // Anzeige.
+      // A-083: Der Zusatz nennt die Zahl UND wann es zuletzt so war. Ohne die
+      // Zeit ist "+49.233 weitere" eine Zahl ohne Bezug -- man weiß nicht, ob
+      // das Ereignis noch läuft oder vor drei Spieljahren aufgehört hat.
+      // Alte Stände haben kein `zeit` am Eintrag; dann bleibt es beim reinen
+      // Zähler.
+      const wann = eintrag.zeit ? spielDatum(state, eintrag.zeit) : null;
       textSetzen(
         li,
         eintrag.anzahl > 1
-          ? t("{text}  (+{anzahl} weitere)", { text: eintrag.text, anzahl: eintrag.anzahl - 1 })
+          ? wann
+            ? t("{text}  (+{anzahl} weitere, zuletzt Jahr {jahr}, Tag {tag})", {
+                text: eintrag.text,
+                anzahl: eintrag.anzahl - 1,
+                jahr: wann.jahr,
+                tag: wann.tag,
+              })
+            : t("{text}  (+{anzahl} weitere)", { text: eintrag.text, anzahl: eintrag.anzahl - 1 })
           : eintrag.text
       );
       attributSetzen(
@@ -5944,6 +6627,120 @@ export function notausgangTafel(root, zaehler, eskalationAb) {
   });
 }
 
+
+// --- Der Spielstand-Abschnitt im Development-Bereich (A-073) --------------
+//
+// Ein Tester hat seinen Stand nach einem PC-Neustart verloren (Firefox,
+// 18.08.). localStorage gehört dem Browser: „Chronik beim Schließen löschen",
+// Privatmodus und Speicherdruck räumen ihn ab, ohne zu fragen. Kein
+// Speicherkode im Spiel kann das verhindern -- nur eine Kopie beim Spieler.
+//
+// DIE GRUNDLÖSUNG IST EIN TEXTFELD, nicht der Datei-Download. Text kann
+// jeder kopieren, in eine Mail legen, in ein Dokument werfen -- auch dort,
+// wo Downloads gesperrt oder umständlich sind. Der Download daneben ist
+// Bequemlichkeit.
+//
+// GEBAUT WIRD EINMAL je Sprache, wie der ganze Bereich (Prinzip 8a): ein
+// Feld, das im Sekundentakt neu entstünde, verlöre den eingefügten Text
+// zwischen zwei Takten -- und zwar genau dann, wenn er am wichtigsten ist.
+function spielstandAbschnitt(state, titel, absatz) {
+  const knoten = [];
+  knoten.push(titel(t("Spielstand"), "spielstand"));
+  knoten.push(
+    absatz(
+      t(
+        "Dein Spielstand liegt im Speicher deines Browsers – und der gehört dem Browser, nicht dir: „Chronik beim Schließen löschen“, Privatmodus oder knapper Speicherplatz können ihn jederzeit entfernen. Hier holst du ihn als Text heraus und legst ihn ab, wo er dir gehört."
+      )
+    )
+  );
+  knoten.push(
+    absatz(
+      t(
+        "Einspielen ersetzt die laufende Partie. Der bisherige Stand wandert dabei in die Rettungs-Sicherung des Browsers – aber verlass dich nicht darauf, hol ihn dir vorher heraus."
+      )
+    )
+  );
+
+  const feld = document.createElement("textarea");
+  feld.className = "spielstand-feld";
+  feld.rows = 6;
+  feld.spellcheck = false;
+  feld.placeholder = t("Hier erscheint dein Spielstand – oder füge hier einen ein, den du zurückholen willst.");
+
+  const meldung = document.createElement("p");
+  meldung.className = "dezent spielstand-meldung";
+  const sagen = (text, warnung = false) => {
+    meldung.textContent = text;
+    meldung.classList.toggle("warnung", warnung);
+  };
+
+  const knopf = (text, fn) => {
+    const b = document.createElement("button");
+    b.textContent = text;
+    b.addEventListener("click", fn);
+    return b;
+  };
+
+  const reihe = document.createElement("div");
+  reihe.className = "spielstand-knoepfe";
+
+  reihe.appendChild(
+    knopf(t("Stand anzeigen"), () => {
+      feld.value = standAlsText(state);
+      feld.focus();
+      feld.select();
+      sagen(t("Der Stand steht im Feld und ist markiert – mit Strg+C kopieren und ablegen."));
+    })
+  );
+
+  reihe.appendChild(
+    knopf(t("Als Datei speichern"), () => {
+      const url = URL.createObjectURL(new Blob([standAlsText(state)], { type: "text/plain" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = standDateiname(state);
+      // IN DAS DOKUMENT HÄNGEN und wieder heraus: ein losgelöster Anker wird
+      // nicht in jedem Browser geklickt, und Tobis Umgebung ist Firefox.
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Nicht sofort freigeben -- manche Browser brechen den laufenden
+      // Download ab, wenn die Adresse noch im selben Takt verschwindet.
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      sagen(t("Gespeichert als {datei}.", { datei: a.download }));
+    })
+  );
+
+  reihe.appendChild(
+    knopf(t("Einspielen"), () => {
+      // ERST PRÜFEN, DANN FRAGEN. Andersherum bekäme jemand, der versehentlich
+      // einen Einkaufszettel einfügt, zuerst die Warnung „deine Partie wird
+      // ersetzt" -- für einen Text, der ohnehin abgewiesen wird. Die Prüfung
+      // läuft dadurch zweimal (`standUebernehmen` prüft selbst, und das muss
+      // es auch: es ist die Stelle, die schreibt).
+      const geprueft = standPruefen(feld.value);
+      if (!geprueft.ok) {
+        sagen(geprueft.text, true);
+        return;
+      }
+      if (!confirm(t("Diesen Stand einspielen? Die laufende Partie wird dabei ersetzt."))) return;
+      const ergebnis = standUebernehmen(feld.value);
+      if (!ergebnis.ok) {
+        sagen(ergebnis.text, true);
+        return;
+      }
+      // Neu laden statt den laufenden Zustand auszutauschen: dieselbe
+      // Entscheidung wie beim Zurücksetzen. Ein Spiel, das seinen State
+      // mitten im Betrieb gegen einen fremden tauscht, hat danach überall
+      // alte Verweise -- Flottenauswahl, Kartenmarken, offene Panels.
+      location.reload();
+    })
+  );
+
+  knoten.push(reihe, feld, meldung);
+  return knoten;
+}
+
 // --- Der Development-Bereich (A-054) --------------------------------------
 //
 // Tobis Ansage: die Tester-Dev-Interaktion bekommt einen eigenen Ort, „sonst
@@ -5955,7 +6752,7 @@ export function notausgangTafel(root, zaehler, eskalationAb) {
 // ist derselbe Wächter wie im Handbuch: neu gezeichnet wird nur, wenn sich
 // die Sprache ändert. 45 Versionen Text jede Sekunde neu zusammenzusetzen
 // wäre die teuerste Art, nichts zu ändern.
-export function renderDevelopment(root) {
+export function renderDevelopment(state, root) {
   const block = root.querySelector("#development-block");
   if (!block || block.dataset.gezeichnet === sprache()) return;
   block.dataset.gezeichnet = sprache();
@@ -6032,6 +6829,9 @@ export function renderDevelopment(root) {
   const p = document.createElement("p");
   p.appendChild(externerLink(feedbackAdresse(), t("Rückmeldung schreiben")));
   knoten.push(p);
+
+  // --- Spielstand ---------------------------------------------------------
+  knoten.push(...spielstandAbschnitt(state, titel, absatz));
 
   block.replaceChildren(...knoten);
 }

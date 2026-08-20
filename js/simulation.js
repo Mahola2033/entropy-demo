@@ -108,7 +108,7 @@ import {
   schiffeStaerke,
   schiffeText,
 } from "./flotten.js";
-import { findeObjekt, setzeOrbitZustand, holeSystem } from "./systeme.js";
+import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js";
 import { stromFuer, waehle } from "./zufall.js";
 import {
   reichenAus,
@@ -546,6 +546,13 @@ function ereignisAuswahlLinear(state) {
     if (flotte.gefecht) {
       pruefe(flotte.gefecht.naechsteRundeZeit, "gefecht", flotte);
     }
+    // A-094: Eine Route, die auf Beladung wartet, liegt still im Hafen -- sie
+    // hat weder Abschnitt noch Gefecht und käme ohne diesen Zweig NIE wieder
+    // an die Reihe. Der Takt ist grob (siehe ROUTE_WARTE_TAKT): gewartet wird
+    // auf Produktion, und die braucht Stunden, keine Sekunden.
+    if (flotte.route && flotte.route.aktiv && flotte.route.wartetAb != null) {
+      pruefe(flotte.route.wartetAb, "routewartet", flotte);
+    }
   }
   for (const transfer of state.logistikTransfers) {
     pruefe(transfer.ankunftZeit, "transfer", transfer);
@@ -619,6 +626,16 @@ function ereignisBauen(state, zeit, art, entitaet) {
     }
     case "gefecht":
       return { zeit, ausfuehren: (t) => kampfRundeAusfuehren(state, entitaet, t), planeten: null };
+    // Die wartende Route rührt genau ihren Ladehafen an -- sie versucht dort
+    // nachzuladen und fährt ab, sobald es reicht.
+    case "routewartet": {
+      const hafen = entitaet.dockPlanet ? planetById(state, entitaet.dockPlanet) : null;
+      return {
+        zeit,
+        ausfuehren: (t) => routeWartenPruefen(state, entitaet, t),
+        planeten: hafen ? [hafen] : null,
+      };
+    }
     // Ein Transfer berührt nur sein Ziel -- die Quelle wurde beim Losschicken
     // schon abgebucht (siehe logistiknetzPruefen).
     case "transfer": {
@@ -837,7 +854,7 @@ function planPlanetRec(plan, planet) {
 function planFlotteRec(plan, flotte) {
   let rec = plan.flotten.get(flotte);
   if (!rec) {
-    rec = { seq: plan.seqFlotte++, ankunft: null, gefecht: null };
+    rec = { seq: plan.seqFlotte++, ankunft: null, gefecht: null, routewartet: null };
     plan.flotten.set(flotte, rec);
     plan.flottenZahl++;
   }
@@ -950,6 +967,8 @@ function planQuellenZeit(state, art, ent) {
       return ent.abschnitt ? ent.abschnitt.ankunftZeit : null;
     case "gefecht":
       return ent.gefecht ? ent.gefecht.naechsteRundeZeit : null;
+    case "routewartet":
+      return ent.route && ent.route.aktiv && ent.route.wartetAb != null ? ent.route.wartetAb : null;
     case "transfer":
       return ent.ankunftZeit;
     default:
@@ -1030,6 +1049,12 @@ function planDirtyAbarbeiten(state, plan) {
       const rec = planFlotteRec(plan, flotte);
       planQuelleSetzen(plan, rec, "ankunft", GR_FLOTTE, 0, "ankunft", flotte, planQuellenZeit(state, "ankunft", flotte));
       planQuelleSetzen(plan, rec, "gefecht", GR_FLOTTE, 1, "gefecht", flotte, planQuellenZeit(state, "gefecht", flotte));
+      // A-094, dritte Quelle einer Flotte. Sie fehlte hier zuerst, und der
+      // Fehler war unsichtbar: Der Ereignisplan (A-035) und die lineare Suche
+      // darüber sind ZWEI Antworten auf "wann ist diese Flotte wieder dran",
+      // und in Betrieb ist der Plan. Eine Route wartete damit für immer --
+      // gefunden hat es der Test, der auf die ANKUNFT der Ladung misst.
+      planQuelleSetzen(plan, rec, "routewartet", GR_FLOTTE, 2, "routewartet", flotte, planQuellenZeit(state, "routewartet", flotte));
     }
     plan.dirtyFlotten.clear();
   }
@@ -2307,7 +2332,7 @@ function beuteVonFlotte(state, angreifer, opfer, zeit) {
     abziehen(opfer.ladung, genommen);
     if (anteil < 1) {
       // Was nicht mitgeht, treibt am Kampfort -- Futter für den nächsten.
-      zurueckgelassen(state, opfer.ort, opfer.ladung, t("{flotte}: verlorene Fracht", { flotte: opfer.name }), false);
+      zurueckgelassen(state, opfer.ort, opfer.ladung, t("{flotte}: verlorene Fracht", { flotte: opfer.name }), false, null, herkunftVon(opfer));
       opfer.ladung = {};
     }
     meldungHinzufuegen(
@@ -2981,7 +3006,8 @@ function supernovaBlitz(state, zeit) {
     t(
       "{stern} ist kollabiert. Der Blitz hat die Ozonschicht zerrissen – auf allen Welten wächst nichts mehr, bis sie sich erholt.",
       { stern: systemName(state.galaxie.seed, sn.systemId) }
-    )
+    ),
+    null, "welt"
   );
 }
 
@@ -2990,7 +3016,7 @@ function supernovaOzonErholt(state, zeit) {
   sn.ozonKaputt = false;
   sn.ozonZeit = null;
   for (const planet of state.planeten) planetGeaendert(planet);
-  meldungHinzufuegen(state, t("Die Ozonschicht hat sich erholt – die Ernte läuft wieder."));
+  meldungHinzufuegen(state, t("Die Ozonschicht hat sich erholt – die Ernte läuft wieder."), null, "welt");
 }
 
 // Die Teilchenflut. Sie ist der harte Schnitt: ab hier bewegt sich keine
@@ -3093,7 +3119,8 @@ function supernovaFlut(state, zeit) {
         // Nur der Spieler bekommt die Meldung -- eine Zeile je Bot-Welt wäre
         // eine Flut in der Flut.
         fraktionVon(planet) !== SPIELER_FRAKTION,
-        `solarflut-${planet.id}`
+        `solarflut-${planet.id}`,
+        herkunftVon(planet)
       );
     }
   }
@@ -3115,7 +3142,8 @@ function supernovaFlut(state, zeit) {
           anzahl: welten.filter((w) => w.ueberlebt).length,
           gesamt: welten.length,
         })
-      : t("Die Teilchenflut ist da. Keine einzige Welt war geschützt.")
+      : t("Die Teilchenflut ist da. Keine einzige Welt war geschützt."),
+    null, "welt"
   );
 }
 
@@ -3128,7 +3156,8 @@ function werftAbschliessen(state, planet, zeit) {
       anzahl: queue.anzahl,
       schiff: t(SCHIFFE[queue.schiffId].name),
       planet: planet.name,
-    })
+    }),
+    null, herkunftVon(planet)
   );
   const naechster = planet.werftWarteschlange.shift();
   planet.werftQueue = naechster ? { ...naechster, startZeit: null, fertigZeit: null } : null;
@@ -3148,6 +3177,30 @@ export function flotteUmbenennen(state, flotte, name) {
   const sauber = String(name || "").trim().slice(0, FLOTTENNAME_MAX);
   if (!sauber) return { ok: false, grund: t("Der Name darf nicht leer sein.") };
   flotte.name = sauber;
+  return { ok: true };
+}
+
+// Einen EIGENEN Planeten umbenennen (A-082).
+//
+// Dieselbe Regel wie beim Flottennamen, und aus denselben Gründen: leer wird
+// abgelehnt (ein namenloser Planet reißt in jede Liste ein Loch), zu lang wird
+// gekappt statt abgelehnt (Prinzip 3, verhindern statt bestrafen).
+//
+// FREMDE Welten sind ausgenommen, und das ist keine Willkür: ihre Namen
+// stammen aus der Weltgenerierung und werden aus der Saat neu abgeleitet
+// (systeme.js), ein Eintrag hier verschwände beim nächsten Aufbau der
+// Systemansicht wieder. Wer die Galaxie beschriften will, braucht den
+// Roadmap-Punkt „Lesbare Systemnamen", nicht dieses Feld.
+export const PLANETENNAME_MAX = 24;
+
+export function planetUmbenennen(state, planet, name) {
+  if (!planet) return { ok: false, grund: t("Kein Planet gewählt.") };
+  if (fraktionVon(planet) !== SPIELER_FRAKTION) {
+    return { ok: false, grund: t("Fremde Welten lassen sich nicht umbenennen.") };
+  }
+  const sauber = String(name || "").trim().slice(0, PLANETENNAME_MAX);
+  if (!sauber) return { ok: false, grund: t("Der Name darf nicht leer sein.") };
+  planet.name = sauber;
   return { ok: true };
 }
 
@@ -3172,7 +3225,10 @@ export function flotteAufstellen(state, planet, name) {
     befehle: [],
     // Wiederkehrende Route -- separat von den einmaligen Befehlen. Erst
     // nutzbar mit Automatisierungstechnik, siehe routeStarten.
-    route: { aktiv: false, halte: [], index: 0 },
+    // `mindestBeladung` (A-094): Abflug erst ab X % Frachtauslastung, 0 = wie
+    // bisher. Alte Spielstände haben das Feld nicht -- gelesen wird es überall
+    // mit `|| 0`, damit bleibt es Kategorie 1.
+    route: { aktiv: false, halte: [], index: 0, mindestBeladung: 0 },
     // Angesammelter Kampfschaden je Schiffstyp -- < Anzahl*hp, sonst wäre das
     // Schiff zerstört statt beschädigt. Reparierbar oder recycelbar.
     schiffSchaden: {},
@@ -3280,7 +3336,8 @@ export function reparieren(state, flotte, typ) {
       flotte: flotte.name,
       schiff: t(SCHIFFE[typ].name),
       planet: check.planet.name,
-    })
+    }),
+    null, herkunftVon(flotte)
   );
   return { ok: true };
 }
@@ -3311,7 +3368,8 @@ export function recyceln(state, flotte, typ) {
       anzahl,
       schiff: t(SCHIFFE[typ].name),
       erstattung: buendelText(rueckerstattung),
-    })
+    }),
+    null, herkunftVon(flotte)
   );
   return { ok: true };
 }
@@ -3340,7 +3398,8 @@ function ladungLoeschen(state, flotte, planet) {
     meldungHinzufuegen(
       state,
       t("{fracht} auf {planet} gelöscht.", { fracht: buendelText(genommen), planet: planet.name }),
-      "fracht"
+      "fracht",
+      herkunftVon(flotte)
     );
   }
   if (Object.keys(abgelehnt).length) {
@@ -3349,7 +3408,8 @@ function ladungLoeschen(state, flotte, planet) {
       t("{planet}: Lager voll – {fracht} bleiben an Bord.", {
         planet: planet.name,
         fracht: buendelText(abgelehnt),
-      })
+      }),
+      null, herkunftVon(flotte)
     );
   }
   // Was nicht reinpasste, bleibt geladen statt zu verschwinden.
@@ -3373,7 +3433,8 @@ export function flotteAufloesen(state, flotte) {
         t("{planet}: Lager voll – {menge} Deuterium beim Auflösen verloren.", {
           planet: planet.name,
           menge: Math.floor(rest),
-        })
+        }),
+        null, herkunftVon(flotte)
       );
     }
   }
@@ -3411,11 +3472,12 @@ function flotteLeerAufloesen(state, flotte) {
         t("{planet}: Lager voll – Reste von {flotte} gingen verloren.", {
           planet: hafen.name,
           flotte: flotte.name,
-        })
+        }),
+        null, herkunftVon(flotte)
       );
     }
   } else if (etwasDa) {
-    zurueckgelassen(state, flotte.ort, reste, flotte.name);
+    zurueckgelassen(state, flotte.ort, reste, flotte.name, false, null, herkunftVon(flotte));
   }
 
   meldungHinzufuegen(
@@ -3444,7 +3506,11 @@ function schrottVon(schiffId, anzahl = 1) {
 // Konzept, nur ein weiterer Weg, wie etwas dort hinkommt.
 // leise: keine eigene Meldung (z.B. Sondenschrott, sonst flutet jede
 // Aufklärung die Meldungsliste -- die Entdeckung wird ohnehin gemeldet).
-function zurueckgelassen(state, ort, buendel, wer, leise = false, gruppe = null) {
+// herkunft: WESSEN Reste das sind (A-074). Der Helfer bekommt nur den NAMEN
+// des Verursachers als Text, nicht das Objekt -- ohne diese Angabe liefe eine
+// Piratenflotte, die irgendwo Fracht verliert, als eigene Meldung durch den
+// Filter. Genau solche Zeilen hat Tobi unter "nur meine" gesehen.
+function zurueckgelassen(state, ort, buendel, wer, leise = false, gruppe = null, herkunft = "eigen") {
   // BAGATELLEN FALLEN WEG (A-022). Die Regel dahinter steht bei
   // REST_BAGATELLE in data.js: Überreste werden modelliert, solange sie eine
   // Verwendung haben. Drei Tonnen Deuterium an einem Orbit haben keine —
@@ -3463,12 +3529,12 @@ function zurueckgelassen(state, ort, buendel, wer, leise = false, gruppe = null)
   // Zwischen den Systemen gibt es keinen Ort, an dem etwas liegen könnte --
   // hier verschwindet es tatsächlich, und das wird gesagt statt verschwiegen.
   if (!ort || ort.systemId == null || ort.orbit == null) {
-    if (!leise) meldungHinzufuegen(state, t("{wer}: Reste gingen zwischen den Systemen verloren.", { wer }));
+    if (!leise) meldungHinzufuegen(state, t("{wer}: Reste gingen zwischen den Systemen verloren.", { wer }), null, herkunft);
     return;
   }
   const objekt = findeObjekt(state, ort.systemId, ort.orbit);
   if (!objekt) {
-    if (!leise) meldungHinzufuegen(state, t("{wer}: Reste gingen verloren.", { wer }));
+    if (!leise) meldungHinzufuegen(state, t("{wer}: Reste gingen verloren.", { wer }), null, herkunft);
     return;
   }
   const rest = { ...(objekt.restErtrag || {}) };
@@ -3484,7 +3550,8 @@ function zurueckgelassen(state, ort, buendel, wer, leise = false, gruppe = null)
         fracht: buendelText(buendel),
         objekt: objekt.name,
       }),
-      gruppe
+      gruppe,
+      herkunft
     );
   }
 }
@@ -3798,7 +3865,7 @@ export function schnellversandBefehlen(state, flotte, art, systemId) {
     check.gesamtZiele > check.ziele.length
       ? t("{flotte}: Schnellversand – {anzahl} Ziel(e) in {system}, {offen} offen (zu wenige Schiffe).", versandWerte)
       : t("{flotte}: Schnellversand – {anzahl} Ziel(e) in {system}.", versandWerte);
-  meldungHinzufuegen(state, versandMeldung);
+  meldungHinzufuegen(state, versandMeldung, null, herkunftVon(flotte));
   return { ok: true, gestartet: check.ziele.length };
 }
 
@@ -3848,7 +3915,8 @@ function flotteAngekommen(state, flotte, zeit) {
         t("{flotte} hat {system} erreicht – die Route ist vermessen, der Anker steht. Ab jetzt ein Sprung.", {
           flotte: flotte.name,
           system: systemName(state.galaxie.seed, ziel.systemId),
-        })
+        }),
+        null, herkunftVon(flotte)
       );
     }
   }
@@ -3896,9 +3964,11 @@ function flotteAngekommen(state, flotte, zeit) {
   if (naechstenBefehlFortsetzen(state, flotte, zeit)) return;
 
   // Route fortsetzen, wenn dieser Halt Teil einer laufenden Route war.
+  // Seit A-094 über routeAbfahrtVersuchen: der Index rückt erst vor, wenn
+  // wirklich abgefahren wird -- eine wartende Flotte muss wissen, an welchem
+  // Halt sie steht, um dort weiter nachladen zu können.
   if (routenHaltIndex !== undefined && flotte.route && flotte.route.aktiv) {
-    flotte.route.index = (routenHaltIndex + 1) % flotte.route.halte.length;
-    routeNaechstenHaltStarten(state, flotte, zeit);
+    routeAbfahrtVersuchen(state, flotte, routenHaltIndex, zeit);
   }
 }
 
@@ -3919,7 +3989,7 @@ function naechstenBefehlFortsetzen(state, flotte, zeit) {
   if (pruefung.ok || flotte.treibstoff >= pruefung.hinVerbrauch) {
     abschnittStarten(state, flotte, zielOrt, zeit);
   } else {
-    meldungHinzufuegen(state, t("{flotte}: zu wenig Deuterium für den Weiterflug – Flotte wartet.", { flotte: flotte.name }));
+    meldungHinzufuegen(state, t("{flotte}: zu wenig Deuterium für den Weiterflug – Flotte wartet.", { flotte: flotte.name }), null, herkunftVon(flotte));
     flotte.befehle = [];
   }
   return true;
@@ -3976,8 +4046,109 @@ function routeLadenAusfuehren(state, flotte, planet, halt) {
       fracht: buendelText(geladen),
       planet: planet.name,
     }),
-    "fracht"
+    "fracht",
+    herkunftVon(flotte)
   );
+}
+
+// --- A-094: Abflug erst ab X % Beladung -----------------------------------
+//
+// Tobis Wunsch (19.08.): "nicht losfliegen, bevor die Flotte nicht mindestens
+// so-und-so voll ist." Eine Route, die jeden Halt sofort wieder verlässt,
+// fährt bei magerer Produktion mit ein paar Tonnen im Bauch durch die halbe
+// Galaxie -- der Treibstoff kostet dabei mehr als die Fracht wert ist.
+//
+// WIE OFT NACHGESEHEN WIRD: Gewartet wird auf Produktion, und die läuft in
+// Stunden. Ein feiner Takt brächte nichts und kostete Ereignisse -- der
+// Ereignisplan (A-035) ist eine gemeinsame Ressource, jeder überflüssige
+// Eintrag geht allen anderen ab. Eine halbe Stunde Spielzeit ist grob genug,
+// um billig zu sein, und fein genug, dass niemand zusieht.
+const ROUTE_WARTE_TAKT = MS_PRO_STUNDE / 2;
+
+// Wie voll ist der Frachtraum? Anteil, nicht Prozent -- die Prozentzahl
+// gehört der Oberfläche.
+export function routeBeladungAnteil(state, flotte) {
+  const kapazitaet = flotteKapazitaet(state, flotte);
+  return kapazitaet > 0 ? ladungGesamt(flotte) / kapazitaet : 1;
+}
+
+// Darf hier abgefahren werden?
+//
+// Die Schwelle gilt NUR an einem Halt, der überhaupt lädt. An einem reinen
+// Entladehalt wäre sie eine Falle mit Ansage: dort kommt nie Fracht dazu, die
+// Route stünde für immer. Der Auftrag sagt es genauso -- "die Route wartet am
+// LADEHALT".
+export function routeAbfahrtFrei(state, flotte, halt) {
+  const schwelle = (flotte.route && flotte.route.mindestBeladung) || 0;
+  if (schwelle <= 0) return true;
+  if (!halt || !halt.laden || !halt.laden.length) return true;
+  return routeBeladungAnteil(state, flotte) * 100 >= schwelle;
+}
+
+// Fährt ab oder wartet. EIN Ort für beide Wege -- die Ankunft und der
+// Wartetakt kommen hier zusammen heraus, sonst hätte "wann fährt sie los"
+// zwei Antworten.
+//
+// ES WIRD NICHTS GEMELDET, wenn sie wartet: Das ist ein Dauerzustand, keine
+// Nachricht. Eine Zeile je Takt wären bei einem Tagessprung 48 Meldungen für
+// "es hat sich nichts geändert" (die Lehre aus A-083). Worauf sie wartet,
+// steht in der Routenzeile -- dort, wo man ohnehin nachsieht.
+function routeAbfahrtVersuchen(state, flotte, haltIndex, zeit) {
+  const route = flotte.route;
+  if (!routeAbfahrtFrei(state, flotte, route.halte[haltIndex])) {
+    route.wartetAn = haltIndex;
+    route.wartetAb = zeit + ROUTE_WARTE_TAKT;
+    planFlotteGeaendert(state, flotte);
+    return;
+  }
+  routeWartenBeenden(route);
+  route.index = (haltIndex + 1) % route.halte.length;
+  routeNaechstenHaltStarten(state, flotte, zeit);
+}
+
+function routeWartenBeenden(route) {
+  if (!route) return;
+  route.wartetAn = null;
+  route.wartetAb = null;
+}
+
+// Der Wartetakt: nachladen, was inzwischen dazugekommen ist, dann erneut
+// fragen. `routeLadenAusfuehren` meldet nur, wenn wirklich etwas geladen
+// wurde -- ein Takt ohne Nachschub bleibt still.
+function routeWartenPruefen(state, flotte, zeit) {
+  const route = flotte.route;
+  if (!route || !route.aktiv || route.wartetAn == null) {
+    routeWartenBeenden(route);
+    return;
+  }
+  const halt = route.halte[route.wartetAn];
+  const planet = flotte.dockPlanet ? planetById(state, flotte.dockPlanet) : null;
+  // Halt entfernt oder Flotte nicht mehr im Hafen: die Wartelage ist
+  // gegenstandslos. Weiterfahren statt stehenbleiben -- ein Zustand, den
+  // niemand mehr auflösen kann, ist schlimmer als ein Halt zu früh.
+  if (!halt || !planet) {
+    routeWartenBeenden(route);
+    if (route.halte.length) {
+      route.index = ((route.wartetAn || 0) + 1) % route.halte.length;
+      routeNaechstenHaltStarten(state, flotte, zeit);
+    }
+    return;
+  }
+  routeTankenAusfuehren(state, flotte, planet);
+  routeLadenAusfuehren(state, flotte, planet, halt);
+  routeAbfahrtVersuchen(state, flotte, route.wartetAn, zeit);
+}
+
+export function routeMindestbeladungSetzen(state, flotte, prozent) {
+  const wert = Number(prozent);
+  flotte.route.mindestBeladung = Number.isFinite(wert) ? Math.max(0, Math.min(100, Math.floor(wert))) : 0;
+  // Eine gesenkte Schwelle muss SOFORT greifen: Wer 80 auf 20 stellt, während
+  // die Flotte bei 60 % wartet, erwartet, dass sie losfährt -- und nicht, dass
+  // sie den Rest des Wartetakts absitzt.
+  if (flotte.route.aktiv && flotte.route.wartetAn != null) {
+    routeAbfahrtVersuchen(state, flotte, flotte.route.wartetAn, spielzeitJetzt(state));
+  }
+  return { ok: true };
 }
 
 // Schickt eine Flotte zum aktuellen Halt ihrer Route. Reicht der Treibstoff
@@ -3994,7 +4165,7 @@ function routeNaechstenHaltStarten(state, flotte, zeit) {
   const zielOrt = ortVonPlanet(state, planet);
   const pruefung = reichtTreibstoff(state, flotte, flotte.ort, zielOrt);
   if (!(pruefung.ok || flotte.treibstoff >= pruefung.hinVerbrauch)) {
-    meldungHinzufuegen(state, t("{flotte}: zu wenig Deuterium – Route pausiert.", { flotte: flotte.name }));
+    meldungHinzufuegen(state, t("{flotte}: zu wenig Deuterium – Route pausiert.", { flotte: flotte.name }), null, herkunftVon(flotte));
     route.aktiv = false;
     return;
   }
@@ -4072,6 +4243,9 @@ export function routeStarten(state, flotte, zeit = null) {
 
 export function routeStoppen(state, flotte) {
   flotte.route.aktiv = false;
+  // Sonst bliebe ein Wartezeitpunkt im Spielstand stehen, den niemand mehr
+  // abräumt -- und ein Neustart der Route liefe in eine Wartelage von gestern.
+  routeWartenBeenden(flotte.route);
   return { ok: true };
 }
 
@@ -4135,7 +4309,8 @@ function aufdecken(state, flotte, befehl, zeit) {
         art: t(objekt.bezeichnung),
         schiffe: schiffeText(objekt.daten.flotte || {}),
         hp: Math.round(staerke.hp),
-      })
+      }),
+      null, herkunftVon(flotte)
     );
     return;
   }
@@ -4146,7 +4321,8 @@ function aufdecken(state, flotte, befehl, zeit) {
         objekt: objekt.name,
         art: t(objekt.bezeichnung),
         tech: t(RESEARCH[objekt.benoetigt.forschung].name),
-      })
+      }),
+      null, herkunftVon(flotte)
     );
     return;
   }
@@ -4154,7 +4330,8 @@ function aufdecken(state, flotte, befehl, zeit) {
   meldungHinzufuegen(
     state,
     t("{objekt}: {art} entdeckt.", { objekt: objekt.name, art: t(objekt.bezeichnung) }),
-    "entdeckung"
+    "entdeckung",
+    herkunftVon(flotte)
   );
 }
 
@@ -4170,13 +4347,15 @@ function forschungsmission(state, flotte, befehl) {
       t("{objekt}: Forschungsmission abgeschlossen – {tech} freigeschaltet!", {
         objekt: objekt.name,
         tech: t(RESEARCH[fId].name),
-      })
+      }),
+      null, herkunftVon(flotte)
     );
   } else {
     hinzufuegen(flotte.ladung, { silizium: 200 });
     meldungHinzufuegen(
       state,
-      t("{objekt}: Technologie bereits bekannt – nur Material geborgen.", { objekt: objekt.name })
+      t("{objekt}: Technologie bereits bekannt – nur Material geborgen.", { objekt: objekt.name }),
+      null, herkunftVon(flotte)
     );
   }
   setzeOrbitZustand(state, befehl.zielSystem, befehl.zielOrbit, { verwertet: true });
@@ -4190,7 +4369,16 @@ function bergung(state, flotte, befehl, zeit) {
   const objekt = findeObjekt(state, befehl.zielSystem, befehl.zielOrbit);
   if (!objekt) return;
 
-  const offen = objekt.nachwachsend
+  // A-092: An einem VERSCHLOSSENEN Objekt ist ausschließlich bergbar, was
+  // hier liegt -- die Quelle darunter bleibt zu. Ohne diese Unterscheidung
+  // erntete eine Bergung am Antimaterie-Gürtel (verschlossen UND nachwachsend)
+  // den Gürtel, während die eigene Fracht daneben liegen bliebe: die Sperre
+  // wäre umgangen und der Nachlass trotzdem verloren.
+  const nurRest = objektGesperrt(state, objekt);
+  const nachwachsend = objekt.nachwachsend && !nurRest;
+  const offen = nurRest
+    ? objekt.restErtrag
+    : objekt.nachwachsend
     ? offenerErtrag(state, objekt, zeit)
     : objekt.restErtrag || ertragVon(state, objekt);
   if (!offen || Object.values(offen).every((m) => m <= 0)) return;
@@ -4214,24 +4402,39 @@ function bergung(state, flotte, befehl, zeit) {
 
   if (gesamt <= frei) {
     hinzufuegen(flotte.ladung, offen);
-    if (objekt.nachwachsend) {
+    if (nachwachsend) {
       uhrZurueckstellen(gesamt);
       meldungHinzufuegen(
         state,
         t("{objekt}: {fracht} geerntet – der Gürtel füllt sich wieder.", {
           objekt: objekt.name,
           fracht: buendelText(offen),
-        })
+        }),
+        null, herkunftVon(flotte)
       );
       return;
     }
-    setzeOrbitZustand(state, befehl.zielSystem, befehl.zielOrbit, { verwertet: true, restErtrag: null });
+    // `verwertet` sagt "hier ist nichts mehr zu holen" und ist endgültig.
+    // Am verschlossenen Objekt wäre das falsch: geräumt ist nur der Nachlass,
+    // die Quelle war nie offen und muss es nach der Forschung noch werden.
+    setzeOrbitZustand(
+      state,
+      befehl.zielSystem,
+      befehl.zielOrbit,
+      nurRest ? { restErtrag: null } : { verwertet: true, restErtrag: null }
+    );
     meldungHinzufuegen(
       state,
-      t("{objekt}: {fracht} geladen – Fundstelle erschöpft.", {
-        objekt: objekt.name,
-        fracht: buendelText(offen),
-      })
+      nurRest
+        ? t("{objekt}: {fracht} geborgen – die Fundstelle selbst bleibt verschlossen.", {
+            objekt: objekt.name,
+            fracht: buendelText(offen),
+          })
+        : t("{objekt}: {fracht} geladen – Fundstelle erschöpft.", {
+            objekt: objekt.name,
+            fracht: buendelText(offen),
+          }),
+      null, herkunftVon(flotte)
     );
     return;
   }
@@ -4244,7 +4447,7 @@ function bergung(state, flotte, befehl, zeit) {
     rest[resId] = menge - geladen[resId];
   }
   hinzufuegen(flotte.ladung, geladen);
-  if (objekt.nachwachsend) {
+  if (nachwachsend) {
     uhrZurueckstellen(Object.values(geladen).reduce((a, b) => a + b, 0));
   } else {
     setzeOrbitZustand(state, befehl.zielSystem, befehl.zielOrbit, { restErtrag: rest });
@@ -4255,7 +4458,8 @@ function bergung(state, flotte, befehl, zeit) {
       objekt: objekt.name,
       geladen: buendelText(geladen),
       rest: buendelText(rest),
-    })
+    }),
+    null, herkunftVon(flotte)
   );
 }
 
@@ -4440,7 +4644,8 @@ function kampfRundeAusfuehren(state, flotte, zeit) {
       truemmer,
       t("{flotte}: Verluste", { flotte: flotte.name }),
       false,
-      "kampfverluste" // mehrere Runden hintereinander fassen sich zusammen
+      "kampfverluste", // mehrere Runden hintereinander fassen sich zusammen
+      herkunftVon(flotte)
     );
   }
 
@@ -4511,7 +4716,7 @@ function beuteVerladen(state, flotte, objekt, zielSystem, zielOrbit) {
   if (gesamt <= frei) {
     hinzufuegen(flotte.ladung, offen);
     setzeOrbitZustand(state, zielSystem, zielOrbit, { verwertet: true, restErtrag: null });
-    meldungHinzufuegen(state, t("{objekt}: {beute} erbeutet.", { objekt: objekt.name, beute: buendelText(offen) }));
+    meldungHinzufuegen(state, t("{objekt}: {beute} erbeutet.", { objekt: objekt.name, beute: buendelText(offen) }), null, herkunftVon(flotte));
     return;
   }
 
@@ -4535,7 +4740,8 @@ function beuteVerladen(state, flotte, objekt, zielSystem, zielOrbit) {
       : t("{objekt}: kein Frachtraum übrig – {rest} liegen bereit, mit Frachter abholen.", {
           objekt: objekt.name,
           rest: buendelText(rest),
-        })
+        }),
+    null, herkunftVon(flotte)
   );
 }
 
@@ -4594,7 +4800,8 @@ function stuetzpunktGruenden(state, flotte, befehl, typ, zeit) {
     state,
     typ === "kolonie"
       ? t("Kolonie auf {ort} gegründet – eigene Produktion läuft an.", { ort: objekt.name })
-      : t("Außenposten auf {ort} errichtet – deine Reichweite verschiebt sich.", { ort: objekt.name })
+      : t("Außenposten auf {ort} errichtet – deine Reichweite verschiebt sich.", { ort: objekt.name }),
+    null, herkunftVon(flotte)
   );
 }
 
@@ -4637,14 +4844,18 @@ export function missionFuerObjekt(state, objekt) {
   // liegt, ist die Folgemission eine normale Bergung, kein erneuter Angriff.
   if (objekt.typ === "gefahr") {
     if (!objekt.verteidigerBesiegt) return "militaer";
-    const restOffen = objekt.restErtrag && Object.values(objekt.restErtrag).some((m) => m > 0);
-    return restOffen ? "bergung" : null;
+    return restLiegtAn(objekt) ? "bergung" : null;
   }
   // Liegengebliebenes Material ist IMMER bergbar, unabhängig davon, was das
   // Objekt ursprünglich war -- auch auf einem leeren Orbit. Sonst wäre der
   // Nachlass einer aufgelösten Flotte dort unerreichbar.
-  const restLiegt = objekt.restErtrag && Object.values(objekt.restErtrag).some((m) => m > 0);
-  if (restLiegt) return "bergung";
+  if (restLiegtAn(objekt)) return "bergung";
+  // A-092: Die Sperre gilt der QUELLE, nicht dem, was hier liegt -- deshalb
+  // steht sie NACH der Rest-Prüfung. Sie stand bis hierher überhaupt nicht in
+  // dieser Funktion, sondern allein in der Oberfläche, und die sperrte
+  // daraufhin den ganzen Orbit: Tobis Sonde verglühte an einem verschlossenen
+  // Vorkommen, und ihr Resttank lag danach unerreichbar daneben.
+  if (objektGesperrt(state, objekt)) return null;
   if (objekt.verwertet) return null;
   if (regel.zugriff === "forschung") return "forschung";
   // Bergung nur, wenn tatsächlich ein Ertrag daliegt: Planeten tragen die
@@ -5222,9 +5433,46 @@ export function bauWarteschlangeEntfernen(state, planet, index) {
   const { abgelehnt } = insLager(state, planet, kosten);
   planet.bauWarteschlange.splice(index, 1);
   if (Object.keys(abgelehnt).length) {
-    meldungHinzufuegen(state, t("{planet}: Lager voll – Erstattung teilweise verloren.", { planet: planet.name }));
+    meldungHinzufuegen(state, t("{planet}: Lager voll – Erstattung teilweise verloren.", { planet: planet.name }), null, herkunftVon(planet));
   }
   return { ok: true };
+}
+
+// Einen wartenden Auftrag um einen Platz verschieben (A-080).
+//
+// EINE Funktion für alle drei Schlangen: Bau, Forschung und Werft halten
+// dieselbe Liste aus Einträgen, und Umsortieren fragt nach nichts darin --
+// es tauscht zwei Nachbarn. Prinzip 5: ein Mechanismus, nicht drei.
+//
+// Was diese Funktion NICHT anfasst, ist der laufende Auftrag. Er steht nicht
+// in dieser Liste (bauQueue/forschungsQueue/werftQueue sind eigene Felder),
+// und er ist bezahlt und angefangen -- ihn zu verschieben hieße, ihn
+// abzubrechen. Wer ihn loswerden will, nimmt das Abbrechen-Kreuz.
+//
+// `richtung` ist -1 (nach vorn) oder +1 (nach hinten). Am Rand passiert
+// nichts, und das ist kein Fehler: der erste Eintrag kann nicht weiter nach
+// vorn. Deshalb `ok: false` mit Grund statt eines Wurfs -- die Anzeige sperrt
+// die Knöpfe ohnehin, aber ein Tastendruck darf nie etwas zerlegen.
+export function warteschlangeUmordnen(warteschlange, von, nach) {
+  if (!Array.isArray(warteschlange)) return { ok: false, grund: t("Keine Warteschlange.") };
+  if (!warteschlange[von]) return { ok: false, grund: t("Eintrag nicht gefunden.") };
+  if (!Number.isInteger(nach) || nach < 0 || nach >= warteschlange.length) {
+    return { ok: false, grund: t("Dort ist kein Platz mehr.") };
+  }
+  if (von === nach) return { ok: true, index: nach };
+  const [eintrag] = warteschlange.splice(von, 1);
+  warteschlange.splice(nach, 0, eintrag);
+  return { ok: true, index: nach };
+}
+
+// Der Sonderfall davon, den die beiden Knöpfe brauchen: einen Platz weiter.
+// `richtung` ist -1 (nach vorn) oder +1 (nach hinten). Am Rand passiert
+// nichts, und das ist kein Fehler -- der erste Eintrag kann nicht weiter nach
+// vorn. Deshalb `ok: false` mit Grund statt eines Wurfs: die Anzeige sperrt
+// die Knöpfe ohnehin, aber ein Tastendruck darf nie etwas zerlegen.
+export function warteschlangeVerschieben(warteschlange, index, richtung) {
+  if (!Array.isArray(warteschlange)) return { ok: false, grund: t("Keine Warteschlange.") };
+  return warteschlangeUmordnen(warteschlange, index, index + richtung);
 }
 
 // Bricht den GERADE LAUFENDEN Bau ab (nicht die Warteschlange dahinter) --
@@ -5247,7 +5495,7 @@ export function bauAbbrechen(state, planet) {
   planet.bauQueue = naechster ? { ...naechster, startZeit: null, fertigZeit: null } : null;
   kopfPruefen(state, planet, jetzt);
   if (Object.keys(abgelehnt).length) {
-    meldungHinzufuegen(state, t("{planet}: Lager voll – Erstattung teilweise verloren.", { planet: planet.name }));
+    meldungHinzufuegen(state, t("{planet}: Lager voll – Erstattung teilweise verloren.", { planet: planet.name }), null, herkunftVon(planet));
   }
   return { ok: true };
 }
@@ -5407,7 +5655,7 @@ export function werftWarteschlangeEntfernen(state, planet, index) {
   const { abgelehnt } = insLager(state, planet, kosten);
   planet.werftWarteschlange.splice(index, 1);
   if (Object.keys(abgelehnt).length) {
-    meldungHinzufuegen(state, t("{planet}: Lager voll – Erstattung teilweise verloren.", { planet: planet.name }));
+    meldungHinzufuegen(state, t("{planet}: Lager voll – Erstattung teilweise verloren.", { planet: planet.name }), null, herkunftVon(planet));
   }
   return { ok: true };
 }
@@ -5424,7 +5672,7 @@ export function werftAbbrechen(state, planet) {
   planet.werftQueue = naechster ? { ...naechster, startZeit: null, fertigZeit: null } : null;
   kopfPruefen(state, planet, jetzt);
   if (Object.keys(abgelehnt).length) {
-    meldungHinzufuegen(state, t("{planet}: Lager voll – Erstattung teilweise verloren.", { planet: planet.name }));
+    meldungHinzufuegen(state, t("{planet}: Lager voll – Erstattung teilweise verloren.", { planet: planet.name }), null, herkunftVon(planet));
   }
   return { ok: true };
 }

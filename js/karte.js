@@ -35,7 +35,7 @@
 import { GALAXIE_REGELN, SPIELER_FRAKTION } from "./data.js";
 import { systemPosition, systemName, sternFuer } from "./galaxie.js";
 import { flottePosition, schiffeText, flotteRestreichweite } from "./flotten.js";
-import { holeSystem } from "./systeme.js";
+import { holeSystem, objektGesperrt } from "./systeme.js";
 import {
   planetenVon,
   planetAn,
@@ -895,8 +895,7 @@ export function systemKarteZeichnen(svg, state, opts) {
 // Eigentümer-Aktionen an. Beide Ansichten fragen jetzt über
 // `eigenerPlanetAn` dieselbe Frage.
 function systemObjektFuellen(state, systemId, objekt, gruppe, gewaehlterOrbit) {
-  const gesperrt =
-    objekt.entdeckt && objekt.benoetigt && (state.forschung[objekt.benoetigt.forschung] || 0) < 1;
+  const gesperrt = objektGesperrt(state, objekt);
   const planet = planetAn(state, systemId, objekt.orbit);
   // Seit A-002 über den gemeinsamen Helfer statt über einen hier
   // ausgeschriebenen Vergleich -- die Liste stellt jetzt dieselbe Frage, und

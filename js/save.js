@@ -8,10 +8,11 @@ import {
   momenteNachziehen,
   pauseNachziehen,
   speicherbarerVersatz,
+  spielDatum,
 } from "./state.js";
 import { piratenWeltStart, botWeltStart, piratenNamenNachziehen } from "./simulation.js";
 import { notausgangLoeschen } from "./aufholen.js";
-import { DEMO_SAAT } from "./data.js";
+import { DEMO_SAAT, VERSION } from "./data.js";
 import { t } from "./sprache.js";
 
 const STORAGE_KEY = "entropy-save";
@@ -137,8 +138,11 @@ export function speichern(state) {
     // die oberste Ebene neu an, alles darunter bleibt dieselbe Referenz --
     // bei zwei Megabyte Spielstand ist das der Unterschied zwischen einer
     // Zuweisung und einer Verdopplung.
-    const hinaus = { ...state, testZeitOffsetMs: speicherbarerVersatz(state) };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(hinaus));
+    //
+    // Beides steckt seit A-073 in `hinausKopie` (weiter unten): der Export
+    // schreibt denselben Stand, und diese Regel zweimal zu pflegen ginge
+    // genau einmal gut.
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(hinausKopie(state)));
   } catch (e) {
     // Anlass: dieser Aufruf stand beim Start VOR den setInterval-Zeilen in
     // main.js. Ein Wurf hier -- volles localStorage (rund 5 MB Quota, ein
@@ -170,4 +174,139 @@ export function zuruecksetzen() {
     // gleich in einem neu geladenen Spiel.
     console.error("zuruecksetzen: localStorage blockiert", e);
   }
+}
+
+// --- Spielstand aus dem Browser holen und zurückgeben (A-073) -------------
+//
+// WARUM ES DAS GIBT: localStorage gehört dem Browser, nicht dem Spieler. Er
+// löscht ihn beim Aufräumen der Chronik, im Privatmodus ohnehin, und unter
+// Speicherdruck auch ungefragt. Ein Tester hat auf diesem Weg real einen
+// Stand verloren (18.08.). Dagegen hilft keine noch so sorgfältige
+// Speicherroutine -- nur eine Kopie, die beim Spieler liegt.
+//
+// Der Export ist deshalb bewusst TEXT und keine Datei-API: ein Textfeld kann
+// jeder kopieren, in eine Mail legen, in ein Dokument werfen. Der Download
+// daneben ist Bequemlichkeit, nicht die Grundlösung.
+//
+// DER IMPORT IST DER GEFÄHRLICHE TEIL, und er hat genau einen Ladeweg: er
+// prüft den Text, sichert den alten Stand, schreibt den neuen an dieselbe
+// Stelle, an die `speichern` schreibt -- und überlässt das Laden danach
+// `laden()`. Es gibt keinen zweiten Ladepfad mit eigener (also irgendwann
+// abweichender) Validierung.
+export const EXPORT_KENNUNG = "entropy-spielstand";
+
+// Was gespeichert wird, ist an ZWEI Stellen dasselbe: hier und in
+// `speichern`. Deshalb steht es in einer Funktion -- zwei Kopien derselben
+// Regel driften auseinander, und die Regel selbst (A-048, gedeckelter
+// Zeitversatz) ist keine, die man zweimal richtig hinschreiben will.
+function hinausKopie(state) {
+  return { ...state, testZeitOffsetMs: speicherbarerVersatz(state) };
+}
+
+// Der Kopf über dem Stand ist KEIN zweites Speicherformat: `stand` ist
+// zeichengleich das, was in localStorage steht. Der Kopf sagt nur, woher der
+// Text kommt -- das unterscheidet einen Spielstand von einer beliebigen
+// eingefügten JSON-Datei und nennt die Spielversion, die ihn geschrieben hat.
+export function standAlsText(state) {
+  return JSON.stringify({
+    kennung: EXPORT_KENNUNG,
+    spiel: VERSION,
+    version: SAVE_VERSION,
+    stand: hinausKopie(state),
+  });
+}
+
+// Ein Dateiname, an dem man später erkennt, welcher Stand das war.
+// Das Ingame-Datum steht drin und nicht die Wanduhr: „Jahr 25" sagt einem
+// Spieler etwas, „14:07 Uhr" sagt ihm nichts über seinen Stand.
+export function standDateiname(state) {
+  const jahr = spielDatum(state).jahr;
+  return `entropy-v${VERSION}-jahr${jahr}.txt`;
+}
+
+// Prüft einen eingefügten Text, OHNE irgendetwas zu verändern. Gibt entweder
+// `{ ok: true, stand, spiel }` zurück oder `{ ok: false, grund, text }` --
+// `grund` ist die Kennung für Tests, `text` die Zeile für den Spieler.
+//
+// Die Prüfung ist bewusst kleinlich, denn sie ist die einzige Stelle, an der
+// ein falscher Text noch folgenlos abprallen kann. Danach wird geschrieben.
+export function standPruefen(text) {
+  const roh = typeof text === "string" ? text.trim() : "";
+  if (!roh) return { ok: false, grund: "leer", text: t("Kein Text eingefügt.") };
+
+  let gelesen;
+  try {
+    gelesen = JSON.parse(roh);
+  } catch {
+    return {
+      ok: false,
+      grund: "unlesbar",
+      text: t("Das ist kein Spielstand – der Text ließ sich nicht lesen. Beim Kopieren nichts weglassen, auch nicht die Klammern am Anfang und Ende."),
+    };
+  }
+  if (!gelesen || typeof gelesen !== "object") {
+    return { ok: false, grund: "unlesbar", text: t("Das ist kein Spielstand.") };
+  }
+
+  // Zwei zulässige Formen: der Export mit Kopf, und der nackte Inhalt des
+  // Browserspeichers (wer sich seinen Stand aus der Entwicklerkonsole holt,
+  // hat genau den in der Hand). Es bleibt EINE Prüfung -- nur das Auspacken
+  // unterscheidet sich.
+  const stand = gelesen.kennung === EXPORT_KENNUNG && gelesen.stand ? gelesen.stand : gelesen;
+  const spiel = gelesen.kennung === EXPORT_KENNUNG ? gelesen.spiel : null;
+
+  if (!stand || typeof stand !== "object" || stand.version === undefined) {
+    return { ok: false, grund: "fremd", text: t("Das ist zwar lesbarer Text, aber kein Spielstand dieses Spiels.") };
+  }
+  // Ein Stand aus einer älteren Weltgenerierung wird hier ABGEWIESEN und nicht
+  // durchgereicht: `laden()` würde ihn beiseitelegen und ein neues Spiel
+  // beginnen -- ein Import, der die laufende Partie gegen eine leere Welt
+  // tauscht, wäre die schlimmste denkbare Antwort auf „stell meinen Stand her".
+  if (stand.version !== SAVE_VERSION) {
+    return {
+      ok: false,
+      grund: "version",
+      text: t("Dieser Stand stammt aus einer älteren Fassung des Spiels (Format {alt}, gebraucht wird {neu}) und lässt sich nicht mehr laden.", {
+        alt: stand.version,
+        neu: SAVE_VERSION,
+      }),
+    };
+  }
+  if (!Array.isArray(stand.planeten) || stand.planeten.length === 0 || !stand.galaxie || typeof stand.letzterTick !== "number") {
+    return { ok: false, grund: "unvollstaendig", text: t("Der Spielstand ist unvollständig – vermutlich wurde beim Kopieren ein Teil abgeschnitten.") };
+  }
+  return { ok: true, stand, spiel };
+}
+
+// Übernimmt einen geprüften Stand. Reihenfolge ist hier alles:
+//
+//   1. prüfen -- schlägt das fehl, ist NICHTS passiert
+//   2. den laufenden Stand in die Rettungs-Sicherung legen (dieselbe eine
+//      Sicherung, die auch der Versionssprung benutzt -- zwei Stände zu je
+//      rund 2 MB sprengen die 5 MB von localStorage)
+//   3. erst jetzt überschreiben
+//   4. das Speichern sperren
+//
+// Schritt 4 ist der, den man vergisst: `main.js` hängt ein `speichern` an
+// `beforeunload`, und das Neuladen nach dem Import löst es aus. Ohne die
+// Sperre schriebe der LAUFENDE Zustand den frisch eingespielten sofort wieder
+// zu -- der Import sähe aus, als hätte er nichts getan. Genau dieser Fehler
+// steckte schon einmal im Zurücksetzen (siehe `gesperrt`).
+export function standUebernehmen(text) {
+  const geprueft = standPruefen(text);
+  if (!geprueft.ok) return geprueft;
+  try {
+    const alt = localStorage.getItem(STORAGE_KEY);
+    if (alt) altenStandSichern(alt, "ersetzt");
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(geprueft.stand));
+  } catch (e) {
+    console.error("standUebernehmen: localStorage blockiert", e);
+    return {
+      ok: false,
+      grund: "speicher",
+      text: t("Spielstand konnte nicht gespeichert werden – der Browserspeicher ist voll oder gesperrt."),
+    };
+  }
+  gesperrt = true;
+  return { ok: true, spiel: geprueft.spiel };
 }

@@ -28,6 +28,264 @@
 
 export const PATCHNOTES = [
   {
+    version: "1.69",
+    de: [
+      "Neu: Auto-Routen haben ein Feld „Abflug erst ab X % Beladung“. Die Route wartet dann am Ladehalt, bis genug zusammengekommen ist, statt halb leer loszufliegen – der Treibstoff hängt an der Strecke, nicht an der Fracht.",
+      "0 % ist die Vorgabe und bedeutet: alles wie bisher. Bestehende Routen ändern ihr Verhalten nicht.",
+      "Die Routenzeile sagt, worauf sie wartet („wartet auf Beladung: 60/80 %“). Senkst du die Schwelle, fährt die Flotte im selben Moment los.",
+      "An einem Halt, der nur entlädt, gilt die Schwelle nicht – dort käme nie Fracht dazu.",
+    ],
+    en: [
+      "New: auto-routes have a field “Depart only at X% load”. The route then waits at its loading stop until enough has piled up instead of leaving half empty – fuel is paid for the distance, not for the cargo.",
+      "0% is the default and means: everything as before. Existing routes do not change their behaviour.",
+      "The route line says what it is waiting for (“waiting for cargo: 60/80%”). Lower the threshold and the fleet leaves that very moment.",
+      "At a stop that only unloads, the threshold does not apply – no cargo would ever arrive there.",
+    ],
+  },
+  {
+    version: "1.68",
+    de: [
+      "Behoben: Der Regler beim Beladen misst jetzt den FREIEN Frachtraum statt der Gesamtkapazität – begrenzt durch das, was im Lager liegt. Bisher tat ein Klick über der halbvollen Marke oft schlicht nichts, ohne ein Wort dazu.",
+      "Behoben: Die Zahl neben dem Regler folgt sofort deiner Eingabe und geht nach dem Laden zusammen mit dem Regler auf null zurück. Bisher blieb sie stehen, bis man den Regler wieder anfasste.",
+      "Tippst du eine genaue Menge, steht sie sofort daneben („genau 5.000“) – und über dem Ladbaren gleich gedeckelt. Was dasteht, lässt sich auch laden.",
+      "Auch der Tank-Regler misst jetzt, was noch in den Tank passt, statt den Lagerbestand des Planeten.",
+    ],
+    en: [
+      "Fixed: the loading slider now measures the FREE cargo space instead of total capacity – limited by what is in storage. Until now a click past the half-full mark often did nothing at all, without a word.",
+      "Fixed: the number next to the slider follows your input right away and returns to zero together with the slider after loading. Until now it stayed put until you touched the slider again.",
+      "Type an exact amount and it shows next to it at once (“exactly 5,000”) – already capped at what can be loaded. What it says is what you can load.",
+      "The refuelling slider now measures what still fits in the tank, instead of the planet's storage.",
+    ],
+  },
+  {
+    version: "1.67",
+    de: [
+      "Behoben: Was von dir an einem verschlossenen Orbit liegt, kannst du jetzt bergen. Eine verglühte Sonde legt ihren Resttank dort ab – der war bisher unerreichbar, obwohl er nie zum verschlossenen Fund gehörte.",
+      "Die Regel dahinter: Ein Schloss betrifft fremde Quellen und neue Ziele, nie deinen eigenen Besitz. Das Vorkommen darunter bleibt zu, bis du die Technik hast.",
+      "Die Zeile am Orbit nennt jetzt, was dort liegengeblieben ist – und der Bergungsknopf steht daneben, statt dass ein Schloss den ganzen Orbit sperrt.",
+    ],
+    en: [
+      "Fixed: anything of yours lying at a sealed orbit can now be salvaged. A burnt-out probe drops its remaining fuel there – until now that was out of reach, even though it never belonged to the sealed find.",
+      "The rule behind it: a seal covers foreign sources and new targets, never your own property. The deposit underneath stays sealed until you have the technology.",
+      "The orbit's line now names what was left behind – and the salvage button sits next to it, instead of a lock sealing the whole orbit.",
+    ],
+  },
+  {
+    version: "1.66",
+    de: [
+      "Neu: Gebäude lassen sich zurückbauen. Der schmale Knopf neben „Ausbauen“ reißt eine Stufe ab – der erste Klick fragt nach, der zweite tut es.",
+      "Es gibt KEINE Erstattung: Was verbaut ist, ist verbaut. Zurück kommen Arbeitskraft und Strom der Stufe – gut, wenn dir beides woanders fehlt.",
+      "Solange dieselbe Anlage gebaut wird oder in der Warteschlange steht, ist der Rückbau gesperrt. Brich den Auftrag ab (das erstattet), dann geht es.",
+    ],
+    en: [
+      "New: buildings can be torn down a level. The narrow button next to “Upgrade” removes one level – the first click asks, the second does it.",
+      "There is NO refund: what is built is spent. What you get back is the level's workforce and power – useful when you need either elsewhere.",
+      "While the same facility is under construction or waiting in the queue, tearing down is blocked. Cancel the order (that does refund), then it works.",
+    ],
+  },
+  {
+    version: "1.65",
+    de: [
+      "Behoben: Der Schalter für die Deuterium-Anreicherung stand außerhalb seiner Kachel und lag über der Nachbarkachel – zu sehen war nur noch das Ende des Wortes.",
+      "Die Zeile passt jetzt in die Kachel, in jeder Schalterstellung und auch bei schmalem Fenster. Die Kacheln einer Reihe bleiben gleich hoch.",
+    ],
+    en: [
+      "Fixed: the switch for deuterium enrichment sat outside its tile and overlapped the neighbouring one – only the end of the word was visible.",
+      "The row now fits inside the tile, in either switch position and in a narrow window too. Tiles in the same row keep the same height.",
+    ],
+  },
+  {
+    version: "1.64",
+    de: [
+      "Behoben: Im Handbuch-Abschnitt „Steuerung“ standen Umlaute als Behelfsschreibweise – „laesst“, „aendern“, „zurueck“, „schliesst“. Jetzt steht dort, was dort stehen soll.",
+    ],
+    en: [
+      "Fixed: the “Controls” section of the manual spelled German umlauts the makeshift way. The German text now reads properly; the English wording is unchanged.",
+    ],
+  },
+  {
+    version: "1.63",
+    de: [
+      "Behoben: Im Fenster beim allerersten Start ließ sich die Sprache nicht umstellen – es liegt über dem Kopf, und die DE/EN-Knöpfe dort waren nicht anklickbar. Wer Englisch wollte, musste den deutschen Text erst wegklicken.",
+      "Die Sprachwahl steht jetzt oben rechts im Fenster selbst. Ein Klick, und Text und Knöpfe sind sofort in der anderen Sprache – das Fenster bleibt offen und an derselben Stelle.",
+    ],
+    en: [
+      "Fixed: the window shown at the very first start offered no way to change the language – it sits on top of the header, and the DE/EN buttons there could not be clicked. Anyone wanting English had to dismiss the German text first.",
+      "The language choice now sits in the top right of the window itself. One click and both text and buttons switch – the window stays open and in place.",
+    ],
+  },
+  {
+    version: "1.62",
+    de: [
+      "Behoben: Eine Dauerroute mit vollem Frachtraum hat das Logbuch geflutet – in einer gemessenen Partie 49.234 Mal derselbe Satz. Alles Wichtige war damit aus den dreißig sichtbaren Zeilen geschoben.",
+      "Wiederholt sich eine Meldung, zählt sie jetzt hoch, statt sich anzuhängen: „… – Frachtraum voll. (+499 weitere, zuletzt Jahr 3, Tag 22)“. Die jüngsten Zahlen bleiben dabei sichtbar.",
+      "Kommt zwischendurch etwas anderes, beginnt eine neue Zeile – das Logbuch bleibt die Reihenfolge der Ereignisse.",
+    ],
+    en: [
+      "Fixed: a standing route with a full hold flooded the log – 49,234 times the same line in one measured game. Everything that mattered had been pushed out of the thirty visible rows.",
+      "A repeating message now counts up instead of piling up: “… – hold full. (+499 more, last on year 3, day 22)”. The most recent figures stay visible.",
+      "If something else happens in between, a new row begins – the log stays the order of events.",
+    ],
+  },
+  {
+    version: "1.61",
+    de: [
+      "Neu: Deine Welt hat einen Namen. Ein neues Spiel zieht ihn aus einer Liste von dreißig – „Du führst genau eine Welt: Ilmar“ statt „Heimatwelt“.",
+      "Umbenennen kannst du jede Welt, die dir gehört: im Bereich Planet ganz oben in „Diese Welt in Zahlen“, Feld ausfüllen und auf Umbenennen (oder Enter). Der neue Name steht danach überall – Kopfzeile, Planetenwahl, Karte, Meldungen.",
+      "Wer schon spielt, behält seine „Heimatwelt“ – und kann sie ab jetzt taufen.",
+      "Fremde Welten bleiben, wie sie heißen: Ihre Namen kommen aus der Weltgenerierung.",
+    ],
+    en: [
+      "New: your world has a name. A new game draws it from a list of thirty – “You run exactly one world: Ilmar” instead of “Homeworld”.",
+      "You can rename any world you own: in the Planet area at the top of “This world in numbers”, fill in the field and press Rename (or Enter). The new name then appears everywhere – header, planet picker, map, messages.",
+      "If you are already playing, you keep your “Homeworld” – and can name it from now on.",
+      "Foreign worlds keep their names: those come from the world generator.",
+    ],
+  },
+  {
+    version: "1.60",
+    de: [
+      "Behoben: Mit reingezoomtem Browser rutschten Teile der Oberfläche aus dem Bild – die Zoom-Knöpfe der Karten, die Kommandozeile, ganze Bedienzeilen. Sie waren nicht nur unsichtbar, sondern gar nicht mehr erreichbar: Die Seite selbst scrollt nicht.",
+      "Jetzt geben die schmalen Spalten links und rechts nach, bevor das Spielfeld schrumpft, und bei engen Fenstern stehen die Kartenspalten untereinander statt nebeneinander. Passt trotzdem etwas nicht, lässt sich das Spielfeld seitwärts schieben.",
+      "Bei normaler Fenstergröße ändert sich nichts – dieselbe Aufteilung wie bisher. Und die Schrift bleibt, wie sie war: kleiner gemacht wurden nur Spaltenbreiten, nicht der Text.",
+    ],
+    en: [
+      "Fixed: with the browser zoomed in, parts of the interface slid out of view – the maps' zoom buttons, the command row, whole control rows. They were not merely invisible but genuinely out of reach: the page itself does not scroll.",
+      "The narrow columns on the left and right now give way before the play area shrinks, and in narrow windows the map columns stack instead of sitting side by side. If something still does not fit, the play area can be scrolled sideways.",
+      "At a normal window size nothing changes – the same layout as before. And the text stays as it was: only column widths were reduced, never the type.",
+    ],
+  },
+  {
+    version: "1.59",
+    de: [
+      "Neu: Die Warteschlange lässt sich umsortieren. Jede wartende Zeile hat zwei kleine Pfeile ▲▼ für einen Platz nach vorn oder hinten – und du kannst eine Zeile auch mit der Maus an eine beliebige Stelle ziehen.",
+      "Der laufende Auftrag bleibt, wo er ist: Er ist bezahlt und angefangen. Wenn du ihn loswerden willst, nimm das × auf seiner Kachel.",
+      "Was du umsortierst, gilt sofort – der nächste Auftrag startet in deiner neuen Reihenfolge. Das funktioniert in allen drei Warteschlangen: Bau, Forschung und Werft.",
+    ],
+    en: [
+      "New: the queue can be reordered. Every waiting row has two small arrows ▲▼ to move it one place forward or back – and you can also drag a row anywhere with the mouse.",
+      "The running order stays where it is: it is paid for and under way. If you want rid of it, use the × on its tile.",
+      "Whatever you reorder takes effect immediately – the next order starts in your new sequence. This works in all three queues: construction, research and shipyard.",
+    ],
+  },
+  {
+    version: "1.58",
+    de: [
+      "Geändert: In der Werft gibt es statt „Bauen“ und „5×“ jetzt ein Zahlenfeld und einen Knopf. Trag ein, wie viele du willst – auch 12 oder 40.",
+      "Kosten und Bauzeit auf der Kachel rechnen sofort mit deiner Zahl mit, noch bevor du klickst. Enter im Feld baut ebenfalls.",
+      "Steht dort nichts Sinnvolles (leer, 0, ein Minus), sperrt der Knopf und sagt es – gebaut wird nur, was du wirklich eingetragen hast.",
+    ],
+    en: [
+      "Changed: the shipyard now offers a number field and a single button instead of “Build” and “5×”. Enter as many as you want – 12 or 40 as well.",
+      "Cost and build time on the tile follow your number immediately, before you even click. Pressing Enter in the field builds too.",
+      "If the field holds nothing sensible (empty, 0, a minus sign), the button locks and says so – only what you actually entered gets built.",
+    ],
+  },
+  {
+    version: "1.57",
+    de: [
+      "Geändert: In der Ressourcenleiste steht das Symbol jetzt direkt vor seiner Zahl, statt in einer eigenen Spalte links daneben zu schweben. Der Name rückt dafür an den linken Rand.",
+      "Das gilt für alle Kacheln beider Reihen – Vorräte wie Arbeitskraft, Energie, Forschung und Lager. Kachelgrößen und Höhe der Leiste bleiben gleich, es verrutscht nichts.",
+    ],
+    en: [
+      "Changed: in the resource bar the symbol now sits directly in front of its number instead of floating in a column of its own to the left. The name moves to the left edge in its place.",
+      "This applies to every tile in both rows – stocks as well as workforce, energy, research and storage. Tile sizes and the height of the bar stay the same, nothing shifts.",
+    ],
+  },
+  {
+    version: "1.56",
+    de: [
+      "Neu: Über der Warteschlange steht jetzt, was die wartenden Aufträge zusammen kosten – in derselben Schreibweise wie die Kostenzeile einer Kachel, mit dem ausgeschriebenen Text im Hinweisfenster.",
+      "Gezählt wird nur, was noch WARTET. Der laufende Auftrag ist bereits bezahlt – das war schon immer so, jetzt sieht man auch, was noch aussteht.",
+      "Gilt für Bauten und für die Werft. Die Forschung bekommt keine Zeile: Sie kostet kein Material, sondern die Arbeit deiner Labore.",
+    ],
+    en: [
+      "New: above the queue you now see what the waiting orders cost together – in the same notation as a tile's cost line, with the written-out text in the tooltip.",
+      "Only what is still WAITING counts. The running order has already been paid for – that was always the case, now you can also see what is still outstanding.",
+      "This applies to buildings and to the shipyard. Research gets no such line: it costs no material, only the work of your laboratories.",
+    ],
+  },
+  {
+    version: "1.55",
+    de: [
+      "Behoben: Auf einer Kolonie tat der Knopf „Ausbauen“ scheinbar nichts. Tatsächlich kam der Klick an – er baute nur auf der falschen Welt: auf der Heimatwelt, samt ihrer Ressourcen.",
+      "Der Grund: Die Gebäudekacheln bleiben beim Planetenwechsel stehen (das ist gewollt und hält die Anzeige ruhig). Ihr Knopf merkte sich dabei die Welt, die beim ersten Zeichnen offen war – und das ist immer die Heimatwelt.",
+      "Jetzt liest der Knopf beim Drücken, welche Welt du gerade ansiehst. Dasselbe gilt für das Abbrechen-Kreuz auf der Kachel: Es bricht den Auftrag der gewählten Welt ab.",
+      "Prüf deine Heimatwelt: Möglicherweise stehen dort Gebäude oder Warteschlangeneinträge, die du eigentlich auf einer Kolonie wolltest.",
+    ],
+    en: [
+      "Fixed: on a colony the “Upgrade” button appeared to do nothing. The click did arrive – it just built on the wrong world: the home world, spending its resources.",
+      "The reason: building tiles stay in place when you switch planets (that is deliberate and keeps the display steady). Their button, however, remembered the world that was open when it was first drawn – and that is always the home world.",
+      "The button now reads which world you are looking at when you press it. The same goes for the cancel cross on the tile: it cancels the order of the selected world.",
+      "Check your home world: it may hold buildings or queue entries you actually meant to place on a colony.",
+    ],
+  },
+  {
+    version: "1.54",
+    de: [
+      "Behoben: Die Hinweisfenster an den Ressourcenkacheln brauchten oft mehrere Anläufe – man musste die Maus mehrfach drauflegen, bis der Text kam.",
+      "Der Grund war die Ressourcenleiste selbst: Sie wurde jede Sekunde komplett neu aufgebaut. Der Browser lässt einen Hinweis erst nach etwa einer Sekunde ruhigen Zeigers erscheinen – und verwarf ihn jedes Mal, wenn die Kachel darunter in genau dieser Sekunde ausgetauscht wurde.",
+      "Jetzt bleiben die Kacheln stehen und bekommen nur frische Zahlen. Der Hinweis kommt beim ersten ruhigen Draufliegen. Gemessen in Firefox: vorher überlebte keine einzige der 17 Stellen mit Hinweistext eine Sekunde, jetzt alle 17.",
+      "Zu sehen ist sonst nichts Neues – die Leiste zeigt dieselben Zahlen an derselben Stelle. Nur der Lagerbalken gleitet jetzt weich, statt zu springen.",
+    ],
+    en: [
+      "Fixed: the hints on the resource tiles often took several attempts – you had to put the mouse on them repeatedly before the text appeared.",
+      "The cause was the resource bar itself: it was rebuilt from scratch every second. A browser only shows a hint after about a second of a resting pointer – and it discarded that hint every time the tile underneath was replaced during exactly that second.",
+      "The tiles now stay put and merely receive fresh numbers. The hint appears the first time you rest on it. Measured in Firefox: before, not a single one of the 17 places carrying a hint survived one second, now all 17 do.",
+      "Nothing else looks different – the bar shows the same numbers in the same place. Only the storage bar now glides instead of jumping.",
+    ],
+  },
+  {
+    version: "1.53",
+    de: [
+      "Behoben: Die Kachel des Handelspostens zeigte ein Minus vor den Credits, obwohl der Posten auf einer bevölkerten Welt welche einbringt. Sie kannte nur seine Betriebskosten – die Abgaben, die er abrechnet, hängen an deiner Bevölkerung und standen deshalb nicht in der Vorschau.",
+      "Jetzt steht dort, was die nächste Stufe unterm Strich bringt: auf einer Welt mit 50.000 Einwohnern „+71 cr/Jahr“ statt „−183 cr/Jahr“.",
+      "Ein Minus kann weiterhin dastehen, und das ist Absicht: Die Betriebskosten wachsen schneller als die Abgaben. Unter rund 36.000 Einwohnern trägt sich schon die erste Stufe nicht, und jede weitere bringt weniger als die vorige – zu jeder Weltgröße gibt es eine beste Stufe.",
+    ],
+    en: [
+      "Fixed: the trading post tile showed a minus in front of the credits, even though the post earns them on a populated world. It only knew its operating costs – the levies it collects depend on your population and were therefore missing from the preview.",
+      "It now shows what the next level brings on balance: on a world of 50,000 inhabitants “+71 cr/year” instead of “−183 cr/year”.",
+      "A minus can still appear, and that is deliberate: operating costs grow faster than the levies. Below roughly 36,000 inhabitants even the first level does not pay for itself, and every further level brings less than the one before – for every world size there is a best level.",
+    ],
+  },
+  {
+    version: "1.52",
+    de: [
+      "Behoben: Der Umschalter über den Meldungen zeigte unter „nur meine“ weiterhin fast alles – Bergungen fremder Flotten, Piraten in fremden Systemen, Ereignisse ohne jeden Bezug zu dir. Gemessen in einer Testgalaxie: von 30 Zeilen standen 27 fremde unter „nur meine“, jetzt keine einzige.",
+      "Neu geregelt ist, was „meine“ heißt: Meldungen über deine Planeten, deine Flotten, deine Bauten und deine Wirtschaft. Alles Fremde bleibt unter „alles“ – der Knopf sagt weiterhin, wie viele Zeilen das gerade sind.",
+      "Eine Ausnahme gibt es, und die ist Absicht: Weltereignisse wie der Blitz, die Erholung der Ozonschicht und die Teilchenflut stehen in BEIDEN Ansichten. Ein Filter darf niemanden die Rettung verpassen lassen.",
+    ],
+    en: [
+      "Fixed: the toggle above the log still showed almost everything under “mine only” – salvage runs by foreign fleets, pirates in foreign systems, events with no connection to you at all. Measured in a test galaxy: 27 of 30 lines were foreign ones showing under “mine only”, now not a single one.",
+      "What “mine” means is now defined: messages about your planets, your fleets, your construction and your economy. Everything foreign stays under “all” – and the button still says how many lines that currently is.",
+      "There is one exception, and it is deliberate: world events such as the flash, the recovery of the ozone layer and the particle flood appear in BOTH views. A filter must never let anyone miss their rescue.",
+    ],
+  },
+  {
+    version: "1.51",
+    de: [
+      "Neu im Bereich Development: „Spielstand“. Dort holst du deinen Stand als Text heraus – kopieren oder als Datei speichern – und spielst ihn von dort auch wieder ein.",
+      "Warum das wichtig ist: Dein Spielstand liegt im Speicher deines Browsers, und der gehört dem Browser. „Chronik beim Schließen löschen“, Privatmodus oder knapper Speicherplatz können ihn jederzeit entfernen – einem Tester ist genau das nach einem Neustart passiert.",
+      "Das Einspielen ersetzt die laufende Partie und fragt vorher nach. Passt ein Text nicht, sagt es das und lässt deinen Stand in Ruhe; der bisherige Stand wandert zusätzlich in die Rettungs-Sicherung des Browsers.",
+    ],
+    en: [
+      "New in the Development area: “Save game”. Pull your save out as text – copy it or store it as a file – and load it back from there.",
+      "Why this matters: your save game lives in your browser's storage, and that belongs to the browser. “Clear history on close”, private mode or a shortage of space can remove it at any time – which is exactly what happened to one tester after a restart.",
+      "Loading a save replaces the running game and asks first. If a text does not fit, it says so and leaves your save alone; the previous state is additionally moved to the browser's rescue backup.",
+    ],
+  },
+  {
+    version: "1.50",
+    de: [
+      "Nachgemessen: Der Zeitraffer rechnet ehrlich. Bei ×1, ×2, ×3 und ×4 kommt genau das heraus, was die angezeigte Rate über die vergangene Zeit verspricht -- über 300 einzeln geprüfte Takte hinweg, in zwei verschiedenen Ständen. Der Raffer bucht nichts doppelt.",
+      "Zur Einordnung großer Sprünge: Die Sprung-Knöpfe sind Echtzeit-Äquivalente. „+1h“ holt eine ganze Echtzeitstunde nach -- im Zeitmaßstab der Demo sind das rund 9,9 Spieljahre auf einen Schlag. Zwei Klicks bringen also fast 20 Jahresraten, während zwei Minuten bei ×3 nur ein Jahr sind.",
+    ],
+    en: [
+      "Measured and confirmed: the time lapse counts honestly. At ×1, ×2, ×3 and ×4 you get exactly what the displayed rate promises over the time that passed -- across more than 300 individually checked ticks, in two different save states. The time lapse books nothing twice.",
+      "For context on large jumps: the jump buttons are real-time equivalents. “+1h” catches up a full real-time hour -- on the demo's time scale that is about 9.9 game years at once. Two clicks therefore bring almost 20 annual rates, while two minutes at ×3 are just one year.",
+    ],
+  },
+  {
     version: "1.49",
     de: [
       "Behoben: Solange eine Ausbaustufe im Bau war, versprach die Kachel für die nächste Stufe zu viel -- am Kraftwerk „+11.520 MW“ statt der richtigen „+6.720 MW“, bei genau denselben Kosten daneben. Sie rechnete vom heutigen Stand aus statt von der Stufe, die dann steht.",

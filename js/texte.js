@@ -15,6 +15,46 @@
 // passiert das regelmäßig.
 
 export const EN = {
+  // --- Rückbau (A-095) ----------------------------------------------------
+  "Hier steht nichts, was sich abreißen ließe.": "There is nothing here to tear down.",
+  "Diese Anlage wird gerade gebaut – erst den Bau abbrechen.":
+    "This facility is under construction – cancel the build first.",
+  "Diese Anlage steht in der Warteschlange – erst den Auftrag herausnehmen.":
+    "This facility is in the queue – take the order out first.",
+  "Eine Stufe abreißen – keine Erstattung. Arbeitskraft und Strom werden frei.":
+    "Tear down one level – no refund. Workforce and power are freed up.",
+  "Noch einmal klicken: Stufe {stufe} wird abgerissen, ohne Erstattung.":
+    "Click again: level {stufe} will be torn down, with no refund.",
+  "Erst den laufenden Auftrag abbrechen oder aus der Warteschlange nehmen.":
+    "Cancel the running order first, or take it out of the queue.",
+  "Wirklich?": "Really?",
+
+  // --- Zusammengefasste Meldungen (A-083) ---------------------------------
+  "{text}  (+{anzahl} weitere, zuletzt Jahr {jahr}, Tag {tag})":
+    "{text}  (+{anzahl} more, last on year {jahr}, day {tag})",
+
+  // --- Planeten umbenennen (A-082) ----------------------------------------
+  Name: "Name",
+  "Name dieser Welt. Reine Beschriftung – ändert nichts an ihr.":
+    "Name of this world. A label only – it changes nothing about it.",
+  "Kein Planet gewählt.": "No planet selected.",
+  "Fremde Welten lassen sich nicht umbenennen.": "Foreign worlds cannot be renamed.",
+
+  // --- Warteschlange umsortieren (A-080) ----------------------------------
+  "Einen Platz nach vorn.": "One place forward.",
+  "Einen Platz nach hinten.": "One place back.",
+  "Dort ist kein Platz mehr.": "There is no room there.",
+  "Keine Warteschlange.": "No queue.",
+
+  // --- Werft-Stückzahl (A-079) --------------------------------------------
+  "Wie viele auf einmal gebaut werden sollen.": "How many are to be built at once.",
+  "Trag eine Stückzahl ein – mindestens 1.": "Enter a quantity – at least 1.",
+
+  // --- Warteschlangen-Summe (A-077) ---------------------------------------
+  "Kosten zusammen": "Total cost",
+  "Diese Aufträge kosten zusammen {buendel}. Abgebucht wird erst, wenn einer von ihnen vorn steht.":
+    "Together these orders cost {buendel}. Nothing is charged until one of them reaches the front.",
+
   // --- Ressourcen ---------------------------------------------------------
   Metall: "Metal",
   Silizium: "Silicon",
@@ -309,12 +349,12 @@ export const EN = {
   Eisenmeute: "Iron Pack",
   Steuerung: "Controls",
   Tasten: "Keys",
-  "Alles geht mit der Maus. Wer die Hand lieber auf der Tastatur laesst, kann die Ansicht auch so wechseln – Tasten aendern nie etwas an der Welt, sie zeigen nur anderes.":
+  "Alles geht mit der Maus. Wer die Hand lieber auf der Tastatur lässt, kann die Ansicht auch so wechseln – Tasten ändern nie etwas an der Welt, sie zeigen nur anderes.":
     "Everything works with the mouse. If you would rather keep your hand on the keyboard, you can switch the view that way too – keys never change anything in the world, they only show something else.",
   "1 bis 9 – die Bereiche in der Reihenfolge der Leiste links": "1 to 9 – the sections in the order of the bar on the left",
-  "Q und E – eine Welt zurueck, eine Welt weiter": "Q and E – one world back, one world forward",
+  "Q und E – eine Welt zurück, eine Welt weiter": "Q and E – one world back, one world forward",
   "M – Galaxiekarte · H – Handbuch": "M – galaxy map · H – manual",
-  "Esc – schliesst ein offenes Fenster": "Esc – closes an open window",
+  "Esc – schließt ein offenes Fenster": "Esc – closes an open window",
   "{stand} / {ziel} {einheit}": "{stand} / {ziel} {einheit}",
   "kein Projekt": "no project",
   "FE = Forschungseinheiten. Deine Labore erzeugen sie laufend, und sie fließen in GENAU EIN Projekt – die Warteschlange darunter wird nacheinander abgearbeitet.":
@@ -500,6 +540,8 @@ export const EN = {
   "{objekt}: Technologie bereits bekannt – nur Material geborgen.":
     "{objekt}: technology already known – only material salvaged.",
   "{objekt}: {fracht} geladen – Fundstelle erschöpft.": "{objekt}: loaded {fracht} – the site is exhausted.",
+  "{objekt}: {fracht} geborgen – die Fundstelle selbst bleibt verschlossen.":
+    "{objekt}: salvaged {fracht} – the site itself stays sealed.",
   "{objekt}: {geladen} geladen – {rest} bleiben liegen, Frachtraum voll.":
     "{objekt}: loaded {geladen} – {rest} left behind, cargo hold full.",
   "Kolonie auf {ort} gegründet – eigene Produktion läuft an.":
@@ -720,7 +762,6 @@ export const EN = {
   "{menge} Deuterium pro Strecke · Frachtraum {frachtraum}": "{menge} deuterium per leg · cargo hold {frachtraum}",
   "{hp} HP · {angriff} Angriff": "{hp} HP · {angriff} attack",
   Bauen: "Build",
-  "5 Stück auf einmal": "5 at once",
   '<li class="dezent">Auf einem Außenposten lässt sich nicht bauen.</li>':
     '<li class="dezent">You cannot build on an outpost.</li>',
 
@@ -814,19 +855,24 @@ export const EN = {
     "{flotte} is under way – transfers only work in port. The course can be changed at any time (click a target in the system, or “Turn back”).",
   "{flotte} im Hafen bei {planet}": "{flotte} in port at {planet}",
   "({anzahl} frei)": "({anzahl} free)",
+  "Abflug erst ab": "Depart only at",
+  Beladung: "load",
+  "wartet auf Beladung: {ist}/{soll} %": "waiting for cargo: {ist}/{soll}%",
+  "Die Route wartet am Ladehalt, bis der Frachtraum so voll ist. 0 heißt: sofort weiter, wie bisher. An einem reinen Entladehalt gilt die Schwelle nicht – dort käme nie Fracht dazu.":
+    "The route waits at a loading stop until the hold is this full. 0 means: carry on right away, as before. At a pure unloading stop the threshold does not apply – no cargo would ever arrive there.",
   "Deuterium an Bord: {menge} ({lager} im Lager)": "Deuterium on board: {menge} ({lager} in storage)",
-  "Anteil des hier gelagerten Deuteriums, das an Bord soll. Der Regler stellt nur ein -- erst „Tanken“ führt es aus.":
-    "Share of the deuterium stored here that should go on board. The slider only sets the amount – “Refuel” carries it out.",
+  "Anteil dessen, was noch in den Tank passt und im Lager liegt – 100 % füllt ihn auf. Der Regler stellt nur ein, erst „Tanken“ führt es aus.":
+    "Share of what still fits in the tank and is in storage – 100% tops it up. The slider only sets the amount, “Refuel” carries it out.",
   "Übernimmt die eingestellte Menge aus dem Hafenlager in den Tank.":
     "Moves the set amount from the port's storage into the tank.",
   Tanken: "Refuel",
   "Gesamten Treibstoff ans Lager zurückgeben": "Give all the fuel back to storage",
   "Alles abladen": "Unload all",
-  "Frachtraum {menge}/{kapazitaet} · Regler = % der max. Flottenkapazität":
-    "Cargo hold {menge}/{kapazitaet} · slider = % of the fleet's maximum capacity",
+  "Frachtraum {menge}/{kapazitaet} · noch frei: {frei}":
+    "Cargo hold {menge}/{kapazitaet} · still free: {frei}",
   "{res} ({lager} im Lager)": "{res} ({lager} in storage)",
-  "Anteil der maximalen Frachtkapazität dieser Flotte -- nicht des gerade freien Platzes. Der Regler stellt nur ein, „Laden“ führt aus.":
-    "Share of this fleet's maximum cargo capacity – not of the space currently free. The slider only sets the amount, “Load” carries it out.",
+  "Anteil dessen, was gerade wirklich ladbar ist: freier Frachtraum, begrenzt durch den Lagerbestand – 100 % nimmt alles davon. Der Regler stellt nur ein, „Laden“ führt aus.":
+    "Share of what can actually be loaded right now: free cargo space, limited by what is in storage – 100% takes all of it. The slider only sets the amount, “Load” carries it out.",
   "Lädt die eingestellte Menge {res} aus dem Hafenlager in den Frachtraum.":
     "Loads the set amount of {res} from the port's storage into the cargo hold.",
   Laden: "Load",
@@ -923,6 +969,8 @@ export const EN = {
   "Erst aufdecken, dann zeigt sich, was hier liegt.": "Reveal it first, then you will see what lies here.",
   "Ertrag: {ertrag}": "Yield: {ertrag}",
   " · Ertrag: {ertrag}": " · yield: {ertrag}",
+  "genau {menge}": "exactly {menge}",
+  " · liegengeblieben: {rest} (bergbar)": " · left behind: {rest} (salvageable)",
   "Liegengeblieben: {rest}": "Left behind: {rest}",
   "Verschlossen – benötigt {tech}": "Sealed – requires {tech}",
   "verschlossen – benötigt {tech}": "sealed – requires {tech}",
@@ -1281,4 +1329,34 @@ export const EN = {
   Anreicherungstechnik: "Enrichment Technology",
   "Schaltet am Deuterium-Extraktor einen zweiten Betriebsmodus frei: Anreicherung trennt schweren Wasserstoff aus Wasser, statt ihn zu fördern – bezahlt wird mit Strom. Deuterium steckt in jedem Wasser, aber nur in jedem sechstausendvierhundertsten Wasserstoffkern; die beiden Sorten unterscheiden sich chemisch fast nicht, und genau deshalb ist die Trennung Arbeit. Sie erzeugt nichts, sie sortiert – und wie jede Sortierung kostet sie mehr, als der Unterschied wert ist. Wieviel mehr, entscheidet in diesem Spiel die Spielbarkeit und nicht die Physik: wirklich liefert eine Tonne Deuterium in der Fusion um Größenordnungen mehr Energie, als ihre Abtrennung kostet.":
     "Unlocks a second operating mode on the deuterium extractor: enrichment separates heavy hydrogen from water instead of extracting it – paid for in power. Deuterium is in every drop of water, but only in one hydrogen nucleus out of every six thousand four hundred; the two kinds are chemically almost identical, and that is exactly why separating them is work. It creates nothing, it sorts – and like any sorting it costs more than the difference is worth. How much more is decided in this game by playability, not by physics: in reality a tonne of deuterium yields orders of magnitude more energy in fusion than its separation costs.",
+  // --- Spielstand sichern und zurückholen (A-073) -------------------------
+  Spielstand: "Save game",
+  "Dein Spielstand liegt im Speicher deines Browsers – und der gehört dem Browser, nicht dir: „Chronik beim Schließen löschen“, Privatmodus oder knapper Speicherplatz können ihn jederzeit entfernen. Hier holst du ihn als Text heraus und legst ihn ab, wo er dir gehört.":
+    "Your save game lives in your browser's storage – and that belongs to the browser, not to you: “clear history on close”, private mode or a shortage of space can remove it at any time. Here you can pull it out as text and keep it somewhere that is yours.",
+  "Einspielen ersetzt die laufende Partie. Der bisherige Stand wandert dabei in die Rettungs-Sicherung des Browsers – aber verlass dich nicht darauf, hol ihn dir vorher heraus.":
+    "Loading a save replaces the running game. The previous state is moved to the browser's rescue backup – but do not rely on that, pull it out first.",
+  "Hier erscheint dein Spielstand – oder füge hier einen ein, den du zurückholen willst.":
+    "Your save game appears here – or paste one here that you want to restore.",
+  "Stand anzeigen": "Show save",
+  "Der Stand steht im Feld und ist markiert – mit Strg+C kopieren und ablegen.":
+    "The save is in the field and selected – press Ctrl+C to copy it and keep it somewhere.",
+  "Als Datei speichern": "Save to file",
+  "Gespeichert als {datei}.": "Saved as {datei}.",
+  Einspielen: "Load save",
+  "Diesen Stand einspielen? Die laufende Partie wird dabei ersetzt.":
+    "Load this save? The running game will be replaced.",
+  "Kein Text eingefügt.": "No text pasted.",
+  "Das ist kein Spielstand – der Text ließ sich nicht lesen. Beim Kopieren nichts weglassen, auch nicht die Klammern am Anfang und Ende.":
+    "That is not a save game – the text could not be read. When copying, leave nothing out, including the braces at the start and the end.",
+  "Das ist kein Spielstand.": "That is not a save game.",
+  "Das ist zwar lesbarer Text, aber kein Spielstand dieses Spiels.":
+    "That is readable text, but not a save game from this game.",
+  "Dieser Stand stammt aus einer älteren Fassung des Spiels (Format {alt}, gebraucht wird {neu}) und lässt sich nicht mehr laden.":
+    "This save comes from an older version of the game (format {alt}, {neu} is required) and can no longer be loaded.",
+  "Der Spielstand ist unvollständig – vermutlich wurde beim Kopieren ein Teil abgeschnitten.":
+    "The save game is incomplete – a part of it was probably cut off while copying.",
+  "Damit das Weggehen sicher ist, muss dein Stand die Pause überleben – und er liegt im Speicher deines Browsers. Der räumt ihn unter Umständen von selbst weg: beim Löschen der Chronik, im Privatmodus oder wenn ihm der Platz ausgeht.":
+    "For walking away to be safe, your save has to survive the break – and it lives in your browser's storage. The browser may clear it on its own: when you delete your history, in private mode, or when it runs out of space.",
+  "Vorsorge dagegen steht im Bereich Development unter „Spielstand“: dort holst du deinen Stand als Text heraus und legst ihn ab, wo er dir gehört – und spielst ihn von dort auch wieder ein.":
+    "The precaution against that is in the Development area under “Save game”: pull your save out as text, keep it somewhere that is yours – and load it back from there.",
 };
