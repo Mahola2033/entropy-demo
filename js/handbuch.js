@@ -156,7 +156,7 @@ export function handbuchAbschnitte() {
           "Die Schwerkraft ist der stärkste einzelne Faktor, und das aus einem einfachen Grund: jedes Bauwerk muss sein eigenes Gewicht tragen. Auf einer schweren Welt kostet dasselbe Gebäude mehr Material."
         ),
         t(
-          "Manches siehst du, ohne es nutzen zu können. Ein tiefliegendes Vorkommen bleibt sichtbar und verschlossen, bis du die passende Technologie hast. Entdecken und Verwerten sind zwei verschiedene Dinge."
+          "Manches siehst du, ohne es nutzen zu können. Ein tiefliegendes Vorkommen bleibt sichtbar und verschlossen, bis du die passende Technologie hast. Entdecken und Verwerten sind zwei verschiedene Dinge. Verschlossen ist dabei nur die Quelle selbst – was schon vorher dort liegt oder zurückgelassen wurde, kannst du jederzeit bergen."
         ),
       ],
     },

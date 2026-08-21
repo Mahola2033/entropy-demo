@@ -439,9 +439,16 @@ export function zeitfaktorBezugSetzen(wert) {
 // spränge um die ganze Abwesenheit nach vorn — und der pausierte Stand holte
 // beim Öffnen genau das auf, wovor die Pause ihn bewahren sollte. Neu
 // verankert steht die Spielzeit exakt dort, wo sie beim Schließen stand.
-export function pauseNachziehen(state) {
+// `jetzt` ist optional (Rückfall `Date.now()`, Spielverhalten unverändert) --
+// dasselbe Muster wie bei A-003/A-024: ein Aufrufer, der die Wanduhr schon in
+// der Hand hat (Test, Messwerkzeug), reicht sie durch, statt dass diese
+// Funktion sie ein zweites Mal selbst liest. Ohne das driftet ein
+// Vergleich gegen `spielzeitJetzt()` danach um die Millisekunde, die
+// zwischen den beiden `Date.now()`-Aufrufen vergeht (A-096, aus A-076
+// gemessen: 2 von 7 Vollsuiten-Läufen fielen genau darüber um).
+export function pauseNachziehen(state, jetzt = Date.now()) {
   if (zeitfaktorVon(state) !== 0) return;
-  state.testZeitOffsetMs = state.letzterTick - Date.now();
+  state.testZeitOffsetMs = state.letzterTick - jetzt;
   zeitfaktorBezug = null;
 }
 
@@ -1204,6 +1211,7 @@ export function produktionsAufloesung(state, planet) {
     drosselung: {},
     effizienz: 1,
     faktoren: {},
+    verderb: {},
   };
   if (!planet || planet.typ === "aussenposten" || !planet.gebaeude) return leer;
 
@@ -1442,7 +1450,37 @@ export function produktionsAufloesung(state, planet) {
     fluss[resId] = produktion[resId] - wirklichVerbraucht;
   }
 
-  return { lager, fluss, produktion, verbrauch, bedarf, drosselung, effizienz: energieFaktor, faktoren };
+  // A-112: der momentane Verderbverlust je Ressource, Bestand × λ im
+  // Augenblick -- GETRENNT von `lager`, nicht eingerechnet. Die Simulation
+  // zieht denselben λ bereits exponentiell über die Zeitspanne ab
+  // (`verderbFaktor` in simulation.js, angewandt in planetRatenAnwenden).
+  // Stünde dieser Verlust hier schon in `lager`, zöge planetRatenAnwenden ihn
+  // ein zweites Mal ab -- der Doppelabzug aus den Bekannten Fallen von A-112.
+  // Nur die Anzeige (`sichtbareRate` unten) verrechnet beide Felder; die
+  // Simulation liest `lager` weiterhin unverändert.
+  const verderb = {};
+  for (const resId of LAGER_RESSOURCEN) {
+    const def = RESSOURCEN[resId];
+    if (!def || !def.verderb) continue;
+    verderb[resId] = (planet.ressourcen[resId] || 0) * def.verderb;
+  }
+
+  return { lager, fluss, produktion, verbrauch, bedarf, drosselung, effizienz: energieFaktor, faktoren, verderb };
+}
+
+// A-112: die tatsächlich ANGEZEIGTE Nettorate einer Lagerressource --
+// Produktion minus Verbrauch (`lager`) minus den momentanen Verderbverlust
+// (`verderb`). Klaus' Fund war genau die Lücke zwischen beiden: die Kachel
+// zeigte nur `lager` und nannte das "die Rate", während der Verderb (Anteil
+// des BESTANDS) bei großem Vorrat die Netto-Produktion übersteigen kann --
+// grünes Plus, schrumpfender Bestand.
+//
+// EINE Funktion für JEDEN Anzeige-Ort (Regelwerk B3): Ressourcenkachel,
+// Imperiumsübersicht, „Diese Welt in Zahlen", Verarbeitungsreserve. Wer hier
+// stattdessen `lager[resId]` direkt läse, baute den A-112-Fehler an einer
+// neuen Stelle nach.
+export function sichtbareRate(lager, verderb, resId) {
+  return (lager[resId] || 0) - (verderb[resId] || 0);
 }
 
 export function effektiveRaten(state, planet) {
@@ -1838,6 +1876,13 @@ export function planetUebersicht(state, planet) {
   // Warenlager.
   const kapazitaet = lagerKapazitaetGesamt(state, planet);
   const belegt = lagerBelegung(planet);
+  // A-112: die ANGEZEIGTE Rate je Lagerressource, EINMAL für den ganzen Block
+  // gerechnet -- `raten.lager` abzüglich des momentanen Verderbverlusts
+  // (`sichtbareRate`). Speicherzeile, Lagerprognose und Flüsse-netto lesen
+  // alle von hier, damit dieselbe Nettorate nicht drei zweite Rechenwege
+  // bekommt (Regelwerk B3).
+  const lagerAnzeige = {};
+  for (const resId of LAGER_RESSOURCEN) lagerAnzeige[resId] = sichtbareRate(raten.lager, raten.verderb, resId);
   const speicher = [];
   for (const def of Object.values(RESSOURCEN)) {
     if (!def.speicher) continue;
@@ -1851,7 +1896,7 @@ export function planetUebersicht(state, planet) {
         ? wachstumProStunde
         : def.art === "fluss"
           ? raten.fluss[def.id] || 0
-          : raten.lager[def.id] || 0;
+          : lagerAnzeige[def.id] || 0;
     speicher.push({
       resId: def.id,
       bestand,
@@ -1865,7 +1910,7 @@ export function planetUebersicht(state, planet) {
     belegt,
     kapazitaet,
     frei: Math.max(0, kapazitaet - belegt),
-    vollInStunden: aussenposten ? null : lagerVollInStunden(state, planet, raten.lager),
+    vollInStunden: aussenposten ? null : lagerVollInStunden(state, planet, lagerAnzeige),
     speicher,
   };
 
@@ -1881,7 +1926,7 @@ export function planetUebersicht(state, planet) {
       resId,
       produktion,
       verbrauch,
-      netto: raten.lager[resId] || 0,
+      netto: lagerAnzeige[resId] || 0,
       drosselung: raten.drosselung[resId] === undefined ? 1 : raten.drosselung[resId],
     });
   }
@@ -2422,6 +2467,22 @@ export function momenteNachziehen(state) {
   }
 }
 
+// --- Der Hinweis auf ein zu kleines Fenster (A-111) ------------------------
+//
+// EIN Merker, keine Liste wie bei MOMENTE: es gibt nur einen Anlass. Bewusst
+// NICHT Teil der drei Momente oben -- deren Bedingung ist Spielzustand
+// (Werft gebaut, Piraten gesichtet), hier ist die Bedingung eine gemessene
+// Fenstergröße. Die Prüfung selbst steht deshalb auch nicht hier, sondern in
+// ui.js (renderFensterHinweis) -- sie braucht das echte DOM, das dieses
+// Modul nicht hat.
+export function fensterHinweisGesehen(state) {
+  return !!state.fensterHinweisGesehen;
+}
+
+export function fensterHinweisMerken(state) {
+  state.fensterHinweisGesehen = true;
+}
+
 // Der „Was ist neu"-Hinweis nach einem Versionswechsel (A-040).
 //
 // ANLASS (Tobi, 17.08.2026): „Prio hoch für alle User-Interaction-Geschichten:
@@ -2595,6 +2656,28 @@ export function gebaeudeKosten(planet, def, level) {
 
 export function schiffKosten(planet, schiffId, anzahl = 1) {
   return skalieren(SCHIFFE[schiffId].kosten, anzahl * startKostenFaktor(planet));
+}
+
+// Höchste Stückzahl, die der BESTAND jetzt sofort trägt (R-2/A-100). Die
+// Kosten wachsen linear mit der Stückzahl (`startKostenFaktor` hängt nur am
+// Planeten, nicht an `anzahl`) -- deshalb reicht Teilen statt Suchen: je
+// Ressource Bestand ÷ Stückkosten, davon die kleinste. Eine Ressource ohne
+// Kostenanteil begrenzt nicht mit (0 ÷ irgendwas wäre immer 0 und würde
+// jedes Schiff sperren).
+//
+// Bewusst NUR der Bestand -- kein Blick auf die Warteschlange (A-012, ein
+// wartender Kopf DARF auf Nachschub warten). Das ist etwas anderes als „was
+// das Zahlenfeld gerade vorschlägt": Wer weniger eintippt, als er hat, will
+// sofort bauen, nicht anstellen.
+export function schiffMaxBezahlbar(planet, schiffId) {
+  const stueckkosten = schiffKosten(planet, schiffId, 1);
+  let max = Infinity;
+  for (const [resId, kosten] of Object.entries(stueckkosten)) {
+    if (kosten <= 0) continue;
+    const bestand = (planet.ressourcen && planet.ressourcen[resId]) || 0;
+    max = Math.min(max, Math.floor(bestand / kosten));
+  }
+  return Number.isFinite(max) ? Math.max(0, max) : Infinity;
 }
 
 // Was EIN wartender Auftrag kostet (A-077).

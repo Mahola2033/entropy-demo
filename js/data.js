@@ -17,7 +17,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "1.69";
+export const VERSION = "0.2.0";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von uebernehmen.mjs beim Kopieren auf "spielkopie"
@@ -557,6 +557,20 @@ export const SYMBOLE = {
   frachter: "🚚",
   kolonieschiff: "🏠",
   kriegsschiff: "⚔️",
+  // Oberfläche (A-102, Prinzip 9: alle Symbole liegen hier, nicht als
+  // Literal im UI-Code) -- vorher sechsmal 🔒 und einmal 🔁 im Quelltext.
+  gesperrt: "🔒",
+  route: "🔁",
+};
+
+// Kartensymbole: Systemliste UND Galaxiekarte (js/karte.js) zeichnen
+// denselben Typ mit demselben Zeichen -- eine zweite Tabelle wäre eine
+// zweite Wahrheit darüber, wie ein Wrack aussieht (Prinzip 5). Bis A-102
+// stand das als lokaler Export in js/ui.js; Prinzip 9 verlangt aber, dass
+// ALLE Symbole hier liegen.
+export const TYP_SYMBOL = {
+  heimat: "🏠", planet: "🪐", asteroiden: "🪨", wrack: "🛰️",
+  anomalie: "✦", struktur: "◈", gefahr: "☢", leer: "·",
 };
 
 export const LAGER_RESSOURCEN = Object.values(RESSOURCEN)

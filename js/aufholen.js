@@ -230,15 +230,20 @@ function fortschrittsanzeige() {
   const kasten = document.createElement("div");
   kasten.id = "aufholen";
   kasten.setAttribute("role", "status");
+  // A-102: die vier Werte waren die GitHub-Dunkelpalette, nicht die des
+  // Spiels -- der einzige Dialog, der eine fremde Sprache sprach. `var(...)`
+  // funktioniert hier genauso ungebunden wie die Literale zuvor: die
+  // Variablen stehen in `:root` in css/style.css, geladen über den
+  // <link>-Tag in index.html, unabhängig vom JS-Renderzyklus.
   kasten.style.cssText =
     "position:fixed;inset:0;display:flex;align-items:center;justify-content:center;" +
-    "flex-direction:column;gap:1rem;background:#0b0e14;color:#c9d1d9;" +
+    "flex-direction:column;gap:1rem;background:var(--bg);color:var(--text);" +
     "font:1rem/1.5 system-ui,sans-serif;z-index:9999";
   const text = document.createElement("p");
   const balken = document.createElement("div");
-  balken.style.cssText = "width:min(24rem,60vw);height:4px;background:#22272e;border-radius:2px";
+  balken.style.cssText = "width:min(24rem,60vw);height:4px;background:var(--bg-item);border-radius:2px";
   const fuellung = document.createElement("div");
-  fuellung.style.cssText = "height:100%;width:0;background:#58a6ff;border-radius:2px";
+  fuellung.style.cssText = "height:100%;width:0;background:var(--akzent);border-radius:2px";
   balken.appendChild(fuellung);
   kasten.append(text, balken);
   document.body.appendChild(kasten);

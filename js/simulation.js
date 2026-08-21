@@ -4065,6 +4065,12 @@ function routeLadenAusfuehren(state, flotte, planet, halt) {
 // um billig zu sein, und fein genug, dass niemand zusieht.
 const ROUTE_WARTE_TAKT = MS_PRO_STUNDE / 2;
 
+// R-7/A-100: EINE Meldung, wenn eine Route wegen der Mindestbeladung länger
+// als 24 h SPIELZEIT an einem Halt steht. Nicht die Wartelage selbst
+// begrenzen (kein automatischer Abflug -- das ist Spielerentscheidung),
+// nur die stille Dauerwartezeit hörbar machen (Prinzip 10a).
+const ROUTE_WARTE_HINWEIS_MS = 24 * MS_PRO_STUNDE;
+
 // Wie voll ist der Frachtraum? Anteil, nicht Prozent -- die Prozentzahl
 // gehört der Oberfläche.
 export function routeBeladungAnteil(state, flotte) {
@@ -4096,8 +4102,21 @@ export function routeAbfahrtFrei(state, flotte, halt) {
 function routeAbfahrtVersuchen(state, flotte, haltIndex, zeit) {
   const route = flotte.route;
   if (!routeAbfahrtFrei(state, flotte, route.halte[haltIndex])) {
+    // R-7: eine NEUE Wartelage beginnt, wenn vorher an einem anderen Halt
+    // (oder gar nicht) gewartet wurde -- `routeWartenBeenden` setzt
+    // `wartetAn` bei jeder Abfahrt auf null, zwei Wartelagen am selben Halt
+    // liegen also immer ein "null" dazwischen. Der Meldungsstand
+    // (`wartetGemeldetSeit`) wird bewusst NICHT hier zurückgesetzt, sondern
+    // erst mit dem neuen `wartetSeit` verglichen -- "neues Warten, neuer
+    // Anspruch" ohne einen zweiten Merker zu brauchen. `wartetSeit == null`
+    // fängt zusätzlich einen alten Spielstand ab, der schon MITTEN in einer
+    // Wartelage steckt (das Feld gab es dort noch nicht) -- ohne die
+    // Zusatzbedingung bekäme genau diese eine, laufende Wartelage nie einen
+    // Startzeitpunkt und würde nie gemeldet.
+    if (route.wartetAn !== haltIndex || route.wartetSeit == null) route.wartetSeit = zeit;
     route.wartetAn = haltIndex;
     route.wartetAb = zeit + ROUTE_WARTE_TAKT;
+    routeWarteHinweisPruefen(state, flotte, zeit);
     planFlotteGeaendert(state, flotte);
     return;
   }
@@ -4110,6 +4129,29 @@ function routeWartenBeenden(route) {
   if (!route) return;
   route.wartetAn = null;
   route.wartetAb = null;
+  route.wartetSeit = null;
+}
+
+// Die eine Meldung aus R-7 (A-100): 24 h Spielzeit an einem Halt gewartet,
+// noch keine Meldung für DIESE Wartelage. `wartetGemeldetSeit` trägt den
+// `wartetSeit`-Wert, für den schon gemeldet wurde -- ein Vergleich reicht,
+// kein zweiter Merker zum Zurücksetzen nötig (siehe routeAbfahrtVersuchen).
+// Kein automatischer Abflug: die Meldung informiert, sie greift nicht ein.
+function routeWarteHinweisPruefen(state, flotte, zeit) {
+  const route = flotte.route;
+  if (route.wartetSeit == null || route.wartetGemeldetSeit === route.wartetSeit) return;
+  if (zeit - route.wartetSeit < ROUTE_WARTE_HINWEIS_MS) return;
+  route.wartetGemeldetSeit = route.wartetSeit;
+  meldungHinzufuegen(
+    state,
+    t("{flotte} wartet seit einem Tag auf Beladung: {anteil}/{schwelle} %.", {
+      flotte: flotte.name,
+      anteil: Math.round(routeBeladungAnteil(state, flotte) * 100),
+      schwelle: route.mindestBeladung || 0,
+    }),
+    `routewarte-${flotte.id}`,
+    herkunftVon(flotte)
+  );
 }
 
 // Der Wartetakt: nachladen, was inzwischen dazugekommen ist, dann erneut

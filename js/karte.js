@@ -32,7 +32,7 @@
 // Eine geschlossene Ansicht darf keine Rechenzeit kosten -- eine Messung hat
 // der alten Galaxieansicht 4,5 ms pro Sekunde nachgewiesen, auch geschlossen.
 
-import { GALAXIE_REGELN, SPIELER_FRAKTION } from "./data.js";
+import { GALAXIE_REGELN, SPIELER_FRAKTION, TYP_SYMBOL } from "./data.js";
 import { systemPosition, systemName, sternFuer } from "./galaxie.js";
 import { flottePosition, schiffeText, flotteRestreichweite } from "./flotten.js";
 import { holeSystem, objektGesperrt } from "./systeme.js";
@@ -48,7 +48,7 @@ import {
 } from "./state.js";
 import { stromFuer } from "./zufall.js";
 import { t, sprache } from "./sprache.js";
-import { listeAbgleichen, attributSetzen, textSetzen, TYP_SYMBOL, fmtDauer } from "./ui.js";
+import { listeAbgleichen, attributSetzen, textSetzen, fmtDauer } from "./ui.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 

@@ -21,6 +21,7 @@ import {
   renderProfilAnsichten,
   hotkeysEinrichten,
   notausgangTafel,
+  fensterHinweisPruefen,
 } from "./ui.js";
 import { testmodusEinrichten } from "./testmodus.js";
 import { spracheLaden, t } from "./sprache.js";
@@ -139,6 +140,10 @@ startAufholen(state).then((diagnose) => {
     const taktFertig = phase("Sekundentakt");
     deckelMelden(state, vorspulenBisJetzt(state));
     render(state, root);
+    // A-111: NUR hier, im gewöhnlichen Sekundentakt -- bewusst nicht nach dem
+    // render() im grosseLuecke-Zweig darüber (der hängt an aufholen(), also
+    // demselben Umfeld wie der Start, siehe Begründung in ui.js).
+    fensterHinweisPruefen(state, root);
     taktFertig();
   }, 1000);
 

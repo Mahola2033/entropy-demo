@@ -25,6 +25,10 @@ export const EN = {
     "Tear down one level – no refund. Workforce and power are freed up.",
   "Noch einmal klicken: Stufe {stufe} wird abgerissen, ohne Erstattung.":
     "Click again: level {stufe} will be torn down, with no refund.",
+  // R-3/A-100: warnt vorher, wenn der Rückbau Wohnraum unter die aktuelle
+  // Bevölkerung drückt.
+  "Wohnraum für {n} fällt weg – die Bevölkerung schrumpft. ":
+    "Housing for {n} will be gone – the population will shrink. ",
   "Erst den laufenden Auftrag abbrechen oder aus der Warteschlange nehmen.":
     "Cancel the running order first, or take it out of the queue.",
   "Wirklich?": "Really?",
@@ -50,10 +54,10 @@ export const EN = {
   "Wie viele auf einmal gebaut werden sollen.": "How many are to be built at once.",
   "Trag eine Stückzahl ein – mindestens 1.": "Enter a quantity – at least 1.",
 
-  // --- Warteschlangen-Summe (A-077) ---------------------------------------
-  "Kosten zusammen": "Total cost",
-  "Diese Aufträge kosten zusammen {buendel}. Abgebucht wird erst, wenn einer von ihnen vorn steht.":
-    "Together these orders cost {buendel}. Nothing is charged until one of them reaches the front.",
+  // --- Warteschlangen-Summe (A-077, Beschriftung seit R-1/A-100) ----------
+  "Wartend zusammen": "Waiting total",
+  "Was hier noch WARTET, kostet zusammen {buendel} – der laufende Auftrag ist bereits bezahlt und zählt nicht mit. Abgebucht wird erst, wenn ein Eintrag vorn steht.":
+    "What's still WAITING here costs {buendel} together – the running order is already paid for and isn't included. Nothing is charged until an entry reaches the front.",
 
   // --- Ressourcen ---------------------------------------------------------
   Metall: "Metal",
@@ -858,6 +862,9 @@ export const EN = {
   "Abflug erst ab": "Depart only at",
   Beladung: "load",
   "wartet auf Beladung: {ist}/{soll} %": "waiting for cargo: {ist}/{soll}%",
+  // R-7/A-100: EINE Meldung nach 24 h Spielzeit Wartelage, nicht mehr.
+  "{flotte} wartet seit einem Tag auf Beladung: {anteil}/{schwelle} %.":
+    "{flotte} has been waiting a day for cargo: {anteil}/{schwelle}%.",
   "Die Route wartet am Ladehalt, bis der Frachtraum so voll ist. 0 heißt: sofort weiter, wie bisher. An einem reinen Entladehalt gilt die Schwelle nicht – dort käme nie Fracht dazu.":
     "The route waits at a loading stop until the hold is this full. 0 means: carry on right away, as before. At a pure unloading stop the threshold does not apply – no cargo would ever arrive there.",
   "Deuterium an Bord: {menge} ({lager} im Lager)": "Deuterium on board: {menge} ({lager} in storage)",
@@ -871,6 +878,11 @@ export const EN = {
   "Frachtraum {menge}/{kapazitaet} · noch frei: {frei}":
     "Cargo hold {menge}/{kapazitaet} · still free: {frei}",
   "{res} ({lager} im Lager)": "{res} ({lager} in storage)",
+  // A-101: Sperrgründe der Laden-/Tanken-Knöpfe im strukturellen Nullzustand.
+  "Frachtraum voll.": "Cargo hold full.",
+  "{res} im Lager leer.": "No {res} in storage.",
+  "Tank voll.": "Tank full.",
+  "Kein Deuterium im Lager.": "No deuterium in storage.",
   "Anteil dessen, was gerade wirklich ladbar ist: freier Frachtraum, begrenzt durch den Lagerbestand – 100 % nimmt alles davon. Der Regler stellt nur ein, „Laden“ führt aus.":
     "Share of what can actually be loaded right now: free cargo space, limited by what is in storage – 100% takes all of it. The slider only sets the amount, “Load” carries it out.",
   "Lädt die eingestellte Menge {res} aus dem Hafenlager in den Frachtraum.":
@@ -1095,8 +1107,8 @@ export const EN = {
     "No planet is like another, and the differences are not random numbers but follow from what the planet is. A desert world carries metal and silicon in abundance and grows nothing. A gas giant has no surface to build on at all.",
   "Die Schwerkraft ist der stärkste einzelne Faktor, und das aus einem einfachen Grund: jedes Bauwerk muss sein eigenes Gewicht tragen. Auf einer schweren Welt kostet dasselbe Gebäude mehr Material.":
     "Gravity is the single strongest factor, for a simple reason: every structure has to carry its own weight. On a heavy world the same building costs more material.",
-  "Manches siehst du, ohne es nutzen zu können. Ein tiefliegendes Vorkommen bleibt sichtbar und verschlossen, bis du die passende Technologie hast. Entdecken und Verwerten sind zwei verschiedene Dinge.":
-    "Some things you can see without being able to use them. A deep deposit stays visible and locked until you have the matching technology. Discovering and exploiting are two different things.",
+  "Manches siehst du, ohne es nutzen zu können. Ein tiefliegendes Vorkommen bleibt sichtbar und verschlossen, bis du die passende Technologie hast. Entdecken und Verwerten sind zwei verschiedene Dinge. Verschlossen ist dabei nur die Quelle selbst – was schon vorher dort liegt oder zurückgelassen wurde, kannst du jederzeit bergen.":
+    "Some things you can see without being able to use them. A deep deposit stays visible and locked until you have the matching technology. Discovering and exploiting are two different things. Only the source itself is locked – anything that was already lying there or left behind can be salvaged at any time.",
 
   "Flotten, Reichweite und Treibstoff": "Fleets, range and fuel",
   "Jedes Schiff hat einen Tank, und die Reichweite einer Flotte ist der Tank geteilt durch den Verbrauch – also ein Mittelwert über alle Schiffe darin. Das hat eine Folge, die nirgends als Sonderregel steht: ein Kriegsschiff im Erkunderverband verkürzt dessen Reichweite.":
@@ -1211,6 +1223,10 @@ export const EN = {
     "Your shipyard is up. Probes are one-way ships – each uncovers exactly one target and stays there. Scouts come back and work through several orbits one after another. Freighters carry, and their hold is also the only place for extra fuel. Which hulls leave the line at all depends on the shipyard's level – it does not just build faster, it unlocks the larger ones in the first place.",
   "Piraten in deinem System. Sie sind kein Naturereignis: sie bauen, tanken und kämpfen nach denselben Regeln wie du. Sie greifen Fracht an und nie Planeten – deine Welten sind sicher, deine Transporte nicht. Und im All gibt es keine Tarnung: du siehst sie kommen, so wie sie dich. Ein Kriegsschiff im Verband ist die Antwort darauf.":
     "Pirates in your system. They are not a force of nature: they build, refuel and fight by the same rules you do. They attack cargo and never planets – your worlds are safe, your transports are not. And there is no stealth in space: you see them coming, just as they see you. A warship in the group is the answer to that.",
+
+  // --- Der Hinweis auf ein zu kleines Fenster (A-111) ------------------------
+  "Dein Fenster ist kleiner, als Entropy es erwartet – die Oberfläche ist für etwa 1900 × 950 Punkte gebaut, hier sind es {breite} × {hoehe}. Die Seite scrollt deshalb, statt etwas abzuschneiden. Mehr Platz bekommst du mit Vollbild (F11) oder einer niedrigeren Windows-Skalierung.":
+    "Your window is smaller than Entropy expects – the interface is built for about 1900 × 950 points, here it is {breite} × {hoehe}. The page scrolls because of that, instead of cutting something off. You get more room with fullscreen (F11) or a lower Windows scaling setting.",
 
   // --- Ersteinstieg: was für ein Spiel das ist, und wo alles liegt (A-059) --
   "Entropy ist deshalb ein Spiel für nebenbei. Es läuft langsam, und das ist Absicht und nicht dein Fehler: Fortschritt braucht hier Geduld, in den ersten Minuten passiert wenig, und die Welt arbeitet auch dann weiter, wenn du nicht hinsiehst. Wegzugehen ist kein Aussetzen – nur die Frist wartet eben auch nicht.":

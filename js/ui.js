@@ -25,6 +25,7 @@ import {
   affinitaetVon,
   AFFINITAET_GUT,
   SYMBOLE,
+  TYP_SYMBOL,
   kostenFuerLevel,
   bauzeitFuerLevel,
   forschungsAufwand,
@@ -44,6 +45,7 @@ import {
 } from "./data.js";
 import {
   effektiveRaten,
+  sichtbareRate,
   lagerKapazitaetGesamt,
   lagerBelegung,
   lagerVollInStunden,
@@ -62,6 +64,8 @@ import {
   momentErreicht,
   momentGesehen,
   momentMerken,
+  fensterHinweisGesehen,
+  fensterHinweisMerken,
   forschungVerfuegbar,
   forschungVoraussetzungenErfuellt,
   laborbedarfKnapp,
@@ -97,9 +101,12 @@ import {
   verarbeitungsReserveSetzen,
   gebaeudeKosten,
   schiffKosten,
+  schiffMaxBezahlbar,
   warteschlangeKosten,
   stueckzahlAus,
   speicherKapazitaet,
+  speicherKapazitaetFuerLevel,
+  speicherRessourceVon,
   flussSpeicherDeckung,
   pufferReichweiteMs,
   ausbauVorschau,
@@ -208,14 +215,6 @@ import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.j
 import { feedbackAdresse } from "./feedback.js";
 import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js";
 import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole } from "./ressourcen.js";
-
-// Exportiert für js/karte.js: die Systemkarte zeichnet dieselben Symbole wie
-// die Systemliste. Eine zweite Tabelle wäre eine zweite Wahrheit darüber, wie
-// ein Wrack aussieht (Prinzip 5).
-export const TYP_SYMBOL = {
-  heimat: "🏠", planet: "🪐", asteroiden: "🪨", wrack: "🛰️",
-  anomalie: "✦", struktur: "◈", gefahr: "☢", leer: "·",
-};
 
 // UI-lokaler Regler-Zustand für die Flotten-Beladung/Tanken-Schieber --
 // bewusst NICHT Teil des Spielzustands. Nötig, weil render() auch von einem
@@ -683,6 +682,8 @@ export function render(state, root) {
     VERSION,
     t("Neu in v{version} – was sich geändert hat", { version: VERSION })
   );
+  // fensterHinweisPruefen läuft NICHT hier, sondern aus main.js, aus dem
+  // echten Sekundentakt -- Begründung an ihrer Definition weiter unten.
   renderMeldungen(state, root);
 }
 
@@ -1153,7 +1154,15 @@ function renderRessourcen(state, root, planet) {
   const reiheVorraete = leiste.firstElementChild;
   const reiheKapazitaeten = leiste.lastElementChild;
 
-  const { lager, fluss, produktion, verbrauch, bedarf, drosselung, effizienz } = effektiveRaten(state, planet);
+  const { lager, fluss, produktion, verbrauch, bedarf, drosselung, effizienz, verderb } = effektiveRaten(
+    state,
+    planet
+  );
+  // A-112: dieselbe angezeigte Rate auch für die Lagerprognose (`voll in X`)
+  // -- sonst rechnet sie mit `lager` allein und verspricht ein Lager, das bei
+  // schrumpfendem Nahrungsbestand später vollläuft als hier behauptet.
+  const lagerAnzeige = {};
+  for (const resId of LAGER_RESSOURCEN) lagerAnzeige[resId] = sichtbareRate(lager, verderb, resId);
   // Nur die Stufe der Förderanlage -- welches Gebäude gemeint ist, steht im
   // title. Abgekürzte Namen ("Meta. 3") wären schmal, aber unleserlich.
   const stufeVon = (resId) => {
@@ -1181,7 +1190,11 @@ function renderRessourcen(state, root, planet) {
             einheit: einheit(resId) || t("Einheit"),
             belegt: fmt((planet.ressourcen[resId] || 0) * volumen),
           });
-    const rate = lager[resId] || 0;
+    // A-112: die Rate zieht den momentanen Verderbverlust ab (Klaus' Fund --
+    // vorher stand hier `lager[resId]` allein, und bei großem Vorrat
+    // übersteigt der Verderb die Netto-Produktion: grünes Plus, schrumpfender
+    // Bestand). `sichtbareRate` ist die eine Stelle für diese Rechnung.
+    const rate = sichtbareRate(lager, verderb, resId);
     // Eine NEGATIVE Rate bedeutet: eine Verarbeitungskette zieht mehr ab, als
     // nachkommt, und lebt vom Bestand. Das muss man sehen -- ein leeres Feld
     // (die alte Anzeige für "nicht positiv") würde genau die Information
@@ -1269,11 +1282,15 @@ function renderRessourcen(state, root, planet) {
       // uneinheitlich. Tobis Abnahme dazu: „Die −2 % im Jahr ist eine Info,
       // die man einmal braucht, nicht immer."
       //
-      // Er ist jetzt im Tooltip, und Prinzip 13 bleibt trotzdem erfüllt --
-      // aus einem Grund, der beim Bauen von A-010 noch nicht klar war: die
-      // WIRKSAME Folge steht ohnehin in der t/Jahr-Zahl der Kachel. Dort
-      // SIEHT man den Verderb wirken. Was hier stand, war die KONSTANTE
-      // dahinter, und eine Konstante braucht keinen Platz im Sekundentakt.
+      // Er ist jetzt im Tooltip, und Prinzip 13 bleibt trotzdem erfüllt.
+      // A-052 BEGRÜNDETE DAS SO: die WIRKSAME Folge stehe ohnehin in der
+      // t/Jahr-Zahl der Kachel, dort SEHE man den Verderb wirken -- FALSCH,
+      // und zwar nachweisbar (A-112, Klaus' Fund): `rate` kam bis dahin aus
+      // `lager` allein, kannte den Verderb also gar nicht. Bei großem Vorrat
+      // übersteigt der Verderb (Anteil des BESTANDS) die Netto-Produktion --
+      // die Kachel zeigte Grün mit Pluszeichen, während der Bestand
+      // schrumpfte. Seit A-112 fließt der Verlust über `sichtbareRate`
+      // tatsächlich in `rate` ein; jetzt stimmt die Begründung.
       zusatz: "",
       titel:
         `${t(def.name)} – ${gewichtText}` +
@@ -1417,7 +1434,7 @@ function renderRessourcen(state, root, planet) {
     titel: t("{belegt} von {gesamt} m³ belegt", { belegt: fmt(belegt), gesamt: fmt(gesamt) }),
     stufe: `Lv ${planet.gebaeude.lagerhalle || 0}`,
     wert: `${formatKurz(belegt)} / ${formatKurz(gesamt)} m³`,
-    prognose: lagerPrognoseText(state, planet, lager),
+    prognose: lagerPrognoseText(state, planet, lagerAnzeige),
     segmente: segmente.map((s) => ({
       resId: s.resId,
       farbe: s.def.farbe,
@@ -1568,6 +1585,39 @@ function momenteHinweisPruefen(state) {
     meldungHinzufuegen(state, meldung.text, null, "eigen", meldung.ziel);
     momentMerken(state, id);
   }
+}
+
+// A-111: der einmalige Hinweis auf ein zu kleines Fenster.
+//
+// DIE BEDINGUNG IST DIE MESSUNG SELBST, kein Breakpoint: hat die Seite gerade
+// senkrecht gescrollt (documentElement.scrollHeight > clientHeight), hat die
+// Mindesthöhe aus .spielfeld (css/style.css, --spielfeld-mindesthoehe)
+// tatsächlich gegriffen -- das ist genau der Moment, den der Hinweis
+// erklären soll, und dieselbe Messung, mit der A-111 seine eigene Definition
+// von fertig prüft.
+//
+// BEWUSST NICHT TEIL VON render(): eine Aufholung (aufholen.js) ruft render()
+// mehrfach rasch hintereinander auf, einen Block nach dem anderen -- die
+// Fenstergröße bei jedem einzelnen Block zu prüfen wäre unnötige Arbeit ohne
+// eigenen Wert. Aufgerufen wird diese Funktion deshalb aus main.js, aus dem
+// gewöhnlichen Sekundentakt (`setInterval`, läuft erst NACH der Aufholung
+// an) -- einmal je echter Spielsekunde reicht. Export statt lokaler Funktion
+// aus genau diesem Grund.
+export function fensterHinweisPruefen(state, root) {
+  if (fensterHinweisGesehen(state)) return;
+  if (document.documentElement.scrollHeight <= document.documentElement.clientHeight) return;
+  meldungHinzufuegen(
+    state,
+    t(
+      "Dein Fenster ist kleiner, als Entropy es erwartet – die Oberfläche ist für etwa 1900 × 950 Punkte gebaut, hier sind es {breite} × {hoehe}. Die Seite scrollt deshalb, statt etwas abzuschneiden. Mehr Platz bekommst du mit Vollbild (F11) oder einer niedrigeren Windows-Skalierung.",
+      { breite: window.innerWidth, hoehe: window.innerHeight }
+    )
+  );
+  fensterHinweisMerken(state);
+  // Läuft nach render() (siehe main.js), die Meldung stünde sonst erst einen
+  // Takt später sichtbar in der Liste -- derselbe Grund wie bei den anderen
+  // Hinweis-Prüfungen, die deshalb NOCH innerhalb von render() liegen.
+  renderMeldungen(state, root);
 }
 
 // Welcher Bereich gerade sichtbar ist. Bewusst UI-Zustand, nicht Spielstand:
@@ -2036,10 +2086,13 @@ function renderImperium(state, root) {
   const summe = {};
   const summeRate = {};
   for (const p of wirtschaft) {
-    const { lager } = effektiveRaten(state, p);
+    const { lager, verderb } = effektiveRaten(state, p);
     for (const r of res) {
       summe[r] = (summe[r] || 0) + (p.ressourcen[r] || 0);
-      summeRate[r] = (summeRate[r] || 0) + (lager[r] || 0);
+      // A-112: dieselbe angezeigte Rate wie auf der Ressourcenkachel --
+      // sonst behauptet die Imperiumssumme ein Plus, das der Verderb längst
+      // aufgezehrt hat.
+      summeRate[r] = (summeRate[r] || 0) + sichtbareRate(lager, verderb, r);
     }
   }
 
@@ -2135,7 +2188,7 @@ function renderImperium(state, root) {
     textSetzen(art, p.typ === "aussenposten" ? t("Außenposten") : planetArtText(p) === p.name ? "" : planetArtText(p));
     if (p.typ === "aussenposten") return;
 
-    const { lager } = effektiveRaten(state, p);
+    const { lager, verderb } = effektiveRaten(state, p);
     const belegt = lagerBelegung(p);
     const gesamt = lagerKapazitaetGesamt(state, p);
     const anteil = gesamt > 0 ? belegt / gesamt : 0;
@@ -2155,7 +2208,8 @@ function renderImperium(state, root) {
     for (const r of res) {
       const td = tr.querySelector(`[data-zelle="res:${r}"]`);
       const menge = p.ressourcen[r] || 0;
-      const rate = lager[r] || 0;
+      // A-112: dieselbe angezeigte Rate wie auf der Ressourcenkachel.
+      const rate = sichtbareRate(lager, verderb, r);
       const mengeEl = td.querySelector("[data-menge]");
       mengeEl.classList.toggle("dezent", !(menge > 0));
       textSetzen(mengeEl, formatKurz(menge));
@@ -2386,19 +2440,26 @@ function renderWarteschlange(state, root, containerId, warteschlange, labelFn, e
   // wie die Kostenzeile einer Kachel (Symbol + Menge), damit die beiden Zahlen
   // vergleichbar bleiben; der ausgeschriebene Text steht im Tooltip, damit
   // niemand ein Symbol raten muss.
+  //
+  // R-1/A-100: die Summe zählt NUR die wartenden Einträge (`warteschlange`,
+  // ohne den laufenden Kopf -- `warteschlangeKosten` bekommt genau diese
+  // Liste und nichts sonst). Die Beschriftung sagt das jetzt selbst, statt
+  // stillschweigend eine kleinere Zahl zu zeigen, als „Kosten zusammen"
+  // vermuten lässt.
   const summe = kostenFn ? kostenFn(warteschlange) : {};
   const summenZeile = el.querySelector(".warteschlange-kosten");
   const hatSumme = Object.keys(summe).length > 0;
   summenZeile.hidden = !hatSumme;
   if (hatSumme) {
-    textSetzen(summenZeile.querySelector("[data-summe-marke]"), t("Kosten zusammen"));
+    textSetzen(summenZeile.querySelector("[data-summe-marke]"), t("Wartend zusammen"));
     textSetzen(summenZeile.querySelector("[data-summe-wert]"), buendelSymbole(summe));
     attributSetzen(
       summenZeile,
       "title",
-      t("Diese Aufträge kosten zusammen {buendel}. Abgebucht wird erst, wenn einer von ihnen vorn steht.", {
-        buendel: buendelText(summe),
-      })
+      t(
+        "Was hier noch WARTET, kostet zusammen {buendel} – der laufende Auftrag ist bereits bezahlt und zählt nicht mit. Abgebucht wird erst, wenn ein Eintrag vorn steht.",
+        { buendel: buendelText(summe) }
+      )
     );
   }
 
@@ -2787,7 +2848,7 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
     attributSetzen(li, "title", tooltip);
     textSetzen(li.querySelector(".kachel-symbol"), SYMBOLE[id] || "▪");
     textSetzen(li.querySelector(".kachel-name"), t(def.name));
-    textSetzen(li.querySelector(".kachel-stufe"), def.schluessel ? (level >= 1 ? "✓" : "🔒") : String(level));
+    textSetzen(li.querySelector(".kachel-stufe"), def.schluessel ? (level >= 1 ? "✓" : SYMBOLE.gesperrt) : String(level));
 
     // Die Mitte trägt keine Knöpfe -- sie darf am Stück neu geschrieben
     // werden, und das hält die Zahlen einfach.
@@ -2858,13 +2919,34 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
       if (!gefragt) delete rueckbauKnopfF.dataset.gefragt;
       rueckbauKnopfF.classList.toggle("fragt", !!gefragt);
       textSetzen(rueckbauKnopfF, gefragt ? t("Wirklich?") : "⌫");
+      // R-3/A-100: warnt VORHER, wenn dieser Rückbau die Wohnraum-Kapazität
+      // unter die aktuelle Bevölkerung drückt (A-095 fängt das Ergebnis ab,
+      // aber erst danach -- Prinzip 10a will die Ansage vorher). Über
+      // `speicherRessourceVon` generisch gehalten, nicht auf "wohnmodul"
+      // verdrahtet: dieselbe Frage stellt sich bei jedem Gebäude, das einer
+      // Ressource ihre Kapazität gibt.
+      let schrumpfWarnung = "";
+      if (istGebaeude && stufeJetzt > 0) {
+        const kapazitaetsRes = speicherRessourceVon(id);
+        if (kapazitaetsRes === "bevoelkerung") {
+          const kapazitaetVorher = speicherKapazitaetFuerLevel(kapazitaetsRes, stufeJetzt);
+          const kapazitaetNachher = speicherKapazitaetFuerLevel(kapazitaetsRes, stufeJetzt - 1);
+          const bevoelkerung = planetFuerKachel.ressourcen.bevoelkerung || 0;
+          if (kapazitaetNachher < bevoelkerung) {
+            schrumpfWarnung = t("Wohnraum für {n} fällt weg – die Bevölkerung schrumpft. ", {
+              n: Math.round(kapazitaetVorher - kapazitaetNachher),
+            });
+          }
+        }
+      }
       attributSetzen(
         rueckbauKnopfF,
         "title",
         gesperrt
           ? t("Erst den laufenden Auftrag abbrechen oder aus der Warteschlange nehmen.")
           : gefragt
-            ? t("Noch einmal klicken: Stufe {stufe} wird abgerissen, ohne Erstattung.", { stufe: stufeJetzt })
+            ? schrumpfWarnung +
+              t("Noch einmal klicken: Stufe {stufe} wird abgerissen, ohne Erstattung.", { stufe: stufeJetzt })
             : t("Eine Stufe abreißen – keine Erstattung. Arbeitskraft und Strom werden frei.")
       );
     }
@@ -2917,9 +2999,9 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
     // Zeile (8a, Lernpunkt 2).
     const sperre = li.querySelector(".kachel-sperre");
     const bedingung = vorOffen
-      ? `🔒 ${voraussetzungenText(id)}`
+      ? `${SYMBOLE.gesperrt} ${voraussetzungenText(id)}`
       : !check.ok && !check.nurGeld && !fertig
-        ? `🔒 ${check.grund}`
+        ? `${SYMBOLE.gesperrt} ${check.grund}`
         : "";
     sperre.hidden = !bedingung;
     if (bedingung) textSetzen(sperre, bedingung);
@@ -3519,7 +3601,7 @@ function renderUebersicht(state, root, planet) {
         textSetzen(div.querySelector(".uebersicht-wert"), t("alle erreicht"));
         return;
       }
-      textSetzen(div.querySelector(".uebersicht-marke"), `🔒 ${t(BUILDINGS[s2.id].name)}`);
+      textSetzen(div.querySelector(".uebersicht-marke"), `${SYMBOLE.gesperrt} ${t(BUILDINGS[s2.id].name)}`);
       textSetzen(
         div.querySelector(".uebersicht-wert"),
         s2.art === "forschung"
@@ -3856,7 +3938,24 @@ function werftKachelFuellen(state, planet, li, id) {
     // Steht dort Unsinn (leer, 0, negativ), bleibt die Anzeige beim Einzelstück
     // und der Knopf sperrt mit Grund -- eine Zahl zu erfinden wäre die
     // schlechtere Auskunft.
-    const feldMenge = stueckzahlAus((li.querySelector("input[data-schiff-menge]") || {}).value);
+    const feldEl = li.querySelector("input[data-schiff-menge]");
+    let feldMenge = stueckzahlAus((feldEl || {}).value);
+    // R-2/A-100: das Feld klemmt sich selbst auf das JETZT Bezahlbare --
+    // eine 999.999 baut nie mehr, als der Bestand hergibt, und der Spieler
+    // sieht die Korrektur sofort im Feld. Nur SENKEN, nie erhöhen (wer 3
+    // eintippt, obwohl 20 gingen, will 3). Bleibt die Warteschlange voll,
+    // wird nicht geklemmt -- jede Zahl scheiterte ohnehin, und das soll der
+    // Sperrgrund sagen, nicht eine erzwungene 0 im Feld. Löst NIE selbst
+    // einen Bau aus: nur der Feldwert ändert sich, gebaut wird ausschließlich
+    // über den Knopf.
+    const werftLaenge = (planet.werftQueue ? 1 : 0) + planet.werftWarteschlange.length;
+    if (feldEl && feldMenge !== null && werftLaenge < BAUWARTESCHLANGE_MAX) {
+      const machbar = schiffMaxBezahlbar(planet, id);
+      if (machbar >= 1 && feldMenge > machbar) {
+        feldMenge = machbar;
+        feldEl.value = String(machbar);
+      }
+    }
     const menge = feldMenge === null ? 1 : feldMenge;
     const check = kannSchiffBauen(state, planet, id, menge);
     const laeuft = !!(planet.werftQueue && planet.werftQueue.schiffId === id);
@@ -3881,7 +3980,7 @@ function werftKachelFuellen(state, planet, li, id) {
     // Werftstufe, Bevölkerung, fehlende Forschung -- alles außer „gerade zu
     // wenig Material" gehört sichtbar auf die Kachel (Chris' Punkt).
     const schiffSperre = li.querySelector(".kachel-sperre");
-    const schiffBedingung = !check.ok && !check.nurGeld ? `🔒 ${check.grund}` : "";
+    const schiffBedingung = !check.ok && !check.nurGeld ? `${SYMBOLE.gesperrt} ${check.grund}` : "";
     schiffSperre.hidden = !schiffBedingung;
     if (schiffBedingung) textSetzen(schiffSperre, schiffBedingung);
     textSetzen(
@@ -4184,7 +4283,10 @@ function renderVerarbeitung(state, root, planet) {
     aktualisieren: (zeile, resId) => {
       const braucht = raten.bedarf[resId] || 0;
       const zustrom = raten.produktion[resId] || 0;
-      const netto = raten.lager[resId] || 0;
+      // A-112: dieselbe angezeigte Rate wie auf der Ressourcenkachel -- sonst
+      // meldet "Bestand trägt noch X" bei Nahrung eine zu optimistische
+      // Dauer, weil der Verderb hier fehlte.
+      const netto = sichtbareRate(raten.lager, raten.verderb, resId);
       const bestand = Math.floor(planet.ressourcen[resId] || 0);
       const reserve = verarbeitungsReserveFuer(planet, resId);
       const anteil = raten.drosselung[resId] === undefined ? 1 : raten.drosselung[resId];
@@ -4550,7 +4652,7 @@ function flottenZeileFuellen(state, li, flotte, jetzt) {
     const bezeichnung = li.querySelector(".slot-bezeichnung");
     // htmlText: neben dem Namen stehen echte Auszeichnungen (die Marken für
     // "aktiv" und "Route"), die Zeile geht also per innerHTML hinein.
-    const bezeichnungHtml = `${htmlText(flotte.name)} ${aktiv ? `<span class="basis-tag">${t("aktiv")}</span>` : ""}${flotte.route && flotte.route.aktiv ? `<span class="basis-tag route-tag">🔁 ${t("Route")}</span>` : ""}`;
+    const bezeichnungHtml = `${htmlText(flotte.name)} ${aktiv ? `<span class="basis-tag">${t("aktiv")}</span>` : ""}${flotte.route && flotte.route.aktiv ? `<span class="basis-tag route-tag">${SYMBOLE.route} ${t("Route")}</span>` : ""}`;
     if (bezeichnung.innerHTML !== bezeichnungHtml) bezeichnung.innerHTML = bezeichnungHtml;
 
     textSetzen(
@@ -4673,6 +4775,44 @@ export function tankEinstellung(state, flotte, hafen, regler, feld) {
   return mengeEinstellung(regler, feld, vorrat, vorrat);
 }
 
+// A-101: Warum kann hier gerade STRUKTURELL nichts geladen werden -- nicht
+// zu verwechseln mit einem Regler, der bei 0 % steht (das ist eine Wahl,
+// keine Sperre). Dieselbe Grenze, die `ladeEinstellung` schon rechnet
+// (`frachtraumFrei`/Lagerbestand), nur als Text statt als Zahl -- bestehender
+// Sperrgrund-Stil wie bei `kannSchiffBauen`. Frachtraum voll geht VOR Lager
+// leer: wer beides hat, will zuerst wissen, dass am eigenen Schiff nichts
+// mehr reinpasst, nicht dass der Planet nichts mehr hergibt.
+export function ladeSperrGrund(state, flotte, hafen, resId) {
+  if (frachtraumFrei(state, flotte) <= 0) return t("Frachtraum voll.");
+  if (Math.floor(hafen.ressourcen[resId] || 0) <= 0) {
+    return t("{res} im Lager leer.", { res: t(RESSOURCEN[resId].name) });
+  }
+  return null;
+}
+
+// Dieselbe Frage für die Tankzeile -- Tank voll geht VOR kein Deuterium,
+// aus demselben Grund.
+export function tankSperrGrund(state, flotte, hafen) {
+  const platz = flotteTankKapazitaet(state, flotte) - (flotte.treibstoff || 0);
+  if (platz <= 0) return t("Tank voll.");
+  if (Math.floor(hafen.ressourcen.tritium || 0) <= 0) return t("Kein Deuterium im Lager.");
+  return null;
+}
+
+// Die BASIS-Tooltips der Bestätigen-Knöpfe -- eine Funktion, zwei Leser
+// (das Gerüst beim Bauen, die Füllstelle bei jedem Takt), statt derselben
+// Zeichenkette an zwei Stellen zu pflegen. A-101 braucht das: im entsperrten
+// Zustand muss der ursprüngliche Tooltip stehen bleiben, nicht eine leere
+// Zeichenkette.
+function tankBestaetigenTitel() {
+  return t("Übernimmt die eingestellte Menge aus dem Hafenlager in den Tank.");
+}
+function ladenBestaetigenTitel(resId) {
+  return t("Lädt die eingestellte Menge {res} aus dem Hafenlager in den Frachtraum.", {
+    res: t(RESSOURCEN[resId].name),
+  });
+}
+
 // Füllt die Zahlen neben allen Reglern der Flottenübersicht.
 //
 // Steht HIER und nicht mehr allein in den Zuhörern aus `flottenDetail`: das
@@ -4691,6 +4831,16 @@ function mengenAnzeigenFuellen(state, box, flotte, hafen) {
         tankEinstellung(state, flotte, hafen, tankRegler, box.querySelector("input[data-tanken-feld]"))
       )
     );
+    // A-101: der Knopf sagt, wenn er strukturell nichts tun KANN -- Tank voll
+    // oder kein Deuterium im Lager. Ein Regler auf 0 % sperrt nicht (siehe
+    // ladeSperrGrund/tankSperrGrund); der Knopf bleibt dann wie bisher aktiv.
+    // Entsperrt bleibt der URSPRÜNGLICHE Tooltip stehen, nicht leer.
+    const grund = tankSperrGrund(state, flotte, hafen);
+    const knopf = box.querySelector("button[data-tanken-bestaetigen]");
+    if (knopf) {
+      knopf.disabled = !!grund;
+      attributSetzen(knopf, "title", grund || tankBestaetigenTitel());
+    }
   }
   for (const regler of box.querySelectorAll("input[data-laden-schieber]")) {
     const resId = regler.dataset.ladenSchieber;
@@ -4700,6 +4850,12 @@ function mengenAnzeigenFuellen(state, box, flotte, hafen) {
         ladeEinstellung(state, flotte, hafen, resId, regler, box.querySelector(`input[data-laden-feld="${resId}"]`))
       )
     );
+    const grund = ladeSperrGrund(state, flotte, hafen, resId);
+    const knopf = box.querySelector(`button[data-laden-bestaetigen="${resId}"]`);
+    if (knopf) {
+      knopf.disabled = !!grund;
+      attributSetzen(knopf, "title", grund || ladenBestaetigenTitel(resId));
+    }
   }
 }
 
@@ -4840,9 +4996,7 @@ function flottenDetail(state, root, flotte) {
         <input type="number" class="menge-feld zeile-eingabe" min="0" step="1" placeholder="${t("genaue Menge")}" data-tanken-feld="1" title="${t(
           "Genauer Betrag statt Prozent. Was hier steht, hat Vorrang vor dem Regler."
         )}" />
-        <button class="zeile-knopf-1" data-tanken-bestaetigen="1" title="${t(
-          "Übernimmt die eingestellte Menge aus dem Hafenlager in den Tank."
-        )}">${t("Tanken")}</button>
+        <button class="zeile-knopf-1" data-tanken-bestaetigen="1" title="${tankBestaetigenTitel()}">${t("Tanken")}</button>
         <button class="zeile-knopf-2" data-tanken-alles-ab="1" ${flotte.treibstoff > 0 ? "" : "disabled"} title="${t(
           "Gesamten Treibstoff ans Lager zurückgeben"
         )}">${t("Alles abladen")}</button>
@@ -4862,10 +5016,7 @@ function flottenDetail(state, root, flotte) {
           <input type="number" class="menge-feld zeile-eingabe" min="0" step="1" placeholder="${t("genaue Menge")}" data-laden-feld="${r}" title="${t(
             "Genauer Betrag statt Prozent. Was hier steht, hat Vorrang vor dem Regler."
           )}" />
-          <button class="zeile-knopf-1" data-laden-bestaetigen="${r}" title="${t(
-            "Lädt die eingestellte Menge {res} aus dem Hafenlager in den Frachtraum.",
-            { res: t(RESSOURCEN[r].name) }
-          )}">${t("Laden")}</button>
+          <button class="zeile-knopf-1" data-laden-bestaetigen="${r}" title="${ladenBestaetigenTitel(r)}">${t("Laden")}</button>
         </span>`).join("")}
     </div>
     ${beschaedigt.length ? `
@@ -6341,7 +6492,7 @@ export function orbitAngebot(state, systemId, objekt, flotte, rueckkehrGewaehlt 
   // dort abgelegt. Verschlossen ist die QUELLE, nicht der eigene Nachlass --
   // liegt hier etwas, geht die Bergung, und `missionFuerObjekt` (dieselbe
   // Regel, eine Ebene tiefer) bietet dafür genau die Bergung an.
-  if (gesperrt && !restLiegtAn(objekt)) return { gesperrt: true, hinweis: `🔒 ${t("gesperrt")}` };
+  if (gesperrt && !restLiegtAn(objekt)) return { gesperrt: true, hinweis: `${SYMBOLE.gesperrt} ${t("gesperrt")}` };
 
   // `!gesperrt` steht seitdem ausdrücklich da: bis A-092 kam dieser Zweig nur
   // an einem offenen Orbit vorbei, weil die Sperre eine Zeile höher abbrach.

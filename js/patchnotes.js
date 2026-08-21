@@ -28,6 +28,137 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.2.0",
+    de: [
+      "Dies ist der zweite veroeffentlichte Demo-Stand. Die mittlere Ziffer zaehlt ab jetzt genau das: wie oft die Demo veroeffentlicht wurde. Die 1.0 bleibt fuer die echte Veroeffentlichung reserviert.",
+      "Seit dem letzten Demo-Stand: Warnungen sind endlich lesbar (das Rot war zu dunkel), kleine Fenster schneiden die Oberflaeche nicht mehr ab, sondern lassen sich scrollen, die Nahrungsrate rechnet den Verderb ehrlich mit, und der Laden-Knopf sagt, wenn es nichts zu laden gibt.",
+    ],
+    en: [
+      "This is the second published demo build. From now on the middle digit counts exactly that: how often the demo has been published. 1.0 stays reserved for the real release.",
+      "Since the last demo build: warnings are finally legible (the red was too dark), small windows no longer cut the interface off but scroll instead, the food rate honestly accounts for spoilage, and the load button says so when there is nothing to load.",
+    ],
+  },
+  {
+    version: "0.1.12",
+    de: [
+      "Die Nahrungsrate auf der Ressourcenleiste und in „Diese Welt in Zahlen“ zieht jetzt den Verderb ab: bei großem Vorrat kann sie im Minus stehen, obwohl die Farm mehr erntet, als die Bevölkerung isst -- vorher zeigte sie in diesem Fall fälschlich ein Plus, während der Vorrat schrumpfte.",
+    ],
+    en: [
+      "The food rate on the resource bar and in “This World in Numbers” now accounts for spoilage: with a large stockpile it can show a minus even though the farm harvests more than the population eats -- it used to show a false plus in that case while the stockpile kept shrinking.",
+    ],
+  },
+  {
+    version: "0.1.11",
+    de: [
+      "Ein zu kleines Browserfenster schneidet die Oberfläche nicht mehr ab -- die Seite scrollt jetzt stattdessen, mit einem einmaligen Hinweis, wenn das passiert.",
+    ],
+    en: [
+      "A browser window that's too small no longer cuts off the interface -- the page now scrolls instead, with a one-time note when that happens.",
+    ],
+  },
+  {
+    version: "0.1.10",
+    de: [
+      "Die Versionsnummer zählt ab jetzt anders: Sie sagt, der wievielte veröffentlichte Stand das hier ist, statt wie oft insgesamt gearbeitet wurde. Die große Zahl 1.0 bleibt für die echte Veröffentlichung reserviert -- dahin ist noch ein Stück Weg.",
+    ],
+    en: [
+      "The version number now counts differently: it shows which published build this is, instead of how much work went into it overall. The big number 1.0 stays reserved for the real release -- there's still some way to go.",
+    ],
+  },
+  {
+    version: "1.80",
+    de: [
+      "Das Warnrot für Mangel-Anzeigen (Ressourcen, Energie, besetzte Orbits) ist jetzt heller und leichter zu lesen -- der alte Ton war auf dunklem Grund zu dunkel.",
+    ],
+    en: [
+      "The warning red for shortage indicators (resources, energy, occupied orbits) is now brighter and easier to read -- the old tone was too dark against the dark background.",
+    ],
+  },
+  {
+    version: "1.79",
+    de: [
+      "Nur intern: Schriftgrößen, Abstände, Eckenradien und ein Teil der Farbwerte im Stylesheet laufen jetzt über benannte, einheitliche Skalen statt über einzeln getippte Zahlen. Für Spieler ändert sich dadurch nichts (geprüft: alle Verschiebungen liegen im Rahmen von 1-3 Pixeln).",
+    ],
+    en: [
+      "Internal only: font sizes, spacing, corner radii and part of the color values in the stylesheet now run through named, consistent scales instead of individually typed numbers. Nothing changes for players (checked: every shift stays within 1-3 pixels).",
+    ],
+  },
+  {
+    version: "1.78",
+    de: [
+      "Nur intern: ein neuer automatischer Wächter vergleicht jede Kachel der Oberfläche mit ihrer verbindlichen Schablone und meldet Abweichungen, bevor sie ein Spieler sieht. Für Spieler ändert sich dadurch nichts.",
+    ],
+    en: [
+      "Internal only: a new automatic guard compares every interface tile against its official template and flags mismatches before a player ever sees them. Nothing changes for players.",
+    ],
+  },
+  {
+    version: "1.77",
+    de: [
+      "Nur intern: ein neues Prüfwerkzeug misst das Stylesheet gegen zwei Fehlerarten, die früher unbemerkt blieben (eine Farbvariable, die ins Leere zeigt; eine Farbe, die nicht aus der Spielpalette stammt). Für Spieler ändert sich dadurch nichts.",
+    ],
+    en: [
+      "Internal only: a new check measures the stylesheet against two kinds of error that used to slip through unnoticed (a color variable pointing nowhere; a color that isn't part of the game's palette). Nothing changes for players.",
+    ],
+  },
+  {
+    version: "1.76",
+    de: [
+      "Wer mit der Tastatur navigiert, sieht jetzt einen deutlichen Rahmen um das gerade ausgewählte Element.",
+      "Wer in den Systemeinstellungen reduzierte Bewegung eingestellt hat, bekommt jetzt auch in Entropy weniger Animation.",
+      "Nur intern: das Ingame-Datum zeigt wieder die vorgesehene, dezente Farbe (eine CSS-Variable griff ins Leere), und die Fortschrittsanzeige beim Aufholen der Zeit spricht jetzt die Farben des Spiels statt einer fremden Palette.",
+    ],
+    en: [
+      "Keyboard navigation now shows a clear outline around the currently selected element.",
+      "Players who have reduced motion set in their system settings now get less animation in Entropy too.",
+      "Internal only: the in-game date shows its intended, muted color again (a CSS variable was pointing nowhere), and the time-catch-up progress display now speaks the game's own colors instead of a borrowed palette.",
+    ],
+  },
+  {
+    version: "1.75",
+    de: [
+      "Die Knöpfe „Laden“ und „Tanken“ im Hafen sperren sich jetzt, wenn strukturell nichts geht (Frachtraum voll, Lager leer, Tank voll, kein Deuterium) – und sagen dabei, woran es liegt.",
+    ],
+    en: [
+      "The “Load” and “Refuel” buttons in port now lock themselves when nothing can structurally happen (cargo hold full, storage empty, tank full, no deuterium) – and say why.",
+    ],
+  },
+  {
+    version: "1.74",
+    de: [
+      "Das Werft-Zahlenfeld klemmt sich jetzt selbst auf die höchste Stückzahl, die dein Lager gerade trägt – eine Eingabe wie 999.999 zeigt sofort das wirklich Machbare, gebaut wird weiterhin nur per Klick auf „Bauen“.",
+      "Die Kostensumme der Warteschlange heißt jetzt „Wartend zusammen“ – sie zählte schon immer nur die wartenden Aufträge, das steht jetzt auch da.",
+      "Ein Rückbau, der Wohnraum unter deine aktuelle Bevölkerung drückt, warnt das jetzt vorher im Bestätigungs-Tooltip.",
+      "Eine Auto-Route, die länger als einen Tag auf ihre Mindestbeladung wartet, meldet das jetzt einmal – kein Dauer-Spam, kein automatischer Abflug.",
+    ],
+    en: [
+      "The shipyard quantity field now clamps itself to the highest count your storage currently supports – typing 999,999 immediately shows what's actually buildable, and building still only happens via the “Build” click.",
+      "The queue's cost total is now labelled “Waiting total” – it always only counted the waiting orders, that's now stated as well.",
+      "A demolition that would push housing below your current population now warns about it upfront in the confirmation tooltip.",
+      "An auto-route that has been waiting for its minimum load for more than a day now reports it once – no repeated spam, no automatic departure.",
+    ],
+  },
+  {
+    version: "1.73",
+    de: ["Das Handbuch erklärt jetzt, dass liegengebliebenes Material vor einem verschlossenen Vorkommen jederzeit bergbar bleibt – verschlossen ist nur die Quelle selbst."],
+    en: ["The manual now explains that material left lying in front of a locked deposit stays salvageable at any time – only the source itself is locked."],
+  },
+  {
+    version: "1.72",
+    de: ["Nur intern: Zwei neue Wächter-Tests laufen jetzt gegen ein echtes DOM (jsdom) mit und schlagen sofort an, wenn ein Tooltip beim Neuzeichnen verworfen wird oder ein Klick nach einem Planetenwechsel die falsche Welt trifft."],
+    en: ["Internal only: two new guard tests now run against a real DOM (jsdom) and fire immediately if a tooltip gets discarded on redraw, or a click after switching planets hits the wrong world."],
+  },
+  {
+    version: "1.71",
+    de: ["Nur intern: Das Übersetzungswerkzeug verwechselt CSS-Klassennamen nicht mehr mit deutschem Text und findet jetzt zusätzlich Umlaute, die als ae/oe/ue/ss statt ä/ö/ü/ß geschrieben wurden."],
+    en: ["Internal only: the translation tool no longer mistakes CSS class names for German text, and now also finds umlauts spelled out as ae/oe/ue/ss instead of ä/ö/ü/ß."],
+  },
+  {
+    version: "1.70",
+    de: ["Nur intern: ein Zeittest lief unter Last gelegentlich falsch, weil er die Uhr zweimal las statt einmal — jetzt liest er sie nur noch einmal."],
+    en: ["Internal only: a timing test occasionally misfired under load because it read the clock twice instead of once — it now reads it only once."],
+  },
+  {
     version: "1.69",
     de: [
       "Neu: Auto-Routen haben ein Feld „Abflug erst ab X % Beladung“. Die Route wartet dann am Ladehalt, bis genug zusammengekommen ist, statt halb leer loszufliegen – der Treibstoff hängt an der Strecke, nicht an der Fracht.",

@@ -7,8 +7,88 @@
   --text-dezent: #7c8aad;
   --akzent: #4fd1c5;
   --akzent-dunkel: #2c9c92;
-  --warnung: #e0555f;
+  --warnung: #f4717a; /* war #e0555f (A-107, R-10: 4,27:1 auf --bg-item verfehlte 4,5:1) */
   --schatten: 0 2px 8px rgba(0, 0, 0, 0.4);
+
+  /* --- Token-Skalen (A-105, KONZEPT-UI.md Anhang M4, Prinzip P14) ---------
+     Abgeleitet aus der gemessenen Häufigkeitsverteilung, nutzungsgewichtet:
+     unten dicht, oben grob (Carbons Muster). Keine Design-Entscheidung mehr
+     offen -- siehe AUFTRAEGE/A-105-token-runde.md für die Herleitung und
+     die Zuordnung der Ausreißer. */
+  --schrift-xs: 0.7rem; /* kleinste zulässige Größe, P15 */
+  --schrift-s: 0.75rem;
+  --schrift-m: 0.8rem;
+  --schrift-l: 0.85rem; /* Standard */
+  --schrift-xl: 0.9rem;
+  --schrift-xxl: 1rem;
+  --schrift-titel: 1.3rem;
+
+  --abstand-1: 0.15rem;
+  --abstand-2: 0.25rem;
+  --abstand-3: 0.35rem;
+  --abstand-4: 0.5rem; /* Standard */
+  --abstand-5: 0.6rem;
+  --abstand-6: 0.75rem;
+  --abstand-7: 1rem;
+  --abstand-8: 1.5rem;
+  --abstand-9: 2rem;
+
+  --radius-s: 3px;
+  --radius-m: 4px; /* Standard */
+  --radius-l: 6px;
+
+  /* --- Farbfamilien (A-105, aus der A-103-Ausnahmeliste benannt) ----------
+     Ein Name je ROLLE, nicht je Wert: zwei Rollen, die zufällig denselben
+     Hex-Wert trugen, bekommen zwei Namen (--gefahr-rahmen und
+     --testmodus-reset-hover sind beide #6b2828, bewusst getrennt). */
+  /* Testmodus-Bernstein: Header-Streifen (A-038), Gesperrt-Zustand (Karte/
+     Liste), Schlüssel-Gegenstände, Handbuch-Überschriften, Voraussetzung-
+     Hinweis -- dieselbe "das ist nicht das Spiel, das ist die Maschine"-Farbe. */
+  --testmodus-rahmen: #7a5a2a;
+  --testmodus-streifen-dunkel-1: #241a10;
+  --testmodus-streifen-dunkel-2: #2a1e12;
+  --testmodus-text: #e0a94f;
+  --testmodus-knopf-hg: #4a3418;
+  --testmodus-hell: #f0c98a;
+  --testmodus-knopf-hover: #6b4c22;
+  --testmodus-gesperrt-hg: #241d10;
+  --testmodus-schluessel-hg: #221b12;
+  /* Testmodus Pause/Reset: eigene Töne -- "steht" ist ein anderer Zustand
+     als "läuft schneller". */
+  --testmodus-pause-knopf: #e06a4f;
+  --testmodus-pause-text: #1a1008;
+  --testmodus-reset-knopf: #4a1c1c;
+  --testmodus-reset-text: #f0a0a0;
+  --testmodus-reset-hover: #6b2828;
+  /* Gefahr-/Besetzt-Rot: dieselbe Warnfarbe auf Karte und Systemliste. */
+  --gefahr-rahmen: #6b2828;
+  --gefahr-hg: #241416;
+  /* Fremd: Karten-Lila, zweite und letzte Farbe auf der Karte (Prinzip 11). */
+  --fremd-tag-hg: #2a1e40;
+  --fremd-tag-rahmen: #6a4ca8;
+  --fremd-tag-text: #c9a8ff;
+  /* Aktiv-/Heimat-Grünblau: Karte und Liste teilen sich die Farbe. */
+  --aktiv-hg: #14262b;
+  --heimat-hg: #162a28;
+  /* Warnstufe: die drei Eskalationsstufen der Supernova-Uhr (UHR_STUFEN in
+     ui.js). NICHT das Mangel-Rot -- das bleibt --warnung (R-10, eigener
+     Auftrag). */
+  --warnstufe-eng-rahmen: #b8863a;
+  --warnstufe-eng-marke-hg: #6a4d1e;
+  --warnstufe-eng-fuellung: #d69b45;
+  --warnstufe-knapp-marke-hg: #6b2028;
+  --warnstufe-knapp-text: #f3b2b7;
+  --warnstufe-kritisch-flaeche: #2a1116;
+  --warnstufe-kritisch-text: #ff8b93;
+  --warnstufe-kritisch-was: #d99aa0;
+  /* Vorgabewert für --stern-farbe (per JS aus data.js gesetzt), falls sie fehlt. */
+  --stern-fallback: #ffe9a8;
+  /* Einzelfälle ohne erkennbares Muster. */
+  --seitenhintergrund-verlauf: #10182a;
+  --planet-chip-hover: #22304a;
+  --kartenfeld-verlauf: #0d1422;
+  --knopf-text: #06110f;
+  --knopf-deaktiviert: #33405c;
 }
 
 * {
@@ -17,7 +97,7 @@
 
 body {
   margin: 0;
-  background: radial-gradient(ellipse at top, #10182a 0%, var(--bg) 60%);
+  background: radial-gradient(ellipse at top, var(--seitenhintergrund-verlauf) 0%, var(--bg) 60%);
   color: var(--text);
   font-family: "Segoe UI", system-ui, sans-serif;
   min-height: 100vh;
@@ -55,15 +135,58 @@ body {
   --status-breite: clamp(240px, 30vw, 380px);
   --kopf-hoehe: 52px;
   --ressourcen-hoehe: auto;
+  /* A-111: die Höhe, ab der eine Gebäudekachel (Mindesthöhe 11,6rem) plus
+     Gruppenüberschrift plus die nächste Kachelreihe angeschnitten sichtbar
+     ist -- der Punkt, ab dem man erkennt, dass es weitergeht. Gemessen,
+     nicht geraten (siehe A-111-Ergebnis). */
+  --spielfeld-mindesthoehe: 420px;
 }
 
-html,
+/* A-111: Tobis Entscheidung (R-16) -- "Scrollen vermeiden, nicht
+   verhindern." Bis hierher war die Seite auf exakt die Fensterhöhe
+   festgenagelt (`height: 100%`/`100vh` durch die ganze Kette, `overflow:
+   hidden`): passte der Inhalt nicht, wurde er abgeschnitten statt scrollbar
+   -- gemessen bei Tobis Testergröße (1097×520 CSS-Pixel, 1920×1080 bei
+   175% Windows-Skalierung) lag die halbe Navigation außerhalb des Fensters
+   und war unerreichbar.
+
+   DIE HÖHENKETTE WIRD DESHALB VON `height` AUF `min-height` UMGESTELLT: html
+   scrollt jetzt senkrecht, wenn der Inhalt sein Minimum nicht unterbringt --
+   waagerecht bleibt es bei `hidden`, das ändert sich nicht (A-081). Passt
+   alles ins Fenster, ändert sich nichts: die Mindesthöhen werden nicht
+   erreicht, es gibt nichts zu scrollen (siehe A-111-Ergebnis, Nachweis bei
+   1920×950). */
+/* `html` bekommt hier ABSICHTLICH kein eigenes overflow: sein Wert muss
+   `visible` bleiben (Vorgabe), damit der Browser das overflow von `body`
+   für den Viewport übernimmt ("overflow propagation", CSS Overflow Module).
+   Gemessen: sobald `html` selbst ein eigenes overflow-x ODER overflow-y
+   trägt, bricht die Übernahme ab -- `body` wird dann zu einer EIGENEN,
+   inneren Scrollbox (`body.scrollHeight` wuchs, `document.documentElement.
+   scrollHeight` blieb bei der Fensterhöhe hängen, `window.scrollTo` bewegte
+   nichts). Beides auf `body`, nichts auf `html` -- das ist die Kombination,
+   die tatsächlich den Viewport scrollen lässt. */
 body {
-  height: 100%;
-  overflow: hidden; /* die Seite selbst scrollt nie */
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable; /* sonst schiebt eine erscheinende
+    Bildlaufleiste das ganze Layout seitwärts -- genau der Sprung, den G4
+    verbietet. Steht hier und nicht auf html, aus demselben Grund wie oben:
+    body ist die Stelle, deren overflow tatsächlich wirkt. */
 }
 
 .rahmen {
+  /* Bleibt `height` (definit), nicht `min-height`: `1fr` braucht eine
+     definierte Containerhöhe, um berechenbar zu bleiben. Mit `min-height`
+     wird die Containerhöhe für die Zeilenberechnung selbst vom Inhalt
+     abhängig, und `1fr` wächst dann auf den vollen Inhalt jeder Zeile statt
+     auf ihr Minimum (in einer Testmessung: die Spielfeld-Zeile wurde 3006px
+     hoch, nicht 420px). Die Mindesthöhe kommt stattdessen von `.spielfeld`
+     selbst (siehe dort) -- das reicht, weil eine Grid-Zeile nie kleiner
+     wird als der größte MINIMUM-BEITRAG ihrer Elemente, und ein explizites
+     `min-height` in Pixeln zählt als solcher (anders als das automatische
+     Minimum, das `overflow: auto` auf 0 setzt -- das ist die eigentliche
+     Ursache aus der Bekannten Falle). Reicht 100vh dafür nicht, überläuft
+     `.rahmen` nach unten, und html scrollt (siehe oben). */
   height: 100vh;
   display: grid;
   grid-template-columns: var(--nav-breite) 1fr var(--status-breite);
@@ -79,27 +202,47 @@ body {
   --status-breite: 1.25rem;
 }
 
+/* A-102 (Regelwerk P15): sichtbarer Tastaturfokus. `:where()` hat
+   Spezifität 0 -- der Block streitet mit keiner bestehenden Regel und gilt
+   trotzdem überall. `:focus-visible` statt `:focus`, damit ein Mausklick
+   keinen Rahmen hinterlässt, nur Tastaturnavigation. Ohne diesen Block war
+   ein Tab-Durchgang in Firefox praktisch blind -- Verstoß gegen WCAG 2.4.7. */
+:where(button, a, input, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--akzent);
+  outline-offset: 2px;
+}
+
+/* A-102 (Regelwerk P17.4): wer Bewegung abgestellt hat, bekommt auch hier
+   keine. Global statt je Regel -- die Zahl der `transition`-Regeln veraltet
+   sonst bei jeder neuen Zeile. Betrifft NICHT die bewusste Nicht-Animation
+   der Uhr-Stufen (die läuft ohnehin ohne transition, siehe dort). */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
+
 /* --- Kopf --------------------------------------------------------------- */
 .kopf {
   grid-area: kopf;
   display: flex;
   align-items: center;
-  gap: 1.5rem;
-  padding: 0 1.25rem;
+  gap: var(--abstand-8);
+  padding: 0 var(--abstand-7);
   border-bottom: 1px solid var(--border);
   background: var(--bg-panel);
 }
 
 .kopf h1 {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: var(--schrift-xxl);
   letter-spacing: 0.3em;
   color: var(--akzent);
 }
 
 .kopf-planet {
   display: flex;
-  gap: 0.6rem;
+  gap: var(--abstand-5);
   align-items: baseline;
   white-space: nowrap;
 }
@@ -111,7 +254,7 @@ body {
    den Planeten zu wechseln, und gehört damit zu dem, was das Spiel braucht. */
 .kopf-planetenwahl {
   display: flex;
-  gap: 0.4rem;
+  gap: var(--abstand-3);
   overflow-x: auto;
   flex: 1 1 auto;
   min-width: 7rem;
@@ -120,25 +263,25 @@ body {
 .kopf-testmodus {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: var(--abstand-3);
   margin-left: auto;
-  padding: 0.25rem 0.5rem;
-  border: 1px dashed #7a5a2a;
-  border-radius: 6px;
-  background: repeating-linear-gradient(45deg, #241a10, #241a10 8px, #2a1e12 8px, #2a1e12 16px);
+  padding: var(--abstand-2) var(--abstand-4);
+  border: 1px dashed var(--testmodus-rahmen);
+  border-radius: var(--radius-l);
+  background: repeating-linear-gradient(45deg, var(--testmodus-streifen-dunkel-1), var(--testmodus-streifen-dunkel-1) 8px, var(--testmodus-streifen-dunkel-2) 8px, var(--testmodus-streifen-dunkel-2) 16px);
 }
 
 .testmodus-label {
-  color: #e0a94f;
-  font-size: 0.75rem;
+  color: var(--testmodus-text);
+  font-size: var(--schrift-s);
   letter-spacing: 0.05em;
 }
 
 .kopf-testmodus button {
-  background: #4a3418;
-  color: #f0c98a;
-  padding: 0.2rem 0.45rem;
-  font-size: 0.75rem;
+  background: var(--testmodus-knopf-hg);
+  color: var(--testmodus-hell);
+  padding: var(--abstand-2) var(--abstand-4);
+  font-size: var(--schrift-s);
 }
 
 /* A-038: welcher Zeitfaktor gilt, muss man sehen. Ein Testmodus, der heimlich
@@ -146,32 +289,32 @@ body {
    hat. Pause bekommt eine eigene Farbe -- „steht" ist ein anderer Zustand als
    „läuft schneller", nicht bloß eine andere Zahl. */
 .kopf-testmodus button[data-zeitfaktor].aktiv {
-  background: #f0c98a;
-  color: #241a10;
+  background: var(--testmodus-hell);
+  color: var(--testmodus-streifen-dunkel-1);
   font-weight: 700;
 }
 
 .kopf-testmodus button[data-zeitfaktor="0"].aktiv {
-  background: #e06a4f;
-  color: #1a1008;
+  background: var(--testmodus-pause-knopf);
+  color: var(--testmodus-pause-text);
 }
 
 .kopf-testmodus button:hover:not(:disabled) {
-  background: #6b4c22;
+  background: var(--testmodus-knopf-hover);
 }
 
 .testmodus-reset {
-  background: #4a1c1c !important;
-  color: #f0a0a0 !important;
+  background: var(--testmodus-reset-knopf) !important;
+  color: var(--testmodus-reset-text) !important;
 }
 
 .testmodus-reset:hover {
-  background: #6b2828 !important;
+  background: var(--testmodus-reset-hover) !important;
 }
 
 .dezent {
   color: var(--text-dezent);
-  font-size: 0.85em;
+  font-size: var(--schrift-l);
 }
 
 /* ==========================================================================
@@ -221,7 +364,7 @@ button[title]:disabled {
   position: absolute;
   top: 0.15rem;
   right: 0.3rem;
-  font-size: 0.7rem;
+  font-size: var(--schrift-xs);
   line-height: 1;
   color: var(--text-dezent);
   opacity: 0.35;
@@ -257,8 +400,8 @@ button[title]:disabled {
   grid-area: ressourcen;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.5rem 1.25rem;
+  gap: var(--abstand-4);
+  padding: var(--abstand-4) var(--abstand-7);
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
 }
@@ -275,7 +418,7 @@ button[title]:disabled {
 .res-reihe {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
-  gap: 0.5rem;
+  gap: var(--abstand-4);
   /* Alle Kacheln einer Reihe gleich hoch, ausgerichtet an der größten --
      dieselbe Regel wie bei .kachel-raster.
 
@@ -324,16 +467,16 @@ button[title]:disabled {
   grid-template-columns: 1fr;
   grid-template-rows: auto auto;
   align-items: center;
-  gap: 0 0.5rem;
+  gap: 0 var(--abstand-4);
   min-width: 9.5rem;
-  padding: 0.3rem 0.6rem;
+  padding: var(--abstand-3) var(--abstand-5);
   background: var(--bg-item);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-l);
 }
 
 .res-symbol {
-  font-size: 1.35rem;
+  font-size: var(--schrift-titel);
   line-height: 1;
 }
 
@@ -343,7 +486,7 @@ button[title]:disabled {
 .res-zahl {
   display: flex;
   align-items: baseline;
-  gap: 0.35rem;
+  gap: var(--abstand-3);
   min-width: 0;
 }
 
@@ -351,19 +494,19 @@ button[title]:disabled {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: var(--abstand-4);
 }
 
 .res-name {
   color: var(--text-dezent);
-  font-size: 0.7rem;
+  font-size: var(--schrift-xs);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
 .res-stufe {
   color: var(--text-dezent);
-  font-size: 0.7rem;
+  font-size: var(--schrift-xs);
   font-variant-numeric: tabular-nums;
 }
 
@@ -371,18 +514,18 @@ button[title]:disabled {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: var(--abstand-4);
 }
 
 .res-wert {
-  font-size: 1rem;
+  font-size: var(--schrift-xxl);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
 .res-rate {
   color: var(--akzent);
-  font-size: 0.75rem;
+  font-size: var(--schrift-s);
   font-variant-numeric: tabular-nums;
 }
 
@@ -415,7 +558,7 @@ button[title]:disabled {
   height: 0.5rem;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-m);
   overflow: hidden;
 }
 
@@ -444,18 +587,18 @@ button[title]:disabled {
    Einstellung, keine Entwicklerfunktion. */
 .kopf-sprache {
   display: flex;
-  gap: 0.25rem;
+  gap: var(--abstand-2);
   align-items: center;
 }
 
 .kopf-sprache button {
-  padding: 0.15rem 0.4rem;
-  font-size: 0.7rem;
+  padding: var(--abstand-1) var(--abstand-3);
+  font-size: var(--schrift-xs);
   letter-spacing: 0.05em;
   color: var(--text-dezent);
   background: transparent;
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: var(--radius-s);
   cursor: pointer;
 }
 
@@ -473,7 +616,7 @@ button[title]:disabled {
    BENUTZT, MISST VORHER DIE REIHENHOEHE. Eine dritte Zeile in EINER Kachel
    ist eine dritte Zeile in ALLEN, sonst ist die Reihe schief. */
 .res-zusatz {
-  font-size: 0.62rem;
+  font-size: var(--schrift-xs);
   color: var(--warnung);
   letter-spacing: 0.02em;
   white-space: nowrap;
@@ -496,7 +639,7 @@ button[title]:disabled {
    nicht auffallen, wenn man spielt. Erst beim Überfahren nimmt er die
    Akzentfarbe an. */
 .kopf-feedback {
-  font-size: 0.7rem;
+  font-size: var(--schrift-xs);
   letter-spacing: 0.05em;
   color: var(--text-dezent);
   text-decoration: none;
@@ -519,7 +662,7 @@ button[title]:disabled {
    beantwortet die Frage "spiele ich gerade die eingefrorene Kopie oder den
    Entwicklungsstand". */
 .version {
-  font-size: 0.6em;
+  font-size: var(--schrift-xs);
   font-weight: 400;
   letter-spacing: 0.05em;
   color: var(--text-dezent);
@@ -535,7 +678,7 @@ button[title]:disabled {
   height: 0.5rem;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-m);
   overflow: hidden;
 }
 
@@ -550,8 +693,8 @@ button[title]:disabled {
   grid-area: nav;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  padding: 0.75rem 0.5rem;
+  gap: var(--abstand-2);
+  padding: var(--abstand-6) var(--abstand-4);
   border-right: 1px solid var(--border);
   background: var(--bg-panel);
   overflow-y: auto;
@@ -561,14 +704,14 @@ button[title]:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: var(--abstand-4);
   width: 100%;
-  padding: 0.55rem 0.75rem;
+  padding: var(--abstand-4) var(--abstand-6);
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-l);
   color: var(--text-dezent);
-  font-size: 0.9rem;
+  font-size: var(--schrift-xl);
   letter-spacing: 0.05em;
   text-align: left;
   cursor: pointer;
@@ -599,8 +742,17 @@ button[title]:disabled {
 /* --- Spielfeld (Mitte) -------------------------------------------------- */
 .spielfeld {
   grid-area: spielfeld;
-  padding: 1rem 1.25rem;
-  overflow-y: auto; /* nur DIESER Bereich scrollt, nie die Seite */
+  padding: var(--abstand-7) var(--abstand-7);
+  /* A-111: die Mindesthöhe ist ein expliziter Pixelwert, kein `auto` -- nur
+     dadurch zählt sie als Minimum-Beitrag der Zeile im Grid (siehe .rahmen).
+     Passt sie ins Fenster, ändert `1fr` daran nichts (unverändertes
+     Verhalten); reicht das Fenster nicht, wird ZUERST diese Mindesthöhe
+     erzwungen und `.rahmen` überläuft nach unten -- html scrollt dann,
+     statt dass hier abgeschnitten wird. */
+  min-height: var(--spielfeld-mindesthoehe);
+  overflow-y: auto; /* dieser Bereich scrollt zusätzlich intern, wenn sein
+    EIGENER Inhalt selbst die Mindesthöhe übersteigt (unverändert seit
+    A-081) -- das ist unabhängig davon, ob die Seite insgesamt scrollt. */
   /* A-081: und waagerecht ebenso. Das ist das Sicherheitsnetz hinter den
      nachgebenden Schienen: was trotz allem breiter ist als der Platz --
      eine Bedienzeile mit ihren festen Rollenbreiten (Prinzip 10b), eine
@@ -611,15 +763,15 @@ button[title]:disabled {
 }
 
 .bereich h2 {
-  margin: 0 0 0.75rem;
-  font-size: 0.95rem;
+  margin: 0 0 var(--abstand-6);
+  font-size: var(--schrift-xl);
   color: var(--text-dezent);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 
 .bereich h2:not(:first-child) {
-  margin-top: 1.5rem;
+  margin-top: var(--abstand-8);
 }
 
 /* Kacheln statt Listenzeilen: feste Größe, umbrechend. Neuer Content
@@ -630,7 +782,7 @@ button[title]:disabled {
   padding: 0;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
-  gap: 0.75rem;
+  gap: var(--abstand-6);
   /* Alle Kacheln gleich groß, ausgerichtet an der größten: gleich hohe
      Zeilen (1fr) plus Dehnen der Kacheln auf die Zeilenhöhe. Robuster als
      eine feste Höhe -- eine Kachel mit Zusatzzeile (z.B. Voraussetzungen)
@@ -689,37 +841,37 @@ button[title]:disabled {
 }
 
 .handbuch h3 {
-  margin: 1.8rem 0 0.4rem;
-  color: #e0a94f;
-  font-size: 1.05rem;
+  margin: var(--abstand-9) 0 var(--abstand-3);
+  color: var(--testmodus-text);
+  font-size: var(--schrift-xxl);
 }
 
 .handbuch h3:first-child {
-  margin-top: 0.2rem;
+  margin-top: var(--abstand-2);
 }
 
 .handbuch p {
-  margin: 0 0 0.7rem;
+  margin: 0 0 var(--abstand-6);
 }
 
 /* Gegliederte Abschnitte (A-019, Neuigkeiten & Roadmap). Die Zwischentitel
    sind kleiner und blasser als die Abschnittstitel darüber -- sonst liest man
    vier Roadmap-Stufen als vier Kapitel. */
 .handbuch h4 {
-  margin: 1.1rem 0 0.3rem;
+  margin: var(--abstand-7) 0 var(--abstand-3);
   color: var(--text-dezent);
-  font-size: 0.85rem;
+  font-size: var(--schrift-l);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .handbuch ul {
-  margin: 0 0 0.7rem;
-  padding-left: 1.2rem;
+  margin: 0 0 var(--abstand-6);
+  padding-left: var(--abstand-7);
 }
 
 .handbuch li {
-  margin-bottom: 0.25rem;
+  margin-bottom: var(--abstand-2);
 }
 
 
@@ -730,8 +882,8 @@ button[title]:disabled {
 .spielstand-knoepfe {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.6rem;
+  gap: var(--abstand-4);
+  margin-bottom: var(--abstand-5);
 }
 
 .spielstand-feld {
@@ -740,10 +892,10 @@ button[title]:disabled {
   background: var(--bg-item);
   color: var(--text-dezent);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0.5rem;
+  border-radius: var(--radius-m);
+  padding: var(--abstand-4);
   font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-  font-size: 0.75rem;
+  font-size: var(--schrift-s);
   line-height: 1.4;
   resize: vertical;
 }
@@ -774,13 +926,13 @@ button[title]:disabled {
   align-items: flex-start;
   gap: 3rem;
   overflow-x: auto;
-  padding-bottom: 0.5rem;
+  padding-bottom: var(--abstand-4);
 }
 
 .baum-spalte {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--abstand-6);
   flex: none;
   width: 15rem;
   position: relative;
@@ -788,10 +940,10 @@ button[title]:disabled {
 }
 
 .baum-stufe {
-  font-size: 0.7rem;
+  font-size: var(--schrift-xs);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  padding-left: 0.25rem;
+  padding-left: var(--abstand-2);
 }
 
 .baum-linien {
@@ -824,7 +976,7 @@ button[title]:disabled {
      echte Zahl daneben: schmaler als 16,5rem liefe die Treibstoffzeile über,
      breiter braucht sie nicht zu werden. */
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(16.5rem, 0.8fr);
-  gap: 1rem;
+  gap: var(--abstand-7);
   flex: 1;
   min-height: 0;
 }
@@ -896,14 +1048,14 @@ button[title]:disabled {
 }
 
 .spalte-kopf .unter-titel {
-  margin: 0 0 0.25rem;
+  margin: 0 0 var(--abstand-2);
 }
 
 .spalte-scrollt {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding-right: 0.5rem;
+  padding-right: var(--abstand-4);
 }
 
 /* --- Statusspalte (rechts) ---------------------------------------------
@@ -923,7 +1075,7 @@ button[title]:disabled {
   flex: 1;
   min-width: 0;
   min-height: 0;
-  padding: 0.75rem 1rem;
+  padding: var(--abstand-6) var(--abstand-7);
 }
 
 /* Schmaler Griff am linken Rand der Spalte -- bleibt immer sichtbar,
@@ -937,7 +1089,7 @@ button[title]:disabled {
   background: var(--bg-item);
   color: var(--text-dezent);
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: var(--schrift-m);
 }
 
 .statusspalte-griff:hover {
@@ -950,31 +1102,31 @@ button[title]:disabled {
 }
 
 .statusspalte h2 {
-  margin: 0 0 0.5rem;
-  font-size: 0.8rem;
+  margin: 0 0 var(--abstand-4);
+  font-size: var(--schrift-m);
   color: var(--text-dezent);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 
 .statusspalte h2:not(:first-child) {
-  margin-top: 1rem;
+  margin-top: var(--abstand-7);
 }
 
 .status-block {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  font-size: 0.85rem;
+  gap: var(--abstand-3);
+  font-size: var(--schrift-l);
 }
 
 .status-zeile {
   display: flex;
   justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.3rem 0.5rem;
+  gap: var(--abstand-4);
+  padding: var(--abstand-3) var(--abstand-4);
   background: var(--bg-item);
-  border-radius: 4px;
+  border-radius: var(--radius-m);
   border-left: 2px solid var(--akzent-dunkel);
 }
 
@@ -994,13 +1146,13 @@ button[title]:disabled {
 .panel {
   background: var(--bg-panel);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 1rem 1.25rem;
+  border-radius: var(--radius-l);
+  padding: var(--abstand-7) var(--abstand-7);
 }
 
 .panel h2 {
   margin-top: 0;
-  font-size: 1rem;
+  font-size: var(--schrift-xxl);
   color: var(--text-dezent);
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -1012,7 +1164,7 @@ button[title]:disabled {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--abstand-6);
 }
 
 /* Alle Kacheln einer Art sind gleich groß und richten sich nach der
@@ -1031,29 +1183,29 @@ button[title]:disabled {
 .gebaeude-item {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: var(--abstand-3);
   min-height: 11.6rem;
   background: var(--bg-item);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-l);
+  padding: var(--abstand-5) var(--abstand-6);
 }
 
 .kachel-kopf {
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--abstand-4);
 }
 
 .kachel-symbol {
-  font-size: 1.3rem;
+  font-size: var(--schrift-titel);
   line-height: 1;
 }
 
 .kachel-name {
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: var(--schrift-xl);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1061,15 +1213,15 @@ button[title]:disabled {
 
 .kachel-stufe {
   color: var(--akzent);
-  font-size: 0.9rem;
+  font-size: var(--schrift-xl);
   font-variant-numeric: tabular-nums;
 }
 
 .kachel-mitte {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  font-size: 0.8rem;
+  gap: var(--abstand-1);
+  font-size: var(--schrift-m);
 }
 
 .kachel-kosten {
@@ -1088,7 +1240,7 @@ button[title]:disabled {
    sobald der Nettozufluss um die Null pendelt, und die ganze Leiste springt. */
 .lager-prognose {
   min-height: 1em;
-  font-size: 0.7rem;
+  font-size: var(--schrift-xs);
   color: var(--text-dezent);
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -1096,7 +1248,7 @@ button[title]:disabled {
 
 .zeilen-marke {
   color: var(--text-dezent);
-  font-size: 0.72rem;
+  font-size: var(--schrift-s);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -1114,7 +1266,7 @@ button[title]:disabled {
    Farbe ist die normale Textfarbe statt der dezenten: eine Bedingung ist eine
    Aussage, keine Fußnote. Kein neuer Farbwert (Prinzip 11). */
 .kachel-sperre {
-  font-size: 0.75rem;
+  font-size: var(--schrift-s);
   color: var(--text);
   line-height: 1.35;
 }
@@ -1140,7 +1292,7 @@ button[title]:disabled {
   justify-content: center;
   height: 1.15rem;
   padding: 0;
-  font-size: 0.7rem;
+  font-size: var(--schrift-xs);
   line-height: 1;
   color: var(--text-dezent);
   background: transparent;
@@ -1162,7 +1314,7 @@ button[title]:disabled {
    klebt und alle Kacheln ihre Knöpfe auf einer Linie haben. */
 .kachel-zeile-aktion {
   display: flex;
-  gap: 0.35rem;
+  gap: var(--abstand-3);
   margin-top: auto;
 }
 
@@ -1176,7 +1328,7 @@ button[title]:disabled {
   background: none;
   color: var(--text-dezent);
   border: 1px solid var(--border);
-  padding: 0 0.5rem;
+  padding: 0 var(--abstand-4);
 }
 
 .kachel-rueckbau:hover:not(:disabled) {
@@ -1257,7 +1409,7 @@ button[title]:disabled {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin-bottom: 0.25rem;
+  margin-bottom: var(--abstand-2);
 }
 
 .gebaeude-name {
@@ -1266,32 +1418,32 @@ button[title]:disabled {
 
 .gebaeude-level {
   color: var(--akzent);
-  font-size: 0.9rem;
+  font-size: var(--schrift-xl);
 }
 
 .gebaeude-beschreibung {
   color: var(--text-dezent);
-  font-size: 0.85rem;
-  margin-bottom: 0.4rem;
+  font-size: var(--schrift-l);
+  margin-bottom: var(--abstand-3);
 }
 
 .gebaeude-kosten {
-  font-size: 0.8rem;
+  font-size: var(--schrift-m);
   color: var(--text-dezent);
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--abstand-4);
 }
 
 .status.im-bau {
   color: var(--akzent);
-  font-size: 0.85rem;
-  margin-bottom: 0.5rem;
+  font-size: var(--schrift-l);
+  margin-bottom: var(--abstand-4);
 }
 
 .status.im-bau button,
 #werft-info button {
-  margin-left: 0.5rem;
-  font-size: 0.8rem;
-  padding: 0.1rem 0.5rem;
+  margin-left: var(--abstand-4);
+  font-size: var(--schrift-m);
+  padding: var(--abstand-1) var(--abstand-4);
 }
 
 .panel-breit {
@@ -1299,14 +1451,14 @@ button[title]:disabled {
 }
 
 .warteschlange {
-  margin-top: 0.5rem;
-  padding-top: 0.5rem;
+  margin-top: var(--abstand-4);
+  padding-top: var(--abstand-4);
   border-top: 1px dashed var(--text-dezent);
 }
 
 .warteschlange-titel {
-  font-size: 0.8rem;
-  margin-bottom: 0.25rem;
+  font-size: var(--schrift-m);
+  margin-bottom: var(--abstand-2);
 }
 
 /* A-077: was die WARTENDEN Auftraege zusammen kosten -- Tobis Frage war
@@ -1318,14 +1470,14 @@ button[title]:disabled {
    zum Geruest der Warteschlange, und das steht nur, solange ueberhaupt etwas
    wartet. Sie kommt und geht also mit der ganzen Liste, nicht im Takt. */
 .warteschlange-kosten {
-  font-size: 0.8rem;
-  margin-bottom: 0.25rem;
+  font-size: var(--schrift-m);
+  margin-bottom: var(--abstand-2);
   font-variant-numeric: tabular-nums;
 }
 
 .warteschlange-liste {
   list-style: decimal inside;
-  font-size: 0.85rem;
+  font-size: var(--schrift-l);
   padding: 0;
   margin: 0;
 }
@@ -1338,10 +1490,10 @@ button[title]:disabled {
    Die frühere Verteilung über die ganze Zeile fällt weg: mit dem Knopf vorn
    würde sie die Namen auseinanderziehen statt sie auszurichten. */
 .warteschlange-liste li {
-  padding: 0.15rem 0;
+  padding: var(--abstand-1) 0;
   display: flex;
   align-items: baseline;
-  gap: 0.4rem;
+  gap: var(--abstand-3);
 }
 
 /* A-080: Die beiden Schieber stehen direkt hinter dem × und vor dem Namen --
@@ -1372,15 +1524,15 @@ button[title]:disabled {
 
 .warteschlange-liste button {
   padding: 0;
-  font-size: 0.85rem;
+  font-size: var(--schrift-l);
   flex: 0 0 1.3rem;
   text-align: center;
 }
 
 .sonden-status {
-  font-size: 0.85rem;
+  font-size: var(--schrift-l);
   color: var(--text-dezent);
-  margin-bottom: 0.75rem;
+  margin-bottom: var(--abstand-6);
 }
 
 .sonden-status.aktiv {
@@ -1393,7 +1545,7 @@ button[title]:disabled {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: var(--abstand-3);
   /* Keine eigene Höhenbegrenzung mehr: das Scrollen übernimmt der
      umgebende Bereich (.spalte-scrollt bzw. .spielfeld). Eine feste
      max-height würde im neuen Layout Platz verschenken. */
@@ -1410,13 +1562,13 @@ button[title]:disabled {
 }
 
 .planet-chip:hover:not(:disabled) {
-  background: #22304a;
+  background: var(--planet-chip-hover);
 }
 
 .chip-aktiv {
   border-color: var(--akzent);
   color: var(--akzent);
-  background: #14262b;
+  background: var(--aktiv-hg);
 }
 
 .chip-aussenposten {
@@ -1426,12 +1578,12 @@ button[title]:disabled {
 .werft-liste {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
-  gap: 0.75rem;
+  gap: var(--abstand-6);
 }
 
 .schiff-knoepfe {
   display: flex;
-  gap: 0.35rem;
+  gap: var(--abstand-3);
 }
 
 /* A-079: Das Stückzahl-Feld steht VOR dem Knopf und bleibt schmal -- der
@@ -1446,30 +1598,30 @@ button[title]:disabled {
 }
 
 .route-tag {
-  background: #2a1e40;
-  border-color: #6a4ca8;
-  color: #c9a8ff;
+  background: var(--fremd-tag-hg);
+  border-color: var(--fremd-tag-rahmen);
+  color: var(--fremd-tag-text);
 }
 
 .route-halt {
   border-top: 1px dashed var(--border);
-  padding-top: 0.5rem;
-  margin-top: 0.5rem;
+  padding-top: var(--abstand-4);
+  margin-top: var(--abstand-4);
 }
 
 .regel-tag {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: var(--abstand-3);
   background: var(--bg-item);
   border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 0.1rem 0.5rem;
-  font-size: 0.8rem;
+  border-radius: var(--radius-s);
+  padding: var(--abstand-1) var(--abstand-4);
+  font-size: var(--schrift-m);
 }
 
 .regel-tag button {
-  padding: 0 0.3rem;
+  padding: 0 var(--abstand-3);
   background: transparent;
   color: var(--text-dezent);
 }
@@ -1505,8 +1657,8 @@ button[title]:disabled {
     minmax(var(--zeile-knopf), max-content)
     minmax(var(--zeile-knopf), max-content);
   align-items: center;
-  column-gap: 0.6rem;
-  row-gap: 0.3rem;
+  column-gap: var(--abstand-5);
+  row-gap: var(--abstand-3);
 }
 
 /* Die Rollen. Ein Kind ohne Rollenklasse rutscht in die nächste freie
@@ -1545,9 +1697,9 @@ button[title]:disabled {
 .markt-zeile {
   background: var(--bg-item);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0.4rem 0.75rem;
-  margin-bottom: 0.35rem;
+  border-radius: var(--radius-m);
+  padding: var(--abstand-3) var(--abstand-6);
+  margin-bottom: var(--abstand-3);
 }
 
 .markt-name {
@@ -1559,40 +1711,40 @@ button[title]:disabled {
   background: var(--bg-item);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0.3rem 0.5rem;
+  border-radius: var(--radius-m);
+  padding: var(--abstand-3) var(--abstand-4);
 }
 
 .flotte-zeile {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--abstand-6);
   background: var(--bg-item);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-m);
+  padding: var(--abstand-4) var(--abstand-6);
 }
 
 .flotte-detail {
-  margin-top: 1rem;
-  padding: 0.75rem 1rem;
+  margin-top: var(--abstand-7);
+  padding: var(--abstand-6) var(--abstand-7);
   background: var(--bg-item);
   border: 1px solid var(--akzent-dunkel);
-  border-radius: 6px;
+  border-radius: var(--radius-l);
 }
 
 .flotte-reihe {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: var(--abstand-7);
   align-items: center;
-  margin-bottom: 0.6rem;
+  margin-bottom: var(--abstand-5);
 }
 
 .umlade-gruppe {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: var(--abstand-3);
 }
 
 .umlade-wert {
@@ -1619,41 +1771,41 @@ button[title]:disabled {
   background: var(--bg-item);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0.3rem 0.5rem;
+  border-radius: var(--radius-m);
+  padding: var(--abstand-3) var(--abstand-4);
 }
 
 .auftrag-zeile {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--abstand-6);
   background: var(--bg-item);
   border: 1px solid var(--border);
   border-left: 2px solid var(--akzent-dunkel);
-  border-radius: 4px;
-  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius-m);
+  padding: var(--abstand-3) var(--abstand-6);
 }
 
 .unter-titel {
-  font-size: 0.85rem;
+  font-size: var(--schrift-l);
   color: var(--text-dezent);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  margin: 1rem 0 0.5rem;
+  margin: var(--abstand-7) 0 var(--abstand-4);
 }
 
 .transport-zeile {
   display: flex;
   align-items: flex-end;
-  gap: 0.75rem;
+  gap: var(--abstand-6);
   flex-wrap: wrap;
 }
 
 .transport-zeile label {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-  font-size: 0.8rem;
+  gap: var(--abstand-2);
+  font-size: var(--schrift-m);
   color: var(--text-dezent);
 }
 
@@ -1662,9 +1814,9 @@ button[title]:disabled {
   background: var(--bg-item);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0.35rem 0.5rem;
-  font-size: 0.9rem;
+  border-radius: var(--radius-m);
+  padding: var(--abstand-3) var(--abstand-4);
+  font-size: var(--schrift-xl);
 }
 
 .transport-zeile input {
@@ -1673,7 +1825,7 @@ button[title]:disabled {
 
 .slot-aktionen {
   display: flex;
-  gap: 0.35rem;
+  gap: var(--abstand-3);
   flex-wrap: wrap;
   justify-content: flex-end;
 }
@@ -1681,16 +1833,16 @@ button[title]:disabled {
 .galaxie-system {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--abstand-6);
   background: var(--bg-item);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius-m);
+  padding: var(--abstand-3) var(--abstand-6);
 }
 
 .system-aktiv {
   border-color: var(--akzent);
-  background: #14262b;
+  background: var(--aktiv-hg);
 }
 
 .system-fern {
@@ -1699,21 +1851,21 @@ button[title]:disabled {
 }
 
 .basis-tag {
-  font-size: 0.7rem;
+  font-size: var(--schrift-xs);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--akzent);
   border: 1px solid var(--akzent-dunkel);
-  border-radius: 3px;
-  padding: 0.05rem 0.3rem;
-  margin-left: 0.35rem;
+  border-radius: var(--radius-s);
+  padding: var(--abstand-1) var(--abstand-3);
+  margin-left: var(--abstand-3);
 }
 
 /* Der Ladebalken des Energiespeichers. Bewusst in der Ressourcenfarbe der
    Energie statt in einer neuen Farbe -- Prinzip 11: der Balken beantwortet
    dieselbe Frage wie die Kachel darüber und braucht keine eigene Identität. */
 .energie-balken.speicher {
-  background: #e0a94f;
+  background: var(--testmodus-text);
   opacity: 0.8;
 }
 
@@ -1722,7 +1874,7 @@ button[title]:disabled {
    Blick, ob ein System eine enge, kalte Zone hat (rot) oder eine weite, heiße
    (weiß). Damit verdient sie sich ihren Platz nach Prinzip 11. */
 .stern-tag {
-  font-size: 0.75rem;
+  font-size: var(--schrift-s);
   color: var(--text-dezent);
   white-space: nowrap;
 }
@@ -1732,25 +1884,25 @@ button[title]:disabled {
   width: 0.55em;
   height: 0.55em;
   border-radius: 50%;
-  background: var(--stern-farbe, #ffe9a8);
-  margin-right: 0.25rem;
+  background: var(--stern-farbe, var(--stern-fallback));
+  margin-right: var(--abstand-2);
   vertical-align: baseline;
 }
 
 .voraussetzung-zeile {
-  font-size: 0.8rem;
-  color: #e0a94f;
-  margin-bottom: 0.5rem;
+  font-size: var(--schrift-m);
+  color: var(--testmodus-text);
+  margin-bottom: var(--abstand-4);
 }
 
 .system-slot {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--abstand-6);
   background: var(--bg-item);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius-m);
+  padding: var(--abstand-3) var(--abstand-6);
 }
 
 .slot-unerforscht {
@@ -1780,12 +1932,12 @@ button[title]:disabled {
   grid-column: 1 / -1;
   align-self: start;
   height: min-content;
-  font-size: 0.8rem;
+  font-size: var(--schrift-m);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  margin: 0.6rem 0 0.1rem;
+  margin: var(--abstand-5) 0 var(--abstand-1);
   border-bottom: 1px solid var(--border);
-  padding-bottom: 0.2rem;
+  padding-bottom: var(--abstand-2);
 }
 
 .gebaeude-gruppe:first-child .gruppe-titel {
@@ -1798,15 +1950,15 @@ button[title]:disabled {
    schon bei der Ressourcenleiste behoben wurde. */
 .spiel-datum {
   font-variant-numeric: tabular-nums;
-  font-size: 0.85rem;
-  color: var(--dezent);
+  font-size: var(--schrift-l);
+  color: var(--text-dezent);
   white-space: nowrap;
   align-self: center;
 }
 
 .slot-heimat {
   border-color: var(--akzent-dunkel);
-  background: #162a28;
+  background: var(--heimat-hg);
 }
 
 /* Ein fremder Stützpunkt. Dieselbe Warnfarbe wie .karte-besetzt auf der
@@ -1815,17 +1967,17 @@ button[title]:disabled {
    nicht zu unterscheiden (A-002). */
 .slot-besetzt {
   border-color: var(--warnung);
-  background: #241416;
+  background: var(--gefahr-hg);
 }
 
 .slot-gefahr {
-  border-color: #6b2828;
-  background: #241416;
+  border-color: var(--gefahr-rahmen);
+  background: var(--gefahr-hg);
 }
 
 .slot-gesperrt {
-  border-color: #7a5a2a;
-  background: #241d10;
+  border-color: var(--testmodus-rahmen);
+  background: var(--testmodus-gesperrt-hg);
 }
 
 .slot-verwertet {
@@ -1862,10 +2014,10 @@ button[title]:disabled {
   display: block;
   width: 100%;
   height: clamp(170px, 30vh, 320px);
-  margin-bottom: 0.4rem;
-  background: radial-gradient(circle at 50% 50%, #0d1422 0%, var(--bg) 75%);
+  margin-bottom: var(--abstand-3);
+  background: radial-gradient(circle at 50% 50%, var(--kartenfeld-verlauf) 0%, var(--bg) 75%);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-m);
   /* Das Mausrad gehört im Kartenfeld dem Zoom, nicht dem Seitenlauf. Ohne
      `touch-action` schiebt der Browser die Seite mit, bevor der Handler
      überhaupt gefragt wird. */
@@ -1899,12 +2051,12 @@ button[title]:disabled {
   align-items: center;
   justify-content: center;
   padding: 0;
-  font-size: 0.85rem;
+  font-size: var(--schrift-l);
   line-height: 1;
   color: var(--text-dezent);
   background: color-mix(in srgb, var(--bg) 80%, transparent);
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: var(--radius-s);
 }
 
 .karte-zoom button:hover {
@@ -2132,7 +2284,7 @@ button[title]:disabled {
 }
 
 .karte-objekt.karte-eigen .karte-objekt-scheibe {
-  fill: #162a28;
+  fill: var(--heimat-hg);
   stroke: var(--akzent-dunkel);
 }
 
@@ -2141,19 +2293,19 @@ button[title]:disabled {
    das hier gehört dir nicht. Bewusst heller als .karte-gefahr, denn ein
    besetzter Orbit ist kein Naturereignis, sondern jemand. */
 .karte-objekt.karte-besetzt .karte-objekt-scheibe {
-  fill: #241416;
+  fill: var(--gefahr-hg);
   stroke: var(--warnung);
   stroke-width: 1.2;
 }
 
 .karte-objekt.karte-gefahr .karte-objekt-scheibe {
-  fill: #241416;
-  stroke: #6b2828;
+  fill: var(--gefahr-hg);
+  stroke: var(--gefahr-rahmen);
 }
 
 .karte-objekt.karte-gesperrt .karte-objekt-scheibe {
-  fill: #241d10;
-  stroke: #7a5a2a;
+  fill: var(--testmodus-gesperrt-hg);
+  stroke: var(--testmodus-rahmen);
 }
 
 .karte-objekt.karte-verwertet {
@@ -2173,19 +2325,19 @@ button[title]:disabled {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.15rem 0.6rem;
-  font-size: 0.7rem;
+  gap: var(--abstand-1) var(--abstand-5);
+  font-size: var(--schrift-xs);
   color: var(--text-dezent);
-  margin-bottom: 0.4rem;
+  margin-bottom: var(--abstand-3);
 }
 
 .karte-marke {
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 50%;
-  background: #ffe9a8;
+  background: var(--stern-fallback);
   opacity: 0.75;
-  margin-right: 0.25rem;
+  margin-right: var(--abstand-2);
 }
 
 .karte-marke.karte-besucht {
@@ -2211,23 +2363,23 @@ button[title]:disabled {
 }
 
 .gesperrt-text {
-  color: #e0a94f;
+  color: var(--testmodus-text);
 }
 
 .item-schluessel {
-  border-color: #7a5a2a;
-  background: #221b12;
+  border-color: var(--testmodus-rahmen);
+  background: var(--testmodus-schluessel-hg);
 }
 
 .schluessel-tag {
-  font-size: 0.7rem;
+  font-size: var(--schrift-xs);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #e0a94f;
-  border: 1px solid #7a5a2a;
-  border-radius: 3px;
-  padding: 0.05rem 0.3rem;
-  margin-left: 0.35rem;
+  color: var(--testmodus-text);
+  border: 1px solid var(--testmodus-rahmen);
+  border-radius: var(--radius-s);
+  padding: var(--abstand-1) var(--abstand-3);
+  margin-left: var(--abstand-3);
   vertical-align: middle;
 }
 
@@ -2236,7 +2388,7 @@ button[title]:disabled {
   text-align: right;
   color: var(--text-dezent);
   font-variant-numeric: tabular-nums;
-  font-size: 0.85rem;
+  font-size: var(--schrift-l);
 }
 
 .slot-symbol {
@@ -2252,11 +2404,11 @@ button[title]:disabled {
 }
 
 .slot-bezeichnung {
-  font-size: 0.9rem;
+  font-size: var(--schrift-xl);
 }
 
 .slot-hinweis {
-  font-size: 0.8rem;
+  font-size: var(--schrift-m);
   color: var(--text-dezent);
 }
 
@@ -2270,8 +2422,8 @@ button[title]:disabled {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  font-size: 0.85rem;
+  gap: var(--abstand-3);
+  font-size: var(--schrift-l);
   /* Füllt den Rest der Statusspalte und scrollt dort intern -- der Log
      darf beliebig lang werden, ohne die Spalte zu sprengen. */
   flex: 1;
@@ -2280,10 +2432,10 @@ button[title]:disabled {
 }
 
 .meldungen-liste li {
-  padding: 0.35rem 0.6rem;
+  padding: var(--abstand-3) var(--abstand-5);
   background: var(--bg-item);
   border-left: 2px solid var(--akzent-dunkel);
-  border-radius: 3px;
+  border-radius: var(--radius-s);
 }
 
 /* Kopfzeile der Meldungen: Überschrift links, Umschalter rechts. Die Überschrift
@@ -2293,8 +2445,8 @@ button[title]:disabled {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 0.5rem;
-  margin-top: 1rem;
+  gap: var(--abstand-4);
+  margin-top: var(--abstand-7);
 }
 
 /* Bewusst ein unauffälliger Knopf: er ist eine Ansichtssache, keine
@@ -2304,9 +2456,9 @@ button[title]:disabled {
   background: none;
   color: var(--text-dezent);
   border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 0.1rem 0.45rem;
-  font-size: 0.7rem;
+  border-radius: var(--radius-s);
+  padding: var(--abstand-1) var(--abstand-4);
+  font-size: var(--schrift-xs);
   font-weight: 500;
   letter-spacing: 0.04em;
   /* Feste Mindestbreite, damit der Knopf beim Umschalten nicht die Größe
@@ -2329,21 +2481,21 @@ button[title]:disabled {
    man soll sehen, dass man gerade nicht das Spiel ansieht, sondern die
    Maschine dahinter. */
 .meldungen-filter.aktiv {
-  border-color: #7a5a2a;
-  color: #e0a94f;
+  border-color: var(--testmodus-rahmen);
+  color: var(--testmodus-text);
 }
 
 .meldungen-filter.aktiv:hover:not(:disabled) {
-  background: #241a10;
-  color: #f0c98a;
+  background: var(--testmodus-streifen-dunkel-1);
+  color: var(--testmodus-hell);
 }
 
 button {
   background: var(--akzent-dunkel);
-  color: #06110f;
+  color: var(--knopf-text);
   border: none;
-  border-radius: 4px;
-  padding: 0.4rem 0.9rem;
+  border-radius: var(--radius-m);
+  padding: var(--abstand-3) var(--abstand-7);
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s;
@@ -2354,7 +2506,7 @@ button:hover:not(:disabled) {
 }
 
 button:disabled {
-  background: #33405c;
+  background: var(--knopf-deaktiviert);
   color: var(--text-dezent);
   cursor: not-allowed;
 }
@@ -2369,15 +2521,15 @@ button:disabled {
 .imperium-tabelle {
   border-collapse: collapse;
   width: 100%;
-  font-size: 0.85rem;
+  font-size: var(--schrift-l);
 }
 
 .imperium-tabelle th {
   text-align: left;
-  padding: 0.4rem 0.6rem;
+  padding: var(--abstand-3) var(--abstand-5);
   color: var(--text-dezent);
   font-weight: 500;
-  font-size: 0.75rem;
+  font-size: var(--schrift-s);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   border-bottom: 1px solid var(--border);
@@ -2385,7 +2537,7 @@ button:disabled {
 }
 
 .imperium-tabelle td {
-  padding: 0.4rem 0.6rem;
+  padding: var(--abstand-3) var(--abstand-5);
   border-bottom: 1px solid var(--bg-item);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -2398,14 +2550,14 @@ button:disabled {
 .imperium-tabelle tr.zeile-summe td {
   border-top: 1px solid var(--border);
   border-bottom: none;
-  padding-top: 0.6rem;
+  padding-top: var(--abstand-5);
 }
 
 .imperium-tabelle button {
   background: none;
   color: var(--text);
   padding: 0;
-  font-size: 0.85rem;
+  font-size: var(--schrift-l);
   text-decoration: underline dotted;
 }
 
@@ -2417,12 +2569,12 @@ button:disabled {
    ohne zusätzliche Spalte. */
 .imperium-rate {
   display: block;
-  font-size: 0.7rem;
+  font-size: var(--schrift-xs);
   color: var(--akzent);
 }
 
 .imperium-transfers {
-  margin-top: 0.75rem;
+  margin-top: var(--abstand-6);
 }
 
 /* --- Gestapelter Lagerbalken -------------------------------------------
@@ -2506,7 +2658,7 @@ button:disabled {
      Fassung (gemessen: 304 px, Nebentext ungekürzt). */
   min-width: 11rem;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-m);
   overflow: hidden;
   background: var(--bg-item);
 }
@@ -2516,10 +2668,10 @@ button:disabled {
 .uhr-marke {
   display: flex;
   align-items: center;
-  padding: 0 0.5rem;
+  padding: 0 var(--abstand-4);
   background: var(--border);
   color: var(--text);
-  font-size: 0.6rem;
+  font-size: var(--schrift-xs);
   font-weight: 700;
   letter-spacing: 0.18em;
 }
@@ -2531,18 +2683,18 @@ button:disabled {
   gap: 2px;
   flex: 1;
   min-width: 0;
-  padding: 3px 0.6rem 4px;
+  padding: 3px var(--abstand-5) 4px;
 }
 
 .uhr-zeile {
   display: flex;
   align-items: baseline;
-  gap: 0.4rem;
+  gap: var(--abstand-3);
   min-width: 0;
 }
 
 .uhr-zeit {
-  font-size: 1rem;
+  font-size: var(--schrift-xxl);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--text);
@@ -2550,7 +2702,7 @@ button:disabled {
 }
 
 .uhr-was {
-  font-size: 0.7rem;
+  font-size: var(--schrift-xs);
   color: var(--text-dezent);
   white-space: nowrap;
   overflow: hidden;
@@ -2562,8 +2714,8 @@ button:disabled {
    sie beantwortet "wie spät ist es eigentlich" ohne zusätzliche Zahl. */
 .uhr-schiene {
   height: 3px;
-  border-radius: 2px;
-  background: #0a0e17;
+  border-radius: var(--radius-s);
+  background: var(--bg);
   overflow: hidden;
 }
 
@@ -2581,25 +2733,25 @@ button:disabled {
    Bewusst OHNE Blinken oder Puls: eine Anzeige, die dauernd zuckt, wird
    weggeschaut. Sie soll auffallen, wenn man hinsieht. */
 .supernova-uhr.eng {
-  border-color: #b8863a;
+  border-color: var(--warnstufe-eng-rahmen);
 }
 .supernova-uhr.eng .uhr-marke {
-  background: #6a4d1e;
-  color: #f0c98a;
+  background: var(--warnstufe-eng-marke-hg);
+  color: var(--testmodus-hell);
 }
 .supernova-uhr.eng .uhr-fuellung {
-  background: #d69b45;
+  background: var(--warnstufe-eng-fuellung);
 }
 
 .supernova-uhr.knapp {
   border-color: var(--warnung);
 }
 .supernova-uhr.knapp .uhr-marke {
-  background: #6b2028;
-  color: #f3b2b7;
+  background: var(--warnstufe-knapp-marke-hg);
+  color: var(--warnstufe-knapp-text);
 }
 .supernova-uhr.knapp .uhr-zeit {
-  color: #f3b2b7;
+  color: var(--warnstufe-knapp-text);
 }
 .supernova-uhr.knapp .uhr-fuellung {
   background: var(--warnung);
@@ -2610,20 +2762,20 @@ button:disabled {
    (Prinzip 11), denn ab hier ist die Partie entschieden oder verloren. */
 .supernova-uhr.kritisch {
   border-color: var(--warnung);
-  background: #2a1116;
+  background: var(--warnstufe-kritisch-flaeche);
 }
 .supernova-uhr.kritisch .uhr-marke {
   background: var(--warnung);
-  color: #2a1116;
+  color: var(--warnstufe-kritisch-flaeche);
 }
 .supernova-uhr.kritisch .uhr-zeit {
-  color: #ff8b93;
+  color: var(--warnstufe-kritisch-text);
 }
 .supernova-uhr.kritisch .uhr-was {
-  color: #d99aa0;
+  color: var(--warnstufe-kritisch-was);
 }
 .supernova-uhr.kritisch .uhr-fuellung {
-  background: #ff8b93;
+  background: var(--warnstufe-kritisch-text);
 }
 
 /* --- Abspann ------------------------------------------------------------
@@ -2640,31 +2792,31 @@ button:disabled {
 
 .abspann-tafel {
   max-width: 640px;
-  padding: 2rem 2.5rem;
+  padding: var(--abstand-9) 2.5rem;
   border: 1px solid var(--border);
   background: var(--bg-panel);
   box-shadow: var(--schatten);
 }
 
 .abspann-tafel h2 {
-  margin: 0 0 0.5rem;
+  margin: 0 0 var(--abstand-4);
   color: var(--akzent);
   letter-spacing: 0.1em;
 }
 
 .abspann-liste {
   list-style: none;
-  margin: 1.25rem 0;
+  margin: var(--abstand-7) 0;
   padding: 0;
 }
 
 .abspann-liste li {
   display: grid;
   grid-template-columns: 1fr auto auto;
-  gap: 1rem;
-  padding: 0.35rem 0;
+  gap: var(--abstand-7);
+  padding: var(--abstand-3) 0;
   border-bottom: 1px solid var(--border);
-  font-size: 0.85rem;
+  font-size: var(--schrift-l);
 }
 
 .abspann-hielt {
@@ -2689,7 +2841,7 @@ button:disabled {
 .abspann-knoepfe {
   display: flex;
   justify-content: flex-end;
-  margin-top: 1.5rem;
+  margin-top: var(--abstand-8);
 }
 
 /* --- Erklärfenster beim ersten Start ------------------------------------
@@ -2710,23 +2862,23 @@ button:disabled {
 
 .erstklaerung-tafel {
   max-width: 34rem;
-  padding: 1.75rem 2rem;
+  padding: var(--abstand-8) var(--abstand-9);
   border: 1px solid var(--akzent-dunkel);
-  border-radius: 6px;
+  border-radius: var(--radius-l);
   background: var(--bg-panel);
   box-shadow: var(--schatten);
 }
 
 .erstklaerung-tafel h2 {
-  margin: 0 0 0.75rem;
+  margin: 0 0 var(--abstand-6);
   color: var(--akzent);
   letter-spacing: 0.08em;
 }
 
 .erstklaerung-tafel p {
-  margin: 0 0 0.75rem;
+  margin: 0 0 var(--abstand-6);
   line-height: 1.55;
-  font-size: 0.9rem;
+  font-size: var(--schrift-xl);
 }
 
 /* A-084: Die Sprachwahl im Erstklaerungs-Fenster. Sie steht oben rechts,
@@ -2738,15 +2890,15 @@ button:disabled {
 .erstklaerung-sprachen {
   display: flex;
   justify-content: flex-end;
-  gap: 0.35rem;
-  margin-bottom: 0.5rem;
+  gap: var(--abstand-3);
+  margin-bottom: var(--abstand-4);
 }
 
 .erstklaerung-knoepfe {
   display: flex;
   justify-content: flex-end;
-  gap: 0.6rem;
-  margin-top: 1.5rem;
+  gap: var(--abstand-5);
+  margin-top: var(--abstand-8);
 }
 
 /* Der Weg ins Handbuch steht daneben, nicht darunter -- er ist eine echte
@@ -2771,17 +2923,17 @@ button:disabled {
 .kommando-station {
   background: var(--bg-item);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 0.5rem 0.6rem;
-  margin-bottom: 0.6rem;
+  border-radius: var(--radius-l);
+  padding: var(--abstand-4) var(--abstand-5);
+  margin-bottom: var(--abstand-5);
 }
 
 .kommando-titel {
   font-weight: 600;
   color: var(--text-dezent);
-  font-size: 0.85rem;
+  font-size: var(--schrift-l);
   letter-spacing: 0.03em;
-  margin-bottom: 0.35rem;
+  margin-bottom: var(--abstand-3);
 }
 
 /* Dieselben Chips wie die Planetenwahl -- so beauftragt. Sie brauchen hier
@@ -2789,15 +2941,15 @@ button:disabled {
 .kommando-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
-  margin-bottom: 0.35rem;
+  gap: var(--abstand-3);
+  margin-bottom: var(--abstand-3);
 }
 
 .kommando-schalter {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  margin-bottom: 0.35rem;
+  gap: var(--abstand-3);
+  margin-bottom: var(--abstand-3);
 }
 
 /* Die Treibstoffzeile ist eine Bedienzeile im Sinne von 10b und trägt deren
@@ -2820,8 +2972,8 @@ button:disabled {
      der Station und keine Zeilenschaltfläche). Mit --zeile-knopf: 0 fallen
      sie auf Breite null zusammen, statt 12rem Luft zu reservieren. */
   --zeile-knopf: 0;
-  column-gap: 0.4rem;
-  margin-bottom: 0.35rem;
+  column-gap: var(--abstand-3);
+  margin-bottom: var(--abstand-3);
 }
 
 /* .menge-feld bringt 6,5em Grundbreite mit (Zeile 2265) -- die passt in die
@@ -2861,8 +3013,8 @@ button:disabled {
      vierte Spalte von 20rem nicht mehr hineinpasst. */
   max-width: 76rem;
   align-items: start;
-  gap: 0.5rem;
-  margin-bottom: 0.9rem;
+  gap: var(--abstand-4);
+  margin-bottom: var(--abstand-7);
 }
 
 .uebersicht-hinweis {
@@ -2874,24 +3026,24 @@ button:disabled {
    dem Bedienzeilen-Raster (Prinzip 10b), damit sie sich wie jede andere
    Eingabezeile im Spiel anfühlt. */
 .uebersicht-name {
-  margin-bottom: 0.6rem;
+  margin-bottom: var(--abstand-5);
 }
 
 .uebersicht-gruppe {
   background: var(--bg-item);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0.45rem 0.7rem 0.55rem;
+  border-radius: var(--radius-m);
+  padding: var(--abstand-4) var(--abstand-6) var(--abstand-4);
 }
 
 .uebersicht-titel {
-  font-size: 0.75rem;
+  font-size: var(--schrift-s);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dezent);
   border-bottom: 1px solid var(--border);
-  padding-bottom: 0.2rem;
-  margin-bottom: 0.25rem;
+  padding-bottom: var(--abstand-2);
+  margin-bottom: var(--abstand-2);
 }
 
 /* Feste Beschriftungsspalte -- dieselbe Idee wie im 10b-Raster: die
@@ -2901,10 +3053,10 @@ button:disabled {
 .uebersicht-zeile {
   display: grid;
   grid-template-columns: 7.5rem 1fr;
-  column-gap: 0.5rem;
+  column-gap: var(--abstand-4);
   align-items: baseline;
   min-height: 1.4rem;
-  font-size: 0.85rem;
+  font-size: var(--schrift-l);
 }
 
 .uebersicht-marke {
@@ -2941,7 +3093,7 @@ button:disabled {
    haben (Prinzip 10, A-053). Der vollstaendige Text mit Mengen und Anlagen
    steht im Tooltip und im DOM, nur die Darstellung ist gekappt. */
 .kachel-beschaffung {
-  font-size: 0.75rem;
+  font-size: var(--schrift-s);
   line-height: 1.25;
   min-width: 0;
   white-space: nowrap;
@@ -2980,9 +3132,9 @@ button:disabled {
   --zeile-zahl: minmax(0, 1fr);
   --zeile-eingabe: 0;
   --zeile-knopf: 0;
-  column-gap: 0.4rem;
-  font-size: 0.78rem;
-  margin-top: 0.15rem;
+  column-gap: var(--abstand-3);
+  font-size: var(--schrift-m);
+  margin-top: var(--abstand-1);
 }
 
 /* Die Lagespalte ist die, die nachgibt -- also muss sie auch nachgeben
@@ -2993,6 +3145,6 @@ button:disabled {
 }
 
 .kachel-modus button {
-  font-size: 0.75rem;
-  padding: 0.15rem 0.4rem;
+  font-size: var(--schrift-s);
+  padding: var(--abstand-1) var(--abstand-3);
 }
