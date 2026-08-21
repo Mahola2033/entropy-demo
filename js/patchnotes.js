@@ -30,8 +30,8 @@ export const PATCHNOTES = [
   {
     version: "0.2.0",
     de: [
-      "Dies ist der zweite veroeffentlichte Demo-Stand. Die mittlere Ziffer zaehlt ab jetzt genau das: wie oft die Demo veroeffentlicht wurde. Die 1.0 bleibt fuer die echte Veroeffentlichung reserviert.",
-      "Seit dem letzten Demo-Stand: Warnungen sind endlich lesbar (das Rot war zu dunkel), kleine Fenster schneiden die Oberflaeche nicht mehr ab, sondern lassen sich scrollen, die Nahrungsrate rechnet den Verderb ehrlich mit, und der Laden-Knopf sagt, wenn es nichts zu laden gibt.",
+      "Dies ist der zweite veröffentlichte Demo-Stand. Die mittlere Ziffer zählt ab jetzt genau das: wie oft die Demo veröffentlicht wurde. Die 1.0 bleibt für die echte Veröffentlichung reserviert.",
+      "Seit dem letzten Demo-Stand: Warnungen sind endlich lesbar (das Rot war zu dunkel), kleine Fenster schneiden die Oberfläche nicht mehr ab, sondern lassen sich scrollen, die Nahrungsrate rechnet den Verderb ehrlich mit, und der Laden-Knopf sagt, wenn es nichts zu laden gibt.",
     ],
     en: [
       "This is the second published demo build. From now on the middle digit counts exactly that: how often the demo has been published. 1.0 stays reserved for the real release.",
