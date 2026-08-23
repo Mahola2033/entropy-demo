@@ -741,6 +741,7 @@ export const EN = {
   "Bringt zusätzlich: {mehr}": "Adds: {mehr}",
   "Verbraucht zusätzlich: {mehr} – fehlt der Nachschub, drosselt die Anlage anteilig":
     "Additionally consumes: {mehr} – if supply runs short, the facility throttles proportionally",
+  "Brennt zusätzlich: {mehr}": "Additionally burns: {mehr}",
   "Schafft Platz für {menge} {res} mehr": "Creates room for {menge} more {res}",
   "Benötigt: {voraussetzungen}": "Requires: {voraussetzungen}",
   erforscht: "researched",
@@ -878,6 +879,10 @@ export const EN = {
   "Frachtraum {menge}/{kapazitaet} · noch frei: {frei}":
     "Cargo hold {menge}/{kapazitaet} · still free: {frei}",
   "{res} ({lager} im Lager)": "{res} ({lager} in storage)",
+  // A-118: Frachtraum- und Tankbalken (Segmenttitel + Tank-Zeile).
+  "{res}: {menge} ({anteil}% des Frachtraums)": "{res}: {menge} ({anteil}% of the cargo hold)",
+  "Tank {menge}/{kapazitaet}": "Tank {menge}/{kapazitaet}",
+  "{res}: {menge} ({anteil}% des Tanks)": "{res}: {menge} ({anteil}% of the tank)",
   // A-101: Sperrgründe der Laden-/Tanken-Knöpfe im strukturellen Nullzustand.
   "Frachtraum voll.": "Cargo hold full.",
   "{res} im Lager leer.": "No {res} in storage.",

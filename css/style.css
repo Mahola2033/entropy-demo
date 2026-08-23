@@ -103,13 +103,84 @@ body {
   min-height: 100vh;
 }
 
-/* ==========================================================================
-   REGIONEN-LAYOUT
+/* ==== GRUNDLAGEN ====
+   Elementregeln vor den Komponenten (A-110): Basisverhalten für button,
+   das title-Attribut, Tastaturfokus und reduzierte Bewegung stehen HIER,
+   vor der ersten Komponentenregel -- damit jede neue Komponentenfamilie
+   weiß, dass es bereits eine Basis gibt, statt sie ungewollt zu
+   überschreiben. Reine Umsortierung, siehe
+   AUFTRAEGE/A-110-stylesheet-ordnung-messbar.md. Ausnahme: `[hidden]`
+   bleibt am Ende der Datei (siehe dort, Kommentar am Ort).
+*/
+/* A-102 (Regelwerk P15): sichtbarer Tastaturfokus. `:where()` hat
+   Spezifität 0 -- der Block streitet mit keiner bestehenden Regel und gilt
+   trotzdem überall. `:focus-visible` statt `:focus`, damit ein Mausklick
+   keinen Rahmen hinterlässt, nur Tastaturnavigation. Ohne diesen Block war
+   ein Tab-Durchgang in Firefox praktisch blind -- Verstoß gegen WCAG 2.4.7. */
+:where(button, a, input, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--akzent);
+  outline-offset: 2px;
+}
+
+/* A-102 (Regelwerk P17.4): wer Bewegung abgestellt hat, bekommt auch hier
+   keine. Global statt je Regel -- die Zahl der `transition`-Regeln veraltet
+   sonst bei jeder neuen Zeile. Betrifft NICHT die bewusste Nicht-Animation
+   der Uhr-Stufen (die läuft ohnehin ohne transition, siehe dort). */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
+
+/* Tooltips sind nur wertvoll, wenn man weiß, dass es sie gibt. Deshalb
+   markiert sich JEDES Element mit title-Attribut selbst -- über einen
+   Attribut-Selektor, nicht über eine Extra-Klasse. Dadurch gilt es
+   automatisch auch für alles, was später dazukommt, ohne dass jemand daran
+   denken muss. */
+[title] {
+  cursor: help;
+}
+
+/* Interaktive Elemente behalten ihren eigenen Zeiger -- dort ist der Klick
+   die Hauptsache, der Tooltip nur Beiwerk. */
+button[title],
+input[title],
+select[title],
+label[title] {
+  cursor: pointer;
+}
+
+button[title]:disabled {
+  cursor: not-allowed;
+}
+
+button {
+  background: var(--akzent-dunkel);
+  color: var(--knopf-text);
+  border: none;
+  border-radius: var(--radius-m);
+  padding: var(--abstand-3) var(--abstand-7);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+button:hover:not(:disabled) {
+  background: var(--akzent);
+}
+
+button:disabled {
+  background: var(--knopf-deaktiviert);
+  color: var(--text-dezent);
+  cursor: not-allowed;
+}
+
+/* ==== REGIONEN-LAYOUT ====
    Festes Raster, das nie umspringt: Kopf / Ressourcenleiste oben,
    Navigation links, Spielfeld in der Mitte, Status rechts.
    Die Seite scrollt NIE -- nur einzelne Bereiche scrollen intern.
    Auf WQHD ausgelegt; Rails behalten ihre Breite, das Spielfeld wächst mit.
-   ========================================================================== */
+*/
 /* A-081: DIE SCHIENEN GEBEN NACH, BEVOR DAS SPIELFELD VERSCHWINDET.
    Tobis Befund bei reingezoomtem Browser: „Funktionen sind teilweise nicht
    erreichbar." Browser-Zoom verkleinert den Viewport in CSS-Pixeln -- 150 %
@@ -202,27 +273,7 @@ body {
   --status-breite: 1.25rem;
 }
 
-/* A-102 (Regelwerk P15): sichtbarer Tastaturfokus. `:where()` hat
-   Spezifität 0 -- der Block streitet mit keiner bestehenden Regel und gilt
-   trotzdem überall. `:focus-visible` statt `:focus`, damit ein Mausklick
-   keinen Rahmen hinterlässt, nur Tastaturnavigation. Ohne diesen Block war
-   ein Tab-Durchgang in Firefox praktisch blind -- Verstoß gegen WCAG 2.4.7. */
-:where(button, a, input, select, [tabindex]):focus-visible {
-  outline: 2px solid var(--akzent);
-  outline-offset: 2px;
-}
-
-/* A-102 (Regelwerk P17.4): wer Bewegung abgestellt hat, bekommt auch hier
-   keine. Global statt je Regel -- die Zahl der `transition`-Regeln veraltet
-   sonst bei jeder neuen Zeile. Betrifft NICHT die bewusste Nicht-Animation
-   der Uhr-Stufen (die läuft ohnehin ohne transition, siehe dort). */
-@media (prefers-reduced-motion: reduce) {
-  * {
-    transition: none !important;
-  }
-}
-
-/* --- Kopf --------------------------------------------------------------- */
+/* ==== KOPF ==== */
 .kopf {
   grid-area: kopf;
   display: flex;
@@ -317,31 +368,7 @@ body {
   font-size: var(--schrift-l);
 }
 
-/* ==========================================================================
-   HINWEIS-MARKIERUNG
-   Tooltips sind nur wertvoll, wenn man weiß, dass es sie gibt. Deshalb
-   markiert sich JEDES Element mit title-Attribut selbst -- über einen
-   Attribut-Selektor, nicht über eine Extra-Klasse. Dadurch gilt es
-   automatisch auch für alles, was später dazukommt, ohne dass jemand daran
-   denken muss.
-   ========================================================================== */
-[title] {
-  cursor: help;
-}
-
-/* Interaktive Elemente behalten ihren eigenen Zeiger -- dort ist der Klick
-   die Hauptsache, der Tooltip nur Beiwerk. */
-button[title],
-input[title],
-select[title],
-label[title] {
-  cursor: pointer;
-}
-
-button[title]:disabled {
-  cursor: not-allowed;
-}
-
+/* ==== ICON-MARKIERUNG (TOOLTIP-PUNKT) ==== */
 /* Sichtbares Zeichen an den größeren Blöcken: kleines, dezentes ⓘ in der
    Ecke. Bewusst nicht bei jedem Kleinkram -- sonst ist die Oberfläche voll
    mit Symbolen und die Markierung sagt nichts mehr aus. */
@@ -381,7 +408,7 @@ button[title]:disabled {
   color: var(--akzent);
 }
 
-/* --- Ressourcenleiste (waagerecht, AOE2-Muster) ------------------------- */
+/* ==== RESSOURCENLEISTE (WAAGERECHT, AOE2-MUSTER) ==== */
 /* ZWEI FESTE REIHEN, und beide als Raster statt als umbrechende Flexzeile.
    Vorher lag alles in einer einzigen `flex-wrap`-Zeile, deren Umbruch von der
    TEXTBREITE der Kacheln abhing. Da jede Sekunde neu gezeichnet wird, kippte
@@ -688,7 +715,7 @@ button[title]:disabled {
   transition: width 0.2s;
 }
 
-/* --- Navigation (links, feste Reihenfolge) ------------------------------ */
+/* ==== NAVIGATION (LINKS, FESTE REIHENFOLGE) ==== */
 .navigation {
   grid-area: nav;
   display: flex;
@@ -739,7 +766,7 @@ button[title]:disabled {
   flex: none;
 }
 
-/* --- Spielfeld (Mitte) -------------------------------------------------- */
+/* ==== SPIELFELD (MITTE) ==== */
 .spielfeld {
   grid-area: spielfeld;
   padding: var(--abstand-7) var(--abstand-7);
@@ -916,10 +943,11 @@ button[title]:disabled {
   display: none !important;
 }
 
-/* --- Forschungsbaum ----------------------------------------------------
+/* ==== FORSCHUNGSBAUM ====
    Spalten nach Tiefenstufe, Verbindungslinien als SVG-Ebene dahinter.
    Die Kacheln sind exakt dieselben wie im Raster -- nur anders angeordnet,
-   damit man Voraussetzungen sieht statt sie im Tooltip nachlesen zu müssen. */
+   damit man Voraussetzungen sieht statt sie im Tooltip nachlesen zu müssen.
+*/
 .kachel-raster.baum {
   position: relative;
   display: flex;
@@ -1058,9 +1086,10 @@ button[title]:disabled {
   padding-right: var(--abstand-4);
 }
 
-/* --- Statusspalte (rechts) ---------------------------------------------
+/* ==== STATUSSPALTE (RECHTS) ====
    Heißt bewusst NICHT .status: diese Klasse gibt es schon für die
-   "Im Bau"-Zeile in den Kacheln (.status.im-bau). */
+   "Im Bau"-Zeile in den Kacheln (.status.im-bau).
+*/
 .statusspalte {
   grid-area: status;
   display: flex;
@@ -1303,6 +1332,16 @@ button[title]:disabled {
   color: var(--text);
   border-color: var(--akzent);
   background: color-mix(in srgb, var(--akzent) 18%, transparent);
+}
+
+/* A-113: .kachel-strom button.aktiv und button:hover:not(:disabled) haben
+   dieselbe Spezifitaet (0,2,1) -- ohne eigene Hover-Fassung wuerde je nach
+   Regel-Reihenfolge entweder der Hover die Auswahl uebermalen oder die
+   Auswahl den Hover verschlucken. Eigene, staerkere Regel statt Gewinner
+   per Zufall: dieselbe Akzentfarbe, nur staerker gemischt (Prinzip 11 --
+   keine neue Farbe). */
+.kachel-strom button.aktiv:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--akzent) 30%, transparent);
 }
 
 /* Aktion sitzt immer unten -- dadurch fluchten die Knöpfe über alle
@@ -1993,14 +2032,15 @@ button[title]:disabled {
   box-shadow: inset 3px 0 0 var(--akzent);
 }
 
-/* --- Karten (Galaxie und System) ---------------------------------------
+/* ==== KARTEN (GALAXIE UND SYSTEM) ====
    SVG statt Canvas: Klickziele, Tooltips und Theming kommen damit von selbst,
    und jedes Element ist ein echtes DOM-Element, das über die Takte hinweg
    stehen bleiben kann (Prinzip 8a).
 
    Die Karte hat eine feste Höhe und keine eigene Bildlaufleiste. Der Platz
    darunter gehört weiter der Liste -- die Karte ergänzt sie, sie verdrängt
-   sie nicht. */
+   sie nicht.
+*/
 /* A-039: die Hülle gibt den Zoomknöpfen ihren festen Platz. Sie trägt
    ausdrücklich KEINE eigene Größe -- die Karte bestimmt weiter, wie hoch die
    Spalte wird, die Hülle legt sich nur darum. */
@@ -2240,7 +2280,7 @@ button[title]:disabled {
   stroke: var(--warnung);
 }
 
-/* --- Systemkarte ------------------------------------------------------- */
+/* ==== SYSTEMKARTE ==== */
 .karte-sonne {
   stroke: none;
   pointer-events: all;
@@ -2317,9 +2357,10 @@ button[title]:disabled {
   stroke-width: 1.8;
 }
 
-/* --- Legende ------------------------------------------------------------
+/* ==== LEGENDE ====
    Wird je Sprache genau einmal gebaut (js/karte.js) -- sie hängt an keinem
-   Spielzustand und hätte im Sekundentakt nichts zu sagen. */
+   Spielzustand und hätte im Sekundentakt nichts zu sagen.
+*/
 .karte-legende {
   flex: none;
   display: flex;
@@ -2490,28 +2531,7 @@ button[title]:disabled {
   color: var(--testmodus-hell);
 }
 
-button {
-  background: var(--akzent-dunkel);
-  color: var(--knopf-text);
-  border: none;
-  border-radius: var(--radius-m);
-  padding: var(--abstand-3) var(--abstand-7);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-button:hover:not(:disabled) {
-  background: var(--akzent);
-}
-
-button:disabled {
-  background: var(--knopf-deaktiviert);
-  color: var(--text-dezent);
-  cursor: not-allowed;
-}
-
-/* --- Imperiumsübersicht -------------------------------------------------
+/* ==== IMPERIUMSÜBERSICHT ====
    Breite Tabelle: scrollt bei vielen Ressourcen INNERHALB des Bereichs,
    die Seite bleibt wie überall stehen. */
 .tabelle-scrollt {
@@ -2577,10 +2597,11 @@ button:disabled {
   margin-top: var(--abstand-6);
 }
 
-/* --- Gestapelter Lagerbalken -------------------------------------------
+/* ==== GESTAPELTER LAGERBALKEN ====
    Jedes Segment ist eine Ressource in ihrer eigenen Farbe. "80% voll" allein
    sagt nicht, was man loswerden müsste -- die Aufteilung schon. Die
-   Ressourcenkacheln tragen dieselben Farben und sind damit die Legende. */
+   Ressourcenkacheln tragen dieselben Farben und sind damit die Legende.
+*/
 .lager-balken-rahmen {
   display: flex;
 }
@@ -2728,10 +2749,11 @@ button:disabled {
   transition: width 0.4s linear, background 0.6s;
 }
 
-/* --- Die drei Eskalationsstufen ------------------------------------------
+/* ==== DIE DREI ESKALATIONSSTUFEN ====
    Nach dem ANTEIL der Frist, der noch übrig ist (siehe UHR_STUFEN in ui.js).
    Bewusst OHNE Blinken oder Puls: eine Anzeige, die dauernd zuckt, wird
-   weggeschaut. Sie soll auffallen, wenn man hinsieht. */
+   weggeschaut. Sie soll auffallen, wenn man hinsieht.
+*/
 .supernova-uhr.eng {
   border-color: var(--warnstufe-eng-rahmen);
 }
@@ -2778,9 +2800,10 @@ button:disabled {
   background: var(--warnstufe-kritisch-text);
 }
 
-/* --- Abspann ------------------------------------------------------------
+/* ==== ABSPANN ====
    Liegt über allem. Kein Dialog, den man wegklickt -- nach der Teilchenflut
-   ist nichts mehr zu tun, und das soll die Oberfläche auch sagen. */
+   ist nichts mehr zu tun, und das soll die Oberfläche auch sagen.
+*/
 .abspann {
   position: fixed;
   inset: 0;
@@ -2844,13 +2867,14 @@ button:disabled {
   margin-top: var(--abstand-8);
 }
 
-/* --- Erklärfenster beim ersten Start ------------------------------------
+/* ==== ERKLÄRFENSTER BEIM ERSTEN START ====
    Dieselbe Bauform wie der Abspann und ausdrücklich keine zweite: eine feste
    Ebene über allem, eine Tafel darin, Knöpfe unten rechts. Der Unterschied ist
    die Absicht -- der Abspann ist das Ende und lässt sich nur mit einem
    Neustart verlassen, dieses Fenster ist der Anfang und geht mit einem Klick
    weg. Deshalb ist sein Grund heller: es verdeckt das Spiel, es ersetzt es
-   nicht. */
+   nicht.
+*/
 .erstklaerung {
   position: fixed;
   inset: 0;
@@ -2991,7 +3015,7 @@ button:disabled {
   font-weight: 600;
 }
 
-/* --- „Diese Welt in Zahlen" (A-064) --------------------------------------
+/* ==== „DIESE WELT IN ZAHLEN" (A-064) ====
    Fünf Gruppen nebeneinander, zwei bis drei Spalten je nach Breite des
    Spielfelds. `auto-fit` mit einer Mindestbreite statt einer festen
    Spaltenzahl: die Statusspalte lässt sich einklappen und gibt dabei 380 px
@@ -3002,7 +3026,8 @@ button:disabled {
    ZEILEN darin dürfen es nicht. Jede hat eine Mindesthöhe, damit ein leerer
    Wert („Brennstoff —") die Spalte nicht um eine Zeile hochzieht, sobald er
    erscheint oder verschwindet. Dieselbe Regel wie bei `.lager-prognose`
-   (A-051). */
+   (A-051).
+*/
 .uebersicht {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));

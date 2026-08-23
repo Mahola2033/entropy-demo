@@ -34,6 +34,7 @@ import {
   BEVOELKERUNG,
   SUPERNOVA,
   jahreInMs,
+  bevoelkerungsSchrittFaktor,
 
   taugtAlsStartwelt,
   REICHWEITE,
@@ -45,6 +46,7 @@ import {
 } from "./data.js";
 import {
   effektiveRaten,
+  bevoelkerungsWachstumsrate,
   pufferGrenzeStunden,
   verarbeitungsReserveFuer,
   reaktorBitNachziehen,
@@ -1258,6 +1260,15 @@ function naechstesEreignis(state) {
 // Entscheidung. Wie der Kampf eine bewusste Ausnahme von "verhindern statt
 // bestrafen".
 //
+// PROPORTIONAL zum Bestand (A-117): Zuwachs/Schwund ist `menschen × f`, mit
+// `f` aus `bevoelkerungsSchrittFaktor` -- keine feste Menge mehr. `f` wird
+// intern NICHT gerundet (bewusste Wahl gegen die "0,7 Menschen -> 0"-Falle
+// bei kleinen Welten): der Bruchteil bleibt im Bestand stehen und wächst im
+// nächsten Schritt weiter mit. Angezeigt wird ohnehin immer abgerundet
+// (`formatZahl`/`formatKurz` in js/ressourcen.js) -- eine Welt mit 30
+// Menschen wächst also spürbar langsamer als eine mit 500.000, verschwindet
+// aber nie in der Rundung.
+//
 // Die Prüfung liest `drosselung.nahrung` aus der Produktionsauflösung: die ist
 // genau dann < 1, wenn der Bedarf den Zustrom übersteigt UND der Vorrat
 // aufgebraucht ist. Solange noch Nahrung im Lager liegt, wächst die
@@ -1265,7 +1276,11 @@ function naechstesEreignis(state) {
 // übernehmen, und merkt es erst, wenn das Lager leer ist.
 function bevoelkerungSchritt(state, planet, zeit) {
   // Ereigniszeit weiterreichen, nie spielzeitJetzt -- sonst driftet der
-  // Rhythmus bei Offline-Aufholung und Zeitsprüngen.
+  // Rhythmus bei Offline-Aufholung und Zeitsprüngen. Das gilt auch fürs
+  // proportionale Wachstum: die Aufholung ruft diese Funktion Schritt für
+  // Schritt auf (ein Ereignis je `schrittMs`), nie mit vielen Takten auf
+  // einmal -- ein hochmultiplizierter Schritt wäre bei proportionalem
+  // Wachstum Zinseszins und würde zu schnell wachsen.
   planet.naechstesWachstum = zeit + BEVOELKERUNG.schrittMs;
   if (planet.typ === "aussenposten") return;
 
@@ -1281,7 +1296,11 @@ function bevoelkerungSchritt(state, planet, zeit) {
   if (menschen <= 0) return;
 
   if (!versorgt) {
-    const neu = Math.max(0, menschen - BEVOELKERUNG.proSchritt);
+    // Schrumpfen ist der SYMMETRISCHE Spiegel des Wachstums: `basisRateJahr`
+    // ohne Vorratsbonus, nie `bevoelkerungsWachstumsrate` -- ein Vorrat gibt
+    // es hier ohnehin nicht (siehe Kommentar oben, "Vorrat aufgebraucht").
+    const f = bevoelkerungsSchrittFaktor(BEVOELKERUNG.basisRateJahr);
+    const neu = Math.max(0, menschen - menschen * f);
     planet.ressourcen.bevoelkerung = neu;
     meldungHinzufuegen(
       state,
@@ -1295,7 +1314,8 @@ function bevoelkerungSchritt(state, planet, zeit) {
     return;
   }
   if (menschen >= platz) return; // kein Wohnraum frei: Wachstum ruht still
-  planet.ressourcen.bevoelkerung = Math.min(platz, menschen + BEVOELKERUNG.proSchritt);
+  const f = bevoelkerungsSchrittFaktor(bevoelkerungsWachstumsrate(planet));
+  planet.ressourcen.bevoelkerung = Math.min(platz, menschen + menschen * f);
 }
 
 // Obergrenze der Ereignisse je Aufruf.
@@ -1359,6 +1379,26 @@ export const EREIGNIS_DECKEL = 2000000;
  *   tests/skalierung.mjs. Bewusst ein Rückgabewert und kein Feld am State:
  *   es ist eine Messung des letzten Aufrufs, kein Spielstand.
  */
+// Startet die wiederkehrenden Ereigniszeiten eines Planeten, der WÄHREND
+// eines Sprungs entsteht -- analog zu `letzterTick`, der an derselben Stelle
+// gesetzt wird. Jede planetenerzeugende Stelle INNERHALB der Ereignisschleife
+// ruft ihn auf (Piraten-Neugründung, Bot-Kolonisation, Kolonieschiff-
+// Ankunft); die einmaligen Welt-Start-Stellen (Heimatwelt, botWeltStart)
+// brauchen ihn nicht -- für sie erledigt das noch die erste
+// wiederkehrendeEinplanen() unten, VOR dem allerersten Ereignis.
+//
+// OHNE das bekäme der Planet sein erstes Wachstumsereignis erst beim
+// nächsten EXTERNEN vorspulenBisJetzt-Aufruf: planPlanetNeu registriert ihn
+// beim Ereignisplan (A-035) SOFORT danach, und der liest naechstesWachstum in
+// genau diesem Moment -- 0 (der Rohzustand aus neuerPlanet) gilt dort als
+// "keine Quelle" (A-119).
+//
+// `zeit` ist immer die ÜBERGEBENE Ereigniszeit, nie spielzeitJetzt, sonst
+// driftet der Rhythmus bei der Aufholung, die diesen Fehler aufgedeckt hat.
+function planetUhrStarten(planet, zeit) {
+  planet.naechstesWachstum = zeit + BEVOELKERUNG.schrittMs;
+}
+
 // Erstmalige Einplanung wiederkehrender Ereignisse. Bewusst hier und nicht in
 // naechstesEreignis: das ist eine reine Abfrage und soll nichts verändern.
 // Eigene Funktion, damit beide Vorspul-Wege sie garantiert gleich machen.
@@ -1605,6 +1645,7 @@ function piratenErwecken(state, systemId, objekt, zeit) {
     fraktion: id,
   });
   basis.letzterTick = zeit;
+  planetUhrStarten(basis, zeit);
   hinzufuegen(basis.ressourcen, skalieren(PIRAT.startVorrat, 1));
   state.planeten.push(basis);
   planPlanetNeu(state, basis);
@@ -1889,6 +1930,7 @@ export function piratenNeugruendung(state, zeit) {
     fraktion: id,
   });
   basis.letzterTick = zeit;
+  planetUhrStarten(basis, zeit);
   // Was sie tragen konnten. Schiffe bauen sie sich davon selbst.
   const mitgift = {};
   for (const [resId, menge] of Object.entries(skalieren(regeln.mitgift, 1))) {
@@ -2134,6 +2176,7 @@ function piratenNiederlassung(state, flotte, befehl, zeit) {
     fraktion: fraktion.id,
   });
   basis.letzterTick = zeit;
+  planetUhrStarten(basis, zeit);
   state.planeten.push(basis);
   planPlanetNeu(state, basis);
 
@@ -3772,12 +3815,49 @@ const SCHNELLVERSAND = {
   sonde: { forschung: "sondenKi", missionsart: "sonde", schiff: "sonde" },
 };
 
-// Welche Orbits im System wartet dieser Schiffstyp noch auf?
+// Welche Orbits im System wartet dieser Schiffstyp noch auf? Reihenfolge:
+// wie sie im System stehen (aufsteigend nach Orbitnummer) -- NICHT die
+// Flugreihenfolge, die baut zielketteNaechsterNachbar daraus (A-115).
 function offeneAufklaerungsziele(state, systemId, missionsart) {
   const system = holeSystem(state, systemId);
   return system.objekte
     .filter((objekt) => !objekt.entdeckt && missionFuerObjekt(state, objekt) === missionsart)
     .map((objekt) => objekt.orbit);
+}
+
+// Baut die Zielkette als NÄCHSTER-NACHBAR statt sortiert nach Orbitnummer
+// (A-115): Ausgangspunkt ist `vonOrt`; gewählt wird jeweils das offene Ziel
+// mit der kleinsten `strecke(ort, ziel)`, danach wandert `ort` auf dieses
+// Ziel und die Wahl wiederholt sich, bis `limit` Ziele stehen oder keines
+// mehr offen ist. Das ist DIESELBE Kette, die `einwegBedarf` anschließend
+// bepreist -- der angekündigte Treibstoff sinkt damit automatisch mit.
+//
+// Kein Rundreise-Optimum, ausdrücklich nicht: bei einer Handvoll Orbits ist
+// der Unterschied zum Optimum klein, und die Regel muss erklärbar bleiben
+// ("sie fliegt immer zum nächsten").
+//
+// Determinismus bei Gleichstand: die kleinere Orbitnummer gewinnt, sonst
+// wackeln die Ereignisplan-Tests aus A-035 (dieselbe Saat muss dieselbe
+// Ereigniszeit ergeben).
+function zielketteNaechsterNachbar(state, systemId, orbits, vonOrt, limit) {
+  const offen = [...orbits];
+  const kette = [];
+  let ort = vonOrt;
+  while (offen.length && kette.length < limit) {
+    let besterIndex = 0;
+    let besteStrecke = strecke(ort, ortVonSystem(state, systemId, offen[0]));
+    for (let i = 1; i < offen.length; i++) {
+      const d = strecke(ort, ortVonSystem(state, systemId, offen[i]));
+      if (d < besteStrecke || (d === besteStrecke && offen[i] < offen[besterIndex])) {
+        besteStrecke = d;
+        besterIndex = i;
+      }
+    }
+    const orbit = offen.splice(besterIndex, 1)[0];
+    kette.push(orbit);
+    ort = ortVonSystem(state, systemId, orbit);
+  }
+  return kette;
 }
 
 export function kannSchnellversand(state, flotte, art, systemId) {
@@ -3800,7 +3880,12 @@ export function kannSchnellversand(state, flotte, art, systemId) {
   // Klick sagen, was er tut (A-021, Prinzip 10a). Gerechnet wird derselbe
   // Einwegbedarf, den der Versand danach tankt; zwei Rechnungen waeren zwei
   // Wahrheiten ueber denselben Flug.
-  const gewaehlt = ziele.slice(0, anBord);
+  //
+  // NÄCHSTER-NACHBAR statt Orbitnummer (A-115): sonst deckt eine Flotte mit
+  // weniger Sonden als Zielen die INNERSTEN Orbits auf, egal wo sie steht --
+  // und selbst bei genug Sonden für alle Ziele kann eine nach Orbitnummer
+  // sortierte Kette quer durchs System springen und wieder zurück.
+  const gewaehlt = zielketteNaechsterNachbar(state, systemId, ziele, flotte.ort, anBord);
   const befehle = gewaehlt.map((orbit) => ({
     art: "mission",
     missionsart: regel.missionsart,
@@ -4823,6 +4908,7 @@ function stuetzpunktGruenden(state, flotte, befehl, typ, zeit) {
   // gemeinsamen state.letzterTick und würde beim nächsten Vorrücken für eine
   // Zeit mitproduzieren, in der es sie noch gar nicht gab.
   planet.letzterTick = zeit;
+  planetUhrStarten(planet, zeit);
   if (typ === "kolonie") {
     insLager(state, planet, KOLONIE.startvorrat);
     // A-043: GENAU die Menschen, die mitgereist sind -- keine Konstante, kein

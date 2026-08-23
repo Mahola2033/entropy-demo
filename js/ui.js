@@ -197,6 +197,8 @@ import {
   schiffeText,
   frachtraumFrei,
   flotteTankKapazitaet,
+  flotteLadungAnteile,
+  flotteTankAnteile,
 } from "./flotten.js";
 import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js";
 import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js";
@@ -1111,16 +1113,13 @@ function lagerKachelGeruest() {
   return div;
 }
 
-function lagerKachelFuellen(div, { titel, stufe, wert, segmente, prognose }) {
-  attributSetzen(div, "title", titel);
-  textSetzen(div.querySelector(".res-name"), t("Lager"));
-  textSetzen(div.querySelector(".res-stufe"), stufe);
-  textSetzen(div.querySelector(".res-wert"), wert);
-  textSetzen(div.querySelector(".lager-prognose"), prognose);
-  // Auch die Segmente werden abgeglichen. Sie tragen `transition: width`
-  // (css/style.css) -- ein Segment, das jede Sekunde neu entsteht, kann gar
-  // nicht überblenden, weil es keinen Vorzustand hat.
-  listeAbgleichen(div.querySelector(".lager-balken-rahmen"), segmente, {
+// Der gestapelte Balken selbst -- EIN Helfer für alle drei Stellen, die ihn
+// benutzen (Lager, und seit A-118 Frachtraum und Tank im Flottendetail).
+// Segmente tragen `transition: width` (css/style.css) -- ein Segment, das
+// jede Sekunde neu entsteht, kann gar nicht überblenden, weil es keinen
+// Vorzustand hat, deshalb `listeAbgleichen` statt `innerHTML`.
+function balkenFuellen(rahmenEl, segmente) {
+  listeAbgleichen(rahmenEl, segmente, {
     schluessel: (s) => s.resId,
     bauen: () => {
       const span = document.createElement("span");
@@ -1132,6 +1131,15 @@ function lagerKachelFuellen(div, { titel, stufe, wert, segmente, prognose }) {
       attributSetzen(span, "style", `width:${Math.min(100, s.anteil * 100).toFixed(2)}%;background:${s.farbe}`);
     },
   });
+}
+
+function lagerKachelFuellen(div, { titel, stufe, wert, segmente, prognose }) {
+  attributSetzen(div, "title", titel);
+  textSetzen(div.querySelector(".res-name"), t("Lager"));
+  textSetzen(div.querySelector(".res-stufe"), stufe);
+  textSetzen(div.querySelector(".res-wert"), wert);
+  textSetzen(div.querySelector(".lager-prognose"), prognose);
+  balkenFuellen(div.querySelector(".lager-balken-rahmen"), segmente);
 }
 
 function renderRessourcen(state, root, planet) {
@@ -2789,6 +2797,13 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
     const verbrauchsDelta = vorschau.verbrauch;
     const hatVerbrauch = Object.keys(verbrauchsDelta).length > 0;
 
+    // A-114: der Brennstoff (Kraftwerk) steht bei `ausbauVorschau` in einem
+    // EIGENEN Block, getrennt von `verbrauch` (siehe dort, A-055). Ohne diese
+    // Zeile verschwieg die Kachel die teuerste laufende Position des
+    // Gebäudes -- sie zeigte Arbeitskraft und Energie, aber keinen Brennstoff.
+    const brennstoffDelta = vorschau.brennstoff;
+    const hatBrennstoff = Object.keys(brennstoffDelta).length > 0;
+
     // Gebäude, die eine eigene Speicherkapazität stellen (Wohnmodul, später
     // Batteriehalle), produzieren nichts -- ohne diese Zeile sähe ihre Kachel
     // aus, als brächte ein Ausbau gar nichts.
@@ -2825,6 +2840,12 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
             mehr: ratenBuendelText(verbrauchsDelta),
           })
         : "",
+      // A-114: eigene Zeile statt "verbraucht", weil der Brennstoff anders
+      // wirkt -- kein Drosseln bei Mangel, sondern der Reaktor geht aus
+      // (siehe brennstoffZeile oben, A-055).
+      hatBrennstoff
+        ? t("Brennt zusätzlich: {mehr}", { mehr: ratenBuendelText(brennstoffDelta) })
+        : "",
       speicherDelta > 0
         ? t("Schafft Platz für {menge} {res} mehr", {
             // Einheit aus dem speicher-Eintrag, nicht aus def.einheit: beim
@@ -2858,6 +2879,7 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
          <span class="kachel-dauer">${fmtDauer(dauer)}${energieText ? ` · ${energieDelta >= 0 ? "+" : "−"}${fmt(Math.abs(Math.round(energieDelta)))} MW` : ""}</span>
          ${hatProduktion ? `<span class="kachel-gewinn">+${ratenBuendelText(produktionsDelta, true)}</span>` : ""}
          ${hatVerbrauch ? `<span class="kachel-verbrauch">−${ratenBuendelText(verbrauchsDelta, true)}</span>` : ""}
+         ${hatBrennstoff ? `<span class="kachel-verbrauch">−${ratenBuendelText(brennstoffDelta, true)}</span>` : ""}
          ${speicherDelta > 0 ? `<span class="kachel-gewinn">+${RESSOURCEN[speicherRes].symbol} ${fmt(speicherDelta)} ${speicherEinheit(speicherRes)}</span>` : ""}`;
     const mitteEl = li.querySelector(".kachel-mitte");
     if (mitteEl.innerHTML !== mitte) mitteEl.innerHTML = mitte;
@@ -4904,6 +4926,45 @@ function flottenDetailZahlen(state, box, flotte, hafen) {
       frei: fmt(frachtraumFrei(state, flotte)),
     })
   );
+  // A-118: derselbe Balken wie das Lager -- ein Segment je geladener
+  // Ressource, in ihrer Ressourcenfarbe. `flotteLadungAnteile` liefert nur
+  // die Zahlen (js/flotten.js, testbar ohne DOM), Farbe und Titeltext kommen
+  // hier dazu, wie bei den Lager-Segmenten oben.
+  balkenFuellen(
+    box.querySelector("[data-frachtraum-balken]"),
+    flotteLadungAnteile(state, flotte).map((s) => ({
+      resId: s.resId,
+      anteil: s.anteil,
+      farbe: RESSOURCEN[s.resId].farbe,
+      titel: t("{res}: {menge} ({anteil}% des Frachtraums)", {
+        res: t(RESSOURCEN[s.resId].name),
+        menge: fmt(s.menge),
+        anteil: Math.round(s.anteil * 100),
+      }),
+    }))
+  );
+  // Der Tank bekommt denselben Balken (Deutung der Planung, A-118): ein
+  // Segment, es gibt nur eine Sorte Treibstoff.
+  textSetzen(
+    box.querySelector("[data-tank-fuellstand]"),
+    t("Tank {menge}/{kapazitaet}", {
+      menge: fmt(flotte.treibstoff),
+      kapazitaet: fmt(flotteTankKapazitaet(state, flotte)),
+    })
+  );
+  balkenFuellen(
+    box.querySelector("[data-tank-balken]"),
+    flotteTankAnteile(state, flotte).map((s) => ({
+      resId: s.resId,
+      anteil: s.anteil,
+      farbe: RESSOURCEN[s.resId].farbe,
+      titel: t("{res}: {menge} ({anteil}% des Tanks)", {
+        res: t(RESSOURCEN[s.resId].name),
+        menge: fmt(s.menge),
+        anteil: Math.round(s.anteil * 100),
+      }),
+    }))
+  );
   for (const r of LAGER_RESSOURCEN) {
     const feld = box.querySelector(`[data-lager-lage="${r}"]`);
     if (!feld) continue;
@@ -5003,7 +5064,16 @@ function flottenDetail(state, root, flotte) {
       </span>
     </div>
     <div class="flotte-reihe">
-      <span class="dezent" data-frachtraum-lage></span>
+      <span class="flotte-fuellstand" style="display:flex;flex-direction:column;align-items:stretch;gap:.2rem;flex:1 1 12rem">
+        <span class="dezent" data-tank-fuellstand></span>
+        <span class="lager-balken-rahmen" data-tank-balken></span>
+      </span>
+    </div>
+    <div class="flotte-reihe">
+      <span class="flotte-fuellstand" style="display:flex;flex-direction:column;align-items:stretch;gap:.2rem;flex:1 1 12rem">
+        <span class="dezent" data-frachtraum-lage></span>
+        <span class="lager-balken-rahmen" data-frachtraum-balken></span>
+      </span>
     </div>
     <div class="flotte-reihe">
       ${LAGER_RESSOURCEN.filter((r) => r !== "credits").map((r) => `
@@ -6555,6 +6625,23 @@ function slotAktion(state, systemId, objekt, gesperrt, eigen, flotte) {
     return `<span class="${klasse}">${angebot.hinweis}</span>`;
   }
 
+  // A-125: `aktionen.innerHTML !== aktionenHtml` (slotZeileFuellen) vergleicht
+  // diese Zeichenkette gegen das, was der Browser beim AUSLESEN von innerHTML
+  // zurückgibt -- und der serialisiert grundsätzlich anders, als hier
+  // geschrieben wird. Drei Stellen, an denen die beiden Schreibweisen deshalb
+  // NIE gleich werden konnten, der Vergleich also bei JEDEM Takt fehlschlug:
+  //   1. Ein boolesches Attribut nur als nacktes Wort (`disabled`) statt mit
+  //      `=""` -- der Browser serialisiert es immer mit `=""`.
+  //   2. Ein leerer Platzhalter zwischen zwei feststehenden Leerzeichen
+  //      (`${marke} ${… ? "" : "disabled"} title=…`) lässt bei "" ZWEI
+  //      Leerzeichen stehen -- der Browser normalisiert auf eins.
+  //   3. Der schließende Schrägstrich am `<input … />` (XHTML-Stil): ein
+  //      Void-Element serialisiert ihn nicht zurück.
+  // Der Wächter, der die Knöpfe eigentlich stehen lassen soll, ersetzte sie
+  // dadurch JEDEN Sekundentakt neu -- ein frischer Knoten unterm Mauszeiger,
+  // bevor der Tooltip ankommt (dieselbe Wirkung wie A-076, andere Ursache).
+  // Betrifft jede Zeile mit einem Aktionsknopf ODER einem Rückkehr-Schalter --
+  // praktisch jede Zeile mit Bergung oder Erkundung im Angebot.
   const knopf = (a) => {
     const marke =
       a.typ === "anfliegen"
@@ -6562,7 +6649,7 @@ function slotAktion(state, systemId, objekt, gesperrt, eigen, flotte) {
         : a.typ === "gruenden"
         ? `data-gruenden="${objekt.orbit}" data-art="${a.art}"`
         : `data-mission="${objekt.orbit}" data-art="${a.art}"`;
-    return `<button ${marke} ${a.check.ok ? "" : "disabled"} title="${a.titel}">${a.label}</button>`;
+    return `<button ${marke}${a.check.ok ? "" : ' disabled=""'} title="${a.titel}">${a.label}</button>`;
   };
 
   if (!angebot.rueckkehr) return angebot.aktionen.map(knopf).join("\n      ");
@@ -6570,8 +6657,8 @@ function slotAktion(state, systemId, objekt, gesperrt, eigen, flotte) {
   const r = angebot.rueckkehr;
   const rueckSchalter =
     `<label class="dezent flotten-rueckkehr" title="${r.titel}">` +
-    `<input type="checkbox" data-rueckkehr="${objekt.orbit}"${r.vorbelegt ? " checked" : ""}` +
-    `${r.moeglich ? "" : " disabled"} /> ${t("zurück")}</label>`;
+    `<input type="checkbox" data-rueckkehr="${objekt.orbit}"${r.vorbelegt ? ' checked=""' : ""}` +
+    `${r.moeglich ? "" : ' disabled=""'}> ${t("zurück")}</label>`;
   if (angebot.rueckzug) {
     return `
       <label class="dezent">${t("Rückzug unter")}

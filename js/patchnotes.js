@@ -28,6 +28,129 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.3.0",
+    de: [
+      "Dies ist der dritte veröffentlichte Demo-Stand — zwölf Runden seit dem letzten. Kein Spielstand geht dabei verloren.",
+      "Das Größte zuerst: Die Bevölkerung wächst jetzt proportional zu sich selbst und zum Nahrungsüberschuss statt in festen Schritten — der Anfang bleibt zäh, später zieht es an. Passend dazu kostet ein Forschungsbonus ab sofort auch: Wer mehr herausholt, verbraucht mehr Energie und Material dafür.",
+      "Behoben: Ein Planet, der mitten in einem Zeitsprung entsteht, bleibt nicht mehr eingefroren. Missionsknöpfe in der Systemansicht (Bergung, Erkundung) behalten ihren Hover-Zustand, sodass Tooltips endlich ankommen. Die aktive Stromvorrang-Stufe verliert ihre Kennzeichnung nicht mehr, wenn die Maus darüberfährt.",
+      "Kleinigkeiten, die den Alltag angenehmer machen: Die Baukachel des Kraftwerks nennt seinen Deuteriumverbrauch, Frachtraum und Tank zeigen ihren Füllstand als Balken statt als Satz, und der Sonden-Schnellversand fliegt zuerst zum nächstgelegenen Ziel statt stur nach Orbitnummer.",
+    ],
+    en: [
+      "This is the third published demo build — twelve rounds since the last one. No save games are lost in the process.",
+      "The big one first: population now grows in proportion to itself and to the food surplus instead of in fixed steps — the start stays slow, later it picks up. To match, a research bonus now has a price: getting more out also uses more energy and materials.",
+      "Fixed: A planet created in the middle of a time skip no longer stays frozen. Mission buttons in the system view (salvage, exploration) keep their hover state, so tooltips finally have a chance to appear. The active power-priority level no longer loses its marking when the mouse passes over it.",
+      "Small things that make daily play nicer: The power plant's build tile names its deuterium consumption, cargo hold and fuel tank show their fill level as a bar instead of a sentence, and the probe quick-dispatch flies to the nearest target first instead of strictly by orbit number.",
+    ],
+  },
+  {
+    version: "0.2.12",
+    de: [
+      "Kacheln in der Systemansicht (Bergung, Erkundung und die anderen Missionsknöpfe) behalten jetzt zuverlässig ihren Hover-Zustand – vorher wurde der Knopf unter dem Mauszeiger heimlich jede Sekunde ausgetauscht, sodass ein Tooltip kaum je ankam.",
+    ],
+    en: [
+      "Tiles in the system view (salvage, exploration, and the other mission buttons) now reliably keep their hover state – the button under the cursor used to be silently swapped out every second, so a tooltip rarely had a chance to appear.",
+    ],
+  },
+  {
+    version: "0.2.11",
+    de: [
+      "Nur intern: Ein einzelner, absichtlich rotstehender Testfall wurde stillgelegt (mit Begründung im Quelltext, statt einfach gelöscht) — er hatte die komplette Prüfkette samt Veröffentlichung blockiert. Für Spieler ändert sich dadurch nichts.",
+    ],
+    en: [
+      "Internal only: A single, deliberately failing test was put on hold (with its reasoning kept in the source, instead of just deleting it) — it had been blocking the whole check chain and publishing. Nothing changes for players.",
+    ],
+  },
+  {
+    version: "0.2.10",
+    de: [
+      "Nur intern: Unser Design-Regelwerk wurde an drei Stellen nachgezogen (eine Regel zur reinen Beobachtung abgestuft, zwei neue Abschnitte ergänzt). Für Spieler ändert sich dadurch nichts.",
+    ],
+    en: [
+      "Internal only: Our design rulebook was updated in three places (one rule downgraded to a plain observation, two new sections added). Nothing changes for players.",
+    ],
+  },
+  {
+    version: "0.2.9",
+    de: [
+      "Ein Forschungsbonus, der die Ausbeute einer Anlage erhöht, kostet jetzt auch mehr: mehr Energie- und Rohstoffbedarf (halb so stark wie der Ausbeute-Zuwachs), dafür etwas weniger Arbeitskraft. Ausgenommen ist die Stromerzeugung selbst – ein besserer Reaktor holt mehr Strom aus demselben Brennstoff, statt mehr davon zu verbrauchen.",
+    ],
+    en: [
+      "A research bonus that boosts a facility's output now costs more too: higher power and material demand (half as strong as the output gain), but somewhat less labor. Power generation itself is exempt – a better reactor gets more electricity out of the same fuel instead of burning more of it.",
+    ],
+  },
+  {
+    version: "0.2.8",
+    de: [
+      "Nur intern: Der Verdacht, dass unser Weltsimulations-Messwerkzeug wegen des neuen Bevölkerungswachstums hängenbleibt, war falsch – die eigentliche Ursache lag in einer teuren Berechnung, die schon länger da war.",
+    ],
+    en: [
+      "Internal only: The suspicion that our world-simulation measurement tool was hanging because of the new population growth turned out to be wrong – the real cause was an expensive calculation that had been there for longer.",
+    ],
+  },
+  {
+    version: "0.2.7",
+    de: [
+      "Frachtraum und Treibstofftank einer Flotte zeigen ihren Füllstand jetzt als Balken – genau wie das Lager, mit einem farbigen Segment je geladener Ware, statt als reiner Textsatz, der leicht übersehen wurde.",
+    ],
+    en: [
+      "A fleet's cargo hold and fuel tank now show their fill level as a bar, just like storage does – one colored segment per cargo type, instead of a plain sentence that was easy to miss.",
+    ],
+  },
+  {
+    version: "0.2.6",
+    de: [
+      "Der Sonden-Schnellversand schickt seine Sonden jetzt immer zuerst zum nächstgelegenen aufzudeckenden Ort, statt sie stur nach Orbitnummer sortiert loszuschicken.",
+    ],
+    en: [
+      "Quick probe launch now always sends its probes to the nearest undiscovered spot first, instead of strictly by orbit number.",
+    ],
+  },
+  {
+    version: "0.2.5",
+    de: [
+      "Die Baukachel des Kraftwerks zeigt jetzt an, wie viel zusätzlichen Brennstoff die nächste Ausbaustufe verbraucht – vorher stand dort nur Arbeitskraft und Energie.",
+    ],
+    en: [
+      "The power plant's build tile now shows how much additional fuel the next upgrade will burn – it used to list only labor and power.",
+    ],
+  },
+  {
+    version: "0.2.4",
+    de: [
+      "Ein Planet, der während einer langen Abwesenheit neu entsteht (etwa eine neue Piratenbande oder eine frisch gegründete Kolonie), setzt seine Bevölkerung jetzt von Anfang an fort, statt für den Rest der Aufholung eingefroren zu bleiben.",
+    ],
+    en: [
+      "A planet that comes into being during a long absence (a new pirate band, or a freshly founded colony) now continues its population from the moment it appears, instead of staying frozen for the rest of the catch-up.",
+    ],
+  },
+  {
+    version: "0.2.3",
+    de: [
+      "Bevölkerungswachstum orientiert sich jetzt am tatsächlichen Bestand: Eine große Welt wächst absolut schneller als eine kleine, nicht mehr um dieselbe feste Menge. Ein praller Nahrungsvorrat (mindestens ein Tag Reichweite) beschleunigt das Wachstum zusätzlich, bis zu einer biologisch begründeten Obergrenze.",
+    ],
+    en: [
+      "Population growth now scales with the actual population: a large world grows faster in absolute numbers than a small one, instead of by the same fixed amount every time. A well-stocked food reserve (at least a day's worth) speeds growth up further, up to a biologically grounded ceiling.",
+    ],
+  },
+  {
+    version: "0.2.2",
+    de: [
+      "Die ausgewählte Stromvorrang-Stufe einer Kachel gibt beim Hovern jetzt eine eigene Rückmeldung, statt entweder ihre Kennzeichnung zu verlieren oder gar nicht zu reagieren.",
+    ],
+    en: [
+      "The selected power-priority level on a tile now gives its own feedback on hover, instead of either losing its highlight or not reacting at all.",
+    ],
+  },
+  {
+    version: "0.2.1",
+    de: [
+      "Nur intern: Das Stylesheet ist jetzt nach Grundlagen und Komponenten sortiert statt nach gewachsenen Bereichen. Für Spieler ändert sich dadurch nichts (geprüft: alle berechneten Werte über 880 Elemente sind vorher/nachher identisch).",
+    ],
+    en: [
+      "Internal only: The stylesheet is now sorted by foundation-before-components instead of by grown regions. Nothing changes for players (checked: every computed value across 880 elements is identical before and after).",
+    ],
+  },
+  {
     version: "0.2.0",
     de: [
       "Dies ist der zweite veröffentlichte Demo-Stand. Die mittlere Ziffer zählt ab jetzt genau das: wie oft die Demo veröffentlicht wurde. Die 1.0 bleibt für die echte Veröffentlichung reserviert.",

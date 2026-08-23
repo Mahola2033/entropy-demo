@@ -43,6 +43,7 @@ import {
   bauzeitFuerLevel,
   voraussetzungenErfuellt,
   solarLageFaktor,
+  bevoelkerungsSchrittFaktor,
 } from "./data.js";
 import { stromFuer, waehle } from "./zufall.js";
 import { systemGenerieren } from "./welt.js";
@@ -657,6 +658,34 @@ export function kategorieBonus(state, kategorie) {
   return faktor;
 }
 
+// A-116: ein Forschungsbonus, der nur die Ausbeute erhöht, ist ein Perpetuum
+// mobile in klein -- Tobis Grundsatz (22.08.): „was nur positiv wäre, gehört
+// entschärft." Real ist Fördertechnik Mechanisierung: mehr Durchsatz heißt
+// mehr Strom und mehr Einsatzstoff, der Ertrag pro eingesetzter Kilowattstunde
+// bleibt bestenfalls gleich. Was Technik wirklich einspart, ist die
+// menschliche Arbeit -- deshalb sinkt Arbeitskraft, statt zu steigen, halb so
+// stark wie der Aufschlag (Deutung der Planung aus „von mir aus gehen sie
+// auch ein bisschen runter").
+//
+// Mit `b = kategorieBonus(state, def.kategorie) - 1`:
+//   Arbeitskraft         -> 1 - 0,25·b
+//   alles andere Verbrauchte (Energie, Material) -> 1 + 0,5·b
+//
+// AUSGENOMMEN: die Kategorie `energie` selbst. Energietechnik verbessert den
+// Wirkungsgrad des Reaktors -- mehr Strom aus DEMSELBEN Brennstoff, ein
+// Mehrverbrauch wäre die Aussage auf den Kopf gestellt. Kraftwerk und
+// Solarfeld behalten deshalb ALLE ihre Verbrauchsposten unverändert,
+// Brennstoff eingeschlossen.
+//
+// EINE Stelle für alle Aufrufer (rohRaten, produktionsAufloesung samt seiner
+// Fluss-Zuteilung, ausbauVorschau) -- eine zweite Fassung wäre die teuerste
+// Fehlerklasse des Projekts (Kommentar an ANREICHERUNG_VERLUST).
+export function verbrauchsBonusFaktor(state, def, resId) {
+  if (!def || def.kategorie === "energie") return 1;
+  const b = kategorieBonus(state, def.kategorie) - 1;
+  return resId === "arbeitskraft" ? 1 - 0.25 * b : 1 + 0.5 * b;
+}
+
 // Planetare Affinität: Multiplikator je Ressource auf die Förderung dieses
 // Planeten. Der HAKEN existiert ab v0.18, die Zahlen kommen später (spezielle
 // Planetenarten, Terraforming) -- ohne Eintrag ändert sich nichts.
@@ -910,6 +939,30 @@ export function bevoelkerungsAnteile(planet) {
   };
 }
 
+// Wie voll das Nahrungslager im Verhältnis zum STÜNDLICHEN Verbrauch ist
+// (A-117) -- die Reichweite in ECHTZEIT, nicht in Spieljahren (Begründung
+// bei BEVOELKERUNG.vorratsReichweiteMinStunden in data.js). Unter der
+// Mindestreichweite 0, ab der vollen 1, dazwischen linear. Gemessen wird der
+// BESTAND gegen den Verbrauch, nicht gegen ein Defizit -- es geht um Vorrat,
+// nicht um Mangel.
+export function vorratsanteil(planet) {
+  const menschen = (planet && planet.ressourcen && planet.ressourcen.bevoelkerung) || 0;
+  if (menschen <= 0) return 0;
+  const verbrauchProStunde = menschen * BEVOELKERUNG.nahrungProKopf;
+  const bestand = (planet.ressourcen && planet.ressourcen.nahrung) || 0;
+  const reichweiteStunden = bestand / verbrauchProStunde;
+  const { vorratsReichweiteMinStunden: min, vorratsReichweiteVollStunden: voll } = BEVOELKERUNG;
+  return Math.min(1, Math.max(0, (reichweiteStunden - min) / (voll - min)));
+}
+
+// Die Jahresrate fürs WACHSTUM (nicht fürs Schrumpfen -- das bleibt bei
+// `basisRateJahr` ohne Bonus, siehe bevoelkerungSchritt in simulation.js).
+// Dieselbe Funktion für Simulation UND Anzeige (planetUebersicht unten), sonst
+// driftet eine von beiden lautlos auseinander (A-112-Fehlerklasse).
+export function bevoelkerungsWachstumsrate(planet) {
+  return BEVOELKERUNG.basisRateJahr + BEVOELKERUNG.vorratsBonusMaxJahr * vorratsanteil(planet);
+}
+
 // Was ein Handelsposten dieser Stufe auf diesem Planeten an Abgaben abrechnet.
 //
 // EINE Formel für drei Leser (A-075): die Rohraten, die Drosselungsrechnung
@@ -982,7 +1035,9 @@ export function rohRaten(state, planet) {
       // stehen, siehe dort.
       if (!verbrauchAb(def, resId, level)) continue;
       if (!verbrauchLaeuft(state, def, resId)) continue;
-      verbrauch[resId] = (verbrauch[resId] || 0) + rate(spec, level) * an;
+      // A-116: derselbe Bonusanteil, der oben die Ausbeute erhöht, verteuert
+      // hier den Verbrauch (verbrauchsBonusFaktor).
+      verbrauch[resId] = (verbrauch[resId] || 0) + rate(spec, level) * an * verbrauchsBonusFaktor(state, def, resId);
     }
   }
   return { produktion, verbrauch };
@@ -1250,7 +1305,9 @@ export function produktionsAufloesung(state, planet) {
       // dieses Umbaus.
       if (!verbrauchAb(def, resId, level)) continue;
       if (!verbrauchLaeuft(state, def, resId)) continue;
-      verb[resId] = rate(spec, level) * an;
+      // A-116: derselbe Faktor wie in rohRaten -- sonst weicht die Abrechnung
+      // von der Anzeige ab (die teuerste Fehlerklasse des Projekts).
+      verb[resId] = rate(spec, level) * an * verbrauchsBonusFaktor(state, def, resId);
     }
     // Der zweite Betriebsmodus (A-071), zweite von zwei Stellen -- siehe
     // rohRaten. Die Ausbeute geht in `prod` (sie ist eine Lager-Ressource
@@ -1291,7 +1348,10 @@ export function produktionsAufloesung(state, planet) {
     // trug die Anlage nur `energie`).
     const fluss = {};
     for (const resId of FLUSS_RESSOURCEN) {
-      let menge = rate(def.verbrauch && def.verbrauch[resId], level) * an;
+      // A-116: derselbe Faktor wie oben bei `verb` -- sonst zeigt roh.verbrauch
+      // (die Anzeige) einen anderen Bedarf, als die Prioritaets-Zuteilung
+      // (flussZuteilen) tatsaechlich verrechnet.
+      let menge = rate(def.verbrauch && def.verbrauch[resId], level) * an * verbrauchsBonusFaktor(state, def, resId);
       // A-071: Der Strombedarf der Anreicherung gehört zum Bedarf DIESER
       // Anlage. Damit teilt er ihre Priorität und ihre Drosselung -- eine
       // Anreicherung, die bei Strommangel voll weiterliefe, während die
@@ -1680,8 +1740,24 @@ export function ausbauVorschau(state, planet, def, ziel) {
   const verbrauch = {};
   for (const [resId, spec] of Object.entries(def.verbrauch || {})) {
     if (resId === "energie") continue;
-    const mehr = zuwachs(spec);
+    // A-116: derselbe Faktor wie in rohRaten/produktionsAufloesung -- sonst
+    // verspricht die Kachel einen Verbrauch, den die Anlage danach
+    // überschreitet.
+    const mehr = zuwachs(spec) * verbrauchsBonusFaktor(state, def, resId);
     if (mehr > 0) verbrauch[resId] = Math.round(mehr);
+  }
+  // A-114: Der Brennstoff des Kraftwerks steht in `def.brennstoff`, einem
+  // EIGENEN Block neben `verbrauch` (A-055, Weg B: der Abzug läuft beim
+  // Fortschreiben der Planetenuhr, nicht in der Ratenrechnung -- sonst
+  // entstünde ein Fluss-Kreis). Die Vorschau kannte diesen Block bisher nicht
+  // und verschwieg damit die teuerste laufende Position des Gebäudes.
+  // Gerechnet wie `verbrauch`: derselbe Zuwachs, OHNE `kategorieBonus` und
+  // ohne Affinität -- dieselbe Begründung wie bei den übrigen
+  // Verbrauchsposten.
+  const brennstoff = {};
+  for (const [resId, spec] of Object.entries(def.brennstoff || {})) {
+    const mehr = zuwachs(spec);
+    if (mehr > 0) brennstoff[resId] = Math.round(mehr);
   }
   // A-075: Der Handelsposten ist die einzige Anlage, deren EINNAHME nicht in
   // data.js steht -- sie hängt an der Bevölkerung und nicht an der Stufe. Die
@@ -1695,7 +1771,9 @@ export function ausbauVorschau(state, planet, def, ziel) {
   // Einwohnern trägt sich schon die erste Stufe nicht.
   if (planet && def.id === "handelsposten") {
     const netto = Math.round(
-      handelsAbgaben(planet, ziel) - handelsAbgaben(planet, basis) - zuwachs(def.verbrauch && def.verbrauch.credits)
+      handelsAbgaben(planet, ziel) -
+        handelsAbgaben(planet, basis) -
+        zuwachs(def.verbrauch && def.verbrauch.credits) * verbrauchsBonusFaktor(state, def, "credits")
     );
     delete verbrauch.credits;
     if (netto > 0) produktion.credits = netto;
@@ -1704,10 +1782,15 @@ export function ausbauVorschau(state, planet, def, ziel) {
 
   const speicherRes = speicherRessourceVon(def.id);
   return {
-    // Nettobilanz: was die Stufe erzeugt, minus was sie zieht.
-    energie: zuwachs(def.produktion && def.produktion.energie) - zuwachs(def.verbrauch && def.verbrauch.energie),
+    // Nettobilanz: was die Stufe erzeugt, minus was sie zieht. Der
+    // Verbrauchsteil trägt seit A-116 denselben verbrauchsBonusFaktor wie die
+    // übrigen Verbrauchsposten (bei Kraftwerk/Solarfeld ist er 1, siehe dort).
+    energie:
+      zuwachs(def.produktion && def.produktion.energie) -
+      zuwachs(def.verbrauch && def.verbrauch.energie) * verbrauchsBonusFaktor(state, def, "energie"),
     produktion,
     verbrauch,
+    brennstoff,
     speicherRes,
     speicher: speicherRes
       ? speicherKapazitaetFuerLevel(speicherRes, ziel) - speicherKapazitaetFuerLevel(speicherRes, basis)
@@ -1849,11 +1932,18 @@ export function planetUebersicht(state, planet) {
   // und das ist Absicht: eine Anzeige, die anders rechnet als die Simulation,
   // ist eine Lüge mit Nachkommastellen.
   const versorgt = (raten.drosselung.nahrung === undefined ? 1 : raten.drosselung.nahrung) >= 1;
-  const schrittProStunde = (BEVOELKERUNG.proSchritt * MS_PRO_STUNDE_STATE) / BEVOELKERUNG.schrittMs;
+  // Stundenrate ist eine MOMENTAUFNAHME (Rate zum aktuellen Bestand), keine
+  // exakte Vorhersage: proportionales Wachstum beschleunigt mit dem Bestand,
+  // eine lineare Hochrechnung daraus ist deshalb bei `stundenBisDeckel` unten
+  // leicht zu hoch gegriffen -- akzeptiert für eine Übersichtsschätzung.
+  const proStundeFaktor = MS_PRO_STUNDE_STATE / BEVOELKERUNG.schrittMs;
   let wachstumProStunde = 0;
   if (!aussenposten && menschen > 0) {
-    if (!versorgt) wachstumProStunde = -schrittProStunde;
-    else if (menschen < platz) wachstumProStunde = schrittProStunde;
+    if (!versorgt) {
+      wachstumProStunde = -menschen * bevoelkerungsSchrittFaktor(BEVOELKERUNG.basisRateJahr) * proStundeFaktor;
+    } else if (menschen < platz) {
+      wachstumProStunde = menschen * bevoelkerungsSchrittFaktor(bevoelkerungsWachstumsrate(planet)) * proStundeFaktor;
+    }
   }
   const bevoelkerung = {
     menschen,

@@ -146,6 +146,33 @@ export function flotteTankKapazitaet(state, flotte) {
   return flotteBasisTank(flotte) + Math.max(0, flotteKapazitaet(state, flotte) - ladungGesamt(flotte));
 }
 
+// --- Füllstands-Balken (A-118) ---------------------------------------------
+// Der Frachtraum bekommt denselben gestapelten Balken wie das Lager (Tobis
+// Vorgabe: "das Model vom Lager klauen"). Was hier steht, ist NUR die
+// Rechnung -- Anteil je Ressource, sortiert nach Menge absteigend, genau wie
+// die Lager-Segmente in ui.js. Farbe (RESSOURCEN[id].farbe) und Titeltext
+// (t()) bleiben in ui.js, dieselbe Aufteilung wie bei A-114s ausbauVorschau:
+// ui.js läuft in keinem Test, die Zahl gehört deshalb hierher.
+export function flotteLadungAnteile(state, flotte) {
+  const kap = flotteKapazitaet(state, flotte);
+  return Object.entries(flotte.ladung || {})
+    .filter(([, menge]) => menge > 0)
+    .map(([resId, menge]) => ({ resId, menge, anteil: kap > 0 ? menge / kap : 0 }))
+    .sort((a, b) => b.menge - a.menge);
+}
+
+// Tankfüllstand als Ein-Segment-Liste -- gleiche Rechnung (Menge über
+// Kapazität), nur mit flotteTankKapazitaet statt flotteKapazitaet und immer
+// höchstens einem Eintrag, es gibt nur eine Sorte Treibstoff. Leerer Tank
+// liefert eine leere Liste (wie ein leeres Lager keine Segmente hat) -- der
+// Rahmen bleibt trotzdem stehen, das zeichnet ui.js.
+export function flotteTankAnteile(state, flotte) {
+  const menge = flotte.treibstoff || 0;
+  if (menge <= 0) return [];
+  const kap = flotteTankKapazitaet(state, flotte);
+  return [{ resId: "tritium", menge, anteil: kap > 0 ? menge / kap : 0 }];
+}
+
 // Was der Verband je Streckeneinheit verbrennt. Stand dreimal ausgeschrieben
 // da (Reichweite bei vollem Tank, Reichweite mit dem Bestand, Verbrauch) --
 // dieselbe Summe an drei Orten ist dieselbe Grenze an drei Orten (Prinzip 5).

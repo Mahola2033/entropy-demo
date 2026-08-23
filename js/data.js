@@ -9,15 +9,17 @@
 // erkennbar ist, welcher Stand gerade läuft -- wichtig, seit es neben dem
 // Entwicklungsordner eine eingefrorene Spielkopie gibt (siehe SPIELKOPIE.md).
 //
-// GEZÄHLT WIRD NACH GEWICHT (Tobis Entscheidung, 2026-08-16):
-//   neues Teilsystem / veränderte Mechanik  -> Zehntel +1, Rest auf 0 (0.42 -> 0.5)
-//   Korrektur, Feinschliff, Oberfläche      -> Hundertstel +1        (0.5  -> 0.51)
+// SEIT A-109 (21.08.2026) GILT 0.MINOR.PATCH, keine Gewichtsregel mehr:
+//   PATCH  +1 je Umsetzungsrunde, sonst nichts -- keine Ermessensfrage.
+//   MINOR  fasst die Umsetzung NIE an; zählt veröffentlichte Demo-Stände,
+//          gesetzt von der Planung beim dist-Push.
+//   MAJOR  bleibt 0, bis das Spiel wirklich erscheint; 1.0.0 ist reserviert.
 // Immer hier UND in package.json hochzählen, und eine Zeile in CHANGELOG.md --
 // beim Übernehmen sieht Tobi sonst nur eine Zahl und muss nachfragen.
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.2.0";
+export const VERSION = "0.3.0";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von uebernehmen.mjs beim Kopieren auf "spielkopie"
@@ -99,14 +101,14 @@ export const MASSSTAB = 50;
 // einer Änderung hier das Pacing, rechnet irgendwo Spielmechanik mit der
 // Anzeigeachse statt mit Sekunden.
 //
-// Zwei bekannte Schwächen, bewusst nicht in dieser Runde behoben:
-//   - Das Wachstum ist LINEAR (feste Schritte, siehe BEVOELKERUNG). Der Anker
-//     stimmt damit am Spielanfang exakt; bei 500.000 Einwohnern wären es
-//     rechnerisch nur noch 0,3 %/Jahr. Physikalisch wäre proportional richtig.
+// Eine bekannte Schwäche, bewusst nicht in dieser Runde behoben:
 //   - Nahrungsbedarf und Fördermenge stehen im falschen VERHÄLTNIS zueinander
 //     (eine Mine ernährt hier 150.000 Menschen, real entspräche eine große
 //     Mine der Nahrung von rund 40 Millionen). Das ist keine Frage der
 //     Einheit und keine des Zeitmaßstabs, sondern Balancing.
+//   (Die zweite, das LINEARE Wachstum statt proportional, behob A-117: der
+//   Anker gilt seither bei jeder Einwohnerzahl, nicht mehr nur am Spielanfang
+//   -- siehe `bevoelkerungsSchrittFaktor` bei BEVOELKERUNG unten.)
 export const ZEIT = {
   spieltageProSekunde: 1,
   tageProJahr: 365.25,
@@ -379,24 +381,50 @@ export const RESSOURCEN = {
   },
 };
 
-// Bevölkerung: Wachstum in festen Schritten statt als stetige Rate.
+// Bevölkerung: Wachstum als EREIGNIS in festen Zeitabständen, aber
+// PROPORTIONAL zum Bestand (A-117) -- keine feste Menge je Schritt mehr.
 //
-// Der Grund ist die Zeitsimulation: zwischen zwei Ereignissen MUSS jede Rate
-// konstant sein. Eine stetig wachsende Bevölkerung würde ihren eigenen
-// Nahrungsverbrauch laufend verändern -- der Bestand wäre nicht mehr linear
-// und "Rate × Zeitspanne" wäre falsch. Als Ereignis in festen Abständen bleibt
-// zwischen den Schritten alles konstant, und es nutzt dieselbe Ereignis-
-// maschinerie wie Bauschleifen und Kampfrunden.
+// Der Grund für die festen Abstände bleibt die Zeitsimulation: zwischen zwei
+// Ereignissen MUSS jede Rate konstant sein. Eine stetig wachsende Bevölkerung
+// würde ihren eigenen Nahrungsverbrauch laufend verändern -- der Bestand wäre
+// nicht mehr linear und "Rate × Zeitspanne" wäre falsch. Als Ereignis in
+// festen Abständen bleibt zwischen den Schritten alles konstant, und es nutzt
+// dieselbe Ereignismaschinerie wie Bauschleifen und Kampfrunden.
+//
+// `basisRateJahr`/`vorratsBonusMaxJahr` sind JAHRESRATEN, keine Schrittraten
+// -- `bevoelkerungsSchrittFaktor` unten rechnet daraus über den Zeitmaßstab
+// (ZEIT, siehe oben) den realen Schrittfaktor. 3,0 % ist der bestehende
+// Zeitmaßstab-Anker (siehe ZEIT-Kommentar, historisch belegt: koloniale
+// Siedlergesellschaften wie Britisch-Nordamerika im 18. Jhd.). 4,1 % ist die
+// höchste je dokumentierte natürliche Wachstumsrate einer menschlichen
+// Population (Hutterer, Verdopplung in 17 Jahren) -- der volle Bonus (+1,0 %)
+// bleibt knapp darunter: der Bonus ist von der Biologie gedeckelt, nicht von
+// einer Designzahl.
 //
 // Symmetrisch nach Tobis Entscheidung (2026-08-14): zu wenig Nahrung lässt die
-// Bevölkerung genauso schnell schrumpfen, wie sie wächst. Das ist -- wie der
-// Kampf -- eine bewusste Ausnahme von "verhindern statt bestrafen".
+// Bevölkerung genauso schnell schrumpfen, wie sie wächst (mit `basisRateJahr`,
+// ohne Vorratsbonus) -- das ist, wie der Kampf, eine bewusste Ausnahme von
+// "verhindern statt bestrafen".
 export const BEVOELKERUNG = {
   schrittMs: 5 * 60 * 1000,
-  proSchritt: 25,
+  basisRateJahr: 0.03,
+  vorratsBonusMaxJahr: 0.01,
+  // Reichweite des Nahrungslagers in ECHTZEIT-Stunden (Bestand ÷ Verbrauch/h)
+  // -- bewusst Echtzeit, nicht Spieljahre: in Spieljahren wäre jedes
+  // halbwegs volle Lager eine Reserve von Jahrhunderten (A-117).
+  vorratsReichweiteMinStunden: 4,
+  vorratsReichweiteVollStunden: 24,
   nahrungProKopf: 0.05, // pro Stunde
   arbeitskraftProKopf: 1,
 };
+
+// Jahresrate -> realer Schrittfaktor, über den Zeitmaßstab gerechnet statt
+// gesetzt (A-117): f = (1+r)^(schrittMs / jahrMs) - 1. So ergibt dieselbe
+// Jahresrate bei jeder `schrittMs`-Länge und jedem Zeitmaßstab dasselbe reale
+// Wachstum -- ändert sich einer von beiden, zieht f automatisch mit.
+export function bevoelkerungsSchrittFaktor(rJahr) {
+  return Math.pow(1 + rJahr, BEVOELKERUNG.schrittMs / jahreInMs(1)) - 1;
+}
 
 // Verdeckte Platzhalter am Ende der Ressourcenleiste. Man soll sehen, dass
 // das Spiel noch mehr zu bieten hat, ohne zu erfahren WAS -- deshalb eine
@@ -2675,10 +2703,12 @@ for (const def of Object.values(RESSOURCEN)) {
   // über ihrem Wohnraum.
   if (def.speicher) def.speicher.basis = Math.round(def.speicher.basis * MASSSTAB);
 }
-// Bevölkerungsmengen folgen demselben Maßstab. Die PRO-KOPF-Werte dagegen
-// nicht: sie beziehen sich bereits auf eine skalierte Personenzahl, doppelt
-// skaliert wären sie um den Faktor MASSSTAB falsch.
-BEVOELKERUNG.proSchritt = Math.round(BEVOELKERUNG.proSchritt * MASSSTAB);
+// BevölkerungsMENGEN folgen demselben Maßstab (bevoelkerungAb unten). Die
+// Wachstums-RATE dagegen ist ein Prozentsatz und maßstabsfrei -- 3 % von
+// 50.000 sind 3 % von 2.500.000, MASSSTAB kürzt sich heraus. (Bis A-117 stand
+// hier `BEVOELKERUNG.proSchritt = Math.round(BEVOELKERUNG.proSchritt *
+// MASSSTAB)` -- eine skalierte FESTE Menge; die proportionale Rate braucht
+// diese Zeile nicht mehr, siehe `bevoelkerungsSchrittFaktor` oben.)
 for (const def of Object.values(BUILDINGS)) {
   if (def.bevoelkerungAb) def.bevoelkerungAb = Math.round(def.bevoelkerungAb * MASSSTAB);
 }
