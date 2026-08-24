@@ -227,10 +227,8 @@ export const EN = {
     "Studies anomalies. Without a science mission an anomaly will not yield its technology.",
   "Bringt Bergungsgut und Ressourcen nach Hause. Große Funde brauchen mehrere Fahrten.":
     "Brings salvage and resources home. Large finds take several runs.",
-  "Gründet eine vollwertige Kolonie. Nimmt beim Start Siedler von der Heimatwelt mit und wird dabei verbraucht.":
-    "Founds a full colony. Takes settlers from the home world when it departs, and is consumed in the process.",
-  "Braucht mehr als {noetig} Siedler auf {planet} – dort leben {da}.":
-    "Needs more than {noetig} settlers on {planet} – {da} live there.",
+  "Gründet eine vollwertige Kolonie. Braucht eigene Kolonisten an Bord, die der Spieler selbst belädt, und wird beim Gründen verbraucht.":
+    "Founds a full colony. Needs its own colonists on board, loaded by the player, and is consumed when founding.",
   "Bewaffnetes Schiff. Einziger Schiffstyp, der Gefahren-Objekte angreifen kann. Verstecken kann es sich nicht: jedes Schiff strahlt seine Abwärme gegen einen drei Grad über dem absoluten Nullpunkt kalten Hintergrund ab. Wer im System ist, ist sichtbar.":
     "Armed vessel. The only ship type that can attack hazard objects. It cannot hide: every ship radiates its waste heat against a background three degrees above absolute zero. Whoever is in the system is visible.",
 
@@ -364,9 +362,11 @@ export const EN = {
   "FE = Forschungseinheiten. Deine Labore erzeugen sie laufend, und sie fließen in GENAU EIN Projekt – die Warteschlange darunter wird nacheinander abgearbeitet.":
     "FE stands for research points (Forschungseinheiten). Your labs produce them continuously, and they flow into EXACTLY ONE project – the queue below is worked off one after another.",
   "Braucht Werft Stufe {noetig} (aktuell {aktuell}).": "Needs shipyard level {noetig} (currently {aktuell}).",
-  "{anzahl} Sonden losschicken · {sprit} Deuterium": "Send {anzahl} probes · {sprit} deuterium",
+  // A-138: dritter Teil im selben ·-Muster -- die Sonden kommen nicht zurück.
+  "{anzahl} Sonden losschicken · {sprit} Deuterium · kehren nicht zurück":
+    "Send {anzahl} probes · {sprit} deuterium · won't return",
   // A-070: Einzahl-Vorlagen statt Pluralsystem, wie in A-068.
-  "1 Sonde losschicken · {sprit} Deuterium": "Send 1 probe · {sprit} deuterium",
+  "1 Sonde losschicken · {sprit} Deuterium · kehrt nicht zurück": "Send 1 probe · {sprit} deuterium · won't return",
   "zurück": "return",
   "Fliegt nach der Mission zum Heimathafen zurück. Ohne Haken bleibt die Flotte am Ziel und kann von dort weiter.":
     "Flies back to the home port after the mission. Without the tick the fleet stays at the target and can continue from there.",
@@ -724,7 +724,7 @@ export const EN = {
 
   // --- Bau- und Forschungskacheln -----------------------------------------
   "Stufe {nr}": "Tier {nr}",
-  "Energie {vorzeichen}{menge} MW": "Power {vorzeichen}{menge} MW",
+  "Energie {vorzeichenBetrag} MW": "Power {vorzeichenBetrag} MW",
   "Erforscht – schaltet gesperrte Objekte frei.": "Researched – unlocks sealed objects.",
   "Nächste Stufe: {kosten} · {dauer}": "Next level: {kosten} · {dauer}",
   "kein Labor – niemand forscht": "no lab – nobody is researching",
@@ -893,6 +893,21 @@ export const EN = {
   "Lädt die eingestellte Menge {res} aus dem Hafenlager in den Frachtraum.":
     "Loads the set amount of {res} from the port's storage into the cargo hold.",
   Laden: "Load",
+  // A-132: Kolonisten-Regler -- eigener Raum, dasselbe Muster wie Tank/Fracht.
+  "Braucht mindestens einen Kolonisten an Bord.": "Needs at least one colonist on board.",
+  "Der Kolonistenraum ist voll.": "The colonist quarters are full.",
+  "Keine Bevölkerung verfügbar.": "No population available.",
+  "Keine Kolonisten an Bord.": "No colonists on board.",
+  "Kolonisten an Bord: {menge}/{kapazitaet} ({lager} Bevölkerung im Lager)":
+    "Colonists on board: {menge}/{kapazitaet} ({lager} population in storage)",
+  "Anteil dessen, was noch in den Kolonistenraum passt und im Lager an Bevölkerung lebt – 100 % füllt ihn auf. Der Regler stellt nur ein, erst „Laden“ führt es aus. Zählt NICHT gegen den Frachtraum.":
+    "Share of what still fits in the colonist quarters and lives in storage as population – 100% tops it up. The slider only sets the amount, “Load” carries it out. Does NOT count against the cargo hold.",
+  "Nimmt die eingestellte Menge Bevölkerung aus dem Hafenlager als Kolonisten an Bord.":
+    "Takes the set amount of population from the port's storage aboard as colonists.",
+  "Alle Kolonisten an Bord ans Lager zurückgeben": "Give all colonists on board back to storage",
+  "Alle absetzen": "Drop off all",
+  "Kolonistenraum voll.": "Colonist quarters full.",
+  "Keine Bevölkerung im Lager.": "No population in storage.",
   "{schiff} {anteil}% beschädigt": "{schiff} {anteil}% damaged",
   Reparieren: "Repair",
   "Verschrottet die beschädigte Gruppe gegen eine sofortige Teilerstattung":
@@ -1301,8 +1316,8 @@ export const EN = {
   "noch nicht gebaut": "not built yet",
   "{bestand} / {kapazitaet}{einheit}": "{bestand} / {kapazitaet}{einheit}",
   "Flüsse netto": "Net Flows",
-  "{erzeugt} erzeugt · {gebraucht} gebraucht · {netto} MW":
-    "{erzeugt} generated · {gebraucht} drawn · {netto} MW",
+  "{erzeugt} erzeugt · {gebraucht} gebraucht · {netto}":
+    "{erzeugt} generated · {gebraucht} drawn · {netto}",
   Brennstoff: "Fuel",
   "reicht {dauer}": "lasts {dauer}",
   "frei {frei} von {gesamt}": "{frei} free of {gesamt}",

@@ -145,6 +145,7 @@ import {
   flotteAufloesen,
   schiffeUmladen,
   tanken,
+  siedlerUmladen,
   ladungAufnehmen,
   missionBefehlen,
   kannSchnellversand,
@@ -197,6 +198,7 @@ import {
   schiffeText,
   frachtraumFrei,
   flotteTankKapazitaet,
+  flotteSiedlerKapazitaet,
   flotteLadungAnteile,
   flotteTankAnteile,
 } from "./flotten.js";
@@ -356,6 +358,23 @@ export function listeAbgleichen(container, eintraege, { schluessel, bauen, aktua
 // bricht eine laufende Textauswahl des Spielers.
 export function textSetzen(el, text) {
   if (el && el.textContent !== text) el.textContent = text;
+}
+
+// Wie textSetzen, aber für vertrauenswürdiges MARKUP (z.B. aus vorzeichenSpan,
+// A-126) -- nie mit Spielertext füttern, dieselbe Gefahr wie beim Flottennamen
+// unten: innerHTML liest ihn als Auszeichnung, nicht als Text.
+//
+// A-130: geschrieben gegen zuletzt geschrieben (dataset.markupStand), nie
+// gegen zurückgelesen -- derselbe Grund wie überall sonst in dieser Runde:
+// der Browser serialisiert innerHTML beim Auslesen normalisiert, ein reiner
+// Rückvergleich kann deshalb JEDEN Takt fehlschlagen, ohne dass sich am
+// Inhalt etwas geändert hat. Eigener Dataset-Schlüssel (nicht `stand`, das
+// tragen einzelne Aufrufstellen schon selbst für ihren eigenen Vergleich),
+// weil diese Funktion an vielen verschiedenen Elementen aufgerufen wird.
+export function markupSetzen(el, html) {
+  if (!el || el.dataset.markupStand === html) return;
+  el.dataset.markupStand = html;
+  el.innerHTML = html;
 }
 
 // Freier Spielertext, der über innerHTML in die Seite kommt, wird vom Browser
@@ -1007,7 +1026,9 @@ function resKachelFuellen(
   textSetzen(div.querySelector(".res-wert"), wert);
   const rateEl = div.querySelector(".res-rate");
   rateEl.className = `res-rate ${rateKlasse}`;
-  textSetzen(rateEl, rate);
+  // A-126 (P19): `rate` kann jetzt eine vorzeichenSpan-Markup-Stelle tragen
+  // (nie Spielertext -- alle Aufrufer liefern hier nur Systemzahlen/-labels).
+  markupSetzen(rateEl, rate);
   // `.res-zusatz` ist seit A-052 leer und bleibt es. Der Knoten steht im
   // Gerüst, damit er beim nächsten Gebrauch nicht neu erfunden wird -- als
   // `hidden` ist er kein Rasterkind und kostet keine Zeile (die Warnung in
@@ -1279,9 +1300,9 @@ function renderRessourcen(state, root, planet) {
             // Zugewinn aussehen. Das Pluszeichen war hier die Lüge.
             lagerVoll
             ? t("Lager voll")
-            : `+${ratenText(resId, rate)}`
+            : vorzeichenSpan(rateProJahr(rate), (betrag) => mitEinheit(resId, betrag)) + t("/Jahr")
           : zieht
-            ? `−${ratenText(resId, -rate)}`
+            ? vorzeichenSpan(rateProJahr(rate), (betrag) => mitEinheit(resId, betrag)) + t("/Jahr")
             : "",
       rateKlasse: zieht || speicherVoll || (lagerVoll && rate > 0) ? "warnung" : "",
       // A-052: DER VERDERB STAND HIER ALS EIGENE ZEILE (aus A-010) und hat
@@ -2221,7 +2242,10 @@ function renderImperium(state, root) {
       const mengeEl = td.querySelector("[data-menge]");
       mengeEl.classList.toggle("dezent", !(menge > 0));
       textSetzen(mengeEl, formatKurz(menge));
-      textSetzen(td.querySelector("[data-rate]"), rate > 0 ? `+${formatKurz(rate)}` : "");
+      // A-126 (P19): nur der Zugewinn wird gezeigt, wie bisher (A-050-Regel
+      // von der Ressourcenkachel) -- vorzeichenSpan entscheidet nur noch das
+      // Vorzeichen selbst, nicht OB überhaupt eines steht.
+      markupSetzen(td.querySelector("[data-rate]"), rate > 0 ? vorzeichenSpan(rate, formatKurz) : "");
       attributSetzen(
         td,
         "title",
@@ -2265,9 +2289,9 @@ function renderImperium(state, root) {
 
   for (const r of res) {
     textSetzen(block.querySelector(`[data-summe="${r}"]`), formatKurz(summe[r] || 0));
-    textSetzen(
+    markupSetzen(
       block.querySelector(`[data-summe-rate="${r}"]`),
-      summeRate[r] > 0 ? `+${formatKurz(summeRate[r])}` : ""
+      summeRate[r] > 0 ? vorzeichenSpan(summeRate[r], formatKurz) : ""
     );
   }
 
@@ -2817,10 +2841,11 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
     // Stufe, Kosten (als Symbole), Dauer, Aktion. Beschreibung, ausgeschriebene
     // Kosten, Energiebilanz und Voraussetzungen wandern in den Tooltip --
     // dadurch passen alle Kacheln in ein einheitliches Format.
+    // A-126 (P19): Tooltip-Text -- reines Vorzeichen+Betrag, keine Farbe (ein
+    // `title`-Attribut kann kein Markup tragen).
     const energieText = zeigeEnergie
-      ? t("Energie {vorzeichen}{menge} MW", {
-          vorzeichen: energieDelta >= 0 ? "+" : "−",
-          menge: fmt(Math.abs(Math.round(energieDelta))),
+      ? t("Energie {vorzeichenBetrag} MW", {
+          vorzeichenBetrag: vorzeichenText(Math.round(energieDelta), fmt),
         })
       : "";
     const tooltip = [
@@ -2833,7 +2858,10 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
               fluss: fmt(forschFluss),
               dauer: fmtDauer(dauer),
             })
-          : t("Nächste Stufe: {kosten} · {dauer}", { kosten: buendelText(kosten), dauer: fmtDauer(dauer) }),
+          : t("Nächste Stufe: {kosten} · {dauer}", {
+              kosten: buendelText(kosten, { abgang: true }),
+              dauer: fmtDauer(dauer),
+            }),
       hatProduktion ? t("Bringt zusätzlich: {mehr}", { mehr: ratenBuendelText(produktionsDelta) }) : "",
       hatVerbrauch
         ? t("Verbraucht zusätzlich: {mehr} – fehlt der Nachschub, drosselt die Anlage anteilig", {
@@ -2875,14 +2903,28 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
     // werden, und das hält die Zahlen einfach.
     const mitte = fertig
       ? `<span class="dezent">${t("erforscht")}</span>`
-      : `<span class="kachel-kosten"><span class="zeilen-marke">${t("Kosten")}</span> ${istForschung ? `${RESSOURCEN.forschung.symbol} ${fmt(aufwand)} ${RESSOURCEN.forschung.einheit}` : buendelSymbole(kosten)}</span>
-         <span class="kachel-dauer">${fmtDauer(dauer)}${energieText ? ` · ${energieDelta >= 0 ? "+" : "−"}${fmt(Math.abs(Math.round(energieDelta)))} MW` : ""}</span>
+      : // A-126 (P19): Kosten sind ein Abgang und bekommen deshalb ein "−" --
+        // { abgang: true } kommt von HIER, nicht aus buendelSymbole selbst
+        // (Falle: dieselbe Funktion zeigt an anderer Stelle Erträge/Ladung,
+        // die KEIN Minus bekommen dürfen).
+        `<span class="kachel-kosten"><span class="zeilen-marke">${t("Kosten")}</span> ${istForschung ? `${RESSOURCEN.forschung.symbol} ${fmt(aufwand)} ${RESSOURCEN.forschung.einheit}` : buendelSymbole(kosten, { abgang: true })}</span>
+         <span class="kachel-dauer">${fmtDauer(dauer)}${
+           energieText ? ` · ${vorzeichenSpan(Math.round(energieDelta), (betrag) => `${fmt(betrag)} MW`)}` : ""
+         }</span>
          ${hatProduktion ? `<span class="kachel-gewinn">+${ratenBuendelText(produktionsDelta, true)}</span>` : ""}
          ${hatVerbrauch ? `<span class="kachel-verbrauch">−${ratenBuendelText(verbrauchsDelta, true)}</span>` : ""}
          ${hatBrennstoff ? `<span class="kachel-verbrauch">−${ratenBuendelText(brennstoffDelta, true)}</span>` : ""}
          ${speicherDelta > 0 ? `<span class="kachel-gewinn">+${RESSOURCEN[speicherRes].symbol} ${fmt(speicherDelta)} ${speicherEinheit(speicherRes)}</span>` : ""}`;
+    // A-130: geschrieben gegen zuletzt geschrieben, nie gegen zurückgelesen
+    // (dasselbe Muster wie detail.dataset.stand in slotZeileFuellen) -- der
+    // Browser serialisiert innerHTML beim Auslesen normalisiert, ein reiner
+    // Rückvergleich kann deshalb JEDEN Takt fehlschlagen, ohne dass sich am
+    // Inhalt etwas geändert hat.
     const mitteEl = li.querySelector(".kachel-mitte");
-    if (mitteEl.innerHTML !== mitte) mitteEl.innerHTML = mitte;
+    if (mitteEl.dataset.stand !== mitte) {
+      mitteEl.dataset.stand = mitte;
+      mitteEl.innerHTML = mitte;
+    }
 
     // Vorrang: nur an gebauten Gebäuden, die überhaupt etwas Knappes ziehen.
     // Eine Forschungskachel oder eine Mine auf Stufe 0 hat nichts zu regeln.
@@ -3362,17 +3404,46 @@ function uebersichtGeruest(box, state, root) {
   });
 }
 
+// A-126 (P19 in AUFTRAEGE/KONZEPT-UI.md): "Das Vorzeichen färbt die Zahl,
+// nicht den Text." Diese zwei Funktionen sind die einzige Stelle im Spiel,
+// die künftig über das Vorzeichen einer gerichteten Zahl entscheidet -- kein
+// `wert >= 0 ? "+" : "−"` mehr an einzelnen Fundstellen.
+//
+// `formatBetrag` bekommt den BETRAG (ohne Vorzeichen) und liefert ihn fertig
+// formatiert, eng anliegende Einheiten eingeschlossen ("14 MW", "9 %") --
+// die sind Teil der Zahl. Ein nachgestelltes Wort wie "/Jahr" gehört NICHT
+// in `formatBetrag`, sondern bleibt beim Aufrufer außerhalb, unbunt (P19
+// Regel 2: der Text daneben bleibt Textfarbe).
+//
+// Null hat keine Richtung: kein Vorzeichen, keine Farbe (Definition von
+// fertig des Auftrags) -- wer eine Rate erst ab einer Sichtbarkeitsgrenze
+// als "null" behandeln will (siehe nettoSichtbar unten), rundet VOR dem
+// Aufruf auf 0.
+export function vorzeichenText(wert, formatBetrag = fmt) {
+  if (wert === 0) return formatBetrag(0);
+  return (wert > 0 ? "+" : "−") + formatBetrag(Math.abs(wert));
+}
+
+// Dieselbe Entscheidung, als fertiges Markup mit der Rollenklasse
+// (--zufluss/--abgang, css/style.css) für sichtbare Oberfläche --
+// NUR per `markupSetzen`/innerHTML einsetzen, nie per `textSetzen`.
+export function vorzeichenSpan(wert, formatBetrag = fmt) {
+  if (wert === 0) return formatBetrag(0);
+  return `<span class="${wert > 0 ? "zufluss" : "abgang"}">${vorzeichenText(wert, formatBetrag)}</span>`;
+}
+
 // Eine Rate steht in den Tabellen pro ECHTZEITSTUNDE und wird -- wie überall
 // sonst im Spiel -- pro SPIELJAHR angezeigt. Mit Vorzeichen, weil eine
-// Nettorate ohne Vorzeichen die halbe Auskunft wäre.
+// Nettorate ohne Vorzeichen die halbe Auskunft wäre. Liefert Markup
+// (vorzeichenSpan) -- Aufrufer setzen das Ergebnis über `markupSetzen`.
 function nettoText(resId, proStunde) {
   const jahr = rateProJahr(proStunde);
   // KEIN Minus vor einer Null: `formatKurz` schneidet ab, aus −0,33 t/Jahr
   // würde sonst "−0 t/Jahr". Ein Vorzeichen an einer Null liest sich wie ein
   // Fehler und ist auch einer -- die Anzeige behauptete eine Richtung, die
   // sie gar nicht mehr auflöst.
-  const vorzeichen = !nettoSichtbar(jahr) ? "" : jahr > 0 ? "+" : "−";
-  return vorzeichen + mitEinheit(resId, Math.abs(jahr)) + t("/Jahr");
+  const sichtbar = nettoSichtbar(jahr) ? jahr : 0;
+  return vorzeichenSpan(sichtbar, (betrag) => mitEinheit(resId, betrag)) + t("/Jahr");
 }
 
 // Löst die Anzeige diese Jahresrate überhaupt noch auf? Dieselbe Abschneide-
@@ -3392,9 +3463,10 @@ function dezimal(zahl, stellen = 2) {
   });
 }
 
+// Markup (vorzeichenSpan) -- Aufrufer setzen das Ergebnis über `markupSetzen`.
 function prozentText(faktor) {
   const p = Math.round((faktor - 1) * 100);
-  return `${p >= 0 ? "+" : "−"}${Math.abs(p)} %`;
+  return vorzeichenSpan(p, (betrag) => `${betrag} %`);
 }
 
 function renderUebersicht(state, root, planet) {
@@ -3406,6 +3478,9 @@ function renderUebersicht(state, root, planet) {
   const u = planetUebersicht(state, planet);
   const marke = (schluessel, text) => textSetzen(box.querySelector(`[data-marke="${schluessel}"]`), text);
   const wert = (schluessel, text) => textSetzen(box.querySelector(`[data-wert="${schluessel}"]`), text);
+  // A-126: für Werte, die eine vorzeichenSpan-Markup-Stelle einbetten (P19) --
+  // NIE mit Spielertext befüllen, siehe Warnung bei markupSetzen.
+  const wertHtml = (schluessel, html) => markupSetzen(box.querySelector(`[data-wert="${schluessel}"]`), html);
   const titel = (id, text) => textSetzen(box.querySelector(`[data-titel="${id}"]`), text);
 
   // Ein Außenposten hat keine Wirtschaft -- also auch keine Bestände, Flüsse,
@@ -3443,7 +3518,7 @@ function renderUebersicht(state, root, planet) {
   marke("orbit", t("Orbit"));
   wert("orbit", s.orbit === null || s.orbit === undefined ? UEBERSICHT_LEER : String(s.orbit));
   marke("schwerkraft", t("Schwerkraft"));
-  wert(
+  wertHtml(
     "schwerkraft",
     t("{g} g · Bauen {bau} · Starten {start}", {
       g: dezimal(s.schwerkraft),
@@ -3524,17 +3599,20 @@ function renderUebersicht(state, root, planet) {
   titel("fluesse", t("Flüsse netto"));
   marke("energie", t("Energie"));
   const e = u.energie;
-  wert(
+  wertHtml(
     "energie",
-    t("{erzeugt} erzeugt · {gebraucht} gebraucht · {netto} MW", {
+    t("{erzeugt} erzeugt · {gebraucht} gebraucht · {netto}", {
       erzeugt: fmt(Math.round(e.produktion)),
       gebraucht: fmt(Math.round(e.verbrauch)),
-      netto: `${e.netto >= 0 ? "+" : "−"}${fmt(Math.abs(Math.round(e.netto)))}`,
+      // A-126 (P19): "MW" gehört zur Zahl ("−14 MW" ist EIN gefärbter Block,
+      // KONZEPT-UI.md P19), deshalb im Formatierer und nicht mehr fest im
+      // Satz -- sonst stünde die Einheit außerhalb des Spans.
+      netto: vorzeichenSpan(Math.round(e.netto), (betrag) => `${fmt(betrag)} MW`),
     })
   );
   box.querySelector('[data-wert="energie"]').classList.toggle("warnung", e.effizienz < 1);
   marke("brennstoff", t("Brennstoff"));
-  wert(
+  wertHtml(
     "brennstoff",
     e.brennstoffStunden === null
       ? UEBERSICHT_LEER
@@ -3543,10 +3621,14 @@ function renderUebersicht(state, root, planet) {
         //
         // Der Verbrauch steht daneben (A-088): dieselbe Bedingung wie an der
         // Energie-Kachel, und die einzige Zahl, aus der man die Dauer selbst
-        // nachrechnen kann.
+        // nachrechnen kann. Vorzeichen fest -- Brennstoff wird hier immer
+        // VERBRAUCHT, das ist keine wertabhängige Richtung (A-126).
         t("reicht {dauer}", { dauer: fmtDauer(e.brennstoffStunden * 3600) }) +
           Object.entries(e.brennstoffRaten)
-            .map(([resId, proStunde]) => ` · −${ratenText(resId, proStunde)}`)
+            .map(
+              ([resId, proStunde]) =>
+                ` · ${vorzeichenSpan(-rateProJahr(proStunde), (betrag) => mitEinheit(resId, betrag))}${t("/Jahr")}`
+            )
             .join("")
   );
   marke("arbeitskraft", t("Arbeitskraft"));
@@ -3572,7 +3654,7 @@ function renderUebersicht(state, root, planet) {
         `${RESSOURCEN[f.resId].symbol || ""} ${t(RESSOURCEN[f.resId].name)}`
       );
       const el = div.querySelector(".uebersicht-wert");
-      textSetzen(
+      markupSetzen(
         el,
         nettoText(f.resId, f.netto) +
           (f.drosselung < 1
@@ -3588,7 +3670,7 @@ function renderUebersicht(state, root, planet) {
   titel("bevoelkerung", t("Bevölkerung & Schwellen"));
   marke("menschen", t("Bevölkerung"));
   const b = u.bevoelkerung;
-  wert(
+  wertHtml(
     "menschen",
     `${fmt(Math.round(b.menschen))} · ${
       b.proStunde === 0
@@ -3623,7 +3705,17 @@ function renderUebersicht(state, root, planet) {
         textSetzen(div.querySelector(".uebersicht-wert"), t("alle erreicht"));
         return;
       }
-      textSetzen(div.querySelector(".uebersicht-marke"), `${SYMBOLE.gesperrt} ${t(BUILDINGS[s2.id].name)}`);
+      {
+        const markeText = `${SYMBOLE.gesperrt} ${t(BUILDINGS[s2.id].name)}`;
+        const markeEl = div.querySelector(".uebersicht-marke");
+        textSetzen(markeEl, markeText);
+        // A-128: Diese Marke ist die einzige im Spiel, die ihren Inhalt still
+        // kürzt (ellipsis/overflow-hidden bei 120px Rasterbreite, P15/P16 --
+        // Tooltip ist Zugabe, nie Träger). Der title muss aus derselben
+        // Quelle kommen wie der sichtbare Text, sonst weicht er beim
+        // nächsten Gebäudewechsel ab.
+        if (markeEl.title !== markeText) markeEl.title = markeText;
+      }
       textSetzen(
         div.querySelector(".uebersicht-wert"),
         s2.art === "forschung"
@@ -3998,7 +4090,10 @@ function werftKachelFuellen(state, planet, li, id) {
     // getrennt, damit die Beschriftung beim Sprachwechsel mitkommt und der
     // Wert im Takt geschrieben werden kann, ohne sie mitzunehmen.
     textSetzen(li.querySelector("[data-kosten-marke]"), t("Kosten"));
-    textSetzen(li.querySelector("[data-kosten-wert]"), buendelSymbole(schiffKosten(planet, id, menge)));
+    // A-126 (P19): Schiffskosten bekommen dieselbe Behandlung wie die
+    // Gebäudekachel -- Minus + Rollenklasse kommen vom Aufrufer (Falle in
+    // buendelSymbole), deshalb innerHTML statt textSetzen.
+    markupSetzen(li.querySelector("[data-kosten-wert]"), buendelSymbole(schiffKosten(planet, id, menge), { abgang: true }));
     // Werftstufe, Bevölkerung, fehlende Forschung -- alles außer „gerade zu
     // wenig Material" gehört sichtbar auf die Kachel (Chris' Punkt).
     const schiffSperre = li.querySelector(".kachel-sperre");
@@ -4026,7 +4121,7 @@ function werftKachelFuellen(state, planet, li, id) {
     attributSetzen(li, "title", [
       t(def.beschreibung),
       t("Kosten: {kosten} · {dauer}", {
-        kosten: buendelText(schiffKosten(planet, id, menge)),
+        kosten: buendelText(schiffKosten(planet, id, menge), { abgang: true }),
         dauer: fmtDauer(schiffsBauzeitSek(planet, id, menge)),
       }),
       def.kapazitaet
@@ -4466,7 +4561,11 @@ function renderLogistiknetz(state, root, planet, jetzt) {
     })
     .join("");
   // Reiner Anzeigetext ohne Bedienelemente -- hier darf innerHTML bleiben.
-  if (transferBox.innerHTML !== transferZeilen) transferBox.innerHTML = transferZeilen;
+  // A-130: geschrieben gegen zuletzt geschrieben, nie gegen zurückgelesen.
+  if (transferBox.dataset.stand !== transferZeilen) {
+    transferBox.dataset.stand = transferZeilen;
+    transferBox.innerHTML = transferZeilen;
+  }
   transferBox.hidden = transferZeilen === "";
 }
 
@@ -4675,7 +4774,11 @@ function flottenZeileFuellen(state, li, flotte, jetzt) {
     // htmlText: neben dem Namen stehen echte Auszeichnungen (die Marken für
     // "aktiv" und "Route"), die Zeile geht also per innerHTML hinein.
     const bezeichnungHtml = `${htmlText(flotte.name)} ${aktiv ? `<span class="basis-tag">${t("aktiv")}</span>` : ""}${flotte.route && flotte.route.aktiv ? `<span class="basis-tag route-tag">${SYMBOLE.route} ${t("Route")}</span>` : ""}`;
-    if (bezeichnung.innerHTML !== bezeichnungHtml) bezeichnung.innerHTML = bezeichnungHtml;
+    // A-130: geschrieben gegen zuletzt geschrieben, nie gegen zurückgelesen.
+    if (bezeichnung.dataset.stand !== bezeichnungHtml) {
+      bezeichnung.dataset.stand = bezeichnungHtml;
+      bezeichnung.innerHTML = bezeichnungHtml;
+    }
 
     textSetzen(
       li.querySelector("[data-flotte-fracht]"),
@@ -4797,6 +4900,15 @@ export function tankEinstellung(state, flotte, hafen, regler, feld) {
   return mengeEinstellung(regler, feld, vorrat, vorrat);
 }
 
+// A-132: dieselbe Frage für die Kolonisten-Zeile -- eigener Raum wie der
+// Tank, nicht Teil der Fracht. `flotteSiedlerKapazitaet` braucht anders als
+// `flotteTankKapazitaet` kein `state` (kein Forschungsbonus auf Kolonisten).
+export function siedlerEinstellung(state, flotte, hafen, regler, feld) {
+  const platz = Math.max(0, flotteSiedlerKapazitaet(flotte) - (flotte.siedler || 0));
+  const vorrat = Math.min(Math.floor(hafen.ressourcen.bevoelkerung || 0), platz);
+  return mengeEinstellung(regler, feld, vorrat, vorrat);
+}
+
 // A-101: Warum kann hier gerade STRUKTURELL nichts geladen werden -- nicht
 // zu verwechseln mit einem Regler, der bei 0 % steht (das ist eine Wahl,
 // keine Sperre). Dieselbe Grenze, die `ladeEinstellung` schon rechnet
@@ -4821,6 +4933,15 @@ export function tankSperrGrund(state, flotte, hafen) {
   return null;
 }
 
+// Dieselbe Frage für die Kolonisten-Zeile -- Kolonistenraum voll geht VOR
+// keine Bevölkerung, aus demselben Grund wie bei Tank und Fracht.
+export function siedlerSperrGrund(state, flotte, hafen) {
+  const platz = flotteSiedlerKapazitaet(flotte) - (flotte.siedler || 0);
+  if (platz <= 0) return t("Kolonistenraum voll.");
+  if (Math.floor(hafen.ressourcen.bevoelkerung || 0) <= 0) return t("Keine Bevölkerung im Lager.");
+  return null;
+}
+
 // Die BASIS-Tooltips der Bestätigen-Knöpfe -- eine Funktion, zwei Leser
 // (das Gerüst beim Bauen, die Füllstelle bei jedem Takt), statt derselben
 // Zeichenkette an zwei Stellen zu pflegen. A-101 braucht das: im entsperrten
@@ -4828,6 +4949,9 @@ export function tankSperrGrund(state, flotte, hafen) {
 // Zeichenkette.
 function tankBestaetigenTitel() {
   return t("Übernimmt die eingestellte Menge aus dem Hafenlager in den Tank.");
+}
+function siedlerBestaetigenTitel() {
+  return t("Nimmt die eingestellte Menge Bevölkerung aus dem Hafenlager als Kolonisten an Bord.");
 }
 function ladenBestaetigenTitel(resId) {
   return t("Lädt die eingestellte Menge {res} aus dem Hafenlager in den Frachtraum.", {
@@ -4864,6 +4988,22 @@ function mengenAnzeigenFuellen(state, box, flotte, hafen) {
       attributSetzen(knopf, "title", grund || tankBestaetigenTitel());
     }
   }
+  // A-132: derselbe Aufbau wie die Tankzeile -- eigener Regler, eigener Raum.
+  const siedlerRegler = box.querySelector("input[data-siedler-schieber]");
+  if (siedlerRegler) {
+    textSetzen(
+      box.querySelector('[data-siedler-anzeige="1"]'),
+      mengeEinstellungText(
+        siedlerEinstellung(state, flotte, hafen, siedlerRegler, box.querySelector("input[data-siedler-feld]"))
+      )
+    );
+    const grund = siedlerSperrGrund(state, flotte, hafen);
+    const knopf = box.querySelector("button[data-siedler-bestaetigen]");
+    if (knopf) {
+      knopf.disabled = !!grund;
+      attributSetzen(knopf, "title", grund || siedlerBestaetigenTitel());
+    }
+  }
   for (const regler of box.querySelectorAll("input[data-laden-schieber]")) {
     const resId = regler.dataset.ladenSchieber;
     textSetzen(
@@ -4895,10 +5035,12 @@ function flottenDetailZahlen(state, box, flotte, hafen) {
   // Das `!== document.activeElement` ist der Schutz davor, dem Spieler
   // während des Ziehens in die Hand zu greifen: wer den Regler gerade
   // anfasst, bestimmt seinen Wert, nicht wir.
-  for (const regler of box.querySelectorAll("input[type=range][data-tanken-schieber], input[type=range][data-laden-schieber]")) {
+  for (const regler of box.querySelectorAll("input[type=range][data-tanken-schieber], input[type=range][data-laden-schieber], input[type=range][data-siedler-schieber]")) {
     if (regler === document.activeElement) continue;
     const schluessel = regler.dataset.ladenSchieber
       ? `laden:${flotte.id}:${regler.dataset.ladenSchieber}`
+      : regler.dataset.siedlerSchieber
+      ? `siedler:${flotte.id}`
       : `tanken:${flotte.id}`;
     const soll = String(reglerWert(schluessel));
     if (regler.value !== soll) regler.value = soll;
@@ -4965,6 +5107,19 @@ function flottenDetailZahlen(state, box, flotte, hafen) {
       }),
     }))
   );
+  // A-132: eigene Zeile für den Kolonistenraum -- kein Balken (nur eine
+  // "Sorte", wie beim Tank), aber derselbe Live-Text-Mechanismus.
+  const siedlerFeld = box.querySelector("[data-siedler-lage]");
+  if (siedlerFeld) {
+    textSetzen(
+      siedlerFeld,
+      t("Kolonisten an Bord: {menge}/{kapazitaet} ({lager} Bevölkerung im Lager)", {
+        menge: fmt(flotte.siedler || 0),
+        kapazitaet: fmt(flotteSiedlerKapazitaet(flotte)),
+        lager: fmt(hafen.ressourcen.bevoelkerung || 0),
+      })
+    );
+  }
   for (const r of LAGER_RESSOURCEN) {
     const feld = box.querySelector(`[data-lager-lage="${r}"]`);
     if (!feld) continue;
@@ -5069,6 +5224,23 @@ function flottenDetail(state, root, flotte) {
         <span class="lager-balken-rahmen" data-tank-balken></span>
       </span>
     </div>
+    ${flotteSiedlerKapazitaet(flotte) > 0 ? `
+    <div class="flotte-reihe">
+      <span class="schieber-gruppe bedienzeile">
+        <span class="dezent zeile-beschriftung" data-siedler-lage></span>
+        <input class="zeile-regler" type="range" min="0" max="100" step="1" data-siedler-schieber="1" title="${t(
+          "Anteil dessen, was noch in den Kolonistenraum passt und im Lager an Bevölkerung lebt – 100 % füllt ihn auf. Der Regler stellt nur ein, erst „Laden“ führt es aus. Zählt NICHT gegen den Frachtraum."
+        )}" />
+        <span class="schieber-wert zeile-zahl" data-siedler-anzeige="1"></span>
+        <input type="number" class="menge-feld zeile-eingabe" min="0" step="1" placeholder="${t("genaue Menge")}" data-siedler-feld="1" title="${t(
+          "Genauer Betrag statt Prozent. Was hier steht, hat Vorrang vor dem Regler."
+        )}" />
+        <button class="zeile-knopf-1" data-siedler-bestaetigen="1" title="${siedlerBestaetigenTitel()}">${t("Laden")}</button>
+        <button class="zeile-knopf-2" data-siedler-alle-ab="1" ${flotte.siedler > 0 ? "" : "disabled"} title="${t(
+          "Alle Kolonisten an Bord ans Lager zurückgeben"
+        )}">${t("Alle absetzen")}</button>
+      </span>
+    </div>` : ""}
     <div class="flotte-reihe">
       <span class="flotte-fuellstand" style="display:flex;flex-direction:column;align-items:stretch;gap:.2rem;flex:1 1 12rem">
         <span class="dezent" data-frachtraum-lage></span>
@@ -5100,7 +5272,7 @@ function flottenDetail(state, root, flotte) {
             schiff: t(SCHIFFE[typ].name),
             anteil,
           })}</span>
-          <button data-reparieren="${typ}" ${repCheck.ok ? "" : "disabled"} title="${repCheck.ok ? buendelText(repCheck.kosten) : repCheck.grund}">${t("Reparieren")}</button>
+          <button data-reparieren="${typ}" ${repCheck.ok ? "" : "disabled"} title="${repCheck.ok ? buendelText(repCheck.kosten, { abgang: true }) : repCheck.grund}">${t("Reparieren")}</button>
           <button data-recyceln="${typ}" ${recCheck.ok ? "" : "disabled"} title="${recCheck.ok ? t("Verschrottet die beschädigte Gruppe gegen eine sofortige Teilerstattung") : recCheck.grund}">${t("Recyceln")}</button>
         </span>`;
       }).join("")}
@@ -5197,6 +5369,37 @@ function flottenDetail(state, root, flotte) {
       );
       if (menge > 0) tanken(state, flotte, menge);
       delete reglerPosition[`tanken:${flotte.id}`];
+      render(state, root);
+    });
+  });
+  // A-132: Kolonisten-Regler/-Knöpfe, exakt dasselbe Muster wie beim Tanken
+  // -- eigener Raum, eigene Reglerposition, "Laden" bestätigt erst.
+  box.querySelectorAll("button[data-siedler-alle-ab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      siedlerUmladen(state, flotte, -(flotte.siedler || 0));
+      render(state, root);
+    });
+  });
+  box.querySelectorAll("input[data-siedler-schieber]").forEach((input) => {
+    input.addEventListener("input", () => {
+      reglerPosition[`siedler:${flotte.id}`] = Number(input.value);
+      mengenAnzeigenFuellen(state, box, flotte, hafen);
+    });
+  });
+  box.querySelectorAll("input[data-siedler-feld]").forEach((feld) => {
+    feld.addEventListener("input", () => mengenAnzeigenFuellen(state, box, flotte, hafen));
+  });
+  box.querySelectorAll("button[data-siedler-bestaetigen]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const { menge } = siedlerEinstellung(
+        state,
+        flotte,
+        hafen,
+        box.querySelector("input[data-siedler-schieber]"),
+        box.querySelector("input[data-siedler-feld]")
+      );
+      if (menge > 0) siedlerUmladen(state, flotte, menge);
+      delete reglerPosition[`siedler:${flotte.id}`];
       render(state, root);
     });
   });
@@ -6069,7 +6272,11 @@ function galaxieZeileFuellen(state, li, eintrag, reichweite) {
       `${eigene.length ? `<span class="basis-tag">${t("{anzahl}× eigen", { anzahl: eigene.length })}</span>` : ""}` +
       // Ein Wort, das den Unterschied zwischen Minuten und Stunden trägt.
       `${hatSprungroute(state, eintrag.id) ? "" : `<span class="basis-tag warnung">${t("Erstflug")}</span>`}`;
-    if (bezeichnung.innerHTML !== bezeichnungHtml) bezeichnung.innerHTML = bezeichnungHtml;
+    // A-130: geschrieben gegen zuletzt geschrieben, nie gegen zurückgelesen.
+    if (bezeichnung.dataset.stand !== bezeichnungHtml) {
+      bezeichnung.dataset.stand = bezeichnungHtml;
+      bezeichnung.innerHTML = bezeichnungHtml;
+    }
 
     const lage = li.querySelector("[data-system-lage]");
     const lageHtml = `${
@@ -6077,7 +6284,10 @@ function galaxieZeileFuellen(state, li, eintrag, reichweite) {
         ? t("Entfernung {entfernung} · besucht", { entfernung: eintrag.entfernung.toFixed(1) })
         : t("Entfernung {entfernung}", { entfernung: eintrag.entfernung.toFixed(1) })
     } · <span class="stern-punkt" style="--stern-farbe:${stern.farbe}"></span>${stern.spektral}`;
-    if (lage.innerHTML !== lageHtml) lage.innerHTML = lageHtml;
+    if (lage.dataset.stand !== lageHtml) {
+      lage.dataset.stand = lageHtml;
+      lage.innerHTML = lageHtml;
+    }
 
     // Knopf und Sperrhinweis sind beide dauerhaft da und werden versteckt --
     // erzeugte und entfernte Knöpfe wären genau der alte Fehler.
@@ -6117,18 +6327,23 @@ function schnellversandKnoepfe(state, flotte, systemId) {
           schiffe: check.schiffe,
         })
       : check.grund;
-    // Der Knopf sagt VOR dem Klick, was er tut: wieviele Sonden und wieviel
-    // Treibstoff (Prinzip 10a). „Losschicken (3)" ließ offen, ob die drei
-    // reichen und was sie kosten — genau die zwei Fragen, die man davor hat.
+    // Der Knopf sagt VOR dem Klick, was er tut: wieviele Sonden, wieviel
+    // Treibstoff und dass sie nicht wiederkommen (Prinzip 10a, erweitert um
+    // A-138 -- „kommen sie wieder?" ist die dritte und teuerste Frage, und
+    // die Erklärung dazu stand schon dreimal woanders, ohne anzukommen).
+    // „Losschicken (3)" ließ offen, ob die drei reichen und was sie kosten.
     // A-070, dritte Stelle desselben Musters (A-068): bei genau einem Ziel
     // stand hier „1 Sonden losschicken". Eigene Einzahl-Vorlage, kein
     // Pluralsystem -- das Hausmittel dieses Projekts, siehe „1 Tag" und
-    // „1 Labor".
+    // „1 Labor". Der Rückkehr-Hinweis übernimmt dieselbe Formulierung wie die
+    // Schiffsbeschreibung („kehrt nicht zurück") statt des Fachworts „Einweg".
     const beschriftung = !check.ok
       ? label()
       : check.ziele.length === 1
-        ? t("1 Sonde losschicken · {sprit} Deuterium", { sprit: fmt(Math.ceil(check.treibstoff)) })
-        : t("{anzahl} Sonden losschicken · {sprit} Deuterium", {
+        ? t("1 Sonde losschicken · {sprit} Deuterium · kehrt nicht zurück", {
+            sprit: fmt(Math.ceil(check.treibstoff)),
+          })
+        : t("{anzahl} Sonden losschicken · {sprit} Deuterium · kehren nicht zurück", {
             anzahl: check.ziele.length,
             sprit: fmt(Math.ceil(check.treibstoff)),
           });
@@ -6398,7 +6613,13 @@ function slotZeileFuellen(state, systemId, objekt, flotte, li) {
   // Elemente. Die Ereignisse hängen ohnehin delegiert an der Liste.
   const aktionen = li.querySelector(".slot-aktionen");
   const aktionenHtml = slotAktion(state, systemId, objekt, gesperrt, eigen, flotte);
-  if (aktionen.innerHTML !== aktionenHtml) aktionen.innerHTML = aktionenHtml;
+  // A-130: dieselbe Umstellung wie bei der Detailzeile oben (dataset.stand
+  // statt Rücklesevergleich) -- A-125 hatte hier die geschriebene Zeichenkette
+  // korrigiert, die Vergleichsform selbst blieb zerbrechlich.
+  if (aktionen.dataset.stand !== aktionenHtml) {
+    aktionen.dataset.stand = aktionenHtml;
+    aktionen.innerHTML = aktionenHtml;
+  }
   return li;
 }
 
@@ -6576,7 +6797,7 @@ export function orbitAngebot(state, systemId, objekt, flotte, rueckkehrGewaehlt 
           art: "aussenposten",
           label: t("Außenposten"),
           check: aussen,
-          titel: aussen.ok ? buendelText(AUSSENPOSTEN.kosten) : aussen.grund,
+          titel: aussen.ok ? buendelText(AUSSENPOSTEN.kosten, { abgang: true }) : aussen.grund,
         },
         {
           typ: "gruenden",
@@ -6625,9 +6846,11 @@ function slotAktion(state, systemId, objekt, gesperrt, eigen, flotte) {
     return `<span class="${klasse}">${angebot.hinweis}</span>`;
   }
 
-  // A-125: `aktionen.innerHTML !== aktionenHtml` (slotZeileFuellen) vergleicht
-  // diese Zeichenkette gegen das, was der Browser beim AUSLESEN von innerHTML
-  // zurückgibt -- und der serialisiert grundsätzlich anders, als hier
+  // A-125 (Ursache, Vergleich seit A-130 auf dataset.stand umgestellt --
+  // siehe slotZeileFuellen): der Vorgänger-Vergleich (`aktionen`-Element
+  // gegen `aktionenHtml`) verglich diese Zeichenkette gegen das, was der
+  // Browser beim AUSLESEN von innerHTML zurückgibt -- und der serialisiert
+  // grundsätzlich anders, als hier
   // geschrieben wird. Drei Stellen, an denen die beiden Schreibweisen deshalb
   // NIE gleich werden konnten, der Vergleich also bei JEDEM Takt fehlschlug:
   //   1. Ein boolesches Attribut nur als nacktes Wort (`disabled`) statt mit

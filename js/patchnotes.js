@@ -28,6 +28,122 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.4.0",
+    de: [
+      "Dies ist der vierte veröffentlichte Demo-Stand — elf Runden seit dem letzten. Kein Spielstand geht dabei verloren.",
+      "Für alle, die mit vergrößerter Anzeige spielen: Die Kopfleiste bricht jetzt um, statt aus dem Fenster zu laufen. Wer bisher an Reset-Knopf und Testmodus nicht herankam, kommt heran.",
+      "Neu beim Kolonisieren: Das Kolonieschiff hat zwei getrennte Laderäume — einen für die Kolonisten, einen für alles andere. Beide belädst du selbst, und die neue Kolonie bekommt nichts mehr geschenkt: Sie hat genau das, was du mitgeschickt hast. Wer ohne Nahrung landet, sieht seine Leute hungern.",
+      "Die Nachbarn sind eigenständiger geworden. Fremde Imperien forschen ab sofort selbst — und profitieren nicht mehr stillschweigend von deiner Forschung. Außerdem sparen sie auf große Schritte wie eine Werft oder ein Kolonieschiff, statt immer nur das Billigste zu bauen.",
+      "Kleinigkeiten: Jede Zahl trägt ihr Vorzeichen jetzt in der Farbe — Zugewinn grün, Abgang rot, Kosten mit Minus. Der Sonden-Knopf sagt vor dem Klick, dass Sonden nicht zurückkehren. Und mehrere Stellen, an denen Tooltips beim Draufhalten wieder verschwanden, bleiben jetzt stehen.",
+    ],
+    en: [
+      "This is the fourth published demo build — eleven rounds since the last one. No save games are lost in the process.",
+      "For anyone playing with a magnified display: the header bar now wraps instead of running off the window. If you could not reach the reset button and the test mode before, you can now.",
+      "New when colonising: the colony ship has two separate holds — one for the colonists, one for everything else. You load both yourself, and the new colony gets nothing for free: it has exactly what you sent along. Land without food and you will watch your people starve.",
+      "The neighbours have become more independent. Foreign empires now research on their own — and no longer quietly benefit from yours. They also save up for big steps such as a shipyard or a colony ship, instead of only ever building the cheapest thing available.",
+      "Small things: every number now carries its sign in its colour — gains green, outgoings red, costs with a minus. The probe button says before you click that probes do not return. And several places where tooltips vanished again on hover now stay put.",
+    ],
+  },
+  {
+    version: "0.3.11",
+    de: [
+      "Fremde Imperien sparen jetzt gezielt auf große Schritte wie ihre Werft oder ein Kolonieschiff, statt sich mit der billigsten Mine in Reichweite zu begnügen – sie legen dafür nur einen Teil ihres Bestands zurück und bauen mit dem Rest ganz normal weiter.",
+    ],
+    en: [
+      "Foreign empires now save up on purpose for big steps like their shipyard or a colony ship, instead of settling for whatever mine is cheapest nearby – they set aside only part of their stock for it and keep building normally with the rest.",
+    ],
+  },
+  {
+    version: "0.3.10",
+    de: [
+      "Der Schnellversand-Knopf für Sonden sagt jetzt auch, dass die Sonden nicht zurückkommen – bisher nannte er nur Anzahl und Treibstoff.",
+    ],
+    en: [
+      "The probe quick-dispatch button now also says the probes won't come back – until now it only named the count and the fuel.",
+    ],
+  },
+  {
+    version: "0.3.9",
+    de: [
+      "Fremde Imperien bauen jetzt eigene Forschungslabore und erforschen ihren eigenen Techbaum – bisher stand ihnen das offen, aber keines hat je ein Labor gebaut.",
+    ],
+    en: [
+      "Foreign empires now build their own research labs and advance their own tech tree – until now the option was there, but none of them ever actually built a lab.",
+    ],
+  },
+  {
+    version: "0.3.8",
+    de: [
+      "Fremde Imperien forschen jetzt für sich selbst statt heimlich von deiner Forschung mitzuprofitieren – ihre Förderrate, ihr Mehrverbrauch und ihre Frachtkapazität hängen ab jetzt an ihrem eigenen Stand, nicht an deinem.",
+    ],
+    en: [
+      "Foreign empires now research for themselves instead of secretly riding along on yours – their yield rate, their extra consumption, and their cargo capacity now depend on their own standing, not on yours.",
+    ],
+  },
+  {
+    version: "0.3.7",
+    de: [
+      "Das Kolonieschiff bekommt einen Frachtraum und einen eigenen Kolonistenraum – beides beladen, wer will. Kolonisten zählen nicht gegen die Fracht. Nichts davon füllt sich mehr von selbst: eine neue Kolonie startet nur mit dem, was tatsächlich mitgeschickt wurde.",
+    ],
+    en: [
+      "The colony ship now has a cargo hold and its own colonist quarters – load either as you see fit. Colonists don't count against the cargo. Nothing fills itself anymore: a new colony starts only with what was actually sent along.",
+    ],
+  },
+  {
+    version: "0.3.6",
+    de: [
+      "Die Roadmap im Development-Bereich zeigt jetzt die tatsächlich anstehenden Vorhaben — sechs Punkte unter „Bald“, die längst eingebaut waren, sind heraus und durch drei neue ersetzt.",
+    ],
+    en: [
+      "The roadmap in the Development area now shows what's actually coming next — six items under “Soon” that had already shipped are gone, replaced by three new ones.",
+    ],
+  },
+  {
+    version: "0.3.5",
+    de: [
+      "Bei stark verkleinertem oder herausgezoomtem Fenster bricht die Testmodus-Leiste im Kopf jetzt in eine zweite Zeile um, statt über den rechten Rand hinauszuragen. Die Zeitsprung-, Zeitraffer- und Reset-Knöpfe waren dort zuvor mit keiner Nutzergeste erreichbar.",
+    ],
+    en: [
+      "In a strongly shrunk or zoomed-out window, the test-mode bar in the header now wraps onto a second line instead of running off the right edge. The time-jump, time-scale, and reset buttons there used to be unreachable by any user gesture.",
+    ],
+  },
+  {
+    version: "0.3.4",
+    de: [
+      "Nur intern: Mehrere Stellen der Oberfläche verglichen ihren Anzeigetext mit dem, was der Browser zurückliefert – eine Quelle für Knöpfe, die im falschen Moment neu erzeugt werden. Alle gemessenen Stellen waren unauffällig, die Vergleichsart wurde trotzdem gegen die Falle abgesichert. Für Spieler ändert sich dadurch nichts.",
+    ],
+    en: [
+      "Internal only: several parts of the interface compared their display text against what the browser hands back – a source of buttons getting rebuilt at the wrong moment. Every spot measured was fine, but the comparison itself was hardened against the trap anyway. Nothing changes for players.",
+    ],
+  },
+  {
+    version: "0.3.3",
+    de: [
+      "Nur intern: Das Skript, das eine Veröffentlichung vorbereitet, zeigte zuletzt fälschlich „keine neuen Änderungen“ an, obwohl mehrere Runden fertig waren – ein Zähler verglich Versionsnummern falsch. Für Spieler ändert sich dadurch nichts.",
+    ],
+    en: [
+      "Internal only: the script that prepares a release was wrongly reporting \"no new changes\" even though several rounds were done – a counter compared version numbers incorrectly. Nothing changes for players.",
+    ],
+  },
+  {
+    version: "0.3.2",
+    de: [
+      "Neue Richtlinie für Zahlen mit Vorzeichen: Ein Zugewinn ist grün, ein Abgang ist rot – und zwar nur die Zahl samt Vorzeichen, nie der Text daneben. Baukosten zeigen jetzt dazu passend ein Minus, und ein laufender Verbrauch (z. B. Arbeitskraft) ist jetzt rot statt neutralgrau.",
+    ],
+    en: [
+      "New rule for signed numbers: a gain is green, a drain is red – and only the number with its sign, never the label next to it. Build costs now show a minus to match, and ongoing consumption (e.g. labor) is now red instead of neutral gray.",
+    ],
+  },
+  {
+    version: "0.3.1",
+    de: [
+      "Die Übersicht eines Planeten nennt jetzt auch dann den vollen Namen eines gesperrten Gebäudes, wenn er für die schmale Spalte zu lang ist – als Tooltip beim Draufhalten, statt mitten im Wort abzureißen.",
+    ],
+    en: [
+      "A planet's overview now shows the full name of a locked building even when it is too long for the narrow column – as a tooltip on hover, instead of cutting off mid-word.",
+    ],
+  },
+  {
     version: "0.3.0",
     de: [
       "Dies ist der dritte veröffentlichte Demo-Stand — zwölf Runden seit dem letzten. Kein Spielstand geht dabei verloren.",
@@ -1072,12 +1188,9 @@ export const ROADMAP_PUNKTE = [
     de: "Bald",
     en: "Soon",
     punkte: [
-      { de: "Flotten direkt von der Karte kommandieren — alles auf einem Bildschirm", en: "Command fleets straight from the map — everything on one screen" },
-      { de: "Energie bekommt eine echte Entscheidung: Brennstoff, Speicher als Puffer und eine zweite Kraftwerksart", en: "Energy gets a real decision: fuel, storage as a buffer, and a second type of power plant" },
-      { de: "Die Versorgungskrise bekommt ihren Ausweg mit Preis", en: "The supply crisis gets its way out, at a price" },
-      { de: "Forschung mit mehr Gewicht und mehr Auswahl", en: "Research with more weight and more choice" },
-      { de: "Ein klarerer Ersteinstieg: wer man ist und was die Oberfläche zeigt", en: "A clearer first entry: who you are and what the interface shows" },
-      { de: "Eine Planeten-Übersicht fürs Imperium", en: "A planet overview for the empire" },
+      { de: "Treibstoff zählt die Masse: Was du lädst, kostet Reichweite — und nicht jedes Ziel ist von überall erreichbar", en: "Fuel counts the mass: what you load costs range — and not every destination is reachable from anywhere" },
+      { de: "Tankstellen unterwegs: Reichweite wird zu einem Netz, das man sich baut", en: "Fuel stations along the way: range becomes a network you build" },
+      { de: "Fremde Imperien werden unterschiedlich: manche wachsen, manche scheitern", en: "Foreign empires become different: some grow, some fail" },
     ],
   },
   {

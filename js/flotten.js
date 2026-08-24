@@ -11,11 +11,12 @@
 
 import { SCHIFFE, FLOTTE, RESEARCH, SONDE, unterlichtSekundenProEinheit } from "./data.js";
 import { systemPosition, entfernung } from "./galaxie.js";
-// Einziger Zugriff dieser Datei auf state.js: die Zugehörigkeit eines
-// Planeten. Sie hier nachzubauen wäre dieselbe Grenze an zwei Stellen --
-// genau das Muster, an dem das Produktionsmodell in v0.18 einmal
-// auseinandergelaufen ist. Kein Kreis: state.js kennt flotten.js nicht.
-import { planetenVon, fraktionVon } from "./state.js";
+// Zugriff dieser Datei auf state.js: Zugehörigkeit (fraktionVon/planetenVon)
+// und seit A-133 der Forschungsstand einer Fraktion (forschungVon). Beides
+// hier nachzubauen wäre dieselbe Grenze an zwei Stellen -- genau das Muster,
+// an dem das Produktionsmodell in v0.18 einmal auseinandergelaufen ist. Kein
+// Kreis: state.js kennt flotten.js nicht.
+import { planetenVon, fraktionVon, forschungVon } from "./state.js";
 import { SPIELER_FRAKTION } from "./data.js";
 import { t } from "./sprache.js";
 
@@ -89,7 +90,12 @@ export function flotteTempo(flotte) {
 }
 
 export function flotteKapazitaet(state, flotte) {
-  const bonus = 1 + (state.forschung.frachttechnik || 0) * RESEARCH.frachttechnik.kapazitaetProLevel;
+  // A-133: die Frachttechnik der FLOTTE, nicht die des Spielers -- eine
+  // Bot-Flotte darf die Forschung des Spielers nicht mitbenutzen.
+  // `forschungVon` ist die einzige Stelle, die weiß, wo ein Forschungsstand
+  // wohnt; ein zweiter Zugriff auf `state.forschung` hier wäre der Rückfall.
+  const forschung = forschungVon(state, fraktionVon(flotte));
+  const bonus = 1 + (forschung.frachttechnik || 0) * RESEARCH.frachttechnik.kapazitaetProLevel;
   let kap = 0;
   for (const [id, anzahl] of Object.entries(flotte.schiffe)) {
     kap += SCHIFFE[id].kapazitaet * anzahl;
@@ -123,6 +129,23 @@ export function flotteBasisTank(flotte) {
   let summe = 0;
   for (const [id, anzahl] of Object.entries(flotte.schiffe)) {
     if (anzahl > 0) summe += (SCHIFFE[id].tank || 0) * anzahl;
+  }
+  return summe;
+}
+
+// --- Kolonistenraum (A-132) ------------------------------------------------
+// Genau dasselbe Muster wie flotteBasisTank: ein eigener Raum je Schiffstyp
+// (heute nur das Kolonieschiff, siedlerKapazitaet fehlt bei den anderen und
+// liest sich über `|| 0` als null), summiert über die Flotte -- und wie der
+// Tank NICHT Teil des Frachtraums. R-23, Tobis Entscheidung: „erstmal
+// eigener Lagerraum für Kolonisten. Die Restlichen Ressourcen teilen sich
+// ein Lager." flotteKapazitaet rechnet einen Forschungsbonus mit
+// (Frachttechnik) -- für Kolonisten gibt es keinen, deshalb hier keine
+// state-Abhängigkeit.
+export function flotteSiedlerKapazitaet(flotte) {
+  let summe = 0;
+  for (const [id, anzahl] of Object.entries(flotte.schiffe)) {
+    if (anzahl > 0) summe += (SCHIFFE[id].siedlerKapazitaet || 0) * anzahl;
   }
   return summe;
 }

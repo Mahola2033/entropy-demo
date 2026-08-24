@@ -511,6 +511,24 @@ export function neueFraktion({ id, art = SPIELER_FRAKTION, name = null }) {
     // Eintrag bedeutet "noch keine Berührung" und wird als Grundhaltung der
     // eigenen Art gelesen. Damit ist der Null-Zustand gratis richtig.
     beziehungen: {},
+    // A-133: eigener Forschungsstand je Fraktion, siehe forschungVon unten.
+    // Additiv: ein alter Spielstand ohne diese Felder liest sich über das
+    // Ausweichen in forschungVon/forschungsQueueVon als "nichts erforscht"
+    // -- für Bots ist das exakt der heutige Wahrheitsgehalt.
+    forschung: {},
+    forschungsQueue: null,
+    // A-134: dasselbe Regal, jetzt auch mit der Warteschlange dahinter --
+    // ohne sie hätte forschungStarten für eine Fraktion mit laufendem
+    // Projekt keinen Ort für den zweiten Auftrag. Additiv wie die Felder
+    // oben; ein alter Spielstand ohne dieses Feld ist "nichts eingereiht",
+    // und das stimmt für ihn.
+    forschungsWarteschlange: [],
+    // A-137: worauf ein Bot gerade spart, wenn ihm das Naheliegende (die
+    // Kolonisationskette) am Kontostand scheitert. `null` heißt "spart
+    // gerade nicht" -- additiv, ein alter Spielstand ohne das Feld liest
+    // sich genauso. Siehe botKolonisieren/botSparzielPruefen in
+    // simulation.js für Entstehung, Reserve-Wirkung und Verwerfen.
+    sparziel: null,
   };
 }
 
@@ -641,13 +659,67 @@ export function eigenerPlanetAn(state, systemId, orbit) {
   return planet && fraktionVon(planet) === SPIELER_FRAKTION ? planet : null;
 }
 
+// --- Forschung je Fraktion (A-133) -----------------------------------------
+//
+// R-26, Tobis Entscheidung: „Lol ich forsche einfach für die ganze Galaxy
+// mit, auch geil. Ja das muss natürlich Fraktionsgebunden sein." Gemessener
+// Stand: `state.forschung` ist global -- ein Objekt für den ganzen
+// Spielstand, ohne Fraktionsbezug. `kategorieBonus` las es direkt und hob
+// damit jede Bot-Welt mit dem Forschungsstand des Spielers.
+//
+// EINE Funktion je Frage, weil das die einzigen zwei Stellen sind, an denen
+// je ein Forschungsstand wohnt -- alles andere (kategorieBonus,
+// verbrauchsBonusFaktor, flotteKapazitaet) geht ab jetzt über diese beiden.
+// Für den Spieler liefern sie `state.forschung`/`state.forschungsQueue`
+// (unveränderter Ort -- siehe unten, warum kein Umzug), für jede andere
+// Fraktion `fraktion.forschung`/`fraktion.forschungsQueue` (fehlt das Feld,
+// leer/null -- ein alter Spielstand liest sich darüber als "nichts
+// erforscht", für Bots vor A-134 der heutige Wahrheitsgehalt). Außenposten
+// und Piraten (`nutzt.forschung: false`) bekommen dieselbe Leere, weil
+// nichts je in ihr `fraktion.forschung` schreibt -- keine Sonderprüfung
+// nötig, die Abwesenheit ist schon die Wahrheit.
+//
+// WARUM `state.forschung` NICHT UMZIEHT: der Umzug in die Spielerfraktion
+// selbst wäre die schönere Lösung, ändert aber das Speicherformat, und
+// save.js kennt keine Migration (ein Stand mit abweichender SAVE_VERSION
+// wird abgewiesen, nicht umgerechnet). Der Umzug ist damit Kategorie 3 und
+// gehört in den Sammel-Sprung -- diese Funktion ist genau die Naht, an der
+// er später ohne weitere Änderung an den Aufrufern stattfinden kann.
+export function forschungVon(state, fraktionId) {
+  if (fraktionId === SPIELER_FRAKTION) return state.forschung;
+  const fraktion = fraktionById(state, fraktionId);
+  return (fraktion && fraktion.forschung) || {};
+}
+
+// Gegenstück für die laufende Forschung (A-013s graduellen Bonus): derselbe
+// Weg, dieselbe Ausnahme. Ohne dieses Gegenstück läse kategorieBonus für
+// jede fremde Fraktion weiter `state.forschungsQueue` -- ein Leck, das kein
+// Test findet, der nur fertige Stufen prüft (das laufende Projekt des
+// Spielers würde fremden Welten weiter seinen Anteil schenken).
+export function forschungsQueueVon(state, fraktionId) {
+  if (fraktionId === SPIELER_FRAKTION) return state.forschungsQueue;
+  const fraktion = fraktionById(state, fraktionId);
+  return (fraktion && fraktion.forschungsQueue) || null;
+}
+
+// A-134: Gegenstück für die WARTENDEN Projekte -- dieselbe Ausnahme wie
+// forschungsQueueVon. Gibt die LIVE-Liste zurück (nicht kopiert), damit
+// naechstesForschungLevel eingereihte Stufen mitzählt, ohne eine zweite
+// Fassung der Frage zu schreiben.
+export function forschungsWarteschlangeVon(state, fraktionId) {
+  if (fraktionId === SPIELER_FRAKTION) return state.forschungsWarteschlange;
+  const fraktion = fraktionById(state, fraktionId);
+  return (fraktion && fraktion.forschungsWarteschlange) || [];
+}
+
 // --- Produktion -----------------------------------------------------------
-export function kategorieBonus(state, kategorie) {
+export function kategorieBonus(state, kategorie, fraktionId = SPIELER_FRAKTION) {
   let faktor = 1;
-  const laufend = state.forschungsQueue;
+  const forschung = forschungVon(state, fraktionId);
+  const laufend = forschungsQueueVon(state, fraktionId);
   for (const def of Object.values(RESEARCH)) {
     if (def.boost && def.boost.kategorie === kategorie) {
-      faktor += (state.forschung[def.id] || 0) * def.boost.proLevel;
+      faktor += (forschung[def.id] || 0) * def.boost.proLevel;
       // A-013 (PROBE): die laufende Stufe wirkt anteilig mit ihrem Fortschritt.
       if (laufend && laufend.forschungId === def.id && def.boost.graduell) {
         const anteil = laufend.aufwand > 0 ? (laufend.fortschritt || 0) / laufend.aufwand : 0;
@@ -680,9 +752,13 @@ export function kategorieBonus(state, kategorie) {
 // EINE Stelle für alle Aufrufer (rohRaten, produktionsAufloesung samt seiner
 // Fluss-Zuteilung, ausbauVorschau) -- eine zweite Fassung wäre die teuerste
 // Fehlerklasse des Projekts (Kommentar an ANREICHERUNG_VERLUST).
-export function verbrauchsBonusFaktor(state, def, resId) {
+//
+// A-133: `fraktionId` wandert im Gleichschritt mit dem Bonus durch --
+// derselbe Aufschlag, dieselbe Fraktion. Ein Bot, der den Preis zahlt, ohne
+// den Nutzen zu haben, wäre schlimmer als der Zustand vor dieser Runde.
+export function verbrauchsBonusFaktor(state, def, resId, fraktionId = SPIELER_FRAKTION) {
   if (!def || def.kategorie === "energie") return 1;
-  const b = kategorieBonus(state, def.kategorie) - 1;
+  const b = kategorieBonus(state, def.kategorie, fraktionId) - 1;
   return resId === "arbeitskraft" ? 1 - 0.25 * b : 1 + 0.5 * b;
 }
 
@@ -984,6 +1060,11 @@ export function rohRaten(state, planet) {
   const produktion = {};
   const verbrauch = {};
   if (!planet || planet.typ === "aussenposten") return { produktion, verbrauch };
+  // A-133: EINE Fraktion für diesen ganzen Durchlauf -- rohRaten und die
+  // Anlagen-Schleife (produktionsAufloesung) MÜSSEN denselben Faktor sehen,
+  // sonst rechnen Zuteilung und Effizienz mit einer anderen Welt als die
+  // Ketten (die teuerste Fehlerklasse dieses Projekts, A-112).
+  const fraktion = fraktionVon(planet);
 
   const menschen = bevoelkerungsAnteile(planet);
   produktion.arbeitskraft = menschen.arbeitskraft;
@@ -1002,7 +1083,7 @@ export function rohRaten(state, planet) {
   for (const [id, def] of Object.entries(BUILDINGS)) {
     const level = planet.gebaeude[id] || 0;
     if (level <= 0) continue;
-    const bonus = kategorieBonus(state, def.kategorie);
+    const bonus = kategorieBonus(state, def.kategorie, fraktion);
     // Das Brennstoff-Tor (A-055): ein erloschener Reaktor liefert nichts und
     // zieht nichts -- auch keine Arbeitskraft, die Belegschaft steht nicht in
     // einer kalten Halle. Binär, damit kein Kreis entsteht (siehe
@@ -1037,7 +1118,8 @@ export function rohRaten(state, planet) {
       if (!verbrauchLaeuft(state, def, resId)) continue;
       // A-116: derselbe Bonusanteil, der oben die Ausbeute erhöht, verteuert
       // hier den Verbrauch (verbrauchsBonusFaktor).
-      verbrauch[resId] = (verbrauch[resId] || 0) + rate(spec, level) * an * verbrauchsBonusFaktor(state, def, resId);
+      verbrauch[resId] =
+        (verbrauch[resId] || 0) + rate(spec, level) * an * verbrauchsBonusFaktor(state, def, resId, fraktion);
     }
   }
   return { produktion, verbrauch };
@@ -1269,6 +1351,8 @@ export function produktionsAufloesung(state, planet) {
     verderb: {},
   };
   if (!planet || planet.typ === "aussenposten" || !planet.gebaeude) return leer;
+  // A-133: dieselbe Fraktion wie in rohRaten -- siehe die Begründung dort.
+  const fraktion = fraktionVon(planet);
 
   // Rohraten EINMAL rechnen und beides daraus speisen -- die Energieeffizienz
   // oben und die Fluss-Anzeige ganz unten.
@@ -1279,7 +1363,7 @@ export function produktionsAufloesung(state, planet) {
   for (const [id, def] of Object.entries(BUILDINGS)) {
     const level = planet.gebaeude[id] || 0;
     if (level <= 0) continue;
-    const bonus = kategorieBonus(state, def.kategorie);
+    const bonus = kategorieBonus(state, def.kategorie, fraktion);
     const prod = {};
     const verb = {};
     // Anlagen, die Sonnenlicht brauchen, stehen still, solange die
@@ -1307,7 +1391,7 @@ export function produktionsAufloesung(state, planet) {
       if (!verbrauchLaeuft(state, def, resId)) continue;
       // A-116: derselbe Faktor wie in rohRaten -- sonst weicht die Abrechnung
       // von der Anzeige ab (die teuerste Fehlerklasse des Projekts).
-      verb[resId] = rate(spec, level) * an * verbrauchsBonusFaktor(state, def, resId);
+      verb[resId] = rate(spec, level) * an * verbrauchsBonusFaktor(state, def, resId, fraktion);
     }
     // Der zweite Betriebsmodus (A-071), zweite von zwei Stellen -- siehe
     // rohRaten. Die Ausbeute geht in `prod` (sie ist eine Lager-Ressource
@@ -1351,7 +1435,8 @@ export function produktionsAufloesung(state, planet) {
       // A-116: derselbe Faktor wie oben bei `verb` -- sonst zeigt roh.verbrauch
       // (die Anzeige) einen anderen Bedarf, als die Prioritaets-Zuteilung
       // (flussZuteilen) tatsaechlich verrechnet.
-      let menge = rate(def.verbrauch && def.verbrauch[resId], level) * an * verbrauchsBonusFaktor(state, def, resId);
+      let menge =
+        rate(def.verbrauch && def.verbrauch[resId], level) * an * verbrauchsBonusFaktor(state, def, resId, fraktion);
       // A-071: Der Strombedarf der Anreicherung gehört zum Bedarf DIESER
       // Anlage. Damit teilt er ihre Priorität und ihre Drosselung -- eine
       // Anreicherung, die bei Strommangel voll weiterliefe, während die
@@ -1483,7 +1568,7 @@ export function produktionsAufloesung(state, planet) {
         if (!spec) continue;
         const level = planet.gebaeude[id] || 0;
         if (level <= 0) continue;
-        summe += rate(spec, level) * kategorieBonus(state, def.kategorie) * (faktoren[id] || 0);
+        summe += rate(spec, level) * kategorieBonus(state, def.kategorie, fraktion) * (faktoren[id] || 0);
       }
       produktion[resId] = summe;
     } else {
@@ -1628,7 +1713,7 @@ export function lagerverbrauchVon(resId) {
 
 export function lagerKapazitaetGesamt(state, planet) {
   const basis = lagerkapazitaet(planet && planet.gebaeude ? planet.gebaeude.lagerhalle || 0 : 0);
-  return Math.round(basis * kategorieBonus(state, "lager"));
+  return Math.round(basis * kategorieBonus(state, "lager", fraktionVon(planet)));
 }
 
 export function lagerBelegung(planet) {
@@ -1725,7 +1810,11 @@ export function speicherRessourceVon(gebaeudeId) {
 // wäre: ui.js läuft in keinem Test.
 export function ausbauVorschau(state, planet, def, ziel) {
   const basis = Math.max(0, ziel - 1);
-  const bonus = def.kategorie ? kategorieBonus(state, def.kategorie) : 1;
+  // A-133: dieselbe Fraktion wie in rohRaten/produktionsAufloesung. `planet`
+  // ist hier eine UI-Vorschau und darf `null` sein (fraktionVon fällt dann
+  // auf den Spieler zurück -- die Vorschau ist ohnehin nur seine Oberfläche).
+  const fraktion = fraktionVon(planet);
+  const bonus = def.kategorie ? kategorieBonus(state, def.kategorie, fraktion) : 1;
   const zuwachs = (spec) => rate(spec, ziel) - rate(spec, basis);
 
   const produktion = {};
@@ -1743,7 +1832,7 @@ export function ausbauVorschau(state, planet, def, ziel) {
     // A-116: derselbe Faktor wie in rohRaten/produktionsAufloesung -- sonst
     // verspricht die Kachel einen Verbrauch, den die Anlage danach
     // überschreitet.
-    const mehr = zuwachs(spec) * verbrauchsBonusFaktor(state, def, resId);
+    const mehr = zuwachs(spec) * verbrauchsBonusFaktor(state, def, resId, fraktion);
     if (mehr > 0) verbrauch[resId] = Math.round(mehr);
   }
   // A-114: Der Brennstoff des Kraftwerks steht in `def.brennstoff`, einem
@@ -1773,7 +1862,7 @@ export function ausbauVorschau(state, planet, def, ziel) {
     const netto = Math.round(
       handelsAbgaben(planet, ziel) -
         handelsAbgaben(planet, basis) -
-        zuwachs(def.verbrauch && def.verbrauch.credits) * verbrauchsBonusFaktor(state, def, "credits")
+        zuwachs(def.verbrauch && def.verbrauch.credits) * verbrauchsBonusFaktor(state, def, "credits", fraktion)
     );
     delete verbrauch.credits;
     if (netto > 0) produktion.credits = netto;
@@ -1787,7 +1876,7 @@ export function ausbauVorschau(state, planet, def, ziel) {
     // übrigen Verbrauchsposten (bei Kraftwerk/Solarfeld ist er 1, siehe dort).
     energie:
       zuwachs(def.produktion && def.produktion.energie) -
-      zuwachs(def.verbrauch && def.verbrauch.energie) * verbrauchsBonusFaktor(state, def, "energie"),
+      zuwachs(def.verbrauch && def.verbrauch.energie) * verbrauchsBonusFaktor(state, def, "energie", fraktion),
     produktion,
     verbrauch,
     brennstoff,
@@ -2332,8 +2421,10 @@ export function forschungVerfuegbar(state, forschungId) {
   return !!state.forschungFreigeschaltet[forschungId];
 }
 
-export function forschungVoraussetzungenErfuellt(state, forschungId) {
-  return voraussetzungenErfuellt(state.forschung, forschungId);
+// A-134: fraktionsgebunden wie hatLabor -- Vorgabe SPIELER_FRAKTION hält
+// jeden bestehenden Zweiparameter-Aufruf unverändert.
+export function forschungVoraussetzungenErfuellt(state, forschungId, fraktionId = SPIELER_FRAKTION) {
+  return voraussetzungenErfuellt(forschungVon(state, fraktionId), forschungId);
 }
 
 // Meldungen sind Einträge { text, gruppe, anzahl, herkunft }, keine reinen
@@ -2710,11 +2801,15 @@ export function naechstesGebaeudeLevel(planet, gebaeudeId) {
 }
 
 // Zählt schon eingereihte Stufen derselben Forschung mit, aus demselben
-// Grund wie naechstesGebaeudeLevel.
-export function naechstesForschungLevel(state, forschungId) {
-  let level = state.forschung[forschungId] || 0;
-  if (state.forschungsQueue && state.forschungsQueue.forschungId === forschungId) level++;
-  for (const eintrag of state.forschungsWarteschlange) {
+// Grund wie naechstesGebaeudeLevel. A-134: fraktionsgebunden über dieselben
+// drei Zugriffsfunktionen wie kannForschen -- Vorgabe SPIELER_FRAKTION hält
+// jeden bestehenden Zweiparameter-Aufruf unverändert.
+export function naechstesForschungLevel(state, forschungId, fraktionId = SPIELER_FRAKTION) {
+  const forschung = forschungVon(state, fraktionId);
+  let level = forschung[forschungId] || 0;
+  const laufend = forschungsQueueVon(state, fraktionId);
+  if (laufend && laufend.forschungId === forschungId) level++;
+  for (const eintrag of forschungsWarteschlangeVon(state, fraktionId)) {
     if (eintrag.forschungId === forschungId) level++;
   }
   return level + 1;

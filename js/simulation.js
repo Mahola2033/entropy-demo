@@ -15,7 +15,6 @@ import {
   OBJEKT_REGELN,
   MISSIONS_SCHIFF,
   AUSSENPOSTEN,
-  KOLONIE,
   MARKT_PREISE,
   LOGISTIKNETZ,
   PIRAT,
@@ -64,6 +63,8 @@ import {
   meldungHinzufuegen,
   forschungVerfuegbar,
   forschungVoraussetzungenErfuellt,
+  forschungsQueueVon,
+  forschungsWarteschlangeVon,
   systemErreichbar,
   hatSprungroute,
   sprungrouteSetzen,
@@ -104,6 +105,7 @@ import {
   frachtraumFrei,
   flotteTankKapazitaet,
   flotteBasisTank,
+  flotteSiedlerKapazitaet,
   ladungGesamt,
   flotteLeer,
   schiffeGesamt,
@@ -2639,13 +2641,42 @@ function botHatOderBaut(planet, gebaeudeId) {
   return (planet.bauWarteschlange || []).some((e) => e.gebaeudeId === gebaeudeId);
 }
 
-export function botKolonisieren(state, fraktion, welt, zeit) {
+// A-137: aus einem an Geld gescheiterten Versuch (nurGeld, siehe kannBauen/
+// kannSchiffBauen) wird das Sparziel -- aber nur der ERSTE pro Takt, sonst
+// gewaenne immer der zuletzt geprüfte der vier Kandidaten. `sparzielVersucht`
+// traegt das ueber die Aufrufe innerhalb EINES botKolonisieren-Laufs weiter
+// (per Rueckgabewert, da diese Funktion sonst keinen Zugriff auf lokale
+// Variablen des Aufrufers hat). Ein ERFOLGREICHER Versuch raeumt ein
+// stehendes Sparziel ab, wenn es genau diesem Ziel galt (Mechanismus 3,
+// "erreicht ist erreicht") -- unabhaengig vom sparzielVersucht-Zaehler.
+function botSparzielAusVersuch(fraktion, welt, gebaeudeId, versuch, sparzielVersucht) {
+  if (versuch.ok) {
+    if (fraktion.sparziel && fraktion.sparziel.planetId === welt.id && fraktion.sparziel.gebaeudeId === gebaeudeId) {
+      fraktion.sparziel = null;
+    }
+    return sparzielVersucht;
+  }
+  if (versuch.nurGeld && !sparzielVersucht) {
+    fraktion.sparziel = { planetId: welt.id, gebaeudeId, kosten: versuch.kosten };
+    return true;
+  }
+  return sparzielVersucht;
+}
+
+export function botKolonisieren(state, fraktion, welt, zeit, sparzielGesperrt = false) {
   const regeln = BOT.kolonie;
   if ((welt.ressourcen.bevoelkerung || 0) < regeln.abBevoelkerung) return false;
   if (planetenVon(state, fraktion.id).length >= regeln.maxPlaneten) return false;
 
   const ziel = botKolonieZiel(state, fraktion, welt);
   if (!ziel) return false;
+
+  // A-137: `sparzielGesperrt` (gesetzt vom Aufrufer, wenn dieser Takt gerade
+  // ein unerreichbares Ziel verworfen hat) startet den Zaehler auf "schon
+  // benutzt" -- so wird in diesem Takt kein Ersatzziel gesetzt (Mechanismus
+  // 3, letzter Satz: "wird das Sparziel verworfen und in diesem Takt nicht
+  // neu gesetzt").
+  let sparzielVersucht = sparzielGesperrt;
 
   // 1. TREIBSTOFF. Ohne Tritium fliegt nichts, und ein Imperium, das nur Minen
   // und Wohnmodule baut, hat nie welches. Gemessen: die Flotte stand fertig
@@ -2658,7 +2689,9 @@ export function botKolonisieren(state, fraktion, welt, zeit) {
   // Expansion unterbleibt. Das ist die ehrliche Antwort, solange es keinen
   // Handel gibt -- nicht jede Welt ist ein Sprungbrett.
   if (!botHatOderBaut(welt, "tritiumextraktor")) {
-    if (bauStarten(state, welt, "tritiumextraktor", zeit, true).ok) return true;
+    const versuch = bauStarten(state, welt, "tritiumextraktor", zeit, true);
+    sparzielVersucht = botSparzielAusVersuch(fraktion, welt, "tritiumextraktor", versuch, sparzielVersucht);
+    if (versuch.ok) return true;
   }
 
   // 2. FERTIGUNG -- seit A-009 kostet die Werft Elektronik, und Elektronik
@@ -2667,7 +2700,9 @@ export function botKolonisieren(state, fraktion, welt, zeit) {
   // Vorrang vor Kraftwerk, Farm und Wohnmodul, und der Bot baute sich eine
   // Fabrik ohne Strom und ohne Belegschaft (gemessen, siehe BOT.nachschub).
   if (!botHatOderBaut(welt, "fertigung")) {
-    if (bauStarten(state, welt, "fertigung", zeit, true).ok) return true;
+    const versuch = bauStarten(state, welt, "fertigung", zeit, true);
+    sparzielVersucht = botSparzielAusVersuch(fraktion, welt, "fertigung", versuch, sparzielVersucht);
+    if (versuch.ok) return true;
   }
 
   // 3. WERFT AUF DIE NOETIGE STUFE (A-027). Seit die Werftstufe entscheidet,
@@ -2680,7 +2715,9 @@ export function botKolonisieren(state, fraktion, welt, zeit) {
   // hinaus.
   const werftNoetig = SCHIFFE.kolonieschiff.werftAb || 1;
   if (naechstesGebaeudeLevel(welt, "werft") <= werftNoetig) {
-    if (bauStarten(state, welt, "werft", zeit, true).ok) return true;
+    const versuch = bauStarten(state, welt, "werft", zeit, true);
+    sparzielVersucht = botSparzielAusVersuch(fraktion, welt, "werft", versuch, sparzielVersucht);
+    if (versuch.ok) return true;
   }
 
   // Alles bestellt, aber noch nicht fertig: warten, nicht nachbestellen.
@@ -2697,7 +2734,9 @@ export function botKolonisieren(state, fraktion, welt, zeit) {
   const unterwegs = flotten.some((f) => (f.schiffe.kolonieschiff || 0) > 0);
   if (!unterwegs && (welt.schiffe.kolonieschiff || 0) <= 0) {
     if (welt.werftQueue) return false; // die Werft ist schon dran
-    return schiffBauen(state, welt, "kolonieschiff", 1, zeit, true).ok;
+    const versuch = schiffBauen(state, welt, "kolonieschiff", 1, zeit, true);
+    botSparzielAusVersuch(fraktion, welt, "kolonieschiff", versuch, sparzielVersucht);
+    return versuch.ok;
   }
 
   // 3. Flotte bereitstellen und beladen.
@@ -2710,6 +2749,32 @@ export function botKolonisieren(state, fraktion, welt, zeit) {
   if ((flotte.schiffe.kolonieschiff || 0) <= 0) {
     if (!schiffeUmladen(state, flotte, "kolonieschiff", 1).ok) return false;
   }
+  // A-132: Bis dahin schifften sich die Siedler automatisch ein
+  // (`siedlerEinschiffen`, in `missionBefehlen`). Seit das Kolonieschiff ein
+  // eigener Kolonistenraum ist, den der SPIELER manuell befüllt, muss der Bot
+  // an derselben Stelle dasselbe tun -- direkt vor `missionBefehlen`, wie
+  // beim Tanken unten. Delta-Beladung (nicht die volle Kapazität jeden Takt):
+  // `siedlerUmladen` deckelt zwar selbst am freien Kolonistenraum, aber
+  // `ladungAufnehmen` für Material NICHT -- ein ungeschützter Aufruf würde
+  // bei mehreren Takten in Folge (z.B. weil noch Treibstoff fehlt) jedes Mal
+  // erneut draufladen.
+  //
+  // REIHENFOLGE VOR DEM TANKEN, nicht danach: seit `kapazitaet > 0` (A-132)
+  // darf ungenutzter Frachtraum als Blasentank dienen (`flotteTankKapazitaet`
+  // in flotten.js) -- käme das Material NACH dem Tanken, hätte ein gieriger
+  // Tankwunsch (bis zu `BOT.kolonie.tritium`) den Frachtraum längst mit
+  // Treibstoff gefüllt, und für die 22.500 t Startmaterial wäre nichts mehr
+  // frei. Das Material ist die feste, kleine Reservierung; der Tank nimmt
+  // sich danach, was übrig bleibt -- wie bisher, nur mit etwas weniger davon.
+  const siedlerPlatz = flotteSiedlerKapazitaet(flotte) - (flotte.siedler || 0);
+  if (siedlerPlatz > 0) siedlerUmladen(state, flotte, siedlerPlatz);
+  const materialFehlt = {};
+  for (const [resId, menge] of Object.entries(regeln.startmaterial)) {
+    const anBord = flotte.ladung[resId] || 0;
+    if (anBord < menge) materialFehlt[resId] = menge - anBord;
+  }
+  if (Object.keys(materialFehlt).length) ladungAufnehmen(state, flotte, materialFehlt);
+
   // Untergrenze plus Anteil vom Vorrat: der Bedarf wächst mit der Strecke, und
   // eine abgelehnte Mission kostet einen ganzen Takt. Lieber einmal ordentlich
   // betanken als dreimal zu knapp.
@@ -2724,10 +2789,141 @@ export function botKolonisieren(state, fraktion, welt, zeit) {
   return missionBefehlen(state, flotte, "kolonie", ziel.systemId, ziel.orbit, {}, zeit).ok;
 }
 
+// --- Forschung (Bot) ---------------------------------------------------
+//
+// A-134, R-26: „Die bots sollen natürlich auch hier wieder genau das gleiche
+// zur verfügung haben wie der Spieler." Dieselbe Kette wie beim Klicken:
+// Labor bauen (unten in botSchritt) -> Projekt wählen -> forschungGutschreiben
+// sammelt den Fluss -> botForschungSchritt schließt ab, sobald genug da ist.
+
+// Welche Forschung wählt der Bot, wenn gerade keine läuft? Dieselbe Frage wie
+// botKnappste, nur auf den Techbaum angewandt: bevorzugt die billigste
+// Forschung, deren boost.kategorie zur Gebäudekategorie der knappsten
+// Nachschub-Ressource passt (z. B. "mine" für Metall/Silizium). Gibt es dazu
+// nichts -- kein Treffer, oder botKnappste selbst liefert nichts -- die
+// billigste verfügbare überhaupt. "Billigste" heißt geringster
+// Forschungsaufwand für die nächste Stufe: baseCost ist seit v0.6 nur noch
+// Gewicht, keine Zahlung (siehe forschungsAufwand).
+function botForschungWahl(state, welt) {
+  const knappsteGebaeude = botKnappste(state, welt);
+  const kategorie = knappsteGebaeude ? BUILDINGS[knappsteGebaeude].kategorie : null;
+
+  let passend = null;
+  let billigste = null;
+  for (const forschungId of Object.keys(RESEARCH)) {
+    const check = kannForschen(state, welt, forschungId);
+    if (!check.ok) continue;
+    if (!billigste || check.aufwand < billigste.aufwand) billigste = { forschungId, aufwand: check.aufwand };
+    const boost = RESEARCH[forschungId].boost;
+    if (kategorie && boost && boost.kategorie === kategorie) {
+      if (!passend || check.aufwand < passend.aufwand) passend = { forschungId, aufwand: check.aufwand };
+    }
+  }
+  return (passend || billigste || {}).forschungId || null;
+}
+
+// Abschluss und Projektwahl für EINE Fraktion. Getaktet wie der Rest des
+// Bots (BOT.taktMs), nicht ereignisgetrieben wie beim Spieler
+// (forschungFertigProjektion/forschungAbschliessen) -- ein Übervoll-Laufen
+// des Fortschritts erlaubt forschungFertig ausdrücklich (derselbe
+// Fließkomma-Krümel wie beim Spieler), der nächste Bot-Takt holt es also
+// sauber nach. Kein zweiter Mechanismus, nur ein zweiter AUSLÖSER.
+//
+// while statt if: ein einzelner sehr großer Zeitsprung (Weltlauf-Werkzeuge)
+// könnte sonst mehr als eine Stufe auf einmal fertigstellen und der Rest
+// bliebe bis zum nächsten Takt unentdeckt liegen.
+function botForschungSchritt(state, fraktion, welt, zeit) {
+  let queue = fraktion.forschungsQueue;
+  while (queue && forschungFertig(queue)) {
+    // Additiv-Absicherung: ein Spielstand von vor A-133 kennt `forschung`
+    // an der Fraktion noch nicht -- kann aber auch keine Queue haben, deren
+    // Weg ausschließlich über forschungStarten (unten) neu entsteht. Diese
+    // eine Zeile hält auch den theoretischen Fall harmlos.
+    if (!fraktion.forschung) fraktion.forschung = {};
+    fraktion.forschung[queue.forschungId] = queue.zielLevel;
+    // Bot-Bauten melden sich auch nicht (bauAbschliessen) -- keine Meldung.
+    const naechster = (fraktion.forschungsWarteschlange || []).shift();
+    fraktion.forschungsQueue = naechster ? neueForschungsQueue(naechster, zeit) : null;
+    queue = fraktion.forschungsQueue;
+  }
+
+  if (fraktion.forschungsQueue) return; // läuft schon etwas
+
+  const forschungId = botForschungWahl(state, welt);
+  if (forschungId) forschungStarten(state, welt, forschungId, zeit);
+}
+
+// A-137, Mechanismus 3: ist das stehende Sparziel noch erreichbar? Zwei
+// Kriterien, jedes für sich ausreichend, je Ressource, die es kostet und
+// die JETZT NOCH FEHLT (schon gedeckte Ressourcen zaehlen nicht -- ihre
+// Nettorate ist fuer das Ziel gleichgueltig):
+//   1. Nettorate <= 0 -- es wird nie mehr davon (A-135, Elektronik-Fall).
+//   2. Kosten > Lagerkapazitaet dieses Planeten fuer die Ressource -- selbst
+//      ein volles Lager reicht nie (A-135 Befund 3, Lagerhallen-Fall:
+//      Silizium-Kosten ueber der Kapazitaet, Nettorate blieb aber positiv,
+//      weil sie VOR der Lagerkappung gerechnet wird).
+// Ressourcen mit eigenem Speicher (z.B. ueber ein Gebaeude) nehmen dessen
+// Kapazitaet, alle anderen den gemeinsamen Lagerpool geteilt durch ihr
+// Lagergewicht -- derselbe Bezug wie in ENGPASS_PRUEFUNGEN.lager.
+function botSparzielUnerreichbar(state, welt, sparziel) {
+  const lage = effektiveRaten(state, welt);
+  for (const [resId, betrag] of Object.entries(sparziel.kosten)) {
+    if (!(betrag > 0)) continue;
+    const bestand = welt.ressourcen[resId] || 0;
+    if (bestand >= betrag) continue; // diese Ressource ist schon gedeckt
+    const nettorate = (lage.lager && lage.lager[resId]) || 0;
+    if (nettorate <= 0) return true;
+    const def = RESSOURCEN[resId];
+    const kapazitaet = def && def.speicher
+      ? speicherKapazitaet(welt, resId)
+      : lagerKapazitaetGesamt(state, welt) / lagerverbrauchVon(resId);
+    if (betrag > kapazitaet) return true;
+  }
+  return false;
+}
+
+// A-137, Mechanismus 2: "Ein Sparziel blockiert nichts. Es RESERVIERT."
+// Reserviert wird BOT.sparzielReserveAnteil (die Haelfte) des AKTUELLEN
+// Bestands je Ressource, die das Sparziel kostet -- alles darueber darf
+// normal verbaut werden. Gilt nur auf dem Planeten, auf dem das Ziel steht
+// (Bekannte Fallen des Auftrags: das Sparziel gehoert der Fraktion, die
+// Reserve wirkt lokal). `kannBauen` bleibt unveraendert; diese Funktion
+// filtert VOR dem Aufruf, sie greift nicht in ihn ein.
+function botSparReserveErlaubt(state, fraktion, welt, gebaeudeId) {
+  const sparziel = fraktion.sparziel;
+  if (!sparziel || sparziel.planetId !== welt.id) return true;
+  const check = kannBauen(state, welt, gebaeudeId);
+  const kosten = check.kosten || {};
+  for (const resId of Object.keys(sparziel.kosten)) {
+    const gebraucht = kosten[resId] || 0;
+    if (gebraucht <= 0) continue;
+    const bestand = welt.ressourcen[resId] || 0;
+    const reserve = bestand * BOT.sparzielReserveAnteil;
+    if (bestand - gebraucht < reserve) return false;
+  }
+  return true;
+}
+
 function botSchritt(state, fraktion, zeit) {
   fraktion.naechsterSchritt = zeit + BOT.taktMs;
   const welt = planetById(state, fraktion.basisPlanet);
   if (!welt) return;
+
+  // A-134: eigener Vorgang neben der Bauschleife -- Forschung belegt keinen
+  // Platz in bauQueue/bauWarteschlange und blockiert deshalb nichts hier
+  // unten, wird aber auch von nichts hier unten blockiert.
+  botForschungSchritt(state, fraktion, welt, zeit);
+
+  // A-137: ein unerreichbares Sparziel wird VOR allem anderen abgeraeumt --
+  // sonst wuerde botKolonisieren weiter unten im selben Takt sofort wieder
+  // denselben Kandidaten pruefen und, weil sich an der Lage nichts geaendert
+  // hat, dasselbe Ziel erneut setzen. `sparzielVerworfen` unterdrueckt genau
+  // das (Mechanismus 3, letzter Satz).
+  let sparzielVerworfen = false;
+  if (fraktion.sparziel && fraktion.sparziel.planetId === welt.id && botSparzielUnerreichbar(state, welt, fraktion.sparziel)) {
+    fraktion.sparziel = null;
+    sparzielVerworfen = true;
+  }
 
   // Reihenfolge ist hier die eigentliche Intelligenz, und sie steht bewusst in
   // dieser Folge:
@@ -2742,19 +2938,36 @@ function botSchritt(state, fraktion, zeit) {
   // dafür, dass es trotzdem nicht zu früh passiert.
   const ohneNachschub = botOhneNachschub(state, welt);
   const engpass = botEngpass(state, welt);
-  if (!ohneNachschub && !engpass && botKolonisieren(state, fraktion, welt, zeit)) return;
+  if (!ohneNachschub && !engpass) {
+    if (botKolonisieren(state, fraktion, welt, zeit, sparzielVerworfen)) return;
+    // A-134 Punkt 1: eigene Stufe, NICHT in BOT.ausbau eingetragen -- die
+    // Auffangliste nimmt den ERSTEN baubaren Eintrag, und Minen sind
+    // praktisch immer baubar; ein Labor am Listenende käme nie an die Reihe.
+    if (!botHatOderBaut(welt, "forschungslabor")) {
+      if (bauStarten(state, welt, "forschungslabor", zeit, true).ok) return;
+    }
+  }
   const wunsch = engpass
     ? (BOT.engpaesse.find((e) => e.wenn === engpass) || {}).gebaeude
     : null;
   const knappste = botKnappste(state, welt);
 
-  const kandidaten = [ohneNachschub, wunsch, knappste, ...BOT.ausbau].filter(Boolean);
-  for (const gebaeudeId of kandidaten) {
+  // A-137: NACHSCHUB und ENGPASS laufen VOR der Sparziel-Reserve und
+  // ignorieren sie vollstaendig -- "eine hungernde Welt spart nicht"
+  // (Mechanismus 2). Nur der Rest (KNAPPSTE und die alte Auffangliste) wird
+  // gegen die Reserve geprueft. Die GESAMTREIHENFOLGE bleibt exakt dieselbe
+  // wie vorher (ohneNachschub, wunsch, knappste, ...BOT.ausbau) -- zwei
+  // Schleifen statt einer aendern nichts daran, wer zuerst drankommt.
+  for (const gebaeudeId of [ohneNachschub, wunsch].filter(Boolean)) {
     // Durch dieselbe Tür wie die Oberfläche: kannBauen prüft Kosten,
     // Voraussetzungen, Bevölkerungsschwellen und Affinitätssperren.
     // Bots bestehen auf Bezahlbarkeit (A-012): ein wartender Auftrag wuerde
     // ihre Bauschleife belegen, waehrend sie in Wahrheit etwas anderes
     // brauchen. Der Spieler darf warten, die KI soll entscheiden.
+    if (bauStarten(state, welt, gebaeudeId, zeit, true).ok) return;
+  }
+  for (const gebaeudeId of [knappste, ...BOT.ausbau].filter(Boolean)) {
+    if (!botSparReserveErlaubt(state, fraktion, welt, gebaeudeId)) continue;
     if (bauStarten(state, welt, gebaeudeId, zeit, true).ok) return;
   }
 
@@ -2965,18 +3178,25 @@ function neueForschungsQueue(eintrag, zeit) {
   };
 }
 
-// Schreibt den Forschungsfluss EINES Planeten dem laufenden Projekt gut.
-// Wird aus planetVorruecken heraus gerufen, also genau dann, wenn dieser
-// Planet seine eigene Uhr bewegt -- deshalb stimmt die Zeitspanne je Planet,
-// obwohl die Planeten unterschiedlich weit stehen.
+// Schreibt den Forschungsfluss EINES Planeten dem laufenden Projekt SEINER
+// Fraktion gut. Wird aus planetVorruecken heraus gerufen, also genau dann,
+// wenn dieser Planet seine eigene Uhr bewegt -- deshalb stimmt die
+// Zeitspanne je Planet, obwohl die Planeten unterschiedlich weit stehen.
+//
+// A-134: die vormalige Spieler-Abschirmung ("nur der Spieler forscht") wird
+// zur Fraktionszuordnung -- der Fluss eines Planeten geht an die Fraktion,
+// der der Planet GEHÖRT, nicht mehr an den Spieler unabhängig davon. Ein
+// Bot-Planet ohne eigene laufende Forschung liest forschungsQueueVon als
+// `null` und diese Funktion tut nichts -- exakt dieselbe "kein Projekt,
+// Fluss ist weg"-Regel wie beim Spieler.
 //
 // Läuft kein Projekt, ist der Fluss schlicht weg. Das ist gewollt: ein Labor
 // ohne Auftrag forscht ins Leere, und ein Vorrat an Forschung, den man später
 // ausgibt, wäre genau der Lagerbestand, den es hier nicht geben soll.
 function forschungGutschreiben(state, planet, stunden, produktion) {
-  const queue = state.forschungsQueue;
-  if (!queue || !stunden) return;
-  if (fraktionVon(planet) !== SPIELER_FRAKTION) return;
+  if (!stunden) return;
+  const queue = forschungsQueueVon(state, fraktionVon(planet));
+  if (!queue) return;
   const proStunde = produktion.forschung || 0;
   if (proStunde <= 0) return;
   queue.fortschritt = (queue.fortschritt || 0) + proStunde * stunden;
@@ -3338,6 +3558,41 @@ export function tanken(state, flotte, menge) {
     const { genommen } = insLager(state, planet, { tritium: gib });
     // Was nicht ins Lager passte, bleibt an Bord statt zu verschwinden.
     flotte.treibstoff += gib - (genommen.tritium || 0);
+  }
+  return { ok: true };
+}
+
+// A-132: Kolonisten laden/zurückgeben -- exakt dasselbe Muster wie `tanken`
+// (eigener Raum, nicht Teil der Fracht), nur mit `bevoelkerung` statt
+// `tritium` und `flotteSiedlerKapazitaet` statt `flotteTankKapazitaet`.
+// Positives `menge`: an Bord nehmen. Negatives: zurückgeben.
+//
+// BEWUSST KEINE Mindestbestand-Prüfung auf der Heimatwelt (anders als das
+// alte, automatische `siedlerEinschiffen` bis A-132): Tobis Entscheidung ist
+// "der User muss selbst entscheiden was gut ist" -- dieselbe Freiheit, die
+// beim Beladen mit Fracht gilt. Wer die Heimat leerräumt, tut das wissentlich.
+export function siedlerUmladen(state, flotte, menge) {
+  const check = kannUmladen(state, flotte);
+  if (!check.ok) return check;
+  const planet = check.planet;
+
+  if (menge > 0) {
+    const verfuegbar = Math.floor(planet.ressourcen.bevoelkerung || 0);
+    const platz = Math.max(0, flotteSiedlerKapazitaet(flotte) - (flotte.siedler || 0));
+    if (platz <= 0) return { ok: false, grund: t("Der Kolonistenraum ist voll.") };
+    const nimm = Math.min(menge, verfuegbar, platz);
+    if (nimm <= 0) return { ok: false, grund: t("Keine Bevölkerung verfügbar.") };
+    planet.ressourcen.bevoelkerung -= nimm;
+    planetGeaendert(planet);
+    flotte.siedler = (flotte.siedler || 0) + nimm;
+  } else {
+    const gib = Math.min(-menge, flotte.siedler || 0);
+    if (gib <= 0) return { ok: false, grund: t("Keine Kolonisten an Bord.") };
+    flotte.siedler -= gib;
+    const { genommen } = insLager(state, planet, { bevoelkerung: gib });
+    // Was nicht ins Wohnmodul passte, bleibt an Bord statt zu verschwinden --
+    // dieselbe Regel wie bei Treibstoff und Fracht.
+    flotte.siedler += gib - (genommen.bevoelkerung || 0);
   }
   return { ok: true };
 }
@@ -3730,65 +3985,44 @@ function befehlOrt(state, befehl) {
 // Treibstoffprüfung folgt derselben Wahl: ohne Rückkehr muss nur die
 // Hinstrecke gedeckt sein (`einweg`), sonst hin UND zurück (Prinzip 3:
 // verhindern statt hinterher stranden lassen).
-// --- Siedler an Bord (A-043) ---------------------------------------------
+// --- Siedler an Bord (A-043, seit A-132 manuelles Beladen) ----------------
 //
-// Reicht die Heimatwelt dieser Flotte für eine Koloniegründung, und wer gibt
-// wie viele Menschen ab? EINE Funktion beantwortet das, weil zwei Wege sie
-// stellen: der Spieler über `kannGruendungsmission`, die Bots über
-// `botKolonisieren`. Prinzip 0b -- dieselbe Tür.
+// Bis A-132 stieg die volle Siedlerzahl automatisch zu, sobald eine
+// Koloniemission losging (`siedlerEinschiffen`, s.u., entfallen). Seit R-23
+// (Tobi: „Nichts davon wird Automatisch aufgefüllt, der User muss selbst
+// entscheiden was gut ist") ist das Kolonieschiff ein eigener Kolonistenraum
+// wie Fracht -- beladen wird VORHER, im Hafen, über `siedlerUmladen`, genau
+// wie Treibstoff über `tanken`. Was hier bleibt, ist die MISSIONSBEDINGUNG:
+// darf diese Flotte überhaupt lostliegen? EINE Funktion beantwortet das,
+// weil zwei Wege sie stellen: der Spieler über `kannGruendungsmission`, die
+// Bots über `botKolonisieren`. Prinzip 0b -- dieselbe Tür.
 //
-// DAS WAR HIER EIN ECHTER FEHLER, gefunden im Weltlauf: die Prüfung stand
-// zuerst nur in `gruendungBefehlen`, und `botKolonisieren` ruft
+// DAS WAR HIER EIN ECHTER FEHLER, gefunden im Weltlauf (A-043): die Prüfung
+// stand zuerst nur in `gruendungBefehlen`, und `botKolonisieren` ruft
 // `missionBefehlen` DIREKT auf. Die Bots kolonisierten also weiter zum
 // Nulltarif -- der Weltlauf lieferte Zahl für Zahl das alte Ergebnis, und
-// genau diese Unauffälligkeit war der Hinweis.
-function siedlerPruefen(state, flotte) {
-  const heimat = planetById(state, flotte.heimatPlanet);
-  const noetig = SCHIFFE.kolonieschiff.siedler || 0;
-  const da = Math.floor((heimat && heimat.ressourcen.bevoelkerung) || 0);
-  // Strikt MEHR als nötig: wer alle mitschickt, lässt eine leere Welt zurück
-  // -- und aus null Menschen wächst niemand nach (siehe
-  // bevoelkerungVorruecken). Eine Kolonie zu gründen darf die Heimat nicht
-  // ausradieren.
-  if (da <= noetig) {
-    return {
-      ok: false,
-      grund: t("Braucht mehr als {noetig} Siedler auf {planet} – dort leben {da}.", {
-        noetig: fmt(noetig),
-        planet: heimat ? heimat.name : "?",
-        da: fmt(da),
-      }),
-    };
+// genau diese Unauffälligkeit war der Hinweis. Die Tür bleibt dieselbe,
+// auch wenn die Prüfung jetzt einfacher ist.
+function siedlerPruefen(flotte) {
+  const anBord = Math.floor(flotte.siedler || 0);
+  if (anBord <= 0) {
+    return { ok: false, grund: t("Braucht mindestens einen Kolonisten an Bord.") };
   }
-  return { ok: true, heimat, siedler: noetig };
-}
-
-// Die Siedler gehen an Bord. Erst NACH einer erfolgreichen Mission -- vorher
-// abzuziehen und dann zu scheitern wären Menschen, die nirgends mehr sind.
-function siedlerEinschiffen(state, flotte) {
-  const { ok, heimat, siedler } = siedlerPruefen(state, flotte);
-  if (!ok) return;
-  heimat.ressourcen.bevoelkerung = Math.max(0, (heimat.ressourcen.bevoelkerung || 0) - siedler);
-  planetGeaendert(heimat);
-  // Sie leben jetzt IM SCHIFF. Geht es unterwegs verloren, sind sie es auch --
-  // es gibt keinen zweiten Ort, an dem sie noch stünden (Prinzip 7a).
-  flotte.siedler = siedler;
+  return { ok: true };
 }
 
 export function missionBefehlen(state, flotte, missionsart, systemId, orbit, optionen = {}, zeit = null) {
   const { rueckkehr = false, ...missionsOptionen } = optionen;
   // A-043: DIE Tür, durch die Spieler und Bots gleichermaßen gehen.
   if (missionsart === "kolonie") {
-    const siedlerCheck = siedlerPruefen(state, flotte);
+    const siedlerCheck = siedlerPruefen(flotte);
     if (!siedlerCheck.ok) return siedlerCheck;
   }
   const befehle = [
     { art: "mission", missionsart, zielSystem: systemId, zielOrbit: orbit, ...missionsOptionen },
   ];
   if (rueckkehr) befehle.push({ art: "hafen", planetId: flotte.heimatPlanet });
-  const ergebnis = befehleSetzen(state, flotte, befehle, { einweg: !rueckkehr }, zeit);
-  if (missionsart === "kolonie" && ergebnis.ok) siedlerEinschiffen(state, flotte);
-  return ergebnis;
+  return befehleSetzen(state, flotte, befehle, { einweg: !rueckkehr }, zeit);
 }
 
 // --- Schnellversand -------------------------------------------------------
@@ -4910,7 +5144,14 @@ function stuetzpunktGruenden(state, flotte, befehl, typ, zeit) {
   planet.letzterTick = zeit;
   planetUhrStarten(planet, zeit);
   if (typ === "kolonie") {
-    insLager(state, planet, KOLONIE.startvorrat);
+    // A-132: KEIN Startvorrat mehr -- die Kolonie bekommt ausschließlich das,
+    // was der Spieler im Frachtraum mitgeschickt hat. Dieselbe Stelle, an der
+    // bis A-132 der Startvorrat eingebucht wurde (`insLager`), bucht jetzt die
+    // Ladung; was nicht ins frische (leere) Lager passt, bleibt an Bord statt
+    // zu verschwinden -- dieselbe Regel wie beim Andocken sonst auch
+    // (`ladungLoeschen`).
+    const { abgelehnt } = insLager(state, planet, flotte.ladung);
+    flotte.ladung = abgelehnt;
     // A-043: GENAU die Menschen, die mitgereist sind -- keine Konstante, kein
     // Aufrunden. Die Summe der Menschen bleibt über Start und Ankunft
     // erhalten; das ist die eine Zahl, die beide Seiten verbindet.
@@ -4918,7 +5159,14 @@ function stuetzpunktGruenden(state, flotte, befehl, typ, zeit) {
     // `|| 0` ist nicht Kosmetik: ein Kolonieschiff aus einem Spielstand VOR
     // A-043 hat keine Siedler an Bord. Es gründet dann eine Welt ohne
     // Menschen -- ehrlich, weil es tatsächlich keine mitgenommen hat.
-    planet.ressourcen.bevoelkerung = flotte.siedler || 0;
+    //
+    // ADDIERT statt gesetzt (seit A-132): `bevoelkerung` ist selbst eine
+    // LAGER_RESSOURCEN-Ressource -- eine Flotte könnte theoretisch auch
+    // welche als gewöhnliche Fracht geladen haben (die generische
+    // Beladen-Zeile kennt keine Sonderregel für diese eine Ressource) und
+    // die stünde dann schon über `insLager(..., flotte.ladung)` oben im
+    // frischen Lager. Ein `=` würde sie stillschweigend überschreiben.
+    planet.ressourcen.bevoelkerung = (planet.ressourcen.bevoelkerung || 0) + (flotte.siedler || 0);
     flotte.siedler = 0;
   }
   state.planeten.push(planet);
@@ -5021,12 +5269,13 @@ export function kannGruendungsmission(state, flotte, art, systemId, orbit) {
   if (art === "kolonie" && (flotte.schiffe.kolonieschiff || 0) < 1) {
     return { ok: false, grund: t("Flotte hat kein Kolonieschiff.") };
   }
-  // A-043: die Siedler reisen MIT. Geprüft wird schon hier, damit der Knopf
-  // den Grund nennen kann statt stumm zu bleiben (Prinzip 10a) -- ENTSCHIEDEN
-  // wird er in `siedlerPruefen`, derselben Funktion, durch die auch die Bots
-  // gehen.
+  // A-043/A-132: mindestens ein Kolonist muss schon an Bord sein (beladen
+  // wird VORHER über `siedlerUmladen`, im Hafen). Geprüft wird schon hier,
+  // damit der Knopf den Grund nennen kann statt stumm zu bleiben
+  // (Prinzip 10a) -- ENTSCHIEDEN wird er in `siedlerPruefen`, derselben
+  // Funktion, durch die auch die Bots gehen.
   if (art === "kolonie") {
-    const siedlerCheck = siedlerPruefen(state, flotte);
+    const siedlerCheck = siedlerPruefen(flotte);
     if (!siedlerCheck.ok) return siedlerCheck;
   }
   if (art === "aussenposten" && schiffeGesamt(flotte) < 1) {
@@ -5058,8 +5307,9 @@ export function gruendungBefehlen(state, flotte, art, systemId, orbit) {
   // Schnellversand heisst ausdruecklich "und wieder heim" -- der Kopf dieser
   // Sektion sagt es so, und die Sonden sind Einwegschiffe: was zurueckkommt,
   // ist die Flotte, nicht die Sonde.
-  // Die Siedler steigen in `missionBefehlen` zu -- dort, wo auch die Bots
-  // vorbeikommen (A-043). Hier steht bewusst nichts mehr darüber.
+  // Kolonisten sind seit A-132 längst an Bord, wenn dieser Aufruf kommt --
+  // beladen wird VORHER über `siedlerUmladen` (derselbe Weg wie Fracht und
+  // Treibstoff). Hier steht bewusst nichts mehr darüber.
   return missionBefehlen(state, flotte, art, systemId, orbit, { rueckkehr: true });
 }
 
@@ -5628,26 +5878,31 @@ export function bauAbbrechen(state, planet) {
   return { ok: true };
 }
 
+// A-134: fraktionsgebunden über fraktionVon(planet) -- derselbe Weg wie bei
+// kannBauen/bauStarten, die auch nur den Planeten kennen, nicht die
+// Fraktion direkt. Ein Spieler-Aufruf ändert sich dadurch nicht: seine
+// Planeten liefern SPIELER_FRAKTION wie bisher.
 export function kannForschen(state, planet, forschungId) {
+  const fraktionId = fraktionVon(planet);
   if (!forschungVerfuegbar(state, forschungId)) {
     return { ok: false, grund: t("Diese Technologie ist noch unbekannt.") };
   }
-  if (!forschungVoraussetzungenErfuellt(state, forschungId)) {
+  if (!forschungVoraussetzungenErfuellt(state, forschungId, fraktionId)) {
     return { ok: false, grund: t("Benötigt {voraussetzungen}.", { voraussetzungen: voraussetzungenText(forschungId) }) };
   }
-  const laenge = (state.forschungsQueue ? 1 : 0) + state.forschungsWarteschlange.length;
+  const laenge = (forschungsQueueVon(state, fraktionId) ? 1 : 0) + forschungsWarteschlangeVon(state, fraktionId).length;
   if (laenge >= BAUWARTESCHLANGE_MAX) {
     return { ok: false, grund: t("Warteschlange voll ({max}/{max}).", { max: BAUWARTESCHLANGE_MAX }) };
   }
 
   const def = RESEARCH[forschungId];
-  const level = naechstesForschungLevel(state, forschungId);
+  const level = naechstesForschungLevel(state, forschungId, fraktionId);
   if (def.schluessel && level > 1) return { ok: false, grund: t("Bereits erforscht.") };
   // Seit v0.6 wird nicht mehr vorab bezahlt, sondern laufend geforscht. Die
   // einzige Bedingung ist deshalb, dass es überhaupt jemanden gibt, der es
   // tut -- ein Auftrag ohne Labor bliebe für immer bei null Prozent stehen,
   // und ein Knopf, der das zulässt, verstößt gegen Prinzip 10a.
-  if (!hatLabor(state)) {
+  if (!hatLabor(state, fraktionId)) {
     return { ok: false, grund: t("Kein Forschungslabor im Imperium – ohne Labor forscht niemand.") };
   }
   return { ok: true, level, aufwand: forschungsAufwand(def, level) };
@@ -5673,10 +5928,24 @@ export function forschungStarten(state, planet, forschungId, zeit = null) {
   if (!check.ok) return check;
 
   const eintrag = { forschungId, zielLevel: check.level, aufwand: check.aufwand };
-  if (!state.forschungsQueue) {
-    state.forschungsQueue = neueForschungsQueue(eintrag, zeit === null ? spielzeitJetzt(state) : zeit);
+  const fraktionId = fraktionVon(planet);
+  // A-134: dieselbe Tür wie beim Spieler (Kosten/Voraussetzungen sind mit
+  // kannForschen oben schon geprüft) -- nur das ZIEL des Eintrags wechselt
+  // für eine fremde Fraktion vom globalen state auf ihr eigenes Regal.
+  if (fraktionId === SPIELER_FRAKTION) {
+    if (!state.forschungsQueue) {
+      state.forschungsQueue = neueForschungsQueue(eintrag, zeit === null ? spielzeitJetzt(state) : zeit);
+    } else {
+      state.forschungsWarteschlange.push(eintrag);
+    }
   } else {
-    state.forschungsWarteschlange.push(eintrag);
+    const fraktion = fraktionById(state, fraktionId);
+    if (!fraktion.forschungsQueue) {
+      fraktion.forschungsQueue = neueForschungsQueue(eintrag, zeit === null ? spielzeitJetzt(state) : zeit);
+    } else {
+      if (!fraktion.forschungsWarteschlange) fraktion.forschungsWarteschlange = [];
+      fraktion.forschungsWarteschlange.push(eintrag);
+    }
   }
   return { ok: true };
 }

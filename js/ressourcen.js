@@ -130,19 +130,24 @@ export function mitEinheit(resId, menge, kurz = true) {
 }
 
 // "60 t Metall, 15 t Silizium" -- ausgeschrieben, für Tooltips und Meldungen.
-export function buendelText(buendel) {
+export function buendelText(buendel, { abgang = false } = {}) {
   return Object.entries(buendel)
-    .map(([resId, betrag]) => `${formatZahl(betrag)}${einheit(resId) ? " " + einheit(resId) : ""} ${name(resId)}`)
+    .map(
+      ([resId, betrag]) =>
+        `${abgang ? "−" : ""}${formatZahl(betrag)}${einheit(resId) ? " " + einheit(resId) : ""} ${name(resId)}`
+    )
     .join(", ");
 }
 
 // "🔩 60  💠 15" -- kompakte Variante für enge Kacheln. Der ausgeschriebene
 // Text steht dort im Tooltip, damit die Symbole nicht geraten werden müssen.
-export function buendelSymbole(buendel) {
+export function buendelSymbole(buendel, { abgang = false } = {}) {
   return Object.entries(buendel)
     .map(([resId, betrag]) => {
       const def = RESSOURCEN[resId];
-      return `${def && def.symbol ? def.symbol : name(resId)} ${mitEinheit(resId, betrag)}`;
+      const menge = mitEinheit(resId, betrag);
+      const stueck = abgang ? `<span class="abgang">−${menge}</span>` : menge;
+      return `${def && def.symbol ? def.symbol : name(resId)} ${stueck}`;
     })
     .join("  ");
 }

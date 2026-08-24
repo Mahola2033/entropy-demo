@@ -19,7 +19,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.3.0";
+export const VERSION = "0.4.0";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von uebernehmen.mjs beim Kopieren auf "spielkopie"
@@ -1260,6 +1260,15 @@ export const BOT = {
   },
   ausbau: ["metallmine", "siliziummine", "kraftwerk", "farm", "wohnmodul", "handelsposten"],
 
+  // A-137, zweiter Anlauf: steht ein Sparziel (siehe unten, `kolonie`), bleibt
+  // dieser ANTEIL des AKTUELLEN Bestands je benötigter Ressource unangetastet
+  // -- alles darüber baut der Bot normal aus `ausbau`/`knappste` heraus.
+  // Wächst mit dem Bestand mit: erreicht ist das Ziel genau dann, wenn der
+  // Bestand doppelt so hoch ist wie die Kosten. Der erste Anlauf (A-135)
+  // sperrte statt zu reservieren und ließ den Bot sich selbst den Ast
+  // absägen -- siehe A-137 im AUFTRAEGE-Ordner für die Messung dahinter.
+  sparzielReserveAnteil: 0.5,
+
   // Womit eine fremde Heimatwelt in den Handel startet (v0.6). Der Posten
   // steht von Anfang an: ohne ihn gäbe es im ganzen Spiel keinen
   // Handelspartner, bis irgendein Bot von selbst einen baut. Die Kasse ist
@@ -1346,6 +1355,12 @@ export const BOT = {
     // mitnimmt. Sie ist eine große Investition, soll die Welt aber nicht
     // trockenlegen.
     tritiumAnteil: 0.5,
+    // A-132: Der Bot lädt sein Kolonieschiff jetzt selbst mit Material, so
+    // wie der Spieler es manuell tut (KOLONIE.startvorrat ist entfallen) --
+    // sonst gründet er Welten, die nie anlaufen. Menge: dieselbe, die der
+    // Startvorrat bisher geschenkt hat, damit sich am Bot-Verhalten nichts
+    // ändert außer dem Weg, auf dem das Material ankommt.
+    startmaterial: { metall: 300, silizium: 150 },
   },
 };
 
@@ -2329,8 +2344,10 @@ export const KOLONIE = {
   kosten: { metall: 4000, silizium: 2500 },
   dauerProEntfernungSek: 40,
   grunddauerSek: 180,
-  // Startvorrat, damit eine frische Kolonie überhaupt anfangen kann.
-  startvorrat: { metall: 300, silizium: 150 },
+  // KEIN Startvorrat mehr (A-132/R-23, Tobi wörtlich: „ja der Startvorrat
+  // kommt raus"). Eine frisch gegründete Kolonie hat ausschließlich das, was
+  // der Spieler mit dem Kolonieschiff mitgeschickt hat -- die Ladung wird
+  // beim Gründen ins Lager der neuen Welt gebucht (siehe stuetzpunktGruenden).
 };
 
 // Ressourcentransport zwischen eigenen Planeten. Noch ohne Schiffe/Kapazität
@@ -2428,9 +2445,16 @@ export const SCHIFFE = {
     werftAb: 4,
     name: "Kolonieschiff",
     beschreibung:
-      "Gründet eine vollwertige Kolonie. Nimmt beim Start Siedler von der Heimatwelt mit und wird dabei verbraucht.",
-    // WIE VIELE MENSCHEN MITFLIEGEN (A-043, Tobis Entscheidung: „Colony
-    // schiffe kosten keine Bevölkerung sollten sie aber").
+      "Gründet eine vollwertige Kolonie. Braucht eigene Kolonisten an Bord, die der Spieler selbst belädt, und wird beim Gründen verbraucht.",
+    // WIE VIELE MENSCHEN HÖCHSTENS MITFLIEGEN (A-043, Tobis Entscheidung:
+    // „Colony schiffe kosten keine Bevölkerung sollten sie aber" --
+    // A-132/R-23: „erstmal eigener Lagerraum für Kolonisten … Nichts davon
+    // wird Automatisch aufgefüllt, der User muss selbst entscheiden was gut
+    // ist"). Bis A-132 war das ein FESTWERT, den jede Koloniemission
+    // automatisch verbrauchte -- seither ist es die OBERGRENZE eines eigenen
+    // Kolonistenraums (siedlerKapazitaet, siehe flotteSiedlerKapazitaet),
+    // den der Spieler wie Fracht selbst befüllt. Die Herleitung der Zahl
+    // bleibt dieselbe:
     //
     // Die Zahl steht zwischen zwei Grenzen, beide gemessen:
     //  - NACH OBEN durch den Wohnraum der neuen Welt. Ein Wohnmodul der Stufe
@@ -2446,13 +2470,23 @@ export const SCHIFFE = {
     // Heimatwelt. Zum Vergleich: eine abtrünnige Fraktion nimmt 400 mit
     // (PIRAT.gruendung.bevoelkerung) -- ein Kolonieschiff ist der doppelte
     // Aufbruch, und er kostet auch das Doppelte.
-    siedler: 800,
+    siedlerKapazitaet: 800,
     kosten: { metall: 3500, silizium: 2200, elektronik: 400 },
     bauzeitSek: 420,
     tank: 2000,
     verbraucht: true,
     tempo: 0.6,
-    kapazitaet: 0,
+    // A-132: ein gemeinsamer Frachtraum wie bei jedem anderen Schiff, statt
+    // 0 (bis dahin hatte das Kolonieschiff KEINEN Frachtraum -- R-23s
+    // Auslöser: "Kolonieschiffe haben keinen frachtraum … können also keine
+    // … Nahrung [mitnehmen]"). Herleitung: der halbe Frachter (4000) -- das
+    // Schiff ist kein Transporter, sein Massebudget steckt in der
+    // Kolonistensektion; was übrig bleibt, ist eine Starthilfe, kein
+    // Versorgungszug. Zählt NICHT gegen siedlerKapazitaet (eigener Raum,
+    // siehe oben) -- die bestehenden Regeln (flotteKapazitaet,
+    // frachtraumFrei, treibstoffImFrachtraum, Frachttechnik) greifen ohne
+    // Sonderbehandlung.
+    kapazitaet: 2000,
     verbrauchProStrecke: 20,
     hp: 50,
     angriff: 0,
@@ -2689,10 +2723,11 @@ for (const def of Object.values(SCHIFFE)) {
   // `tank` ist eine MENGE wie der Verbrauch -- beide müssen denselben Maßstab
   // tragen, sonst wäre die Reichweite um Faktor 50 falsch. Siebter Fall
   // dieser Falle im Projekt.
-  // `siedler` ist eine PERSONENZAHL und damit eine Menge wie jede andere
-  // (A-043) -- unskaliert nähme ein Kolonieschiff 800 statt 40.000 Menschen
-  // mit und die neue Welt startete praktisch leer. Achter Fall dieser Falle.
-  for (const feld of ["kapazitaet", "verbrauchProStrecke", "tank", "hp", "angriff", "siedler"]) {
+  // `siedlerKapazitaet` ist eine PERSONENZAHL und damit eine Menge wie jede
+  // andere (A-043, seit A-132 der Name des Felds) -- unskaliert fasste ein
+  // Kolonieschiff 800 statt 40.000 Menschen und die neue Welt startete
+  // praktisch leer. Achter Fall dieser Falle.
+  for (const feld of ["kapazitaet", "verbrauchProStrecke", "tank", "hp", "angriff", "siedlerKapazitaet"]) {
     if (def[feld]) def[feld] = Math.round(def[feld] * MASSSTAB);
   }
 }
@@ -2718,7 +2753,6 @@ for (const eintrag of VORKOMMEN_TABELLE) {
 }
 skaliereBuendel(AUSSENPOSTEN.kosten);
 skaliereBuendel(KOLONIE.kosten);
-skaliereBuendel(KOLONIE.startvorrat);
 skaliereBuendel(SONDE.kosten);
 FLOTTE.mindestVerbrauch = Math.round(FLOTTE.mindestVerbrauch * MASSSTAB);
 // Piratenmengen sind MENGEN und tragen denselben Massstab wie alles andere.
@@ -2737,6 +2771,7 @@ export const REST_BAGATELLE_SKALIERT = Math.round(REST_BAGATELLE * MASSSTAB);
 BOT.startKasse = Math.round(BOT.startKasse * MASSSTAB);
 BOT.kolonie.abBevoelkerung = Math.round(BOT.kolonie.abBevoelkerung * MASSSTAB);
 BOT.kolonie.tritium = Math.round(BOT.kolonie.tritium * MASSSTAB);
+skaliereBuendel(BOT.kolonie.startmaterial);
 PIRAT.gruendung.bevoelkerung = Math.round(PIRAT.gruendung.bevoelkerung * MASSSTAB);
 PIRAT.gruendung.abBevoelkerung = Math.round(PIRAT.gruendung.abBevoelkerung * MASSSTAB);
 for (const k of Object.keys(PIRAT.gruendung.mitgift)) {

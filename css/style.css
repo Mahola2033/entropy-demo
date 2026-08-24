@@ -8,6 +8,11 @@
   --akzent: #4fd1c5;
   --akzent-dunkel: #2c9c92;
   --warnung: #f4717a; /* war #e0555f (A-107, R-10: 4,27:1 auf --bg-item verfehlte 4,5:1) */
+  /* Vorzeichen-Rollen (A-126, P19 in KONZEPT-UI.md): Das Vorzeichen färbt
+     die Zahl, nicht den Text. Zwei Namen auf vorhandenen Werten, keine neue
+     Farbe (Prinzip 11) -- Zufluss ist --akzent, Abgang ist --warnung. */
+  --zufluss: var(--akzent);
+  --abgang: var(--warnung);
   --schatten: 0 2px 8px rgba(0, 0, 0, 0.4);
 
   /* --- Token-Skalen (A-105, KONZEPT-UI.md Anhang M4, Prinzip P14) ---------
@@ -363,6 +368,42 @@ body {
   background: var(--testmodus-reset-hover) !important;
 }
 
+/* A-129: Bei 1097×520 (Klaus' 1920×1080 bei 175% Windows-Skalierung) brauchte
+   die Kopfzeile 1578px in einer Zeile, 1082px waren da -- 564px Überhang.
+   `.kopf-planetenwahl` schrumpft schon (eigenes `overflow-x: auto`), die
+   Testmodus-Leiste tat es nicht: keine Untergrenze, kein Umbruch, sie schob
+   den ganzen Kopf über den Rand. Weil `body` seit A-111 `overflow-x: hidden`
+   trägt (bewusst, bleibt unangetastet), war der Überhang nicht erscrollbar,
+   sondern abgeschnitten -- 11 Bedienelemente (alle Zeitsprung-Knöpfe, Pause,
+   die vier Zeitraffer-Stufen, Reset) waren mit keiner Nutzergeste erreichbar.
+
+   Erst geprüft, dann entschieden (drei erlaubte Wege, in der vorgegebenen
+   Reihenfolge): ein Umbruch in der Kopfzeile misst hier bei jeder Fensterhöhe
+   sauber (kein waagerechter Überhang mehr, keine Überlappung mit der
+   Ressourcenleiste darunter -- `--kopf-hoehe` muss dafür mitwachsen, sonst
+   ragt die zweite Zeile blind in die Zeile darunter). 1200px als Schwelle:
+   derselbe Wert, den `.drei-spalten` schon für "wird eng" benutzt, komfortabel
+   zwischen Klaus (1097px) und Tobis kleinerem Fenster (1920px) -- bei beiden
+   bleibt die Kopfzeile einzeilig und byte-für-byte wie vorher.
+
+   `overflow-x: auto` bleibt zusätzlich auf der Leiste selbst stehen (wie bei
+   `.kopf-planetenwahl`): eine Sicherung für den Fall, dass die Zeile trotz
+   Vollbreite je einmal enger wird, als die Knöpfe brauchen -- kostet nichts,
+   solange sie nicht greift. */
+@media (max-width: 1200px) {
+  :root {
+    --kopf-hoehe: auto;
+  }
+  .kopf {
+    flex-wrap: wrap;
+  }
+  .kopf-testmodus {
+    flex-basis: 100%;
+    margin-left: 0;
+    overflow-x: auto;
+  }
+}
+
 .dezent {
   color: var(--text-dezent);
   font-size: var(--schrift-l);
@@ -602,13 +643,24 @@ body {
 
 /* Zusatzertrag der nächsten Stufe -- die Zahl, die beim Ausbauen zählt. */
 .kachel-gewinn {
-  color: var(--akzent);
+  color: var(--zufluss);
   font-variant-numeric: tabular-nums;
 }
 
-/* Laufender Eingangsstoff einer Verarbeitungskette. BEWUSST nicht rot:
-   Rot ist für Mangel und Warnungen reserviert, ein Betriebsmittel ist
-   dagegen der normale Preis der Anlage (siehe Farbregel im Projekt). */
+/* Rollenklassen für P19 (A-126, AUFTRAEGE/KONZEPT-UI.md): das Markup aus
+   vorzeichenSpan() in js/ui.js trägt eine von beiden -- "Das Vorzeichen
+   färbt die Zahl, nicht den Text." tabular-nums, weil das Vorzeichen sonst
+   die Spalte verschiebt, wenn Kacheln nebeneinander stehen. */
+.zufluss {
+  color: var(--zufluss);
+  font-variant-numeric: tabular-nums;
+}
+
+.abgang {
+  color: var(--abgang);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Sprachwahl im Kopf: zwei schmale Knöpfe, gleiche Formensprache wie der
    Testmodus-Streifen, aber ohne dessen Warnfarbe -- das hier ist eine normale
    Einstellung, keine Entwicklerfunktion. */
@@ -696,8 +748,15 @@ body {
   vertical-align: middle;
 }
 
+/* Laufender Eingangsstoff einer Verarbeitungskette (Verbrauch, Brennstoff).
+   BIS A-126 bewusst NICHT rot ("Rot ist für Mangel und Warnungen reserviert,
+   ein Betriebsmittel ist dagegen der normale Preis der Anlage") -- das war
+   richtig unter der alten Regel und ist unter P19 falsch: Tobis Entscheidung
+   vom 23.08. weitet Rot ausdrücklich auf jeden Abgang aus, nicht nur auf
+   Mangel ("Ich denke das darauf zu erweitern tut der Warnung hier kommt ne
+   Konsequenz keinen abbruch"). Ein Verbrauch IST ein Abgang -- --abgang. */
 .kachel-verbrauch {
-  color: var(--text-dezent);
+  color: var(--abgang);
   font-variant-numeric: tabular-nums;
 }
 
@@ -2586,11 +2645,12 @@ body {
 }
 
 /* Produktionsrate steht klein unter dem Bestand -- zwei Zahlen pro Zelle
-   ohne zusätzliche Spalte. */
+   ohne zusätzliche Spalte. Nur Positionierung: die Farbe trägt seit A-126
+   die eingebettete .zufluss/.abgang-Marke (vorzeichenSpan), nicht dieses
+   Element -- es zeigt ohnehin nur, wenn eine Rate positiv ist (A-050). */
 .imperium-rate {
   display: block;
   font-size: var(--schrift-xs);
-  color: var(--akzent);
 }
 
 .imperium-transfers {
