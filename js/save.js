@@ -76,6 +76,81 @@ function sicherungenLoeschen() {
   }
 }
 
+// --- Migration (A-141) ------------------------------------------------------
+//
+// Bis hierher wies laden() JEDEN Stand mit abweichender SAVE_VERSION hart ab
+// (Sicherung, neues Spiel) -- ein Sprung in SAVE_VERSION setzte damit JEDEN
+// Testerstand zurück, egal wie klein die eigentliche Änderung war. Der
+// Sammel-Sprung (AUFTRAEGE/SAMMEL-SPRUNG.md) steht seit dem 18.08. an und
+// braucht genau das nicht mehr: einen Weg, auf dem ein alter Stand auf den
+// neuesten Stand angehoben statt weggeworfen wird.
+//
+// Reine Daten plus Funktion, EIN Ort (siehe Auftrag): wer eine Version
+// anhebt, trägt hier eine Zeile ein, sonst nirgends. Schlüssel ist die
+// AUSGANGSversion, jeder Eintrag hebt einen Stand um GENAU EINE Version an
+// und gibt ihn zurück -- nie mehr, nie weniger, sonst überspringt die Kette
+// unten ein Glied, ohne dass es das Fehlermuster (Prüfung in migrationsKette)
+// bemerken könnte.
+//
+// 31 -> 32 TUT NICHTS außer die Versionsnummer anzuheben. Das ist Absicht
+// (siehe Auftrag): dieser Eintrag ist der Testfall für die Kette SELBST --
+// eine Migration, die zusammen mit der ersten echten Datenänderung entstünde,
+// ließe sich nicht sauber prüfen, man wüsste nie, ob der Weg oder die
+// Umrechnung schuld ist. Er ist außerdem der Platzhalter, den der
+// Sammel-Sprung später mit echtem Inhalt füllt (die vier Punkte aus
+// SAMMEL-SPRUNG.md -- unangetastet, das ist eigene Arbeit).
+const MIGRATIONEN = {
+  31: (stand) => ({ ...stand, version: 32 }),
+};
+
+// Schickt einen Stand Schritt für Schritt durch eine Migrationstabelle, bis
+// er auf `zielVersion` steht -- oder gibt `null` zurück, sobald ein Glied
+// fehlt (derselbe Fall wie "gar keine Migration da", der Aufrufer weist dann
+// wie bisher ab).
+//
+// BEWUSST GENERISCH (Tabelle und Ziel als Parameter, nicht MIGRATIONEN/
+// SAVE_VERSION direkt gelesen) und OHNE Seiteneffekt: nur so kann
+// tests/migration.test.js die Kette selbst über mehrere Glieder prüfen (Fertig-
+// Kriterium 5), ohne die echte Tabelle um Testeinträge zu erweitern, die
+// dann versehentlich mit ausgeliefert würden. `laden()` ruft sie unten mit
+// der echten Tabelle auf.
+//
+// Ohne Seiteneffekt heißt auch: kein Schreiben, keine Sicherung hier drin --
+// die besorgt der Aufrufer VOR diesem Aufruf (siehe laden()), damit ein
+// Stand, an dem die Kette abbricht oder falsch rechnet, nicht verloren ist.
+export function migrationsKette(stand, migrationen, zielVersion) {
+  let aktuell = stand;
+  let schritte = 0;
+  while (aktuell.version < zielVersion) {
+    const schritt = migrationen[aktuell.version];
+    if (!schritt) return null; // fehlendes Glied -- der Aufrufer weist ab wie bisher
+    const vorherigeVersion = aktuell.version;
+    aktuell = schritt(aktuell);
+    // Vertragsbruch einer einzelnen Migration (siehe MIGRATIONEN-Kommentar:
+    // "GENAU EINE Version"). Lieber laut scheitern als eine Endlosschleife
+    // oder -- schlimmer -- einen halb migrierten Stand durchreichen.
+    //
+    // Bewusst ohne t(): dieser Wurf bezeugt einen Programmierfehler in einer
+    // MIGRATIONEN-Zeile, der nie in einer ausgelieferten Migration vorkommen
+    // soll -- kein Text, den ein Spieler je sieht (derselbe Grund wie bei den
+    // Konsolenzeilen in zuruecksetzen()/standUebernehmen() weiter oben). Der
+    // Wortlaut ist zusätzlich bewusst so gewählt, dass tests/uebersetzung.mjs
+    // ihn nicht als Anzeigetext meldet -- eine echte deutsche Fehlermeldung
+    // bräuchte sonst einen Eintrag in texte.js, den keine Sprache je zeigt.
+    if (!aktuell || aktuell.version !== vorherigeVersion + 1) {
+      throw new Error(
+        `Migrationsschritt ${vorherigeVersion} lieferte Version ${aktuell && aktuell.version}, erwartet war ${vorherigeVersion + 1}.`
+      );
+    }
+    // Backstop gegen einen Zyklus in einer künftigen Migrationstabelle --
+    // 1000 Versionssprünge sind auf absehbare Zeit unerreichbar (SAVE_VERSION
+    // steht bei 32 und steigt vielleicht alle paar Wochen um eins). Ebenfalls
+    // bewusst ohne t(), aus demselben Grund.
+    if (++schritte > 1000) throw new Error("Migrationskette lief zu lange, vermutlich Zyklus.");
+  }
+  return aktuell;
+}
+
 export function laden() {
   let raw = null;
   try {
@@ -88,13 +163,24 @@ export function laden() {
   }
   if (!raw) return neueWelt();
   try {
-    const state = JSON.parse(raw);
+    let state = JSON.parse(raw);
     if (state.version !== SAVE_VERSION) {
+      // Die Sicherung läuft VOR der Migration, nicht statt ihr (A-141): wer
+      // migriert, kann zurück -- das ist die Rettungsleine für den Fall, dass
+      // eine Umrechnung falsch ist. Sie lief hier schon immer für JEDEN
+      // Versions-Mismatch, das ändert sich nicht.
       altenStandSichern(raw, state.version ?? "unbekannt");
-      console.warn(t("Speicherstand-Version passt nicht, starte neues Spiel."));
-      return neustartNach(
-        t("Der alte Spielstand stammt aus einer früheren Version – er liegt als Sicherung im Browserspeicher, das Spiel beginnt neu.")
-      );
+      // Rückwärts migriert niemand (ein Stand aus der ZUKUNFT, version >
+      // SAVE_VERSION, hat in MIGRATIONEN nie ein passendes Glied und fällt
+      // damit von selbst auf denselben Abweis-Weg wie bisher).
+      const migriert = state.version < SAVE_VERSION ? migrationsKette(state, MIGRATIONEN, SAVE_VERSION) : null;
+      if (!migriert) {
+        console.warn(t("Speicherstand-Version passt nicht, starte neues Spiel."));
+        return neustartNach(
+          t("Der alte Spielstand stammt aus einer früheren Version – er liegt als Sicherung im Browserspeicher, das Spiel beginnt neu.")
+        );
+      }
+      state = migriert;
     }
     // Nachtragen, was ein älterer Stand noch nicht hatte. Bewusst HIER und
     // nicht bei jedem Zugriff: eine Stelle, die einmal läuft, statt einer

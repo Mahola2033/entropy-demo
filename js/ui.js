@@ -287,6 +287,17 @@ function ratenText(resId, proStunde) {
   return mitEinheit(resId, rateProJahr(proStunde)) + t("/Jahr");
 }
 
+// A-143: dieselbe Umrechnung wie ratenText, aber NICHT ratenText selbst --
+// mitEinheit()/einheit() (js/ressourcen.js) geben ihre Einheit unübersetzt
+// zurück. Das fällt bei "t"/"MW"/"AK"/"cr" nie auf, weil die in beiden
+// Sprachen gleich lauten -- bei Forschung schon: Deutsch "FE", Englisch "RU"
+// (FUND aus A-142, live geprüft: die Fluss-Kachel zeigte "0 FE free" in
+// Englisch). Deshalb hier die Einheit als eigener, übersetzter Textbaustein
+// statt über mitEinheit.
+function forschungsRateText(proStunde) {
+  return `${formatKurz(rateProJahr(proStunde))} ${t("FE/Jahr")}`;
+}
+
 // --- Listen, die Klicks nicht verschlucken --------------------------------
 //
 // PRINZIP 8a, und der Grund, warum es dieses Werkzeug gibt:
@@ -580,9 +591,19 @@ export function hotkeysEinrichten(state, root) {
 
     const taste = ereignis.key;
 
-    // Esc schließt, was offen ist. Heute ist das die Erstklärung; künftige
-    // Tafeln kommen hier dazu, statt sich einen eigenen Weg zu bauen.
+    // Esc schließt, was offen ist. Das Einstellungsfenster ZUERST und mit
+    // eigenem Zweig (A-140): es hat mit der Erstklärung nichts zu tun, und
+    // hinge sein Schließen am selben Zweig, setzte ein Esc im Einstellungs-
+    // fenster nebenbei state.erstklaerungGesehen -- die Falle, die der Auftrag
+    // ausdrücklich benennt. Künftige Tafeln kommen hier dazu, jede mit ihrem
+    // eigenen Zweig, statt sich einen gemeinsamen Weg zu teilen.
     if (taste === "Escape") {
+      if (einstellungenOffen) {
+        einstellungenOffen = false;
+        render(state, root);
+        ereignis.preventDefault();
+        return;
+      }
       if (!state.erstklaerungGesehen && !state.ende) {
         state.erstklaerungGesehen = true;
         render(state, root);
@@ -649,6 +670,8 @@ export function render(state, root) {
   // Nach dem Abspann: der prüft selbst, ob er zu sehen ist, und das
   // Erklärfenster tritt hinter ihm zurück (siehe dort).
   renderErstklaerung(state, root, planet);
+  renderGrundskalierung(state, root);
+  renderEinstellungen(state, root);
   renderSprachwahl(state, root);
   renderFeedbackLink(root);
   renderFesteTexte(root);
@@ -697,6 +720,7 @@ export function render(state, root) {
   if (sichtbar("development")) teil("development", () => renderDevelopment(state, root));
   // Nach dem Handbuch, damit der Hinweis im selben Takt in der Liste landet.
   handbuchHinweisPruefen(state);
+  oberflaecheHinweisPruefen(state);
   momenteHinweisPruefen(state);
   neuigkeitenHinweisPruefen(
     state,
@@ -843,11 +867,9 @@ function renderPlanetenwahl(state, root) {
   });
 }
 
-// Waagerechte Ressourcenleiste im AOE2-Muster: Symbol, Name, Bestand,
-// Stufe der Förderanlage, Rate. Alles Genaue steckt zusätzlich im title --
-// die Kachel bleibt dadurch schmal, ohne Information zu verlieren.
-// Sprachwahl im Kopf. Wird bei jedem Rendern neu aufgebaut wie alles andere;
-// der aktive Knopf trägt dieselbe .aktiv-Markierung wie sonst im Spiel.
+// Sprachwahl im Einstellungsfenster (A-140 -- bis dahin stand sie im Kopf).
+// Wird bei jedem Rendern neu aufgebaut wie alles andere; der aktive Knopf
+// trägt dieselbe .aktiv-Markierung wie sonst im Spiel.
 function renderSprachwahl(state, root) {
   const leiste = root.querySelector("#sprach-leiste");
   const aktiv = sprache();
@@ -864,6 +886,83 @@ function renderSprachwahl(state, root) {
       render(state, root);
     });
   });
+}
+
+// Ein fehlendes Feld liest sich als 100 % (Kategorie 1, siehe Auftrag) -- ein
+// Spielstand von vor dieser Runde kennt state.grundskalierung nicht und soll
+// trotzdem unverändert aussehen.
+function grundskalierungWert(state) {
+  return state.grundskalierung || 100;
+}
+
+// Das Einstellungsfenster (A-140, R-24). Zahnrad im Kopf auf, Esc oder der
+// eigene Schließen-Knopf zu -- siehe hotkeysEinrichten für die Esc-Falle
+// (nicht mit der Erstklärung verwechseln). Der Inhalt ist STATISCHES Markup
+// (index.html), diese Funktion verdrahtet nur einmal und zieht danach bei
+// jedem Aufruf den aktuellen Stand nach -- dasselbe Muster wie die
+// Statusspalte (renderStatus/griff.dataset.verdrahtet).
+function renderEinstellungen(state, root) {
+  const el = root.querySelector("#einstellungen");
+  if (!el) return;
+
+  const knopf = root.querySelector("#einstellungen-knopf");
+  if (knopf) {
+    textSetzen(knopf, SYMBOLE.einstellungen);
+    if (!knopf.dataset.verdrahtet) {
+      knopf.dataset.verdrahtet = "1";
+      knopf.addEventListener("click", () => {
+        einstellungenOffen = true;
+        render(state, root);
+      });
+    }
+  }
+
+  // Nach dem Ende hat sich die Frage erledigt -- dieselbe Begründung wie bei
+  // der Erstklärung. Ohne diesen Zweig läge das Fenster (gleicher z-index,
+  // aber später im Markup als der Abspann) sichtbar ÜBER dem Ende des Spiels,
+  // wäre es beim Eintreten von state.ende gerade offen gewesen.
+  if (state.ende) {
+    el.hidden = true;
+    einstellungenOffen = false;
+    return;
+  }
+  el.hidden = !einstellungenOffen;
+  if (!einstellungenOffen) return;
+
+  const schliessen = root.querySelector("#einstellungen-schliessen");
+  if (schliessen && !schliessen.dataset.verdrahtet) {
+    schliessen.dataset.verdrahtet = "1";
+    schliessen.addEventListener("click", () => {
+      einstellungenOffen = false;
+      render(state, root);
+    });
+  }
+
+  const regler = root.querySelector("#grundskalierung-regler");
+  if (regler && !regler.dataset.verdrahtet) {
+    regler.dataset.verdrahtet = "1";
+    regler.addEventListener("input", () => {
+      state.grundskalierung = Number(regler.value);
+      render(state, root);
+    });
+  }
+  const prozent = grundskalierungWert(state);
+  if (regler && Number(regler.value) !== prozent) regler.value = String(prozent);
+  textSetzen(root.querySelector("#grundskalierung-wert"), `${prozent}%`);
+}
+
+// Die Grundskalierung wirkt an der Wurzel (:root, font-size) -- die
+// rem-Schriftskala (--schrift-*) und jeder Abstand in rem ziehen darüber
+// automatisch mit, siehe css/style.css. Bei 100 % bleibt die Seite
+// PIXELGLEICH zu vorher: kein font-size auf documentElement ist etwas anderes
+// als font-size:100%, aber "unverändert lassen" ist die buchstäblichere
+// Erfüllung von Fertig-Kriterium 1 als "auf den alten Wert setzen".
+function renderGrundskalierung(state, root) {
+  if (typeof document === "undefined") return;
+  const wurzel = document.documentElement;
+  const prozent = grundskalierungWert(state);
+  if (prozent === 100) wurzel.style.removeProperty("font-size");
+  else wurzel.style.fontSize = `${prozent}%`;
 }
 
 // Die Einheit eines eigenen Speichers. Sie kann von der Einheit der Ressource
@@ -893,7 +992,18 @@ function speicherEinheit(resId) {
 // Kachel und bekommt bloß frische Werte -- siehe renderRessourcen.
 function brennstoffZeile(planet) {
   const stufe = (planet.gebaeude && planet.gebaeude.kraftwerk) || 0;
-  if (stufe <= 0) return null;
+  if (stufe <= 0) {
+    // A-142 (= A-108 Punkt 3, R-8/G4): Kein Kraftwerk heißt keine Buchung,
+    // nicht "nichts zu sagen" -- der Slot bleibt reserviert statt zu
+    // verschwinden. Das war der A-104-Befund: eine frische Kolonie verlor
+    // hier eine ganze Zeile, die Kopfreihe wurde flacher, und alles darunter
+    // rutschte hoch (der ~20-px-Versatz aus Tobis Bericht).
+    return {
+      titel: t("Ohne Kraftwerk gibt es keinen Brennstoffverbrauch – erst danach zieht der Reaktor Deuterium aus dem Lager."),
+      text: `⚛️ ${t("Kein Kraftwerk gebaut")}`,
+      warnung: false,
+    };
+  }
   if (!brennstoffBereit(planet, BUILDINGS.kraftwerk, stufe)) {
     const text = t("Kein Brennstoff – der Reaktor ist aus. Er zündet wieder, sobald Deuterium für {dauer} im Lager liegt.", {
       dauer: fmtDauer(BRENNSTOFF_ANLAUF_MS / 1000),
@@ -906,8 +1016,9 @@ function brennstoffZeile(planet) {
   // Bedingung ist eine halbe Auskunft).
   //
   // Gemessen ist: der Reaktor verbrennt bei JEDER Last dieselbe Menge --
-  // Stufe 1 zieht 165 t/h bei Last 0 wie bei Last 300 %. Was die Reichweite
-  // bewegt, ist allein die Ausbaustufe (Stufe 3 verbrennt das 3,6-fache).
+  // Stufe 1 zieht 165 t je Echtzeitstunde bei Last 0 wie bei Last 300 %. Was
+  // die Reichweite bewegt, ist allein die Ausbaustufe (Stufe 3 verbrennt das
+  // 3,6-fache).
   // Genau daran ist die Zahl missverstanden worden: „1.790 Jahre" neben
   // einer Last von 0 liest sich als „er verbrennt gerade fast nichts".
   //
@@ -938,9 +1049,25 @@ function brennstoffZeile(planet) {
 
 function flussSpeicherZeile(planet, resId, netto) {
   const def = RESSOURCEN[resId];
+  // Keine Speicherfähigkeit -- bleibt für immer kollabiert (G4: kollabieren
+  // darf nur, was in KEINEM Kontext je gefüllt wird; Arbeitskraft/Forschung
+  // treffen das strukturell, nicht nur gerade jetzt).
   if (!def.speicher) return null;
   const grenze = speicherKapazitaet(planet, resId);
-  if (!grenze) return null; // noch kein Speicher gebaut: keine leere Zeile zeigen
+  if (!grenze) {
+    // A-142 (= A-108 Punkt 3, R-8/G4): noch kein Speicher gebaut, aber die
+    // Zeile bleibt STEHEN statt zu verschwinden -- derselbe Befund wie bei
+    // brennstoffZeile oben. Der leere Balken (anteil 0) ist die ehrlichste
+    // Darstellung von "Kapazität null".
+    const gebaeudeName = t(BUILDINGS[def.speicher.gebaeude].name);
+    return {
+      titel: t("Noch kein {gebaeude} gebaut – die Zeile wartet auf den Bau.", { gebaeude: gebaeudeName }),
+      stand: `🔋 ${t("Kein {gebaeude} gebaut", { gebaeude: gebaeudeName })}`,
+      zustand: "",
+      warnung: false,
+      anteil: 0,
+    };
+  }
   const bestand = planet.ressourcen[resId] || 0;
   const einh = speicherEinheit(resId);
   const anteil = grenze > 0 ? Math.min(1, bestand / grenze) : 0;
@@ -1390,9 +1517,14 @@ function renderRessourcen(state, root, planet) {
       name: t(def.name),
       stufe: stufeVon(resId),
       wert: wertText,
+      // A-143: Forschung rechnet ihre Rate wie jede andere -- in Spieljahren,
+      // nicht in der internen Echtzeitstunde. MW/AK bleiben unangetastet:
+      // Energie/Arbeitskraft sind Leistungen, keine Raten (siehe unten).
       rate: knapp
         ? `${Math.round(effizienz * 100)}%`
-        : t("{frei} {einheit} frei", { frei: fmt(frei), einheit: einheit(resId) }),
+        : istForschungsFluss
+          ? forschungsRateText(frei)
+          : t("{frei} {einheit} frei", { frei: fmt(frei), einheit: einheit(resId) }),
       knapp,
       auslastung,
       speicher: speicherDaten,
@@ -1406,12 +1538,18 @@ function renderRessourcen(state, root, planet) {
               da: fmt(prod),
               anteil: Math.round(effizienz * 100),
             })
-          : t("{braucht} {einheit} von {da} {einheit} verbraucht · {frei} {einheit} frei", {
-              braucht: fmt(braucht),
-              einheit: einheit(resId),
-              da: fmt(prod),
-              frei: fmt(frei),
-            })) +
+          : istForschungsFluss
+            ? t("{braucht} von {da} verbraucht · {frei} frei", {
+                braucht: forschungsRateText(braucht),
+                da: forschungsRateText(prod),
+                frei: forschungsRateText(frei),
+              })
+            : t("{braucht} {einheit} von {da} {einheit} verbraucht · {frei} {einheit} frei", {
+                braucht: fmt(braucht),
+                einheit: einheit(resId),
+                da: fmt(prod),
+                frei: fmt(frei),
+              })) +
         (istForschungsFluss
           ? "\n" +
             t(
@@ -1558,6 +1696,32 @@ function handbuchHinweisPruefen(state) {
   state.handbuchAngeboten = true;
 }
 
+// A-150, Punkt "Tour beim ersten Öffnen": Chris wünschte sich eine Tour über
+// Ressourcenleiste, Bereiche und Statusspalte ("what does what", "erste
+// Schritte"). KEIN Overlay, das nacheinander auf die drei zeigt -- genau das
+// hat A-059 schon geprüft und verworfen (Kommentar an handbuch.js, Abschnitt
+// "oberflaeche"): "Tobis stehende Linie ist 'Führung durch Erklärung, keine
+// Schritt-für-Schritt-Anleitung'. Ein Overlay... wäre genau die Anleitung --
+// und ein neues UI-Muster obendrein." Diese Runde erfindet deshalb KEIN
+// zweites System, sondern nutzt dasselbe Muster wie der Handbuch-Hinweis
+// direkt darüber: EINE Meldung, die zeigt, was gerade sichtbar ist, und ins
+// Handbuch verweist, wo es ausführlicher steht (A-040-Muster: Meldung →
+// Klick → Anker).
+//
+// Anders als der Handbuch-Hinweis (60 Sekunden Verzögerung, "erstmal
+// umschauen") feuert dieser SOFORT: er beantwortet nicht "wo finde ich
+// Hilfe", sondern "was sehe ich gerade vor mir" -- Chris' allererster Blick,
+// bevor er irgendwo geklickt hat.
+function oberflaecheHinweisPruefen(state) {
+  if (state.oberflaecheHinweisGezeigt) return;
+  meldungHinzufuegen(
+    state,
+    t("Oben die Ressourcen, links die Bereiche, rechts die Statusspalte mit Meldungen – kurz erklärt im Handbuch."),
+    null, "eigen", { bereich: "handbuch", anker: "oberflaeche" }
+  );
+  state.oberflaecheHinweisGezeigt = true;
+}
+
 // Die drei Momente (A-060) -- die Texte und wohin sie führen.
 //
 // Die BEDINGUNGEN stehen in state.js (`momentErreicht`), weil sie zweimal
@@ -1665,6 +1829,11 @@ let aktiverBereich = "planet";
 // Wer sie zuklappt, dessen Wahl bleibt für die Sitzung erhalten wie bisher:
 // das hier ist der STARTwert, kein Zwang.
 let statusOffen = true;
+
+// Das Einstellungsfenster (A-140). Bewusst UI-Zustand wie aktiverBereich und
+// statusOffen, nicht Spielstand: OB das Fenster offen ist, gehört nicht in
+// die Speicherdatei -- WAS darin eingestellt wird (Grundskalierung), schon.
+let einstellungenOffen = false;
 
 // Läuft in diesem Bereich gerade etwas? Steuert den Punkt in der Navigation,
 // damit ein Wechsel zu "ein Bereich sichtbar" keine Information verdeckt.
@@ -1791,9 +1960,13 @@ function renderSupernova(state, root, jetzt) {
   if (sn.phase === "vorwarnung") {
     textSetzen(marke, t("FRIST"));
     textSetzen(was, t("bis {stern} kollabiert", { stern: name }));
+    // A-150: Klaus' Frage ("Die erste Frist geht nur bis zum Flash ist
+    // unklar") -- der Countdown sagt jetzt selbst, dass diese erste Frist
+    // NICHT das ganze Spiel ist, sondern von einer zweiten, kürzeren Frist
+    // gefolgt wird (Blitz -> Flut). Derselbe Tooltip, ein Satz mehr.
     el.title =
       t(
-        "Das Neutrino-Observatorium liest die Brennstufe im Kern von {stern}, {lj} Lichtjahre entfernt. Wenn er kollabiert, zerlegt der Blitz die Ozonschicht – und mit ihr die Landwirtschaft jeder ungeschützten Welt.",
+        "Das Neutrino-Observatorium liest die Brennstufe im Kern von {stern}, {lj} Lichtjahre entfernt. Wenn er kollabiert, zerlegt der Blitz die Ozonschicht – und mit ihr die Landwirtschaft jeder ungeschützten Welt. Diese erste Frist ist nicht die letzte: danach beginnt eine zweite, kürzere Frist bis zur Teilchenflut.",
         { stern: name, lj: (sn.entfernung * LJ_PRO_EINHEIT).toFixed(0) }
       ) + solarWarnung;
   } else if (sn.phase === "blitz") {
@@ -2009,7 +2182,8 @@ function renderErstklaerung(state, root, planet) {
       attributSetzen(btn, "title", s.name);
       btn.addEventListener("click", () => {
         spracheSetzen(s.code);
-        // Die Leiste im Kopf baut sich an ihrem eigenen Merker neu auf.
+        // Die Leiste im Einstellungsfenster (A-140, bis dahin im Kopf) baut
+        // sich an ihrem eigenen Merker neu auf.
         const kopf = root.querySelector("#sprach-leiste");
         if (kopf) kopf.dataset.gezeichnet = "";
         render(state, root);
@@ -2318,6 +2492,20 @@ function renderImperium(state, root) {
 // --- Statusspalte -------------------------------------------------------
 // Zeigt laufende Vorgänge unabhängig davon, welcher Bereich gerade offen
 // ist. Das ist der Ausgleich dafür, dass in der Mitte nur eines sichtbar ist.
+//
+// A-144: Bis v0.4.4 hieß die Überschrift "Status" und zeigte je Kategorie nur
+// den LAUFENDEN Auftrag -- eine Zeile, egal ob dahinter nichts oder zehn
+// Aufträge warteten. Tobis Befund (KONZEPT-LAGER E10): "die Status Spalte ist
+// schon die bessere Warteschlange... man muss es nur abtrennen und
+// umbennen." Jetzt zeigt jeder der drei Abschnitte (Bau/Forschung/Werft) den
+// laufenden Kopf UND die volle Warteschlange dahinter -- dieselbe
+// renderWarteschlange wie im jeweiligen Tab, nur mit einem zweiten Ziel
+// (Nicht anfassen: die Warteschlangen-LOGIK ändert sich dadurch nicht).
+//
+// DREI ABSCHNITTE SIND EIN VERSUCH (Tobis Wortlaut: "Wir probieren es mal mit
+// drei."), keine Festlegung. Jeder Abschnitt ist per CSS (.ws-mini) fest drei
+// Zeilen hoch und scrollt intern, damit die Spalte nie springt (Prinzip 10,
+// Tobis Entscheidung 25.08.).
 function renderStatus(state, root, planet, jetzt) {
   const spalte = root.querySelector("#statusspalte");
   const rahmen = root.querySelector(".rahmen");
@@ -2334,29 +2522,64 @@ function renderStatus(state, root, planet, jetzt) {
   }
   if (!statusOffen) return; // eingeklappt: nichts zu zeichnen
 
-  const block = root.querySelector("#status-block");
-  const zeilen = [];
   const zeile = (text, zeit) =>
     `<div class="status-zeile"><span>${text}</span><span class="status-zeit">${zeit}</span></div>`;
+  // P18: ein leerer Abschnitt bleibt nicht leer, er trägt seine Antwort.
+  const leerZeile = () => `<div class="status-zeile ruhig"><span>${t("Nichts in Arbeit.")}</span><span></span></div>`;
 
-  if (planet.bauQueue) {
-    const q = planet.bauQueue;
-    zeilen.push(zeile(`${t(BUILDINGS[q.gebaeudeId].name)} → ${q.zielLevel}`, kopfZeitText(state, planet, q, "bau", jetzt)));
-  }
-  if (state.forschungsQueue) {
-    const q = state.forschungsQueue;
-    zeilen.push(zeile(`${t(RESEARCH[q.forschungId].name)} → ${q.zielLevel}`, fmtDauer(forschungRestSekunden(state))));
-  }
-  if (planet.werftQueue) {
-    const q = planet.werftQueue;
-    zeilen.push(zeile(`${q.anzahl}× ${t(SCHIFFE[q.schiffId].name)}`, kopfZeitText(state, planet, q, "werft", jetzt)));
-  }
-  // Die Statusspalte listet, was gerade LÄUFT -- gemeint sind die eigenen
-  // Aufträge, nicht die Bewegungen der halben Galaxie.
+  const bauKopf = root.querySelector("#status-bau-kopf");
+  bauKopf.innerHTML = planet.bauQueue
+    ? zeile(`${t(BUILDINGS[planet.bauQueue.gebaeudeId].name)} → ${planet.bauQueue.zielLevel}`, kopfZeitText(state, planet, planet.bauQueue, "bau", jetzt))
+    : planet.bauWarteschlange.length ? "" : leerZeile();
+  renderWarteschlange(
+    state, root, "#status-bau-warteschlange", planet.bauWarteschlange,
+    (e) => t("{name} → Stufe {stufe}", { name: t(BUILDINGS[e.gebaeudeId].name), stufe: e.zielLevel }),
+    (i) => bauWarteschlangeEntfernen(state, planet, i),
+    "status:" + String(planet.id),
+    null,
+    (w) => warteschlangeKosten(planet, w)
+  );
+
+  const forschungKopf = root.querySelector("#status-forschung-kopf");
+  forschungKopf.innerHTML = state.forschungsQueue
+    ? zeile(`${t(RESEARCH[state.forschungsQueue.forschungId].name)} → ${state.forschungsQueue.zielLevel}`, fmtDauer(forschungRestSekunden(state)))
+    : state.forschungsWarteschlange.length ? "" : leerZeile();
+  renderWarteschlange(
+    state, root, "#status-forschung-warteschlange", state.forschungsWarteschlange,
+    (e) => t("{name} → Stufe {stufe}", { name: t(RESEARCH[e.forschungId].name), stufe: e.zielLevel }),
+    (i) => forschungWarteschlangeEntfernen(state, i),
+    "status",
+    // Aufwand geteilt durch den AKTUELLEN Fluss aller Labore -- dieselbe
+    // Rechnung wie in renderForschung, nur an einem zweiten Ziel gerendert.
+    (eintrag) => {
+      const fluss = forschungsFluss(state);
+      const aufwand = eintrag.aufwand ?? forschungsAufwand(RESEARCH[eintrag.forschungId], eintrag.zielLevel);
+      return fluss > 0 ? (aufwand / fluss) * 3600 : Infinity;
+    }
+  );
+
+  const werftKopf = root.querySelector("#status-werft-kopf");
+  werftKopf.innerHTML = planet.werftQueue
+    ? zeile(`${planet.werftQueue.anzahl}× ${t(SCHIFFE[planet.werftQueue.schiffId].name)}`, kopfZeitText(state, planet, planet.werftQueue, "werft", jetzt))
+    : planet.werftWarteschlange.length ? "" : leerZeile();
+  renderWarteschlange(
+    state, root, "#status-werft-warteschlange", planet.werftWarteschlange,
+    (e) => `${e.anzahl}× ${t(SCHIFFE[e.schiffId].name)}`, // reine Zahl plus Name, kein Satz
+    (i) => werftWarteschlangeEntfernen(state, planet, i),
+    "status:" + String(planet.id),
+    null,
+    (w) => warteschlangeKosten(planet, w)
+  );
+
+  // Rest-Statusblock: was übrig bleibt, wenn Bau/Forschung/Werft abgetrennt
+  // sind -- Flottenbewegung und Logistiktransfers. Kein Bauauftrag, passt in
+  // keinen der drei Deckel (Deutung der Planung, siehe A-144-Auftrag).
   //
   // Der Flottenname geht durch htmlText: die Zeilen landen unten per innerHTML
   // in der Spalte, und er ist der einzige Text hier, den der Spieler selbst
   // geschrieben hat.
+  const block = root.querySelector("#status-block");
+  const zeilen = [];
   for (const flotte of flottenVon(state)) {
     if (flotte.gefecht) {
       zeilen.push(
@@ -2853,9 +3076,9 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
       fertig
         ? t("Erforscht – schaltet gesperrte Objekte frei.")
         : istForschung
-          ? t("Aufwand: {aufwand} FE · bei {fluss} FE/h aus allen Laboren: {dauer}", {
+          ? t("Aufwand: {aufwand} FE · bei {fluss} aus allen Laboren: {dauer}", {
               aufwand: fmt(aufwand),
-              fluss: fmt(forschFluss),
+              fluss: forschungsRateText(forschFluss),
               dauer: fmtDauer(dauer),
             })
           : t("Nächste Stufe: {kosten} · {dauer}", {
@@ -3817,8 +4040,8 @@ function renderForschung(state, root, planet) {
       ? t("kein Labor – niemand forscht")
       : fluss > 0
         ? (labore === 1
-            ? t("1 Labor · {fluss} FE/h", { fluss: fmt(fluss) })
-            : t("{labore} Labore · {fluss} FE/h", { labore, fluss: fmt(fluss) })) + grund
+            ? t("1 Labor · {fluss}", { fluss: forschungsRateText(fluss) })
+            : t("{labore} Labore · {fluss}", { labore, fluss: forschungsRateText(fluss) })) + grund
         : knapp.length
           ? t("{labore} Labor/Labore stehen still – es fehlt {res}", {
               labore,
@@ -3855,19 +4078,11 @@ function renderForschung(state, root, planet) {
     // Daten (RESEARCH.voraussetzungen), hier werden sie nur sichtbar.
     baum: true,
   });
-  renderWarteschlange(
-    state, root, "#forschung-warteschlange", state.forschungsWarteschlange,
-    (e) => t("{name} → Stufe {stufe}", { name: t(RESEARCH[e.forschungId].name), stufe: e.zielLevel }),
-    (i) => forschungWarteschlangeEntfernen(state, i),
-    "",
-    // Aufwand geteilt durch den AKTUELLEN Fluss aller Labore -- dieselbe
-    // Rechnung wie fuer die laufende Forschung, nur ohne Fortschritt.
-    (eintrag) => {
-      const fluss = forschungsFluss(state);
-      const aufwand = eintrag.aufwand ?? forschungsAufwand(RESEARCH[eintrag.forschungId], eintrag.zielLevel);
-      return fluss > 0 ? (aufwand / fluss) * 3600 : Infinity;
-    }
-  );
+  // A-144: Die Warteschlange stand hier bis v0.4.4 als #forschung-warteschlange
+  // -- rund 1.500 px tief im Baum-Layout, bei Klaus' 520 px Fensterhöhe
+  // praktisch unerreichbar. Sie zeigt jetzt in der Statusspalte
+  // (renderStatus, #status-forschung-warteschlange), dieselbe Funktion,
+  // zweites Ziel.
 }
 
 // PRINZIP 8a (A-004): Die Werft war der dichteste Fall im Spiel -- ein
@@ -3893,9 +4108,16 @@ function renderWerft(state, root, planet, jetzt) {
 
   // Werftstufe beschleunigt den Bau -- ohne Hinweis ist nicht erkennbar,
   // wofür ein Ausbau überhaupt gut wäre.
+  //
+  // A-150: der zweite Satz zieht die Parallele zum Forschungslabor ("der
+  // Zusammenhang Werft/Forschungslabor wurde erst durch Nachfragen klar",
+  // Chris' Feedback) -- an der Werft-Kachel, nicht in einer Tour (Prinzip
+  // 10a). Beide Anlagen folgen demselben Muster (höhere Stufe = schneller),
+  // aber es sind ZWEI getrennte Anlagen für zwei getrennte Dinge -- genau
+  // das war ihm nicht klar.
   const tempo = werftTempo(planet);
   info.title = t(
-    "Werft Stufe {stufe} – baut {tempo}× so schnell wie eine Werft der Stufe 1. Jede weitere Stufe beschleunigt zusätzlich.",
+    "Werft Stufe {stufe} – baut {tempo}× so schnell wie eine Werft der Stufe 1. Jede weitere Stufe beschleunigt zusätzlich. Für Forschung gilt dasselbe Prinzip – aber am Forschungslabor, einer eigenen Anlage.",
     { stufe: planet.gebaeude.werft, tempo: tempo.toFixed(2) }
   );
   // Gerüst der Kopfzeile einmal: Text und Knopf sind getrennte Elemente,
@@ -3909,7 +4131,13 @@ function renderWerft(state, root, planet, jetzt) {
   const infoGeruest = `werft-info:${sprache()}:${planet.id}`;
   if (info.dataset.geruest !== infoGeruest) {
     info.dataset.geruest = infoGeruest;
-    info.innerHTML = `<span data-werft-text></span> <button data-werft-abbrechen="1" hidden></button>`;
+    info.innerHTML = `<span data-werft-text></span> <select data-werft-ziel></select> <button data-werft-abbrechen="1" hidden></button>`;
+    const zielFeld = info.querySelector("select[data-werft-ziel]");
+    attributSetzen(
+      zielFeld,
+      "title",
+      t("Wohin die fertigen Schiffe nach dem Bau gehen. Voreinstellung: in den Hafen.")
+    );
     const abbrechen = info.querySelector("button[data-werft-abbrechen]");
     abbrechen.textContent = t("Abbrechen");
     attributSetzen(
@@ -3933,6 +4161,28 @@ function renderWerft(state, root, planet, jetzt) {
       : t("Werft Stufe {stufe} · {tempo}× Bautempo", { stufe: planet.gebaeude.werft, tempo: tempo.toFixed(2) })
   );
   info.querySelector("button[data-werft-abbrechen]").hidden = !planet.werftQueue;
+
+  // A-151: Ziel-Auswahl für NEUE Bauaufträge. Nur Flotten, die GENAU AN
+  // DIESEM Planeten angedockt sind, kommen als Ziel infrage -- fliegt eine
+  // weg oder wird sie aufgelöst, verschwindet sie hier aus der Liste, ohne
+  // dass ein Auswahl-Handler das extra prüfen müsste. Das Feld selbst bleibt
+  // über jeden Takt stehen (Gerüst oben), nur seine Optionen werden
+  // nachgezogen -- Prinzip 8a, dieselbe Überlegung wie beim Zahlenfeld (A-079).
+  const zielFeld = info.querySelector("select[data-werft-ziel]");
+  const zielFlotten = flottenVon(state).filter((f) => f.dockPlanet === planet.id);
+  listeAbgleichen(
+    zielFeld,
+    [{ id: "", name: t("In den Hafen") }, ...zielFlotten.map((f) => ({ id: String(f.id), name: f.name }))],
+    {
+      schluessel: (e) => e.id,
+      bauen: (e) => {
+        const opt = document.createElement("option");
+        opt.value = e.id;
+        return opt;
+      },
+      aktualisieren: (opt, e) => textSetzen(opt, e.name),
+    }
+  );
 
   listeAbgleichen(liste, Object.keys(SCHIFFE), {
     // Planeten-Kennung im Schlüssel, damit die Knopf-Handler beim Wechsel der
@@ -3973,7 +4223,11 @@ function renderWerft(state, root, planet, jetzt) {
       const bauen = () => {
         const menge = stueckzahlAus(feld.value);
         if (menge === null) return; // leer, 0, negativ, kein Zahlwert: kein Auftrag
-        schiffBauen(state, planet, id, menge);
+        // A-151: das Ziel-Feld sitzt im Kopf der Werft-Kachel-Liste (info,
+        // eine Ebene höher), nicht auf dieser einzelnen Schiffskachel -- eine
+        // Auswahl gilt für alle Typen, bis sie geändert wird.
+        const zielWert = info.querySelector("select[data-werft-ziel]").value;
+        schiffBauen(state, planet, id, menge, null, false, zielWert ? Number(zielWert) : null);
         render(state, root);
       };
       li.querySelector("button[data-schiff]").addEventListener("click", bauen);
@@ -4347,7 +4601,7 @@ function renderVerarbeitung(state, root, planet) {
       ? t("Außenposten haben keine Produktion.")
       : eingaenge.length === 0
         ? t(
-            "Auf diesem Planeten verarbeitet noch keine Anlage gelagerte Rohstoffe. Anlagen, die das tun, zeigen ihren Bedarf auf der Gebäudekachel."
+            "Auf diesem Planeten verarbeitet noch keine Anlage gelagerte Rohstoffe. Anlagen, die das tun, zeigen ihren Bedarf auf der Anlagenkachel."
           )
         : t(
             "Reicht der Zustrom nicht, nehmen Anlagen den Rest aus dem Lager – bis zur eingestellten Reserve. Danach drosseln sie anteilig, statt den Bestand aufzubrauchen."
@@ -4635,7 +4889,17 @@ function renderFlotten(state, root, planet, jetzt) {
   const routenBox = block.querySelector("[data-routen-detail]");
 
   leerHinweis.hidden = eigene.length > 0;
-  textSetzen(leerHinweis, t("Noch keine Flotte aufgestellt."));
+  // A-150: der Weg "Schiffe bauen -> Flotte gruenden -> beladen -> losschicken"
+  // wird HIER erklaert, an der Stelle, an der er beginnt (Tobis Wunsch nach
+  // einem Flotten-Tutorial) -- statt im Handbuch, das niemand aufschlaegt,
+  // bevor er die Frage schon hat. P18: der leere Zustand traegt die Antwort,
+  // nicht nichts.
+  textSetzen(
+    leerHinweis,
+    t(
+      "Noch keine Flotte aufgestellt. Der Weg: Schiffe in der Werft bauen, hier eine Flotte gründen, im Hafen beladen, dann losschicken."
+    )
+  );
 
   listeAbgleichen(liste, eigene, {
     schluessel: (flotte) => flotte.id,
@@ -6823,8 +7087,15 @@ export function orbitAngebot(state, systemId, objekt, flotte, rueckkehrGewaehlt 
   // sagt im Titel, warum — der Knopf daneben bleibt trotzdem benutzbar
   // (Prinzip 10a: die teurere Wahl blockiert nicht die billigere).
   const rueckKlar = kannMission(state, flotte, art, systemId, objekt.orbit, true);
+  // A-152: der Sonden-Knopf nennt die Zielkosten VOR dem Klick (Prinzip 10a) --
+  // dieselbe Zahl, die missionBefehlen beim Start auch tankt (check.treibstoffZiel
+  // kommt aus genau derselben Rechnung, s. kannMission, kein zweiter Rechenweg).
+  const label =
+    art === "sonde" && check.ok && check.treibstoffZiel !== undefined
+      ? t("{label} · {sprit} Deuterium", { label: missionLabel(art), sprit: fmt(Math.ceil(check.treibstoffZiel)) })
+      : missionLabel(art);
   return {
-    aktionen: [{ typ: "mission", art, label: missionLabel(art), check, titel: check.ok ? "" : check.grund }],
+    aktionen: [{ typ: "mission", art, label, check, titel: check.ok ? "" : check.grund }],
     rueckkehr: {
       moeglich: rueckKlar.ok,
       vorbelegt: art === "bergung" && rueckKlar.ok,
@@ -6911,6 +7182,26 @@ function meldungenFilterEinrichten(state, root) {
   });
 }
 
+// A-144: Die Notbremse für die Meldungen -- dieselbe Bauform wie der
+// Statusspalten-Griff (griff.dataset.verdrahtet-Wächter, s.o.), weil die drei
+// neuen Warteschlangen-Abschnitte darüber die Resthöhe der Meldungen drücken
+// (KONZEPT-LAGER E10/E14). Anders als statusOffen liegt der Zustand im
+// SPIELSTAND, nicht nur in der Sitzung -- state.meldungenZu, fehlt in alten
+// Ständen und ist dann false (`|| false`-Muster wie state.logAlles), damit
+// die Wahl einen Neustart überlebt.
+let meldungenGriffVerdrahtet = false;
+
+function meldungenGriffEinrichten(state, root) {
+  if (meldungenGriffVerdrahtet) return;
+  const knopf = root.querySelector("#meldungen-griff");
+  if (!knopf) return;
+  meldungenGriffVerdrahtet = true;
+  knopf.addEventListener("click", () => {
+    state.meldungenZu = !(state.meldungenZu || false);
+    render(state, root);
+  });
+}
+
 // Die Meldungsliste.
 //
 // TOBIS BEFUND (16.08.2026, erstes eigenes Spielen der Demo): "log ist grade
@@ -6929,7 +7220,19 @@ function meldungenFilterEinrichten(state, root) {
 // arbeitet, lässt einen an der Mechanik zweifeln statt am Filter.
 function renderMeldungen(state, root) {
   meldungenFilterEinrichten(state, root);
+  meldungenGriffEinrichten(state, root);
   const liste = root.querySelector("#meldungen-liste");
+  const zu = state.meldungenZu || false;
+  liste.classList.toggle("eingeklappt", zu);
+  const griff = root.querySelector("#meldungen-griff");
+  if (griff) {
+    griff.textContent = zu ? "▸" : "▾";
+    attributSetzen(
+      griff,
+      "title",
+      zu ? t("Meldungen wieder einblenden.") : t("Meldungen wegklappen.")
+    );
+  }
   const alles = state.logAlles || false;
   const sichtbar = alles ? state.meldungen : state.meldungen.filter(meldungBetrifftSpieler);
   const versteckt = state.meldungen.length - sichtbar.length;

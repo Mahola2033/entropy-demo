@@ -20,6 +20,12 @@
      unten dicht, oben grob (Carbons Muster). Keine Design-Entscheidung mehr
      offen -- siehe AUFTRAEGE/A-105-token-runde.md für die Herleitung und
      die Zuordnung der Ausreißer. */
+  /* kleinste zulässige Größe, P15 -- gilt für jeden ENTWURF. Die
+     Grundskalierung (A-140, :root font-size, 70-100 %) unterläuft das
+     rechnerisch bewusst: bei 70 % landet diese Stufe bei 7,84 px. Das ist
+     kein Regelbruch, sondern der Spieler selbst, der P15 unterschreitet --
+     genau wie Browser-Zoom es heute schon kann. P15 bindet den ENTWURF,
+     nicht die eigene Wahl des Spielers gegen seinen eigenen Bildschirm. */
   --schrift-xs: 0.7rem; /* kleinste zulässige Größe, P15 */
   --schrift-s: 0.75rem;
   --schrift-m: 0.8rem;
@@ -585,16 +591,31 @@ body {
   gap: var(--abstand-4);
 }
 
+/* A-142 (= A-108 Punkt 5, G4): Mindestbreiten GEGEN DEN SHIFT, wenn eine Zahl
+   im Sekundentakt kürzer wird ("11,5 Mio t" -> "15.000 t") -- ohne sie würde
+   die schmalere Zahl den Grid-Track der Reihe jeden Takt neu vermessen und
+   die Nachbarkacheln mitziehen. GEMESSEN per getBoundingClientRect() im
+   echten Font (server entropy-verify, 25.08.), nicht geschätzt: der
+   breiteste alltägliche Fall ist bei .res-wert die Fluss-Kachel im
+   "verbraucht / erzeugt {einheit}"-Format ("50.000 / 50.000 MW", 9,16rem),
+   nicht die Mio/Mrd/Bio-Kurzschreibweise selbst (max. 4,6rem); bei .res-rate
+   ist es eine siebenstellige Jahresrate ("+1.234.567 t/Jahr", 5,75rem). Beide
+   Werte + Puffer. Ausgenommen: die noch unformatierte Bevölkerungszahl
+   ("3.240.000.000 / 3.240.000.000", 13,51rem, kein formatKurz) -- die reißt
+   die Kachel schon heute, unabhängig von dieser Runde, und ist ein FUND fürs
+   Ergebnis, kein Grund, hier alle Kacheln auf 13,5rem aufzublasen. */
 .res-wert {
   font-size: var(--schrift-xxl);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  min-width: 9.2rem;
 }
 
 .res-rate {
   color: var(--akzent);
   font-size: var(--schrift-s);
   font-variant-numeric: tabular-nums;
+  min-width: 5.8rem;
 }
 
 .res-wert.warnung,
@@ -684,6 +705,20 @@ body {
 .kopf-sprache button.aktiv {
   color: var(--akzent);
   border-color: var(--akzent);
+}
+
+/* Das Zahnrad im Kopf (A-140, R-24). Ersetzt seit dieser Runde die
+   Sprachleiste an dieser Stelle -- ein Symbol statt einer ganzen Leiste, das
+   Einstellungsfenster dahinter trägt jetzt beides. Gleiche flache Optik wie
+   .kopf-sprache button (Rahmen statt Füllung), aber ein einzelner Knopf. */
+.kopf-einstellungen {
+  padding: var(--abstand-1) var(--abstand-3);
+  font-size: var(--schrift-xl);
+  line-height: 1;
+  color: var(--text-dezent);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
 }
 
 /* Eine dritte Zeile in einer Ressourcenkachel.
@@ -1227,6 +1262,44 @@ body {
   font-variant-numeric: tabular-nums;
   color: var(--akzent);
   white-space: nowrap;
+}
+
+/* ==== WARTESCHLANGEN-ABSCHNITTE DER STATUSSPALTE (A-144) ====
+   Drei benannte Abschnitte -- Bau, Forschung, Werft -- als ausdrücklicher
+   VERSUCH (Tobis Wortlaut: "Wir probieren es mal mit drei."), keine
+   Festlegung. Jeder zeigt den laufenden Kopf plus die volle Warteschlange
+   dahinter (renderWarteschlange, dieselbe Funktion wie im jeweiligen Tab). */
+.ws-abschnitt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--abstand-1);
+}
+
+.ws-abschnitt + .ws-abschnitt {
+  margin-top: var(--abstand-4);
+}
+
+.ws-deckel {
+  margin: 0;
+  font-size: var(--schrift-m);
+  color: var(--text-dezent);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* STATISCH HEISST: DIE HÖHE SPRINGT NICHT (Tobis Entscheidung, 25.08.). Fest
+   drei Zeilen hoch, unabhängig vom Inhalt -- leer, halb voll oder bei zehn
+   Einträgen (BAUWARTESCHLANGE_MAX). Mehr scrollt INNERHALB, der Abschnitt
+   selbst wächst nie (Prinzip 10: kein Sprung beim Einreihen oder
+   Fertigwerden). Braucht eine DEFINITE Höhe, kein min-height -- siehe DIE
+   HÖHENKETTE weiter oben in dieser Datei. */
+.ws-mini {
+  display: flex;
+  flex-direction: column;
+  gap: var(--abstand-2);
+  height: 5.4rem;
+  overflow-y: auto;
+  font-size: var(--schrift-l);
 }
 
 /* Bleibt für abgesetzte Blöcke innerhalb eines Bereichs (Flotten-Detail,
@@ -2590,6 +2663,29 @@ body {
   color: var(--testmodus-hell);
 }
 
+/* A-144: dieselbe Notbremse wie der Statusspalten-Griff -- die drei neuen
+   Warteschlangen-Abschnitte drücken die Resthöhe der Meldungen, hier klappt
+   man sie im Ernstfall selbst weg (Zustand liegt in state.meldungenZu). */
+.meldungen-griff {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  color: var(--text-dezent);
+  cursor: pointer;
+  font-size: var(--schrift-m);
+  padding: var(--abstand-1) var(--abstand-3);
+  flex: none;
+}
+
+.meldungen-griff:hover {
+  background: var(--bg-item);
+  color: var(--text);
+}
+
+.meldungen-liste.eingeklappt {
+  display: none;
+}
+
 /* ==== IMPERIUMSÜBERSICHT ====
    Breite Tabelle: scrollt bei vielen Ressourcen INNERHALB des Bereichs,
    die Seite bleibt wie überall stehen. */
@@ -2997,6 +3093,73 @@ body {
 .erstklaerung-knoepfe .zweitrangig:hover:not(:disabled) {
   background: var(--bg-item);
   color: var(--text);
+}
+
+/* ==== EINSTELLUNGSFENSTER (A-140, R-24) ====
+   Dieselbe Bauform wie Erstklärung und Abspann: eine feste Ebene über allem,
+   eine Tafel darin -- Prinzip 5, kein zweites Overlay-Muster. Der Unterschied
+   zur Erstklärung ist nur der Anlass: sie kommt von selbst, dieses Fenster
+   geht nur auf, wenn der Spieler das Zahnrad im Kopf anklickt, und schließt
+   sich deshalb dunkel-transparent wie sie -- es verdeckt das Spiel, es
+   beendet es nicht.
+*/
+.einstellungen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: rgba(8, 12, 20, 0.78);
+}
+
+.einstellungen-tafel {
+  width: 26rem;
+  max-width: calc(100vw - var(--abstand-9) * 2);
+  padding: var(--abstand-8) var(--abstand-9);
+  border: 1px solid var(--akzent-dunkel);
+  border-radius: var(--radius-l);
+  background: var(--bg-panel);
+  box-shadow: var(--schatten);
+}
+
+.einstellungen-tafel h2 {
+  margin: 0 0 var(--abstand-7);
+  color: var(--akzent);
+  letter-spacing: 0.08em;
+}
+
+/* Eine Zeile je Einstellung -- Beschriftung links, Bedienelement rechts. Die
+   dritte Einstellung, die dazukommt, ist eine weitere Zeile hier, kein Umbau
+   (der ganze Grund, warum R-24 diesen Ort gewählt hat). */
+.einstellungen-zeile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--abstand-5);
+  padding: var(--abstand-4) 0;
+  border-top: 1px solid var(--border);
+}
+
+.einstellungen-zeile:first-of-type {
+  border-top: none;
+}
+
+.einstellungen-regler {
+  flex: 1 1 auto;
+  margin: 0 var(--abstand-4);
+}
+
+.einstellungen-wert {
+  min-width: 3ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dezent);
+}
+
+.einstellungen-knoepfe {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--abstand-8);
 }
 
 /* ===== Die Kommandoleiste (A-057) =======================================

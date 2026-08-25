@@ -67,7 +67,12 @@ import { t } from "./sprache.js";
 // eigener Schwerkraft statt eines eigenschaftslosen Generalisten. Damit ändert
 // sich die Weltgenerierung -- ein alter Stand trüge Fortschritt zu einer Welt,
 // die es so nicht mehr gibt.
-export const SAVE_VERSION = 31;
+// v0.4.1->0.4.2 (A-141): 31 -> 32 ist die erste Version, die NICHTS am
+// Format ändert -- reiner Testfall für die neue Migrationskette
+// (js/save.js, MIGRATIONEN). Ein Stand mit Version 31 wird seither
+// ANGEHOBEN statt verworfen; erst ein Stand ohne passendes Kettenglied
+// fällt weiter auf den alten Abweis-Weg zurück.
+export const SAVE_VERSION = 32;
 
 function startRessourcen(voll) {
   const res = {};
@@ -680,11 +685,13 @@ export function eigenerPlanetAn(state, systemId, orbit) {
 // nötig, die Abwesenheit ist schon die Wahrheit.
 //
 // WARUM `state.forschung` NICHT UMZIEHT: der Umzug in die Spielerfraktion
-// selbst wäre die schönere Lösung, ändert aber das Speicherformat, und
-// save.js kennt keine Migration (ein Stand mit abweichender SAVE_VERSION
-// wird abgewiesen, nicht umgerechnet). Der Umzug ist damit Kategorie 3 und
-// gehört in den Sammel-Sprung -- diese Funktion ist genau die Naht, an der
-// er später ohne weitere Änderung an den Aufrufern stattfinden kann.
+// selbst wäre die schönere Lösung, ändert aber das Speicherformat. Seit
+// A-141 kennt save.js zwar eine Migrationskette (MIGRATIONEN in js/save.js),
+// aber die rechnet nur um, wofür jemand einen Eintrag TRÄGT -- der Umzug
+// dieses Feldes bräuchte selbst eine neue Migration, die es noch nicht gibt.
+// Er bleibt damit Kategorie 3 und gehört in den Sammel-Sprung -- diese
+// Funktion ist genau die Naht, an der er später (mitsamt seiner eigenen
+// Migration) ohne weitere Änderung an den Aufrufern stattfinden kann.
 export function forschungVon(state, fraktionId) {
   if (fraktionId === SPIELER_FRAKTION) return state.forschung;
   const fraktion = fraktionById(state, fraktionId);

@@ -3410,16 +3410,43 @@ function supernovaFlut(state, zeit) {
   );
 }
 
+// A-151: ein Werftauftrag kann ein ZIEL tragen (`queue.zielFlotte`, die
+// Flotten-ID) -- fehlt es (alte Spielstände, `|| 0`-Muster über den
+// truthy-Check unten), gilt "in den Hafen" wie bisher. Gültig ist das Ziel
+// NUR, wenn die Flotte JETZT GENAU HIER angedockt ist: Prinzip 4 ("Nichts
+// teleportiert") verbietet, fertige Schiffe zu einer Flotte zu schicken, die
+// unterwegs, an einem anderen Planeten oder gar nicht mehr da ist (aufgelöst).
+// Auf die ID zu zeigen statt auf den Namen hält die Zuweisung auch über ein
+// Umbenennen (A-082) hinweg stabil.
 function werftAbschliessen(state, planet, zeit) {
   const queue = planet.werftQueue;
-  planet.schiffe[queue.schiffId] = (planet.schiffe[queue.schiffId] || 0) + queue.anzahl;
+  const ziel = queue.zielFlotte ? flotteById(state, queue.zielFlotte) : null;
+  const zielGueltig = !!(ziel && ziel.dockPlanet === planet.id);
+  if (zielGueltig) {
+    ziel.schiffe[queue.schiffId] = (ziel.schiffe[queue.schiffId] || 0) + queue.anzahl;
+  } else {
+    planet.schiffe[queue.schiffId] = (planet.schiffe[queue.schiffId] || 0) + queue.anzahl;
+  }
   meldungHinzufuegen(
     state,
-    t("{anzahl}× {schiff} auf {planet} fertiggestellt.", {
-      anzahl: queue.anzahl,
-      schiff: t(SCHIFFE[queue.schiffId].name),
-      planet: planet.name,
-    }),
+    zielGueltig
+      ? t("{anzahl}× {schiff} auf {planet} fertiggestellt und {flotte} zugewiesen.", {
+          anzahl: queue.anzahl,
+          schiff: t(SCHIFFE[queue.schiffId].name),
+          planet: planet.name,
+          flotte: ziel.name,
+        })
+      : queue.zielFlotte
+      ? t("{anzahl}× {schiff} auf {planet} fertiggestellt – Zielflotte nicht mehr hier, im Hafen gelandet.", {
+          anzahl: queue.anzahl,
+          schiff: t(SCHIFFE[queue.schiffId].name),
+          planet: planet.name,
+        })
+      : t("{anzahl}× {schiff} auf {planet} fertiggestellt.", {
+          anzahl: queue.anzahl,
+          schiff: t(SCHIFFE[queue.schiffId].name),
+          planet: planet.name,
+        }),
     null, herkunftVon(planet)
   );
   const naechster = planet.werftWarteschlange.shift();
@@ -4022,6 +4049,24 @@ export function missionBefehlen(state, flotte, missionsart, systemId, orbit, opt
     { art: "mission", missionsart, zielSystem: systemId, zielOrbit: orbit, ...missionsOptionen },
   ];
   if (rueckkehr) befehle.push({ art: "hafen", planetId: flotte.heimatPlanet });
+
+  // A-152: Eine Sonde wird nicht mehr "nach Gefühl" beladen -- reicht der
+  // schon geladene Treibstoff nicht für DIESE Strecke, tankt das Spiel vor
+  // dem Start automatisch genau den Fehlbetrag nach (dieselbe Rechnung wie
+  // kannMission oben, kein zweiter Rechenweg). Das ist die VOREINSTELLUNG,
+  // keine Sperre: "Wer mehr mitgeben will, als nötig ist, darf das" (Auftrag,
+  // wörtlich) -- liegt bereits genug oder mehr im Tank (bewusst im Hafen
+  // vorgetankt), bleibt das unangetastet, nichts wird zurückgebucht. Nur im
+  // Hafen möglich und nur ohne Rückkehr (die einzige Wahl, die eine Sonde
+  // überhaupt anbietet); reicht der Hafenbestand am Ende nicht ganz, greift
+  // die normale Treibstoffprüfung in befehleSetzen unten unverändert --
+  // verhindern statt bestrafen (Prinzip 3).
+  if (missionsart === "sonde" && flotte.dockPlanet && !rueckkehr) {
+    const ziel = ortVonSystem(state, systemId, orbit);
+    const bedarf = treibstoffFuer(flotte, strecke(flotte.ort, ziel));
+    if (flotte.treibstoff < bedarf) tanken(state, flotte, bedarf - flotte.treibstoff);
+  }
+
   return befehleSetzen(state, flotte, befehle, { einweg: !rueckkehr }, zeit);
 }
 
@@ -5254,6 +5299,35 @@ export function kannMission(state, flotte, missionsart, systemId, orbit, rueckke
     return { ok: false, grund: t("Flotte hat keine {schiff}.", { schiff: t(SCHIFFE[schiffId].name) }) };
   }
   const ziel = ortVonSystem(state, systemId, orbit);
+
+  // A-152: Eine Sonde wird beim Versand automatisch für GENAU DIESE Strecke
+  // betankt (missionBefehlen tankt aus dem Hafenlager nach, exakt bis zum
+  // Bedarf) -- die Prüfung rechnet deshalb nicht gegen das, was JETZT im Tank
+  // ist, sondern gegen das, was bis zum Start noch aus dem Lager dazukäme,
+  // gedeckelt durch die Tankkapazität (dieselbe Grenze, die tanken() selbst
+  // zieht -- kein zweiter Rechenweg). Nur im Hafen möglich (unterwegs gibt es
+  // kein Nachtanken) und nur ohne Rückkehr (die einzige Wahl, die eine
+  // Einwegsonde überhaupt anbietet) -- sonst gilt unverändert die alte
+  // Prüfung gegen den mitgeführten Bestand.
+  if (missionsart === "sonde" && flotte.dockPlanet && !rueckkehr) {
+    const bedarf = treibstoffFuer(flotte, strecke(flotte.ort, ziel));
+    const hafen = planetById(state, flotte.dockPlanet);
+    const verfuegbar = Math.min(
+      (flotte.treibstoff || 0) + Math.floor((hafen && hafen.ressourcen.tritium) || 0),
+      flotteTankKapazitaet(state, flotte)
+    );
+    if (verfuegbar < bedarf) {
+      return {
+        ok: false,
+        grund: t("Zu wenig Deuterium für dieses Ziel: {noetig} nötig, {verfuegbar} verfügbar (Tank + Lager).", {
+          noetig: Math.ceil(bedarf),
+          verfuegbar: Math.floor(verfuegbar),
+        }),
+      };
+    }
+    return { ok: true, treibstoffZiel: bedarf };
+  }
+
   return kannBefehlen(state, flotte, ziel, { einweg: !rueckkehr });
 }
 
@@ -6030,16 +6104,20 @@ export function kannSchiffBauen(state, planet, schiffId, anzahl = 1) {
 // hundert Tagen stand die Warteschlange unverändert, und keine einzige Kolonie
 // war entstanden. Betroffen und behoben sind inzwischen: befehleSetzen,
 // missionBefehlen, bauStarten, die Puffergrenze und jetzt schiffBauen.
-export function schiffBauen(state, planet, schiffId, anzahl = 1, zeit = null, nurWennBezahlbar = false) {
+// `zielFlotte` (A-151, optional, letzter Parameter): die ID einer Flotte, in
+// die die fertigen Schiffe direkt sollen, statt in den Hafen. Wird NICHT
+// sofort geprüft (die Flotte kann bis zur Fertigstellung noch abgedockt
+// werden) -- gültig ist sie erst bei werftAbschliessen, wo die Prüfung sitzt.
+export function schiffBauen(state, planet, schiffId, anzahl = 1, zeit = null, nurWennBezahlbar = false, zielFlotte = null) {
   const check = kannSchiffBauen(state, planet, schiffId, anzahl);
   if (!check.ok && !(check.nurGeld && !nurWennBezahlbar)) return check;
 
   const dauerSek = schiffsBauzeitSek(planet, schiffId, anzahl);
   if (!planet.werftQueue) {
-    planet.werftQueue = { schiffId, anzahl, dauerSek, startZeit: null, fertigZeit: null };
+    planet.werftQueue = { schiffId, anzahl, dauerSek, startZeit: null, fertigZeit: null, zielFlotte };
     kopfPruefen(state, planet, zeit ?? spielzeitJetzt(state));
   } else {
-    planet.werftWarteschlange.push({ schiffId, anzahl, dauerSek });
+    planet.werftWarteschlange.push({ schiffId, anzahl, dauerSek, zielFlotte });
   }
   planetGeaendert(planet);
   return { ok: true };

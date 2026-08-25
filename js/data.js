@@ -19,7 +19,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.4.0";
+export const VERSION = "0.5.0";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von uebernehmen.mjs beim Kopieren auf "spielkopie"
@@ -589,6 +589,8 @@ export const SYMBOLE = {
   // Literal im UI-Code) -- vorher sechsmal 🔒 und einmal 🔁 im Quelltext.
   gesperrt: "🔒",
   route: "🔁",
+  // A-140: das Zahnrad im Kopf, das das Einstellungsfenster öffnet.
+  einstellungen: "⚙️",
 };
 
 // Kartensymbole: Systemliste UND Galaxiekarte (js/karte.js) zeichnen
@@ -675,9 +677,22 @@ export const BUILDINGS = {
     //
     // Der Faktor ist BEWUSST kleiner als der der Energie (1,1 gegen 1,2):
     // höhere Stufen verbrennen je Megawatt weniger -- bessere Reaktoren.
-    // GEMESSEN, nicht gewählt: mit 1,2 fraß ein Stufe-15-Kraftwerk 1.387 t/h,
-    // mehr als jede realistische Förderung -- Bots sparten die Betankung
-    // ihres Kolonieschiffs nie zusammen, die Expansion stand galaxieweit.
+    // GEMESSEN, nicht gewählt: mit 1,2 fraß ein Stufe-15-Kraftwerk 1.387 t je
+    // Echtzeitstunde, mehr als jede realistische Förderung -- Bots sparten
+    // die Betankung ihres Kolonieschiffs nie zusammen, die Expansion stand
+    // galaxieweit.
+    //
+    // A-145/PRINZIPIEN.md § 0c: die zweite Hälfte dieser Begründung ("Bots
+    // sparten... nie zusammen") traegt seit dieser Regel nicht mehr -- das
+    // Zurechtkommen der Bots ist kein gueltiger Grund fuer einen Spielwert.
+    // Die Messung (1.387 t/h bei Faktor 1,2) bleibt richtig, der Schluss
+    // daraus nicht. Faktor 1,1 steht damit auf Wiedervorlage: BEFUND-ENDGAME-
+    // PLAYTHROUGH.md 13b misst, dass der Reaktor bei Faktor 1,1 nur 1,9 % der
+    // Deuteriumfoerderung frisst und der Bestand allein Stufe 15 rund 4.720
+    // Jahre traegt (Demo-Laenge: 478 Jahre) -- das hebt die Grundlage von
+    // A-008/A-055 auf ("ohne Brennstoffverbrauch hat Solar keine Nische").
+    // Der neue Wert ist eine Design-Entscheidung mit Zahlen und wird nicht
+    // hier gefaellt, siehe AUFTRAEGE/SOLL-IST.md.
     brennstoff: { tritium: { basis: 3, faktor: 1.1 } },
   },
   // Die zweite Energiewahl (A-055): billig, brennstofffrei -- und die
@@ -2678,10 +2693,10 @@ const skaliereRaten = (spezifikation) => {
 //
 // Diese Falle hat neunmal zugeschlagen (`tank`, `siedler`, Piratenmengen,
 // Gründungsschwellen, Forschungsaufwand …), zuletzt an `brennstoff` aus
-// A-055. Ein Kraftwerk der Stufe 15 verbrannte dadurch 188 statt 9.400 t/h,
-// und eine Tonne Deuterium war im Reaktor bis zum Vierzigtausendfachen dessen
-// wert, was ihre Förderung kostete -- gemessen im A-063-Ergebnis, an dem die
-// Deuterium-Anreicherung deshalb gescheitert ist.
+// A-055. Ein Kraftwerk der Stufe 15 verbrannte dadurch 188 statt 9.400 t je
+// Echtzeitstunde, und eine Tonne Deuterium war im Reaktor bis zum
+// Vierzigtausendfachen dessen wert, was ihre Förderung kostete -- gemessen im
+// A-063-Ergebnis, an dem die Deuterium-Anreicherung deshalb gescheitert ist.
 //
 // Die Liste ist die EINE Wahrheit: die Skalierung unten läuft über sie, und
 // `tests/massstab.test.js` sucht in den Gebäudedaten nach Feldern, die wie

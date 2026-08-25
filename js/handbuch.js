@@ -120,7 +120,7 @@ export function handbuchAbschnitte() {
           "Wenn Strom oder Leute knapp werden, teilt das Spiel sie von selbst gleichmäßig auf. Das ist im Normalfall vernünftig und im Notfall genau falsch: wer zu wenig hat, will nicht überall halb laufen, sondern das Wichtige ganz und den Rest gar nicht."
         ),
         t(
-          "Deshalb trägt jedes Gebäude eine Vorrangstufe: Vorrang, Normal oder Nachrang. Zugeteilt wird von oben nach unten – die höchste Stufe zuerst und vollständig, was übrig bleibt, fließt eine Stufe tiefer. Genau so wirft ein Stromnetz Lasten ab."
+          "Deshalb trägt jede Anlage eine Vorrangstufe: Vorrang, Normal oder Nachrang. Zugeteilt wird von oben nach unten – die höchste Stufe zuerst und vollständig, was übrig bleibt, fließt eine Stufe tiefer. Genau so wirft ein Stromnetz Lasten ab."
         ),
         t(
           "Solange alles reicht, ändert die Einstellung gar nichts. Sie ist keine Dauerrechenaufgabe, sondern eine Notfallentscheidung. Aber im Notfall ist sie die wichtigste, die du hast."
@@ -153,7 +153,7 @@ export function handbuchAbschnitte() {
           "Kein Planet ist wie der andere, und die Unterschiede sind keine Zufallszahlen, sondern folgen aus dem, was er ist. Eine Wüstenwelt trägt Metall und Silizium reichlich und lässt nichts wachsen. Ein Gasriese hat überhaupt keine Oberfläche, auf die man bauen könnte."
         ),
         t(
-          "Die Schwerkraft ist der stärkste einzelne Faktor, und das aus einem einfachen Grund: jedes Bauwerk muss sein eigenes Gewicht tragen. Auf einer schweren Welt kostet dasselbe Gebäude mehr Material."
+          "Die Schwerkraft ist der stärkste einzelne Faktor, und das aus einem einfachen Grund: jedes Bauwerk muss sein eigenes Gewicht tragen. Auf einer schweren Welt kostet dieselbe Anlage mehr Material."
         ),
         t(
           "Manches siehst du, ohne es nutzen zu können. Ein tiefliegendes Vorkommen bleibt sichtbar und verschlossen, bis du die passende Technologie hast. Entdecken und Verwerten sind zwei verschiedene Dinge. Verschlossen ist dabei nur die Quelle selbst – was schon vorher dort liegt oder zurückgelassen wurde, kannst du jederzeit bergen."
@@ -362,7 +362,7 @@ export function erststartTafel(planetName) {
       // bei jedem Aufruf neu, und ein wahrer fester Satz ist billiger als
       // eine Zustandsprüfung, die dasselbe sagt.
       t(
-        "Zum Anfangen genügt ein Handgriff: im Bereich Planet ein Gebäude ausbauen – Kraftwerk und Wohnmodul tragen alles andere. Geforscht wird erst, wenn ein Forschungslabor steht; Forschung ist kein Kauf, sondern Arbeit, und ohne Labor arbeitet niemand daran."
+        "Zum Anfangen genügt ein Handgriff: im Bereich Planet eine Anlage ausbauen – Kraftwerk und Wohnmodul tragen alles andere. Geforscht wird erst, wenn ein Forschungslabor steht; Forschung ist kein Kauf, sondern Arbeit, und ohne Labor arbeitet niemand daran."
       ),
     ],
     // Steht getrennt, weil es kein Inhalt ist, sondern der Weg zum Rest.

@@ -128,6 +128,11 @@ export const EN = {
   "Kein Brennstoff – der Reaktor ist aus. Er zündet wieder, sobald Deuterium für {dauer} im Lager liegt.":
     "No fuel – the reactor is out. It ignites again once there is deuterium for {dauer} in storage.",
   "Kein Brennstoff – Reaktor aus": "No fuel – reactor out",
+  // A-142: der Slot bleibt reserviert, statt bei fehlendem Kraftwerk zu
+  // verschwinden (G4/R-8).
+  "Ohne Kraftwerk gibt es keinen Brennstoffverbrauch – erst danach zieht der Reaktor Deuterium aus dem Lager.":
+    "Without a power plant there is no fuel draw – only once it is built does the reactor pull deuterium from storage.",
+  "Kein Kraftwerk gebaut": "No power plant built",
   "Deuterium im Lager geteilt durch den Verbrauch des Kraftwerks – Zufluss nicht eingerechnet.":
     "Deuterium in storage divided by the power plant's consumption – inflow not included.",
   "Brennstoff für {dauer}": "Fuel for {dauer}",
@@ -266,6 +271,11 @@ export const EN = {
   "entlädt {rate} {einheit}": "discharging {rate} {einheit}",
   "Speicher voll": "Store full",
   "Speicher leer": "Store empty",
+  // A-142: der Slot bleibt reserviert, statt bei fehlendem Speichergebäude
+  // zu verschwinden (G4/R-8) -- {gebaeude} ist bereits übersetzt eingesetzt.
+  "Noch kein {gebaeude} gebaut – die Zeile wartet auf den Bau.":
+    "No {gebaeude} built yet – the row is waiting to be built.",
+  "Kein {gebaeude} gebaut": "No {gebaeude} built",
   "Der Speicher deckt das Defizit – die Anlagen laufen weiter.":
     "The store is covering the deficit – production continues.",
   "Reicht noch {dauer}.": "Lasts another {dauer}.",
@@ -407,8 +417,8 @@ export const EN = {
   "bis {stern} kollabiert": "until {stern} collapses",
   "bis die Teilchenflut eintrifft": "until the particle flood arrives",
   "Die Flut ist da.": "The flood is here.",
-  "Das Neutrino-Observatorium liest die Brennstufe im Kern von {stern}, {lj} Lichtjahre entfernt. Wenn er kollabiert, zerlegt der Blitz die Ozonschicht – und mit ihr die Landwirtschaft jeder ungeschützten Welt.":
-    "The neutrino observatory reads the burning stage in the core of {stern}, {lj} light years away. When it collapses, the flash will destroy the ozone layer – and with it the agriculture of every unprotected world.",
+  "Das Neutrino-Observatorium liest die Brennstufe im Kern von {stern}, {lj} Lichtjahre entfernt. Wenn er kollabiert, zerlegt der Blitz die Ozonschicht – und mit ihr die Landwirtschaft jeder ungeschützten Welt. Diese erste Frist ist nicht die letzte: danach beginnt eine zweite, kürzere Frist bis zur Teilchenflut.":
+    "The neutrino observatory reads the burning stage in the core of {stern}, {lj} light years away. When it collapses, the flash will destroy the ozone layer – and with it the agriculture of every unprotected world. This first deadline isn't the last one: it's followed by a second, shorter deadline until the particle flood.",
   "{stern} ist kollabiert. Was jetzt heranzieht, ist die kosmische Teilchenflut – geladen, jahrtausendelang, und nur durch ein Magnetfeld aufzuhalten. Danach ist keine Flottenbewegung mehr möglich.":
     "{stern} has collapsed. What is coming now is the cosmic particle flood – charged, lasting millennia, and stoppable only by a magnetic field. After it, no fleet movement is possible.",
   "{stern} ist kollabiert. Der Blitz hat die Ozonschicht zerrissen – auf allen Welten wächst nichts mehr, bis sie sich erholt.":
@@ -499,6 +509,11 @@ export const EN = {
   "Zu wenig Deuterium: {noetig} nötig, {anBord} an Bord.": "Not enough deuterium: {noetig} needed, {anBord} on board.",
   "Zu wenig Deuterium: {noetig} nötig (inkl. Rückweg), {anBord} an Bord.":
     "Not enough deuterium: {noetig} needed (incl. return trip), {anBord} on board.",
+  // A-152: Sonden -- der Überschuss geht nicht mehr verloren, und man sieht,
+  // was man braucht.
+  "Zu wenig Deuterium für dieses Ziel: {noetig} nötig, {verfuegbar} verfügbar (Tank + Lager).":
+    "Not enough deuterium for this target: {noetig} needed, {verfuegbar} available (tank + storage).",
+  "{label} · {sprit} Deuterium": "{label} · {sprit} deuterium",
 
   // --- Meldungen (simulation.js) ------------------------------------------
   "Flotte {nr}": "Fleet {nr}",
@@ -590,12 +605,27 @@ export const EN = {
   Galaxie: "Galaxy",
   Handel: "Trade",
   Imperium: "Empire",
-  Gebäude: "Buildings",
+  // A-146: Tobis Entscheidung (24.08., SAMMEL-SPRUNG.md Nachtrag): "dann
+  // würde ich sagen Anlagen & Sektoren statt Gebäude." Ersetzt den früheren
+  // Schlüssel `Gebäude` -- der hatte genau einen Verwender (die Überschrift
+  // im Planetenbereich, index.html), der jetzt hierher zeigt. EN ist ein
+  // Vorschlag der Umsetzung (kein Reflex-"Buildings & Sectors" -- siehe
+  // Ergebnis A-146), "facility" folgt der bestehenden Übersetzung von
+  // "Anlage" (z.B. weiter unten in dieser Datei).
+  "Anlagen & Sektoren": "Facilities & Sectors",
   Verarbeitung: "Processing",
   Systeme: "Systems",
   Logistiknetz: "Logistics Network",
-  Status: "Status",
+  // A-144: "Status" wurde zur Überschrift der Warteschlange -- Tobis Befund
+  // (KONZEPT-LAGER E10), die Statusspalte sei "schon die bessere
+  // Warteschlange". "Queue" folgt der bestehenden Übersetzung des Wortes
+  // (siehe "Warteschlange ({belegt}/{max})..." unten).
+  Warteschlange: "Queue",
   Meldungen: "Log",
+  // A-150: Klaus' Frage ("Das mit den Meldungen musst du mir nochmal
+  // erzählen, was das ist.") -- der Bereich sagt jetzt selbst, was er ist.
+  "Was hier steht, betrifft dich – neue Anlagen, Ankünfte, Warnungen. Nichts ist damit weg, nur nicht mehr aktuell.":
+    "What's here concerns you – new facilities, arrivals, warnings. Nothing is gone because of it, just no longer current.",
   Testmodus: "Test mode",
   // Welcher der beiden Stände läuft gerade? Siehe STAND in data.js.
   Spielkopie: "Play copy",
@@ -709,6 +739,12 @@ export const EN = {
   "{flotte} im Gefecht": "{flotte} in combat",
   "{flotte} unterwegs": "{flotte} under way",
   "Nichts läuft gerade.": "Nothing is running.",
+  // A-144: P18-Antwort der drei neuen Warteschlangen-Abschnitte (Bau,
+  // Forschung, Werft), wenn weder ein Kopf läuft noch etwas wartet.
+  "Nichts in Arbeit.": "Nothing in progress.",
+  "Meldungsliste ein-/ausklappen": "Show/hide the message list",
+  "Meldungen wieder einblenden.": "Show the messages again.",
+  "Meldungen wegklappen.": "Hide the messages.",
   "Warteschlange ({belegt}/{max}) · noch {dauer}": "Queue ({belegt}/{max}) · {dauer} left",
   "Diese Aufträge starten nacheinander, sobald der laufende fertig ist. Die Kosten sind bereits abgezogen – ein eingereihter Auftrag findet also garantiert statt. Zusammen noch {dauer} Bauzeit.":
     "These orders start one after another as soon as the running one is done. Their costs are already deducted – a queued order is therefore guaranteed to happen. {dauer} of build time left in total.",
@@ -728,14 +764,23 @@ export const EN = {
   "Erforscht – schaltet gesperrte Objekte frei.": "Researched – unlocks sealed objects.",
   "Nächste Stufe: {kosten} · {dauer}": "Next level: {kosten} · {dauer}",
   "kein Labor – niemand forscht": "no lab – nobody is researching",
-  "{labore} Labore · {fluss} FE/h": "{labore} labs · {fluss} RU/h",
-  "1 Labor · {fluss} FE/h": "1 lab · {fluss} RU/h",
+  // A-143: die Forschung rechnet ihre Rate seit dieser Runde in Spieljahren
+  // (wie jede andere Rate) statt in der internen Echtzeitstunde -- die
+  // Einheit steckt jetzt in {fluss} selbst (forschungsRateText), nicht mehr
+  // fest im Schlüsseltext.
+  "{labore} Labore · {fluss}": "{labore} labs · {fluss}",
+  "1 Labor · {fluss}": "1 lab · {fluss}",
   "1 Labor, aber ohne Strom oder Menschen – es geht nichts voran":
     "1 lab, but no power or people – nothing is progressing",
   "{labore} Labore, aber ohne Strom oder Menschen – es geht nichts voran":
     "{labore} labs, but no power or people – nothing is progressing",
-  "Aufwand: {aufwand} FE · bei {fluss} FE/h aus allen Laboren: {dauer}":
-    "Effort: {aufwand} RU · at {fluss} RU/h from all labs: {dauer}",
+  "Aufwand: {aufwand} FE · bei {fluss} aus allen Laboren: {dauer}":
+    "Effort: {aufwand} RU · at {fluss} from all labs: {dauer}",
+  "{braucht} von {da} verbraucht · {frei} frei": "{braucht} of {da} consumed · {frei} free",
+  // Forschungs-eigene Einheit-Kurzform (FE/Jahr), siehe forschungsRateText in
+  // js/ui.js -- getrennt von mitEinheit()/einheit(), weil die die Einheit nie
+  // übersetzen (FUND aus A-142: "FE" blieb in Englisch unübersetzt stehen).
+  "FE/Jahr": "RU/Jahr",
   "Abbrechen – der bisherige Fortschritt ist verloren, gezahlt wurde mit Strom und Arbeitszeit":
     "Cancel – progress so far is lost; it was paid for with power and working hours",
   "Bringt zusätzlich: {mehr}": "Adds: {mehr}",
@@ -752,8 +797,8 @@ export const EN = {
 
   // --- Werft --------------------------------------------------------------
   "Ohne Werft lassen sich keine Schiffe bauen.": "Without a shipyard no ships can be built.",
-  "Werft Stufe {stufe} – baut {tempo}× so schnell wie eine Werft der Stufe 1. Jede weitere Stufe beschleunigt zusätzlich.":
-    "Shipyard level {stufe} – builds {tempo}× as fast as a level 1 shipyard. Every further level speeds it up more.",
+  "Werft Stufe {stufe} – baut {tempo}× so schnell wie eine Werft der Stufe 1. Jede weitere Stufe beschleunigt zusätzlich. Für Forschung gilt dasselbe Prinzip – aber am Forschungslabor, einer eigenen Anlage.":
+    "Shipyard level {stufe} – builds {tempo}× as fast as a level 1 shipyard. Every further level speeds it up more. The same principle applies to research – but at the research lab, a separate facility.",
   // Seit v0.83 zwei getrennte Schlüssel: der Abbrechen-Knopf steht fest im
   // Gerüst, damit die mitlaufende Restzeit ihn nicht jede Sekunde mitreißt
   // (Prinzip 8a, A-004). Vorher steckte der ganze Knopf als Markup im Text.
@@ -761,6 +806,14 @@ export const EN = {
   Abbrechen: "Cancel",
   "Bricht den laufenden Schiffbau ab. Die Kosten werden vollständig erstattet.":
     "Cancels the shipbuilding in progress. The costs are refunded in full.",
+  // A-151: Schiffe schon beim Bau einer Flotte zuweisen.
+  "In den Hafen": "To the harbor",
+  "Wohin die fertigen Schiffe nach dem Bau gehen. Voreinstellung: in den Hafen.":
+    "Where the finished ships go. Default: the harbor.",
+  "{anzahl}× {schiff} auf {planet} fertiggestellt und {flotte} zugewiesen.":
+    "{anzahl}× {schiff} completed at {planet} and assigned to {flotte}.",
+  "{anzahl}× {schiff} auf {planet} fertiggestellt – Zielflotte nicht mehr hier, im Hafen gelandet.":
+    "{anzahl}× {schiff} completed at {planet} – target fleet no longer here, landed in the harbor.",
   "Werft Stufe {stufe} · {tempo}× Bautempo": "Shipyard level {stufe} · {tempo}× build speed",
   "Kosten: {kosten} · {dauer}": "Cost: {kosten} · {dauer}",
   "{menge} Deuterium pro Strecke": "{menge} deuterium per leg",
@@ -792,8 +845,8 @@ export const EN = {
   "Außenposten haben keine Produktion.": "Outposts have no production.",
   '<div class="dezent">Außenposten haben kein Lager – sie verschieben nur deine Reichweite.</div>':
     '<div class="dezent">Outposts have no storage – they only extend your reach.</div>',
-  "Auf diesem Planeten verarbeitet noch keine Anlage gelagerte Rohstoffe. Anlagen, die das tun, zeigen ihren Bedarf auf der Gebäudekachel.":
-    "No facility on this planet processes stored raw materials yet. Those that do show their demand on the building tile.",
+  "Auf diesem Planeten verarbeitet noch keine Anlage gelagerte Rohstoffe. Anlagen, die das tun, zeigen ihren Bedarf auf der Anlagenkachel.":
+    "No facility on this planet processes stored raw materials yet. Those that do show their demand on the facility tile.",
   "{braucht} Bedarf · {zustrom} Zustrom, je Jahr": "{braucht} demand · {zustrom} inflow, per year",
   " – gedrosselt auf {anteil}%": " – throttled to {anteil}%",
   " – Bestand trägt noch {dauer}": " – stock carries it another {dauer}",
@@ -821,7 +874,8 @@ export const EN = {
     "Outposts have no port – pick a planet with an economy above.",
   "Stellt eine leere Flotte bei {planet} auf. Schiffe und Treibstoff lädst du danach im Hafen zu.":
     "Forms an empty fleet at {planet}. You load ships and fuel afterwards, in port.",
-  "Noch keine Flotte aufgestellt.": "No fleet formed yet.",
+  "Noch keine Flotte aufgestellt. Der Weg: Schiffe in der Werft bauen, hier eine Flotte gründen, im Hafen beladen, dann losschicken.":
+    "No fleet formed yet. The path: build ships at the shipyard, form a fleet here, load it in port, then send it off.",
   leer: "empty",
   " · Ankunft: {dauer}": " · arrival: {dauer}",
   "{flotte} · Heimathafen: {hafen}": "{flotte} · home port: {hafen}",
@@ -1107,8 +1161,8 @@ export const EN = {
   "Vorrang – die Entscheidung, die zählt": "Priority – the decision that counts",
   "Wenn Strom oder Leute knapp werden, teilt das Spiel sie von selbst gleichmäßig auf. Das ist im Normalfall vernünftig und im Notfall genau falsch: wer zu wenig hat, will nicht überall halb laufen, sondern das Wichtige ganz und den Rest gar nicht.":
     "When power or people run short, the game shares them out evenly by itself. That is sensible in normal times and exactly wrong in an emergency: when you have too little, you do not want everything running at half strength, you want the important thing running fully and the rest not at all.",
-  "Deshalb trägt jedes Gebäude eine Vorrangstufe: Vorrang, Normal oder Nachrang. Zugeteilt wird von oben nach unten – die höchste Stufe zuerst und vollständig, was übrig bleibt, fließt eine Stufe tiefer. Genau so wirft ein Stromnetz Lasten ab.":
-    "That is why every building carries a priority level: priority, normal or low. Allocation runs from the top down – the highest level first and in full, whatever remains flows down one level. This is exactly how a power grid sheds load.",
+  "Deshalb trägt jede Anlage eine Vorrangstufe: Vorrang, Normal oder Nachrang. Zugeteilt wird von oben nach unten – die höchste Stufe zuerst und vollständig, was übrig bleibt, fließt eine Stufe tiefer. Genau so wirft ein Stromnetz Lasten ab.":
+    "That is why every facility carries a priority level: priority, normal or low. Allocation runs from the top down – the highest level first and in full, whatever remains flows down one level. This is exactly how a power grid sheds load.",
   "Solange alles reicht, ändert die Einstellung gar nichts. Sie ist keine Dauerrechenaufgabe, sondern eine Notfallentscheidung. Aber im Notfall ist sie die wichtigste, die du hast.":
     "As long as there is enough, the setting changes nothing at all. It is not a permanent arithmetic chore but an emergency decision. In an emergency, though, it is the most important one you have.",
 
@@ -1125,8 +1179,8 @@ export const EN = {
   "Warum Welten sich unterscheiden": "Why worlds differ",
   "Kein Planet ist wie der andere, und die Unterschiede sind keine Zufallszahlen, sondern folgen aus dem, was er ist. Eine Wüstenwelt trägt Metall und Silizium reichlich und lässt nichts wachsen. Ein Gasriese hat überhaupt keine Oberfläche, auf die man bauen könnte.":
     "No planet is like another, and the differences are not random numbers but follow from what the planet is. A desert world carries metal and silicon in abundance and grows nothing. A gas giant has no surface to build on at all.",
-  "Die Schwerkraft ist der stärkste einzelne Faktor, und das aus einem einfachen Grund: jedes Bauwerk muss sein eigenes Gewicht tragen. Auf einer schweren Welt kostet dasselbe Gebäude mehr Material.":
-    "Gravity is the single strongest factor, for a simple reason: every structure has to carry its own weight. On a heavy world the same building costs more material.",
+  "Die Schwerkraft ist der stärkste einzelne Faktor, und das aus einem einfachen Grund: jedes Bauwerk muss sein eigenes Gewicht tragen. Auf einer schweren Welt kostet dieselbe Anlage mehr Material.":
+    "Gravity is the single strongest factor, for a simple reason: every structure has to carry its own weight. On a heavy world the same facility costs more material.",
   "Manches siehst du, ohne es nutzen zu können. Ein tiefliegendes Vorkommen bleibt sichtbar und verschlossen, bis du die passende Technologie hast. Entdecken und Verwerten sind zwei verschiedene Dinge. Verschlossen ist dabei nur die Quelle selbst – was schon vorher dort liegt oder zurückgelassen wurde, kannst du jederzeit bergen.":
     "Some things you can see without being able to use them. A deep deposit stays visible and locked until you have the matching technology. Discovering and exploiting are two different things. Only the source itself is locked – anything that was already lying there or left behind can be salvaged at any time.",
 
@@ -1149,6 +1203,11 @@ export const EN = {
   "Verwirrt? Das Handbuch erklärt, wie diese Welt funktioniert – was sie von dir will, und warum die Uhr läuft.":
     "Confused? The manual explains how this world works – what it wants from you, and why the clock is running.",
 
+  // A-150: der sofortige Hinweis auf die Oberfläche, bevor überhaupt geklickt
+  // wurde (im Gegensatz zum Handbuch-Hinweis oben, der eine Minute wartet).
+  "Oben die Ressourcen, links die Bereiche, rechts die Statusspalte mit Meldungen – kurz erklärt im Handbuch.":
+    "Resources up top, areas on the left, the status column with messages on the right – briefly explained in the manual.",
+
   // Das Erklärfenster beim allerersten Start (erststartTafel in
   // js/handbuch.js). Zwei seiner vier Absätze sind wörtlich aus dem Handbuch
   // geborgt und stehen deshalb weiter oben -- hier steht nur, was es NICHT
@@ -1158,8 +1217,8 @@ export const EN = {
     "You run exactly one world: {planet}. One habitat, a small stock of supplies – and a sky full of stars where no one has ever been.",
   // A-045: der alte Satz empfahl das Forschen, das im Startzustand gar nicht
   // geht -- genau die Stelle, die Chris gemeldet hat.
-  "Zum Anfangen genügt ein Handgriff: im Bereich Planet ein Gebäude ausbauen – Kraftwerk und Wohnmodul tragen alles andere. Geforscht wird erst, wenn ein Forschungslabor steht; Forschung ist kein Kauf, sondern Arbeit, und ohne Labor arbeitet niemand daran.":
-    "One move is enough to start: upgrade a building under Planet – the power plant and the habitat carry everything else. Research only begins once a research lab stands; research is not a purchase but work, and without a lab nobody is doing it.",
+  "Zum Anfangen genügt ein Handgriff: im Bereich Planet eine Anlage ausbauen – Kraftwerk und Wohnmodul tragen alles andere. Geforscht wird erst, wenn ein Forschungslabor steht; Forschung ist kein Kauf, sondern Arbeit, und ohne Labor arbeitet niemand daran.":
+    "One move is enough to start: upgrade a facility under Planet – the power plant and the habitat carry everything else. Research only begins once a research lab stands; research is not a purchase but work, and without a lab nobody is doing it.",
   "Die Uhr oben im Kopf zeigt, wieviel Zeit bleibt. Alles Weitere steht im Handbuch – jederzeit, unterster Eintrag in der Leiste links.":
     "The clock in the header shows how much time is left. Everything else is in the manual – at any time, bottom entry in the bar on the left.",
   "Handbuch öffnen": "Open the manual",
@@ -1395,4 +1454,12 @@ export const EN = {
     "For walking away to be safe, your save has to survive the break – and it lives in your browser's storage. The browser may clear it on its own: when you delete your history, in private mode, or when it runs out of space.",
   "Vorsorge dagegen steht im Bereich Development unter „Spielstand“: dort holst du deinen Stand als Text heraus und legst ihn ab, wo er dir gehört – und spielst ihn von dort auch wieder ein.":
     "The precaution against that is in the Development area under “Save game”: pull your save out as text, keep it somewhere that is yours – and load it back from there.",
+
+  // --- Einstellungsfenster (A-140) -----------------------------------------
+  Einstellungen: "Settings",
+  Sprache: "Language",
+  "Größe der Oberfläche": "Interface size",
+  "Verkleinert die ganze Oberfläche zwischen 70 % und 100 % -- wirkt sofort. Praktisch bei wenig Bildschirmplatz, geht auf Kosten der Lesbarkeit.":
+    "Shrinks the whole interface between 70% and 100% -- takes effect immediately. Useful when screen space is tight, at the cost of readability.",
+  Schließen: "Close",
 };

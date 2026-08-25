@@ -60,10 +60,6 @@
         <span id="planet-koordinaten" class="dezent"></span>
       </div>
       <div class="kopf-planetenwahl" id="planeten-leiste"></div>
-      <!-- Sprachwahl. Bewusst im Kopf und immer sichtbar: ein neuer Tester
-           soll sie finden, ohne zu suchen. Die Wahl liegt in einem eigenen
-           localStorage-Eintrag, nicht im Spielstand -- sonst wäre sie beim
-           nächsten Versionssprung wieder weg. -->
       <!-- Feedback-Verweis (A-018). Fester Platz, unaufdringlich: ein Link,
            kein Knopf -- er konkurriert damit optisch nicht mit den
            Spielaktionen (Prinzip 8). Das Ziel (ein vorbefülltes GitHub-Formular
@@ -72,7 +68,16 @@
            neu entsteht und nie einen Klick verliert (Prinzip 8a). -->
       <a class="kopf-feedback" id="feedback-link" href="https://github.com/Mahola2033/entropy-demo/issues/new"
          target="_blank" rel="noopener noreferrer" data-text="Feedback"></a>
-      <div class="kopf-sprache" id="sprach-leiste"></div>
+      <!-- Das Zahnrad (A-140, R-24). Ersetzt die Sprachleiste, die bis hierhin
+           an dieser Stelle stand -- sie zieht vollständig ins Einstellungs-
+           fenster (weiter unten, #einstellungen) um. Ein Symbol statt einer
+           ganzen Leiste macht den Kopf dadurch NETTO SCHMALER, nicht breiter:
+           genau der Grund, warum R-24 diesen Weg und keinen der beiden anderen
+           entschieden hat. Der erweiterbare Ort dahinter nimmt jede künftige
+           Einstellung auf, ohne dass die Frage "wo gehört das hin" erneut
+           gestellt werden muss. Das Symbol selbst setzt js/ui.js aus der
+           Symboltabelle (Prinzip 9) -- kein Emoji-Literal hier. -->
+      <button class="kopf-einstellungen" id="einstellungen-knopf" data-titel="Einstellungen"></button>
       <!-- data-text: feste Beschriftung, die js/ui.js beim Zeichnen durch t()
            schickt. Der deutsche Text im Attribut IST der Übersetzungsschlüssel,
            genau wie im Quelltext -- siehe js/sprache.js. -->
@@ -111,7 +116,18 @@
              und füllt sie danach nur noch (Prinzip 8a). -->
         <h2 data-text="Diese Welt in Zahlen"></h2>
         <div id="planet-uebersicht" class="uebersicht"></div>
-        <h2 data-text="Gebäude"></h2>
+        <!-- A-146: Sammelwort fuer den Spieler ist "Anlagen & Sektoren"
+             (Tobi, 24.08.). BEWUSST ein rohes & im Attribut, nicht &amp;:
+             renderFesteTexte (js/ui.js) liest data-text ueber .textContent,
+             kein innerHTML -- ein rohes & ist hier sicher. Wichtiger: der
+             Regeltest (tests/sprache.test.js, "jede feste Beschriftung")
+             liest diese Datei als reinen Text OHNE Entity-Dekodierung; ein
+             &amp; hier wuerde als ANDERER Schluessel geprueft als der, den
+             der Browser zur Laufzeit aus data-text liest (der dekodiert).
+             Erst mit dem rohen & stimmen Test-Schluessel und Laufzeit-
+             Schluessel ueberein (gemessen: mit &amp; schlug
+             sprache.test.js:147 fehl, siehe Ergebnis A-146). -->
+        <h2 data-text="Anlagen & Sektoren"></h2>
         <ul id="gebaeude-liste" class="kachel-raster"></ul>
         <div id="gebaeude-warteschlange" class="warteschlange"></div>
         <!-- Immer sichtbar, auch ohne laufende Kette: der Block erklärt dann,
@@ -122,10 +138,14 @@
         <div id="verarbeitung-block"></div>
       </section>
 
+      <!-- A-144: Die Forschungs-Warteschlange stand hier bis v0.4.4 als
+           #forschung-warteschlange, rund 1.500 px tief im Baum-Layout
+           (KONZEPT-LAGER E10) -- bei Klaus' 520 px Fensterhöhe über tausend
+           Pixel Scrollweg, praktisch unerreichbar. Sie ist jetzt Teil der
+           Statusspalte (renderStatus, #status-forschung-warteschlange). -->
       <section class="bereich" data-bereich="forschung" hidden>
         <h2><span data-text="Forschung"></span> <span class="dezent" id="forschung-info"></span></h2>
         <ul id="forschung-liste" class="kachel-raster baum"></ul>
-        <div id="forschung-warteschlange" class="warteschlange"></div>
       </section>
 
       <section class="bereich" data-bereich="werft" hidden>
@@ -257,20 +277,68 @@
     <aside class="statusspalte eingeklappt" id="statusspalte">
       <button class="statusspalte-griff" id="statusspalte-griff" data-titel="Statusspalte ein-/ausklappen"></button>
       <div class="statusspalte-inhalt">
-        <h2 data-text="Status"></h2>
-        <div id="status-block" class="status-block"></div>
-        <!-- Kopfzeile der Meldungen mit dem Umschalter. Der Knopf steht
-             AUSSERHALB der Liste, und das ist kein Layoutgeschmack: die Liste
-             wird im Sekundentakt neu befüllt, ein Knopf darin verlöre nach
-             Prinzip 8a regelmäßig seinen Klick. Hier steht er im festen
-             Markup und wird nie ersetzt.
+        <!-- A-144: Tobis Befund (KONZEPT-LAGER E10) -- "die Status Spalte
+             ist schon die bessere Warteschlange... man muss es nur abtrennen
+             und umbennen". Aus dem einen #status-block (früher: EINE Zeile je
+             Kategorie) werden drei benannte Abschnitte mit je eigenem Deckel;
+             jeder zeigt den laufenden Kopf UND die volle Warteschlange
+             dahinter (renderStatus/renderWarteschlange, js/ui.js). AUSDRÜCKLICH
+             EIN VERSUCH mit drei Abschnitten (Tobis Wortlaut: "Wir probieren
+             es mal mit drei."), keine Festlegung -- siehe Ergebnis A-144.
 
-             Warum es ihn gibt -- Tobi beim ersten eigenen Spielen (16.08.2026):
-             "log ist grade gut für debugging, grausam für spieler. Man sieht
-             alles im ganzen Universum passieren." -->
+             Statisch heißt: die Höhe springt nicht (Tobis Entscheidung,
+             25.08.). Jeder Abschnitt ist per CSS (.ws-mini) fest drei Zeilen
+             hoch und scrollt intern, egal ob leer oder bei zehn Einträgen. -->
+        <h2 data-text="Warteschlange"></h2>
+
+        <div class="ws-abschnitt" data-ws="bau">
+          <h3 class="ws-deckel" data-text="Bau"></h3>
+          <div class="ws-mini">
+            <div id="status-bau-kopf"></div>
+            <div id="status-bau-warteschlange"></div>
+          </div>
+        </div>
+        <div class="ws-abschnitt" data-ws="forschung">
+          <h3 class="ws-deckel" data-text="Forschung"></h3>
+          <div class="ws-mini">
+            <div id="status-forschung-kopf"></div>
+            <div id="status-forschung-warteschlange"></div>
+          </div>
+        </div>
+        <div class="ws-abschnitt" data-ws="werft">
+          <h3 class="ws-deckel" data-text="Werft"></h3>
+          <div class="ws-mini">
+            <div id="status-werft-kopf"></div>
+            <div id="status-werft-warteschlange"></div>
+          </div>
+        </div>
+
+        <!-- Rest-Statusblock: was A-144 abtrennte, blieb hier übrig --
+             Flottenbewegung (Gefecht, Abschnitt) und Logistiktransfers. Kein
+             Bauauftrag, passt in keinen der drei Deckel (Deutung der Planung,
+             siehe A-144-Auftrag). -->
+        <div id="status-block" class="status-block"></div>
+
+        <!-- Kopfzeile der Meldungen mit den beiden Umschaltern. Die Knöpfe
+             stehen AUSSERHALB der Liste, und das ist kein Layoutgeschmack: die
+             Liste wird im Sekundentakt neu befüllt, ein Knopf darin verlöre
+             nach Prinzip 8a regelmäßig seinen Klick. Hier stehen sie im festen
+             Markup und werden nie ersetzt.
+
+             Warum es den Filter gibt -- Tobi beim ersten eigenen Spielen
+             (16.08.2026): "log ist grade gut für debugging, grausam für
+             spieler. Man sieht alles im ganzen Universum passieren."
+
+             Der Griff daneben ist neu (A-144): dieselbe Notbremse wie beim
+             Statusspalten-Griff, weil die drei neuen Abschnitte darüber die
+             Resthöhe der Meldungen drücken (E10/E14) -- hier klappt man sie
+             im Ernstfall selbst weg. Anders als der Statusspalten-Griff liegt
+             der Zustand im SPIELSTAND (state.meldungenZu), nicht nur in der
+             Sitzung -- Save-Kategorie 1, `|| false`-Muster wie state.logAlles. -->
         <div class="meldungen-kopf">
-          <h2 data-text="Meldungen"></h2>
+          <h2 data-text="Meldungen" data-titel="Was hier steht, betrifft dich – neue Anlagen, Ankünfte, Warnungen. Nichts ist damit weg, nur nicht mehr aktuell."></h2>
           <button id="meldungen-filter" class="meldungen-filter"></button>
+          <button id="meldungen-griff" class="meldungen-griff" data-titel="Meldungsliste ein-/ausklappen"></button>
         </div>
         <ul id="meldungen-liste" class="meldungen-liste"></ul>
       </div>
@@ -297,6 +365,51 @@
        Es ist eine eigene Ebene wie der Abspann und bewusst NICHT im .rahmen:
        das Regionen-Layout darf davon nichts merken (Prinzip 8). -->
   <div class="erstklaerung" id="erstklaerung" hidden></div>
+
+  <!-- Das Einstellungsfenster (A-140, R-24). Hinter dem Zahnrad im Kopf, mit
+       Esc zu schließen -- ein erweiterbarer Ort, kein Einzelzweck-Dialog: die
+       Sprachwahl ist aus dem Kopf hierher gezogen, die Grundskalierung ist
+       ihr erster eigener Bewohner, eine dritte Einstellung kommt später ohne
+       Umbau dazu (eine Zeile mehr in dieser Liste).
+
+       Dieselbe Bauform wie Abspann und Erstklärung: eine feste Ebene über
+       allem, eine Tafel darin -- deshalb bewusst NICHT im .rahmen (Prinzip 8).
+       Anders als dort bleibt der Inhalt hier aber STATISCH MARKUP statt per
+       JS gebaut: nichts hier ist eine Liste, die pro Sprache oder Spielstand
+       wechselt -- renderFesteTexte (js/ui.js) befüllt data-text/data-titel wie
+       überall sonst im festen Kopf/Testmodus-Markup, ein zweiter Baumechanismus
+       für eine Handvoll fester Zeilen wäre unnötig. -->
+  <div class="einstellungen" id="einstellungen" hidden>
+    <div class="einstellungen-tafel">
+      <h2 data-text="Einstellungen"></h2>
+
+      <div class="einstellungen-zeile">
+        <span class="dezent" data-text="Sprache"></span>
+        <!-- Dieselbe Leiste, derselbe Mechanismus (renderSprachwahl in
+             js/ui.js), nur an ihrem neuen Ort -- die Funktion kennt ihr Ziel
+             über die ID, nicht über den umgebenden Rahmen. -->
+        <div class="kopf-sprache" id="sprach-leiste"></div>
+      </div>
+
+      <div class="einstellungen-zeile">
+        <span class="dezent" data-text="Größe der Oberfläche"></span>
+        <!-- A-140 (ehemals A-124). 70-100%: ein Faktor an der Wurzel
+             (js/ui.js liest den Regler und setzt documentElement.style.
+             fontSize), die rem-Schriftskala und alles in rem gemessene
+             zieht mit. Bewusst als Regler wie das übrige Spiel
+             (.schieber-gruppe, z.B. beim Tanken) und nicht als Texteingabe --
+             der Effekt soll sich beim Ziehen sofort zeigen. -->
+        <input type="range" class="einstellungen-regler" id="grundskalierung-regler"
+               min="70" max="100" step="1"
+               data-titel="Verkleinert die ganze Oberfläche zwischen 70 % und 100 % -- wirkt sofort. Praktisch bei wenig Bildschirmplatz, geht auf Kosten der Lesbarkeit." />
+        <span class="einstellungen-wert" id="grundskalierung-wert"></span>
+      </div>
+
+      <div class="einstellungen-knoepfe">
+        <button id="einstellungen-schliessen" data-text="Schließen"></button>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="js/main.js"></script>
 </body>

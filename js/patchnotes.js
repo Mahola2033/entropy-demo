@@ -28,6 +28,119 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.5.0",
+    de: [
+      "Dies ist der fünfte veröffentlichte Demo-Stand — zehn Runden seit dem letzten. Und der erste mit einer Formatänderung am Spielstand, bei der du nichts verlierst: Beim ersten Laden wird dein Stand automatisch angehoben, eine Sicherung des alten bleibt zusätzlich liegen.",
+      "Die Warteschlangen sind umgezogen: Bau, Forschung und Werft stehen jetzt als drei feste Abschnitte oben in der Statusspalte — mit allem, was wartet, nicht nur dem laufenden Auftrag. Einträge lassen sich dort direkt entfernen und umsortieren, und die Meldungen darunter kannst du wegklappen.",
+      "Neu im Kopf der Seite: ein Zahnrad. Dahinter wohnen ab jetzt die Einstellungen — als Erstes die Größe der Oberfläche und die Sprachwahl.",
+      "„Gebäude“ heißen jetzt überall „Anlagen & Sektoren“. Beim Anlegen einer Flotte kannst du Schiffe sofort zuweisen, ohne den Umweg über die Übersicht. Sonden tanken beim Losschicken automatisch genau so viel, wie die Reise kostet — der Knopf nennt den Preis, bevor du klickst.",
+      "Für den Einstieg: Beim ersten Öffnen erklärt eine kurze Meldung die Oberfläche, der leere Flotten-Bereich sagt den ganzen Weg vom Bauen bis zum Losschicken, und der Supernova-Countdown verrät, dass auf ihn noch eine zweite, kürzere Frist folgt. Die Forschung zeigt ihr Tempo jetzt in Punkten je Spieljahr, wie jede andere Rate auch.",
+    ],
+    en: [
+      "This is the fifth published demo build — ten rounds since the last one. And the first with a change to the save format where you lose nothing: on first load your save is lifted automatically, and a backup of the old one is kept as well.",
+      "The queues have moved: construction, research and shipyard now sit as three fixed sections at the top of the status column — showing everything that is waiting, not just the running job. You can remove and reorder entries right there, and the messages below can be folded away.",
+      "New in the page header: a gear. That is where the settings live from now on — starting with the size of the interface and the language choice.",
+      "“Buildings” are now called “Facilities & Sectors” everywhere. When creating a fleet you can assign ships right away, without the detour through the overview. Probes now fuel up automatically with exactly what the trip costs — the button names the price before you click.",
+      "For getting started: on first opening, a short message explains the interface, the empty fleet area spells out the whole path from building to launching, and the supernova countdown reveals that a second, shorter deadline follows it. Research now shows its speed in points per game year, like every other rate.",
+    ],
+  },
+  {
+    version: "0.4.10",
+    de: [
+      "Ersteinstieg: gleich beim Öffnen erklärt eine kurze Meldung, was Ressourcenleiste, Bereiche und Statusspalte sind. Steht noch keine Flotte, sagt der leere Bereich den ganzen Weg vom Bauen bis zum Losschicken. Der Countdown zur Supernova sagt jetzt selbst, dass auf ihn noch eine zweite, kürzere Frist folgt. Werft und Meldungen erklären sich über ihre Tooltips selbst.",
+    ],
+    en: [
+      "First steps: right when you open the game, a short message explains what the resource bar, the areas and the status column are. With no fleet yet, the empty area spells out the whole path from building to launching. The countdown to the supernova now says itself that a second, shorter deadline follows it. The shipyard and the message log now explain themselves via their tooltips.",
+    ],
+  },
+  {
+    version: "0.4.9",
+    de: [
+      "Sonden rechnen jetzt selbst, wie viel Treibstoff ihr Ziel kostet, und der Versand-Knopf nennt die Zahl, bevor du klickst. Ist noch nichts eingetankt, lädt das Spiel automatisch genau so viel nach – nicht mehr und nicht weniger, der Rest bleibt im Lager. Hast du selbst mehr eingetankt, bleibt das unangetastet.",
+    ],
+    en: [
+      "Probes now calculate the fuel their target costs themselves, and the launch button shows the number before you click. If nothing is tanked yet, the game automatically refuels exactly that much – no more, no less, the rest stays in storage. If you tanked more yourself, that stays untouched.",
+    ],
+  },
+  {
+    version: "0.4.8",
+    de: [
+      "Schiffe lassen sich jetzt schon beim Bau einer Flotte zuweisen: die Werft bekommt ein Ziel-Feld, Voreinstellung „In den Hafen“ wie bisher. Ist die Zielflotte beim Fertigwerden unterwegs oder weg, landen die Schiffe wie gewohnt im Hafen, mit einem Hinweis dazu.",
+    ],
+    en: [
+      "Ships can now be assigned to a fleet right when you order them at the shipyard: the shipyard gets a target field, defaulting to “To the harbor” as before. If the target fleet is away or gone once the order finishes, the ships land in the harbor as usual, with a note about it.",
+    ],
+  },
+  {
+    version: "0.4.7",
+    de: [
+      "„Gebäude“ heißt jetzt „Anlagen & Sektoren“ – so, wie du es im Spiel liest, ändert sich sonst nichts: dieselben Anlagen, dieselbe Bedienung, nur das Sammelwort dafür ist neu.",
+    ],
+    en: [
+      "“Buildings” is now called “Facilities & Sectors” – everything you read in the game changes to match, nothing else does: the same facilities, the same controls, just a new collective name for them.",
+    ],
+  },
+  {
+    version: "0.4.6",
+    de: [
+      "Nur intern: eine Vorrangregel für Design-Konflikte steht jetzt im Regelwerk (PRINZIPIEN.md § 0c) – Realismus und Gameplay dominieren, das Zurechtkommen der Bots ist kein Grund, eine Spielzahl zu ändern. Ein betroffener Kommentar im Datenmodul ist entsprechend ergänzt. Kein Spielwert hat sich in dieser Runde geändert.",
+    ],
+    en: [
+      "Internal only: a priority rule for design conflicts now lives in the rulebook (PRINZIPIEN.md § 0c) – realism and gameplay dominate, bots struggling is not a reason to change a game value. One affected comment in the data module was annotated accordingly. No game value changed in this round.",
+    ],
+  },
+  {
+    version: "0.4.5",
+    de: [
+      "Die Statusspalte rechts zeigt jetzt für Bau, Forschung und Werft nicht mehr nur den gerade laufenden Auftrag, sondern die ganze Warteschlange dahinter – zum Entfernen und Umsortieren direkt an Ort und Stelle. Drei feste Abschnitte als erster Versuch, jeder mit fester Höhe, damit die Spalte nicht springt.",
+      "Die Meldungen bekommen einen eigenen Knopf zum Wegklappen, falls es mal eng wird.",
+    ],
+    en: [
+      "The status column on the right now shows, for construction, research and shipyard, not just the currently running order but the whole queue behind it – with remove and reorder controls right there. Three fixed sections as a first attempt, each a fixed height so the column never jumps.",
+      "The messages get their own button to fold them away if things get tight.",
+    ],
+  },
+  {
+    version: "0.4.4",
+    de: [
+      "Die Forschungsrate steht jetzt in derselben Zeiteinheit wie jede andere Ressource: statt einer riesigen Zahl ohne Zeitbezug siehst du jetzt z. B. \"109.575 FE/Jahr\" – vergleichbar mit dem, was deine Minen im selben Zeitraum fördern. Die Dauer laufender Forschung ändert sich dadurch nicht.",
+    ],
+    en: [
+      "The research rate now uses the same time unit as every other resource: instead of one huge number with no sense of time, you now see e.g. \"109,575 RU/year\" – comparable to what your mines extract in the same period. The duration of ongoing research is unaffected.",
+    ],
+  },
+  {
+    version: "0.4.3",
+    de: [
+      "Die Energie-Kachel springt nicht mehr, wenn du zwischen Welten wechselst: Speicherzeile und Brennstoffzeile bleiben jetzt sichtbar, auch wenn noch kein Energiespeicher oder Kraftwerk gebaut ist – und sagen dann, was fehlt, statt einfach zu verschwinden.",
+      "Zahlen in der Ressourcenleiste rutschen außerdem nicht mehr seitlich, wenn sie kürzer werden.",
+    ],
+    en: [
+      "The energy tile no longer jumps when you switch between worlds: the storage and fuel rows now stay visible even without an energy store or power plant built – and say what's missing instead of just disappearing.",
+      "Numbers in the resource bar also no longer shift sideways when they get shorter.",
+    ],
+  },
+  {
+    version: "0.4.2",
+    de: [
+      "Nur intern: Alte Spielstände können ab jetzt beim Laden auf den neuesten Stand angehoben werden, statt bei jeder Formatänderung verworfen zu werden. Für diese Runde ändert sich dadurch nichts Sichtbares.",
+    ],
+    en: [
+      "Internal only: old save games can now be upgraded to the current format when loading, instead of being discarded on every format change. Nothing visible changes in this round.",
+    ],
+  },
+  {
+    version: "0.4.1",
+    de: [
+      "Ein Zahnrad im Kopf öffnet jetzt ein Einstellungsfenster. Die Sprachwahl ist dorthin umgezogen – sie steht nicht mehr im Kopf, sondern im Fenster dahinter (Esc schließt es wieder).",
+      "Neu darin: ein Regler, der die ganze Oberfläche zwischen 70 % und 100 % verkleinert. Praktisch bei wenig Platz auf dem Bildschirm, auf Kosten der Lesbarkeit – die Wahl bleibt gespeichert.",
+    ],
+    en: [
+      "A gear icon in the header now opens a settings window. The language switch has moved there – it no longer sits in the header itself, but in the window behind the gear (Esc closes it again).",
+      "New inside: a slider that shrinks the whole interface between 70% and 100%. Useful when screen space is tight, at the cost of readability – your choice is saved.",
+    ],
+  },
+  {
     version: "0.4.0",
     de: [
       "Dies ist der vierte veröffentlichte Demo-Stand — elf Runden seit dem letzten. Kein Spielstand geht dabei verloren.",
