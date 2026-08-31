@@ -42,6 +42,7 @@ import {
   LJ_PRO_EINHEIT,
   rateProJahr,
   ANREICHERUNG_VERLUST,
+  ARBEITSKRAFT_LEERLAUF,
 } from "./data.js";
 import {
   effektiveRaten,
@@ -99,6 +100,10 @@ import {
   logistikMindestbestandSetzen,
   verarbeitungsReserveFuer,
   verarbeitungsReserveSetzen,
+  maxBestandFuer,
+  maxBestandSetzen,
+  handelsMindestFuer,
+  handelsMindestSetzen,
   gebaeudeKosten,
   schiffKosten,
   schiffMaxBezahlbar,
@@ -116,6 +121,9 @@ import {
   brennstoffReichweiteMs,
   brennstoffProStunde,
   BRENNSTOFF_ANLAUF_MS,
+  fossilBereit,
+  fossilReichweiteMs,
+  fossilVerbrauchProStunde,
 } from "./state.js";
 import {
   bauStarten,
@@ -700,8 +708,11 @@ export function render(state, root) {
   if (sichtbar("planet")) {
     teil("uebersicht", () => renderUebersicht(state, root, planet));
     teil("gebaeude", () => renderGebaeude(state, root, planet));
-    teil("verarbeitung", () => renderVerarbeitung(state, root, planet));
   }
+  // A-153: der Lager-Bereich uebernimmt die Bestaende samt der Verarbeitungs-
+  // Reserve -- ihr alter Platz im Planet-Bereich (renderVerarbeitung) ist
+  // damit weg, nicht verdoppelt.
+  if (sichtbar("lager")) teil("lager", () => renderLager(state, root, planet));
   if (sichtbar("forschung")) teil("forschung", () => renderForschung(state, root, planet));
   if (sichtbar("werft")) teil("werft", () => renderWerft(state, root, planet, jetzt));
   if (sichtbar("handel")) {
@@ -990,20 +1001,7 @@ function speicherEinheit(resId) {
 //
 // A-076: liefert WERTE, kein HTML. Die Zeile ist ein fester Knoten in der
 // Kachel und bekommt bloß frische Werte -- siehe renderRessourcen.
-function brennstoffZeile(planet) {
-  const stufe = (planet.gebaeude && planet.gebaeude.kraftwerk) || 0;
-  if (stufe <= 0) {
-    // A-142 (= A-108 Punkt 3, R-8/G4): Kein Kraftwerk heißt keine Buchung,
-    // nicht "nichts zu sagen" -- der Slot bleibt reserviert statt zu
-    // verschwinden. Das war der A-104-Befund: eine frische Kolonie verlor
-    // hier eine ganze Zeile, die Kopfreihe wurde flacher, und alles darunter
-    // rutschte hoch (der ~20-px-Versatz aus Tobis Bericht).
-    return {
-      titel: t("Ohne Kraftwerk gibt es keinen Brennstoffverbrauch – erst danach zieht der Reaktor Deuterium aus dem Lager."),
-      text: `⚛️ ${t("Kein Kraftwerk gebaut")}`,
-      warnung: false,
-    };
-  }
+function kraftwerkBrennstoffZeile(planet, stufe) {
   if (!brennstoffBereit(planet, BUILDINGS.kraftwerk, stufe)) {
     const text = t("Kein Brennstoff – der Reaktor ist aus. Er zündet wieder, sobald Deuterium für {dauer} im Lager liegt.", {
       dauer: fmtDauer(BRENNSTOFF_ANLAUF_MS / 1000),
@@ -1044,6 +1042,116 @@ function brennstoffZeile(planet) {
     titel,
     text: `⚛️ ${t("Brennstoff für {dauer}", { dauer: fmtDauer(reichweite / 1000) })}`,
     warnung: knapp,
+  };
+}
+
+// A-148: dritte Anlage mit demselben Lager-Brennstoff-Mechanismus wie das
+// Kraftwerk (nur Uran statt Deuterium) -- deshalb dieselben Bausteine
+// (brennstoffBereit/brennstoffReichweiteMs/brennstoffProStunde), nur mit
+// kernkraftanlage-eigenem Wortlaut. Absichtlich eine eigene Funktion statt
+// einer geteilten Abstraktion über den Stoffnamen: dieselbe Kollegen-Wahl
+// wie bei rohRaten/produktionsAufloesung (siehe deren Kommentare) -- zwei
+// explizite Funktionen sind hier lesbarer als eine, die "Deuterium"/"Uran"
+// und "Reaktor" als Parameter durchreicht.
+function kernkraftBrennstoffZeile(planet, stufe) {
+  if (!brennstoffBereit(planet, BUILDINGS.kernkraftanlage, stufe)) {
+    const text = t("Kein Brennstoff – der Reaktor ist aus. Er zündet wieder, sobald Uran für {dauer} im Lager liegt.", {
+      dauer: fmtDauer(BRENNSTOFF_ANLAUF_MS / 1000),
+    });
+    return { titel: text, text: `☢️ ${t("Kein Brennstoff – Reaktor aus")}`, warnung: true };
+  }
+  const reichweite = brennstoffReichweiteMs(planet);
+  if (!Number.isFinite(reichweite)) return null;
+  const verbrauchText = Object.entries(brennstoffProStunde(planet))
+    .map(([resId, proStunde]) => ratenText(resId, proStunde))
+    .join(" · ");
+  const titel = [
+    t("Uran im Lager geteilt durch den Verbrauch der Kernkraftanlage – Zufluss nicht eingerechnet."),
+    t(
+      "Der Reaktor verbrennt bei jeder Last gleich viel: Stufe {stufe} zieht {rate}, ausgelastet wie im Leerlauf. Jede weitere Ausbaustufe zieht mehr – die Reichweite gilt für die jetzige Stufe.",
+      { stufe, rate: verbrauchText }
+    ),
+  ].join("\n");
+  const knapp = reichweite < 24 * 3600 * 1000;
+  return {
+    titel,
+    text: `☢️ ${t("Brennstoff für {dauer}", { dauer: fmtDauer(reichweite / 1000) })}`,
+    warnung: knapp,
+  };
+}
+
+// A-147: zweite Anlage mit demselben Zeilen-Slot. Kein zweites Format --
+// dieselbe "Brennstoff für {dauer}"-Form wie beim Kraftwerk (grep
+// "Brennstoff für"), nur ohne Lager-Ressource: der Verbrauch ist keine
+// RESSOURCEN-Größe und läuft deshalb nicht über ratenText/mitEinheit,
+// sondern über einen eigenen "t/Jahr"-Text (dasselbe Vorgehen wie
+// forschungsRateText für Forschungseinheiten).
+function fossilBrennstoffZeile(planet, stufe) {
+  if (!fossilBereit(planet, BUILDINGS.fossilanlage, stufe)) {
+    return {
+      titel: t("Der fossile Vorrat dieses Planeten ist aufgebraucht – anders als Brennstoff aus dem Lager wächst er nicht nach."),
+      text: `🛢️ ${t("Fossiler Vorrat aufgebraucht")}`,
+      warnung: true,
+    };
+  }
+  const reichweite = fossilReichweiteMs(planet);
+  if (!Number.isFinite(reichweite)) return null;
+  const proStunde = fossilVerbrauchProStunde(BUILDINGS.fossilanlage, stufe);
+  const titel = [
+    t("Fossiler Vorrat geteilt durch den Verbrauch der Fossilanlage – der Vorrat wächst nie nach."),
+    t("Stufe {stufe} verbrennt {rate} t/Jahr. Jede weitere Ausbaustufe zieht mehr – die Reichweite gilt für die jetzige Stufe.", {
+      stufe,
+      rate: formatKurz(rateProJahr(proStunde)),
+    }),
+  ].join("\n");
+  const knapp = reichweite < 24 * 3600 * 1000;
+  return {
+    titel,
+    text: `🛢️ ${t("Brennstoff für {dauer}", { dauer: fmtDauer(reichweite / 1000) })}`,
+    warnung: knapp,
+  };
+}
+
+// Brennstoff-Zeile der Energie-Kachel (A-055, Prinzip 10a): WANN geht dem
+// Reaktor das Deuterium aus -- bevor es passiert, nicht danach. Die Zahl ist
+// bewusst konservativ (Bestand ÷ Verbrauch, ohne Zufluss): sie ist eine
+// Warnung, keine Prognose. Dieselbe Bauform wie die Speicher-Zeile darunter.
+//
+// A-076: liefert WERTE, kein HTML. Die Zeile ist ein fester Knoten in der
+// Kachel und bekommt bloß frische Werte -- siehe renderRessourcen.
+//
+// A-147/A-148: bis zu drei brennstoffgebundene Energiequellen, aber EIN Slot
+// (die Kachel-Zeile ist 186 px breit ausgereizt, siehe Kommentar in
+// kraftwerkBrennstoffZeile). Priorität Kraftwerk vor Kernkraftanlage vor
+// Fossilanlage -- das Kraftwerk gewinnt, wenn mehrere stehen, unverändertes
+// Verhalten gegenüber vor A-147 ("Nicht anfassen: Das Kraftwerk und seine
+// Verfügbarkeit"). Alle drei gleichzeitig ist nur in der kurzen
+// Übergangszeit vor A-149 (Kraftwerk hinter Forschung) überhaupt möglich;
+// siehe A-147-Ergebnis für den Rand-Fall. brennstoffReichweiteMs/
+// brennstoffProStunde sind planetweite Minima/Summen über ALLE
+// Lager-Brennstoff-Gebäude (BRENNSTOFF_GEBAEUDE) -- stehen Kraftwerk UND
+// Kernkraftanlage gleichzeitig, kann die angezeigte Zahl deshalb von der
+// JEWEILS ANDEREN Anlage stammen. Derselbe Rand-Fall wie oben, nicht extra
+// gelöst.
+function brennstoffZeile(planet) {
+  const kraftwerkStufe = (planet.gebaeude && planet.gebaeude.kraftwerk) || 0;
+  if (kraftwerkStufe > 0) return kraftwerkBrennstoffZeile(planet, kraftwerkStufe);
+
+  const kernkraftStufe = (planet.gebaeude && planet.gebaeude.kernkraftanlage) || 0;
+  if (kernkraftStufe > 0) return kernkraftBrennstoffZeile(planet, kernkraftStufe);
+
+  const fossilStufe = (planet.gebaeude && planet.gebaeude.fossilanlage) || 0;
+  if (fossilStufe > 0) return fossilBrennstoffZeile(planet, fossilStufe);
+
+  // A-142 (= A-108 Punkt 3, R-8/G4): Keine Brennstoffanlage heißt keine
+  // Buchung, nicht "nichts zu sagen" -- der Slot bleibt reserviert statt zu
+  // verschwinden. Das war der A-104-Befund: eine frische Kolonie verlor
+  // hier eine ganze Zeile, die Kopfreihe wurde flacher, und alles darunter
+  // rutschte hoch (der ~20-px-Versatz aus Tobis Bericht).
+  return {
+    titel: t("Ohne Kraftwerk oder Fossilanlage gibt es keinen Brennstoffverbrauch zu zeigen."),
+    text: `⚡ ${t("Keine brennstoffgebundene Anlage gebaut")}`,
+    warnung: false,
   };
 }
 
@@ -1642,25 +1750,44 @@ function renderRessourcen(state, root, planet) {
 }
 
 // --- Navigation ---------------------------------------------------------
-// Feste Reihenfolge, fester Platz. Neue Bereiche kommen unten dazu, nichts
-// zieht um -- das ist die Voraussetzung dafür, dass man sich die Positionen
-// merken kann.
+// Feste Reihenfolge, fester Platz -- ABER zwei verschiedene Regeln für zwei
+// verschiedene Phasen (A-153, Tobi 23.08.: „In der Entwicklung kommen neue
+// dinge dazu und Sortierung ist wichtiger als Muskelgedächnis."):
+//
+//   IN EINER LAUFENDEN PARTIE wandert nichts, und was es noch nicht gibt,
+//   steht ausgegraut statt zu fehlen (E11) -- das ist die Zusicherung an den
+//   Spieler, und sie gilt weiter uneingeschränkt.
+//
+//   FÜR DIE ENTWICKLUNG DIESES ARRAYS gilt das Gegenteil: eine neue Zeile
+//   kommt an die Stelle, die die SORTIERUNG verlangt, nicht ans Ende. Genau
+//   das hat A-153 hier getan (Lager an Position 2, direkt über Forschung,
+//   Tobis Entscheidung 23.08.) -- ein Umsetzungs-Kürzel-Fehler in der ersten
+//   Fassung dieses Kommentars sagte pauschal "kommt unten dazu" und hätte die
+//   nächste Runde in dieselbe falsche Richtung geschickt.
+//
 // label ist eine Funktion, keine Zeichenkette: eine feste Zeichenkette würde
 // beim Laden des Moduls einmal übersetzt und bliebe in der Startsprache
 // stehen. Außerdem findet der Vollständigkeitstest die Beschriftungen nur so.
+//
+// Die Zifferntasten 1-9 folgen automatisch dieser Reihenfolge (siehe unten,
+// "1-9: die Bereiche...") -- wer hier einfügt, muss an keiner zweiten Stelle
+// etwas verschieben. Bei zehn Einträgen verliert der LETZTE sein Kürzel: eine
+// zweistellige Zahl ist keine einzelne Taste (A-153, Development betroffen).
 const BEREICHE = [
   { id: "planet", label: () => t("Planet") },
+  // A-153: Lager an Position 2, direkt über Forschung (Tobis Entscheidung,
+  // 23.08. -- siehe Kommentar oben).
+  { id: "lager", label: () => t("Lager") },
   { id: "forschung", label: () => t("Forschung") },
   { id: "werft", label: () => t("Werft") },
   { id: "flotten", label: () => t("Flotten") },
   { id: "galaxie", label: () => t("Galaxie") },
   { id: "handel", label: () => t("Handel") },
-  // Neue Bereiche kommen UNTEN dazu, nie dazwischen -- sonst wandern die
-  // gewohnten Positionen und das Muskelgedächtnis ist hin.
   { id: "imperium", label: () => t("Imperium") },
   { id: "handbuch", label: () => t("Handbuch") },
-  // A-054: der Tester-Dev-Kanal. Kommt UNTEN dazu, wie die Regel darüber es
-  // verlangt -- Handbuch bleibt, wo es war.
+  // A-054: der Tester-Dev-Kanal. Verliert mit dem zehnten Eintrag (A-153)
+  // sein Zifferntasten-Kürzel -- über die Navigationsleiste bleibt er
+  // erreichbar wie jeder andere Bereich.
   { id: "development", label: () => t("Development") },
 ];
 
@@ -3855,14 +3982,33 @@ function renderUebersicht(state, root, planet) {
             .join("")
   );
   marke("arbeitskraft", t("Arbeitskraft"));
+  // A-155: Prinzip 10a -- der Spieler sieht den Leerlauf, bevor er wehtut.
+  // Unter vollAb (80 %) kommt die Beschäftigungsquote dazu, ab dort steht die
+  // Kachel wie zuvor (Kategorie-1-Verhalten für gut beschäftigte Welten).
+  const leerlaufHinweis =
+    u.arbeitskraft.quote < ARBEITSKRAFT_LEERLAUF.vollAb
+      ? " · " +
+        t("{quote} % beschäftigt – Leerlauf kostet {anteil} % Förderung", {
+          quote: Math.round(u.arbeitskraft.quote * 100),
+          anteil: Math.round(u.arbeitskraft.diebstahlAnteil * 100),
+        })
+      : "";
   wert(
     "arbeitskraft",
     t("frei {frei} von {gesamt}", {
       frei: fmt(Math.round(u.arbeitskraft.frei)),
       gesamt: fmt(Math.round(u.arbeitskraft.produktion)),
-    })
+    }) + leerlaufHinweis
   );
-  box.querySelector('[data-wert="arbeitskraft"]').classList.toggle("warnung", u.arbeitskraft.frei < 0);
+  // Warnfarbe wie bisher bei echtem Mangel (frei < 0), UND ab 50 %
+  // Beschäftigung ("sehr ungemütlich", Tobi 25.08.) -- dieselbe Schwelle wie
+  // ARBEITSKRAFT_LEERLAUF.ungemuetlichAb, keine zweite Zahl dafür.
+  box
+    .querySelector('[data-wert="arbeitskraft"]')
+    .classList.toggle(
+      "warnung",
+      u.arbeitskraft.frei < 0 || u.arbeitskraft.quote < ARBEITSKRAFT_LEERLAUF.ungemuetlichAb
+    );
   listeAbgleichen(box.querySelector('[data-liste="fluesse"]'), u.fluesse, {
     schluessel: (f) => f.resId,
     bauen: () => {
@@ -3877,15 +4023,26 @@ function renderUebersicht(state, root, planet) {
         `${RESSOURCEN[f.resId].symbol || ""} ${t(RESSOURCEN[f.resId].name)}`
       );
       const el = div.querySelector(".uebersicht-wert");
+      // A-154: zwei Gründe teilen sich `drosselung`, aber sie sind keine
+      // Warnung in gleichem Maß -- Regime B (Rohstoffmangel) bekommt den
+      // Satz von vorher, Regime C (Zielmenge erreicht) sagt, WAS gerade
+      // wirklich passiert (Anlage läuft auf Grundlast), statt "gedrosselt"
+      // wie ein Fehler klingen zu lassen (A-050-Muster: ein gedrosselter
+      // Fluss nennt seinen Grund).
       markupSetzen(
         el,
         nettoText(f.resId, f.netto) +
-          (f.drosselung < 1
-            ? ` · ${t("gedrosselt auf {anteil}%", { anteil: Math.round(f.drosselung * 100) })}`
-            : "")
+          (f.maxGedrosselt
+            ? ` · ${t("Zielmenge erreicht – Anlage läuft auf Grundlast")}`
+            : f.drosselung < 1
+              ? ` · ${t("gedrosselt auf {anteil}%", { anteil: Math.round(f.drosselung * 100) })}`
+              : "")
       );
       const jahr = rateProJahr(f.netto);
-      el.classList.toggle("warnung", (nettoSichtbar(jahr) && jahr < 0) || f.drosselung < 1);
+      el.classList.toggle(
+        "warnung",
+        (nettoSichtbar(jahr) && jahr < 0) || (f.drosselung < 1 && !f.maxGedrosselt)
+      );
     },
   });
 
@@ -4564,142 +4721,185 @@ function renderMarkt(state, root, planet) {
   }
 }
 
-// --- Verarbeitung -----------------------------------------------------
-// Zeigt je Eingangsstoff, was verbraucht wird, ob die Anlagen gerade drosseln,
-// und lässt die Reserve einstellen (bis wohin eine Kette den Bestand abbauen
-// darf). Dieselbe Rolle wie modus:'ueberschuss' bei den Routen.
-function renderVerarbeitung(state, root, planet) {
-  const box = root.querySelector("#verarbeitung-block");
+// --- Lager, Block 1: Bestände (A-153) --------------------------------------
+// Eine Zeile je Ressource -- ALLE Ressourcen, immer (E11), auch die ohne
+// Bestand: eine Welt stellt hier ein, wie ihre Wirtschaft laufen soll, bevor
+// es überhaupt etwas zu regeln gibt. Ersetzt renderVerarbeitung (der alte
+// Bedienplatz der Verarbeitungs-Reserve): sie zieht mit ihren beiden
+// Geschwistern (Handels-Mindest, Max) hierher, EIN Ort für drei
+// Stellschrauben derselben Art statt drei Orte im Spiel.
+//
+// Nur die "echten" Lagerwaren -- Bevölkerung und Credits haben ihre eigene
+// Wirtschaft (Wohnraum, Abgaben) und ziehen laut Entwurf (Abschnitt 4.1) in
+// die Kopfzeile, nicht in diese Liste (eigene, spätere Runde, L4).
+const LAGER_BEREICH_RESSOURCEN = LAGER_RESSOURCEN.filter((r) => r !== "credits" && r !== "bevoelkerung");
 
-  // Gerüst EINMAL, danach nur noch abgleichen (Prinzip 8a).
-  //
-  // Vorher stand hier `box.innerHTML = …` in jedem Takt -- damit war das
-  // Reserve-Feld jede Sekunde ein NEUES Element, und der Wert stand obendrein
-  // als value="…" im erzeugten Markup. Fokus und Tippstand waren nach
-  // spätestens einer Sekunde weg; eine mehrstellige Zahl ließ sich hier gar
-  // nicht eintragen. Derselbe Fehler wie damals beim "Regler springt auf 0",
-  // nur an einem Zahlenfeld statt an einem Schieber.
+function renderLager(state, root, planet) {
+  const box = root.querySelector("#lager-block");
+
+  // Gerüst EINMAL, danach nur noch abgleichen (Prinzip 8a) -- dieselbe
+  // Begründung wie am alten Ort: drei Zahlenfelder je Zeile, die jede
+  // Sekunde neu entstünden, wären nach A-079 unbedienbar.
   if (!box.dataset.gebaut) {
     box.dataset.gebaut = "1";
-    box.innerHTML = `
-      <div class="dezent" data-hinweis></div>
-      <div data-reserve-liste></div>`;
+    box.innerHTML = `<div class="dezent" data-hinweis></div><div data-zeilen></div>`;
   }
   const hinweis = box.querySelector("[data-hinweis]");
-  const liste = box.querySelector("[data-reserve-liste]");
+  const liste = box.querySelector("[data-zeilen]");
 
   const aussenposten = planet.typ === "aussenposten";
-  // Welche Anlagen auf diesem Planeten verbrauchen überhaupt gelagerte Stoffe?
-  // Nennbedarf, nicht der gedrosselte Wert -- sonst verschwände eine auf 0
-  // gedrosselte Kette einfach aus der Liste.
-  const raten = aussenposten ? null : effektiveRaten(state, planet);
-  const eingaenge = raten ? LAGER_RESSOURCEN.filter((resId) => (raten.bedarf[resId] || 0) > 0) : [];
-
   textSetzen(
     hinweis,
     aussenposten
-      ? t("Außenposten haben keine Produktion.")
-      : eingaenge.length === 0
-        ? t(
-            "Auf diesem Planeten verarbeitet noch keine Anlage gelagerte Rohstoffe. Anlagen, die das tun, zeigen ihren Bedarf auf der Anlagenkachel."
-          )
-        : t(
-            "Reicht der Zustrom nicht, nehmen Anlagen den Rest aus dem Lager – bis zur eingestellten Reserve. Danach drosseln sie anteilig, statt den Bestand aufzubrauchen."
-          )
+      ? t("Außenposten haben keine Wirtschaft, die sich einstellen ließe.")
+      : t(
+          "Hier stellst du ein, wie die Wirtschaft dieses Planeten laufen soll: 🏪 schützt einen Bestand gegen Handel und Verkauf, ⚗️ gegen die eigene Verarbeitung, Max regelt die fördernde Anlage auf eine Zielmenge herunter."
+        )
   );
+  liste.hidden = aussenposten;
+  if (aussenposten) return;
 
-  listeAbgleichen(liste, eingaenge, {
+  const raten = effektiveRaten(state, planet);
+
+  listeAbgleichen(liste, LAGER_BEREICH_RESSOURCEN, {
     schluessel: (resId) => resId,
     bauen: (resId) => {
       const zeile = document.createElement("div");
-      zeile.className = "markt-zeile bedienzeile";
+      zeile.className = "lager-zeile bedienzeile";
+      zeile.dataset.res = resId;
       zeile.innerHTML = `
-        <span class="markt-name zeile-beschriftung"></span>
-        <span class="dezent zeile-zahl" data-lage></span>
-        <input class="zeile-eingabe" type="number" min="0" step="100" data-reserve="${resId}" />
-        <button class="zeile-knopf-1" data-reserve-setzen></button>
-        <button class="zeile-knopf-2" data-reserve-loeschen hidden></button>`;
+        <span class="zeile-beschriftung"><span class="res-symbol"></span> <span data-name></span></span>
+        <span class="zeile-regler lager-bestand-saeule">
+          <span class="zeile-zahl" data-bestand></span>
+          <span class="lager-balken-rahmen" data-balken></span>
+        </span>
+        <span class="zeile-zahl" data-rate></span>
+        <span class="zeile-eingabe lager-feldgruppe" data-gruppe="handel">
+          <span class="lager-feldgruppe-symbol"></span>
+          <input type="number" min="0" step="100" data-feld="handel" />
+          <button data-setzen="handel">✓</button>
+        </span>
+        <span class="zeile-knopf-1 lager-feldgruppe" data-gruppe="verarbeitung">
+          <span class="lager-feldgruppe-symbol">⚗️</span>
+          <input type="number" min="0" step="100" data-feld="verarbeitung" />
+          <button data-setzen="verarbeitung">✓</button>
+        </span>
+        <span class="zeile-knopf-2 lager-feldgruppe" data-gruppe="max">
+          <span class="lager-feldgruppe-symbol" data-max-symbol></span>
+          <input type="number" min="0" step="100" data-feld="max" />
+          <button data-setzen="max">✓</button>
+        </span>`;
 
-      const feld = zeile.querySelector("input[data-reserve]");
-      // Ereignisse EINMAL beim Bauen. Der Planet wird dabei bewusst NICHT
-      // festgehalten: die Zeile überlebt einen Planetenwechsel (ihr Schlüssel
-      // ist die Ressource), und wer hier klickt, meint immer den gerade
-      // gewählten Planeten -- nicht den, der beim Bauen offen war.
-      const uebernehmen = () => {
-        const ziel = aktiverPlanet(state);
-        verarbeitungsReserveSetzen(ziel, resId, Number(feld.value) || 0);
-        // Bestätigt ist bestätigt: ab jetzt folgt das Feld wieder dem
-        // Spielstand, nicht dem Zwischenspeicher.
-        delete feldEingabe[feldSchluessel("reserve", ziel, resId)];
-        render(state, root);
+      // Ereignisse EINMAL beim Bauen (Prinzip 8a). Der Planet wird dabei
+      // bewusst NICHT festgehalten -- die Zeile überlebt einen Planeten-
+      // wechsel (ihr Schlüssel ist die Ressource), gemeint ist immer der
+      // gerade aktive Planet (dasselbe Muster wie am alten Ort).
+      const SETZER = {
+        handel: handelsMindestSetzen,
+        verarbeitung: verarbeitungsReserveSetzen,
+        max: maxBestandSetzen,
       };
-      feld.addEventListener("input", () => {
-        feldEingabe[feldSchluessel("reserve", aktiverPlanet(state), resId)] = feld.value;
-      });
-      // Enter ist bei einem Zahlenfeld der erwartete Weg -- ohne ihn müsste man
-      // für jede Eingabe zur Maus greifen (gleiche Überlegung wie beim
-      // Flottennamen).
-      feld.addEventListener("keydown", (ereignis) => {
-        if (ereignis.key === "Enter") uebernehmen();
-      });
-      zeile.querySelector("[data-reserve-setzen]").addEventListener("click", uebernehmen);
-      zeile.querySelector("[data-reserve-loeschen]").addEventListener("click", () => {
-        const ziel = aktiverPlanet(state);
-        verarbeitungsReserveSetzen(ziel, resId, null);
-        delete feldEingabe[feldSchluessel("reserve", ziel, resId)];
-        render(state, root);
-      });
+      for (const gruppe of ["handel", "verarbeitung", "max"]) {
+        const feld = zeile.querySelector(`input[data-feld="${gruppe}"]`);
+        const uebernehmen = () => {
+          const ziel = aktiverPlanet(state);
+          SETZER[gruppe](ziel, resId, Number(feld.value) || 0);
+          delete feldEingabe[feldSchluessel(gruppe, ziel, resId)];
+          render(state, root);
+        };
+        feld.addEventListener("input", () => {
+          feldEingabe[feldSchluessel(gruppe, aktiverPlanet(state), resId)] = feld.value;
+        });
+        // Enter ist bei einem Zahlenfeld der erwartete Weg (A-079).
+        feld.addEventListener("keydown", (ereignis) => {
+          if (ereignis.key === "Enter") uebernehmen();
+        });
+        zeile.querySelector(`button[data-setzen="${gruppe}"]`).addEventListener("click", uebernehmen);
+      }
       return zeile;
     },
     aktualisieren: (zeile, resId) => {
-      const braucht = raten.bedarf[resId] || 0;
-      const zustrom = raten.produktion[resId] || 0;
-      // A-112: dieselbe angezeigte Rate wie auf der Ressourcenkachel -- sonst
-      // meldet "Bestand trägt noch X" bei Nahrung eine zu optimistische
-      // Dauer, weil der Verderb hier fehlte.
-      const netto = sichtbareRate(raten.lager, raten.verderb, resId);
+      const def = RESSOURCEN[resId];
       const bestand = Math.floor(planet.ressourcen[resId] || 0);
-      const reserve = verarbeitungsReserveFuer(planet, resId);
-      const anteil = raten.drosselung[resId] === undefined ? 1 : raten.drosselung[resId];
-      const gedrosselt = anteil < 1;
-      const zieht = netto < 0;
+      const rate = sichtbareRate(raten.lager, raten.verderb, resId);
+      const zieht = rate < 0;
 
-      let lage = t("{braucht} Bedarf · {zustrom} Zustrom, je Jahr", {
-        braucht: fmt(rateProJahr(braucht)),
-        zustrom: fmt(rateProJahr(zustrom)),
-      });
-      if (gedrosselt) {
-        lage += t(" – gedrosselt auf {anteil}%", { anteil: Math.round(anteil * 100) });
-      } else if (zieht) {
-        const stunden = (bestand - reserve) / -netto;
-        lage += t(" – Bestand trägt noch {dauer}", { dauer: fmtDauer(Math.max(0, stunden) * 3600) });
-      }
+      textSetzen(zeile.querySelector(".res-symbol"), def.symbol || "");
+      textSetzen(zeile.querySelector("[data-name]"), t(def.name));
+      textSetzen(zeile.querySelector("[data-bestand]"), mitEinheit(resId, bestand));
 
-      textSetzen(
-        zeile.querySelector(".markt-name"),
-        `${RESSOURCEN[resId].symbol || ""} ${t(RESSOURCEN[resId].name)}`
-      );
-      const lageEl = zeile.querySelector("[data-lage]");
-      textSetzen(lageEl, lage);
-      lageEl.classList.toggle("warnung", gedrosselt);
+      // Derselbe Anteil-an-der-Lagerkapazität wie an der Lagerkachel oben --
+      // EINE Formel für beide Leser (B3), sonst laufen sie irgendwann
+      // auseinander.
+      const gesamtKap = lagerKapazitaetGesamt(state, planet);
+      const volumen = bestand * lagerverbrauchVon(resId);
+      balkenFuellen(zeile.querySelector("[data-balken]"), [
+        {
+          resId,
+          farbe: def.farbe,
+          anteil: gesamtKap > 0 ? volumen / gesamtKap : 0,
+          titel: t("{res}: {volumen} m³ ({anteil}% des Lagers)", {
+            res: t(def.name),
+            volumen: fmt(volumen),
+            anteil: gesamtKap > 0 ? Math.round((volumen / gesamtKap) * 100) : 0,
+          }),
+        },
+      ]);
 
-      const feld = zeile.querySelector("input[data-reserve]");
-      // Beschriftungen laufen durch t() und müssen beim Sprachwechsel
-      // mitkommen -- deshalb hier und nicht einmalig beim Bauen.
-      attributSetzen(feld, "placeholder", t("keine Reserve"));
+      const rateEl = zeile.querySelector("[data-rate]");
+      markupSetzen(rateEl, vorzeichenSpan(Math.round(rateProJahr(rate)), (b) => mitEinheit(resId, b)) + t("/Jahr"));
+      rateEl.classList.toggle("warnung", zieht);
+
+      // 🏪 Handels-Mindest -- immer bedienbar, unabhängig von einer Anlage:
+      // ein Bestand kann auch ohne laufende Förderung schützenswert sein.
+      const handelSymbol = zeile.querySelector('[data-gruppe="handel"] .lager-feldgruppe-symbol');
+      textSetzen(handelSymbol, SYMBOLE.handelsposten);
+      const handelFeld = zeile.querySelector('input[data-feld="handel"]');
       attributSetzen(
-        feld,
+        handelFeld,
+        "title",
+        t("Schützt diesen Bestand gegen Handel und Verkauf -- darunter wird nicht verkauft.")
+      );
+      feldWertSetzen(
+        handelFeld,
+        feldSchluessel("handel", planet, resId),
+        String(handelsMindestFuer(planet, resId) || "")
+      );
+
+      // ⚗️ Verarbeitungs-Reserve -- unverändert zum alten Ort (A-066).
+      const verarbFeld = zeile.querySelector('input[data-feld="verarbeitung"]');
+      attributSetzen(
+        verarbFeld,
         "title",
         t("Bis zu diesem Bestand darf die Verarbeitung aus dem Lager ziehen. Darunter läuft sie nur noch mit dem, was nachkommt.")
       );
-      feldWertSetzen(feld, feldSchluessel("reserve", planet, resId), reserve ? String(reserve) : "");
+      feldWertSetzen(
+        verarbFeld,
+        feldSchluessel("verarbeitung", planet, resId),
+        String(verarbeitungsReserveFuer(planet, resId) || "")
+      );
 
-      textSetzen(zeile.querySelector("[data-reserve-setzen]"), t("Setzen"));
-      const loeschen = zeile.querySelector("[data-reserve-loeschen]");
-      textSetzen(loeschen, t("Entfernen"));
-      // Verstecken statt weglassen: ein Knopf, der je nach Zustand aus dem DOM
-      // verschwindet und wiederkommt, ist wieder ein neues Element.
-      loeschen.hidden = reserve <= 0;
+      // Max -- wirkt erst mit A-154. Ohne fördernde Anlage bleibt das Feld
+      // (E11/G4: der Slot ist reserviert, nicht versteckt) aber gesperrt und
+      // trägt seine P18-Antwort statt einer Eingabe.
+      const maxGruppe = zeile.querySelector('[data-gruppe="max"]');
+      textSetzen(zeile.querySelector("[data-max-symbol]"), t("Max"));
+      const gebaeudeId = def.gebaeude;
+      const hatAnlage = gebaeudeId && (planet.gebaeude[gebaeudeId] || 0) > 0;
+      maxGruppe.classList.toggle("lager-ohne-anlage", !hatAnlage);
+      const maxFeld = zeile.querySelector('input[data-feld="max"]');
+      const maxKnopf = zeile.querySelector('button[data-setzen="max"]');
+      maxFeld.disabled = !hatAnlage;
+      maxKnopf.disabled = !hatAnlage;
+      attributSetzen(
+        maxFeld,
+        "title",
+        hatAnlage
+          ? t("Zielmenge, auf die sich die fördernde Anlage herunterregelt (wirkt ab A-154).")
+          : t("Keine Anlage, die gedrosselt werden könnte.")
+      );
+      attributSetzen(maxFeld, "placeholder", hatAnlage ? "" : t("keine Anlage"));
+      feldWertSetzen(maxFeld, feldSchluessel("max", planet, resId), hatAnlage ? String(maxBestandFuer(planet, resId) || "") : "");
     },
   });
 }
@@ -7539,28 +7739,49 @@ export function renderDevelopment(state, root) {
     return p;
   };
 
-  // --- Patchnotes ---------------------------------------------------------
-  knoten.push(titel(t("Patchnotes"), "patchnotes"));
+  // --- Sprungnavigation (A-160) --------------------------------------------
+  // Tobis Regel: „nie irgendwas ganz am Ende von einem ewigen Text
+  // platzieren, was irgendjemand finden soll" -- die Reihenfolge unten trägt
+  // das einmal, die Navigation trägt es dauerhaft, auch wenn der Bereich
+  // weiter wächst. Springt auf dieselben Marken, die A-040 bereits vergibt
+  // (`development-<id>`) -- echte Anker, kein Klick-Handler nötig, dieselbe
+  // Seite.
+  const sprungnav = document.createElement("nav");
+  sprungnav.className = "development-sprungnav";
+  sprungnav.setAttribute("aria-label", t("Development"));
+  const sprungziele = [
+    ["feedback", t("Feedback")],
+    ["roadmap", t("Roadmap")],
+    ["patchnotes", t("Patchnotes")],
+    ["spielstand", t("Spielstand")],
+  ];
+  sprungziele.forEach(([id, text], i) => {
+    if (i > 0) sprungnav.appendChild(document.createTextNode(" · "));
+    const a = document.createElement("a");
+    a.href = `#development-${id}`;
+    a.textContent = text;
+    sprungnav.appendChild(a);
+  });
+  knoten.push(sprungnav);
+
+  // --- Feedback -------------------------------------------------------------
+  // Zuerst: der einzige Grund, warum ein Tester diesen Bereich überhaupt
+  // aufsucht, soll ohne Scrollen sichtbar sein (A-160, Tobis Ansage).
+  knoten.push(titel(t("Feedback"), "feedback"));
   knoten.push(
     absatz(
       t(
-        "Was sich seit der ersten veröffentlichten Fassung geändert hat, neueste zuoberst. Was hier steht, ist da – wenn es bei dir anders aussieht, ist das eine Meldung wert."
+        "Was dir auffällt, gehört hierher – auch Kleinigkeiten, auch „das habe ich nicht verstanden“. Versionsnummer und Browser trägt das Formular selbst ein; bitte stehen lassen, ohne sie ist eine Meldung schwer einzuordnen."
       )
     )
   );
-  for (const eintrag of PATCHNOTES) {
-    const h4 = document.createElement("h4");
-    h4.textContent = `v${eintrag.version}`;
-    const ul = document.createElement("ul");
-    for (const punkt of de ? eintrag.de : eintrag.en) {
-      const li = document.createElement("li");
-      li.textContent = punkt;
-      ul.appendChild(li);
-    }
-    knoten.push(h4, ul);
-  }
+  const p = document.createElement("p");
+  p.appendChild(externerLink(feedbackAdresse(), t("Rückmeldung schreiben")));
+  knoten.push(p);
 
-  // --- Roadmap ------------------------------------------------------------
+  // --- Roadmap --------------------------------------------------------------
+  // Vor den Patchnotes: „steht dein Fund hier, ist er bekannt" beantwortet
+  // genau die Frage, die vor dem Melden ansteht.
   knoten.push(titel(t("Roadmap"), "roadmap"));
   knoten.push(
     absatz(
@@ -7581,18 +7802,27 @@ export function renderDevelopment(state, root) {
     knoten.push(h4, ul);
   }
 
-  // --- Feedback -----------------------------------------------------------
-  knoten.push(titel(t("Feedback"), "feedback"));
+  // --- Patchnotes -------------------------------------------------------------
+  // Nachschlagewerk, kein Einstieg -- deshalb zuletzt vor dem Spielstand.
+  knoten.push(titel(t("Patchnotes"), "patchnotes"));
   knoten.push(
     absatz(
       t(
-        "Was dir auffällt, gehört hierher – auch Kleinigkeiten, auch „das habe ich nicht verstanden“. Versionsnummer und Browser trägt das Formular selbst ein; bitte stehen lassen, ohne sie ist eine Meldung schwer einzuordnen."
+        "Was sich seit der ersten veröffentlichten Fassung geändert hat, neueste zuoberst. Was hier steht, ist da – wenn es bei dir anders aussieht, ist das eine Meldung wert."
       )
     )
   );
-  const p = document.createElement("p");
-  p.appendChild(externerLink(feedbackAdresse(), t("Rückmeldung schreiben")));
-  knoten.push(p);
+  for (const eintrag of PATCHNOTES) {
+    const h4 = document.createElement("h4");
+    h4.textContent = `v${eintrag.version}`;
+    const ul = document.createElement("ul");
+    for (const punkt of de ? eintrag.de : eintrag.en) {
+      const li = document.createElement("li");
+      li.textContent = punkt;
+      ul.appendChild(li);
+    }
+    knoten.push(h4, ul);
+  }
 
   // --- Spielstand ---------------------------------------------------------
   knoten.push(...spielstandAbschnitt(state, titel, absatz));

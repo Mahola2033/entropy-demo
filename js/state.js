@@ -44,6 +44,10 @@ import {
   voraussetzungenErfuellt,
   solarLageFaktor,
   bevoelkerungsSchrittFaktor,
+  FOSSIL,
+  FOSSIL_VORRAT_BASIS,
+  ARBEITSKRAFT_LEERLAUF,
+  DROSSELUNG,
 } from "./data.js";
 import { stromFuer, waehle } from "./zufall.js";
 import { systemGenerieren } from "./welt.js";
@@ -109,6 +113,13 @@ function startForschung() {
 }
 
 export function neuerPlanet({ id, systemId, orbit, name, typ, groesse = 150, startvorrat = false, art = null, klasse = null, zone = null, wasser = null, schwerkraft = 1, fraktion = SPIELER_FRAKTION }) {
+  // Fossiler Vorrat (A-147): "nur auf Welten, die Leben hatten" --
+  // KONZEPT-TECHBAUM.md. Der prüfbare Stellvertreter dafür ist dieselbe
+  // Nahrungs-Affinität, die auch die Förderung skaliert: null bei
+  // Welten ohne Boden/Atmosphäre/Wasser (nie Biomasse), sonst linear mit ihr.
+  // `klasse` fehlt nur beim eigenschaftslosen Generalisten (Altfälle/Tests) --
+  // dort gilt affinitaetFaktors eigene Vorgabe, 1 (siehe dort).
+  const nahrungAffinitaet = klasse ? (affinitaetVon({ klasse, zone, wasser }).nahrung ?? 1) : 1;
   return {
     id,
     systemId,
@@ -131,6 +142,12 @@ export function neuerPlanet({ id, systemId, orbit, name, typ, groesse = 150, sta
     groesse,
     ressourcen: typ === "aussenposten" ? {} : startRessourcen(startvorrat),
     gebaeude: typ === "aussenposten" ? {} : startGebaeude(),
+    // Fossiler Vorrat der Fossilanlage (A-147, Tonnen) -- KEINE
+    // Lager-Ressource (Tobi, 23.08.: "Aber in dem Fall erstmal nicht"),
+    // deshalb ein eigenes Feld statt eines RESSOURCEN-Eintrags. Ein
+    // Außenposten hat keine Wirtschaft und keine Anlage, die ihn verbrennen
+    // könnte -- 0 ist hier keine Sonderregel, nur konsequent.
+    fossilVorrat: typ === "aussenposten" ? 0 : Math.round(FOSSIL_VORRAT_BASIS * nahrungAffinitaet * 100) / 100,
     // Schiffe stehen dort, wo sie gebaut wurden bzw. wohin sie zurückkehren.
     schiffe: typ === "aussenposten" ? {} : startSchiffe(),
     // Gekaufte Ware: gehört dem Spieler, liegt aber am Markt, bis eine Flotte
@@ -818,6 +835,68 @@ export function verarbeitungsReserveSetzen(planet, resId, menge) {
   }
 }
 
+// --- Lager-Bereich, Block 1 (A-153) -----------------------------------------
+// Zwei weitere Regler je Ressource, GENAU dasselbe Muster wie die
+// Verarbeitungs-Reserve oben (B3: dieselbe Form für dieselbe Art Zahl).
+// `|| 0`-sicher für Altstände (Kategorie 1): ein fehlendes Feld heißt "kein
+// Wert gesetzt", nie ein Fehler.
+//
+// Max: die Zielmenge, auf die eine fördernde Anlage sich herunterregelt
+// (E1). Wirkt seit A-154 (Regime C in produktionsAufloesung); der Wert
+// selbst ist seit A-153 unverändert dasselbe Feld.
+export function maxBestandFuer(planet, resId) {
+  const wert = planet && planet.maxBestand ? planet.maxBestand[resId] : undefined;
+  return typeof wert === "number" && wert > 0 ? wert : 0;
+}
+
+export function maxBestandSetzen(planet, resId, menge) {
+  if (!planet.maxBestand) planet.maxBestand = {};
+  if (menge === null || menge === undefined || !Number.isFinite(menge) || menge <= 0) {
+    delete planet.maxBestand[resId];
+  } else {
+    planet.maxBestand[resId] = menge;
+  }
+}
+
+// A-154: greift die Zielmenge gerade ein? Für Anzeige-Zwecke (die Kachel,
+// Kriterium 4) -- EINE Funktion für jeden Leser (B3), statt an jeder
+// Anzeigestelle dieselben Bedingungen neu abzuschreiben. `drosselung` ist
+// das Feld aus effektiveRaten/produktionsAufloesung.
+//
+// Kein zusätzlicher Bestand-vs-Max-Vergleich nötig: Regime B (Rohstoffmangel,
+// nachfrage > angebot) und Regime C (Zielmenge, angebot > nachfrage) sind
+// EXKLUSIV -- pro Ressource und Auflösung greift höchstens eines. Ist ein
+// Max gesetzt und die Ressource gedrosselt, kann das also nur Regime C
+// sein; ein tatsächlicher Engpass schlösse "am oder über der Zielmenge"
+// aus. Ein bestand>=max-Vergleich zusätzlich wäre B3-widrig (derselbe
+// Entscheid, zweimal getroffen) und obendrein fragil: Regime C rastet
+// knapp UNTER der exakten Zielmenge ein (dieselbe Mindestdauer-Krume wie
+// bei Regime B), ein strikter Vergleich träfe ihn nie exakt.
+export function maxDrosselAktiv(planet, resId, drosselung) {
+  if (maxBestandFuer(planet, resId) <= 0) return false;
+  const anteil = drosselung ? drosselung[resId] : undefined;
+  return anteil !== undefined && anteil < 1 - 1e-9;
+}
+
+// Handels-Mindest (E2): schützt einen Bestand gegen Handel und Verkauf. Diese
+// Runde speichert und zeigt den Wert (Definition von fertig, Punkt 2) --
+// seine Wirkung auf `kannVerkaufen`/den Markt ist NICHT Teil von L2 (das
+// Entwurfsdokument nennt nur das Feld als Voraussetzung für die separate
+// Verkaufs-/Wegschmeiß-Mechanik, die es ausdrücklich noch nicht gibt).
+export function handelsMindestFuer(planet, resId) {
+  const wert = planet && planet.handelsMindest ? planet.handelsMindest[resId] : undefined;
+  return typeof wert === "number" && wert > 0 ? wert : 0;
+}
+
+export function handelsMindestSetzen(planet, resId, menge) {
+  if (!planet.handelsMindest) planet.handelsMindest = {};
+  if (menge === null || menge === undefined || !Number.isFinite(menge) || menge <= 0) {
+    delete planet.handelsMindest[resId];
+  } else {
+    planet.handelsMindest[resId] = menge;
+  }
+}
+
 // Wie lange trägt ein Puffer noch? Gemeinsame Rechnung für die Regime-Wahl in
 // produktionsAufloesung UND für das Puffer-Ereignis in simulation.js -- beide
 // müssen dieselbe Grenze benutzen. Sonst hält die eine Seite den Puffer noch
@@ -850,28 +929,39 @@ export function pufferReichweiteMs(vorrat, defizitProStunde) {
 //   - Der ABZUG läuft als negative Lagerrate über planetRatenAnwenden, wie
 //     jede Verarbeitungskette (Reserve wird respektiert: wer Deuterium für
 //     die Flotte zurücklegt, verheizt es nicht im Reaktor).
-//   - Der ZÜNDSPEICHER (`planet.reaktorAus`) ist eine Hysterese: ein
-//     erloschener Reaktor springt erst wieder an, wenn Brennstoff für den
-//     ANLAUF da ist. Ohne sie würde ein Reaktor an der Leergrenze im
-//     Sekundentakt zünden und verlöschen -- jede Zündung ein Ereignis, und
-//     die Ereignisse kämen schneller, als die Welt sie verdient.
+//   - Der ZÜNDSPEICHER (`planet.brennstoffAus[gebaeudeId]`, bis A-148 EIN
+//     Bit `planet.reaktorAus` -- seit die Kernkraftanlage ein zweites
+//     Brennstoff-Gebäude ist, braucht jede Anlage ihr EIGENES, siehe
+//     reaktorBitNachziehen) ist eine Hysterese: eine erloschene Anlage
+//     springt erst wieder an, wenn Brennstoff für den ANLAUF da ist. Ohne
+//     sie würde eine Anlage an der Leergrenze im Sekundentakt zünden und
+//     verlöschen -- jede Zündung ein Ereignis, und die Ereignisse kämen
+//     schneller, als die Welt sie verdient.
 //     Das Bit wandert NUR beim Fortschreiben der Planetenuhr
 //     (reaktorBitNachziehen), und die Schwellen sind Ereignis-Zeitpunkte
 //     (pufferGrenzeStunden) -- nur so rechnet ein großer Sprung dasselbe
 //     wie viele kleine Schritte.
 export const BRENNSTOFF_ANLAUF_MS = 10 * 60 * 1000;
 
-// Einmal beim Laden eingesammelt: die Gebäude mit Brennstoff (heute genau
-// eines). Die Prüfung läuft je Planet und je Ereignis -- ein
-// Object.entries über alle Gebäude wäre dort reine Allokationslast.
+// Einmal beim Laden eingesammelt: die Gebäude mit Brennstoff (Kraftwerk UND
+// seit A-148 die Kernkraftanlage). Die Prüfung läuft je Planet und je
+// Ereignis -- ein Object.entries über alle Gebäude wäre dort reine
+// Allokationslast.
 const BRENNSTOFF_GEBAEUDE = Object.entries(BUILDINGS)
   .filter(([, def]) => def.brennstoff)
   .map(([id, def]) => [id, def]);
 
 // Zündet dieses Gebäude gerade? Liest ausschließlich Bestand, Reserve und
 // das Hysterese-Bit -- keine Raten, keine Flüsse (der Kreis-Schutz).
+//
+// Seit A-147 zwei Brennstoff-Arten hinter einem Tor: `def.brennstoff`
+// (Lager-Ressource, s.o.) UND `def.fossil` (planetgebundener Vorrat, siehe
+// fossilBereit unten). Für jedes bestehende Gebäude ohne `def.fossil` ist
+// dieser Zusatz ein No-Op -- das Kraftwerk bleibt unangetastet.
 export function brennstoffBereit(planet, def, level) {
-  if (!def.brennstoff || level <= 0) return true;
+  if (level <= 0) return true;
+  if (!fossilBereit(planet, def, level)) return false;
+  if (!def.brennstoff) return true;
   for (const [resId, spec] of Object.entries(def.brennstoff)) {
     const proStunde = rate(spec, level);
     if (proStunde <= 0) continue;
@@ -879,7 +969,7 @@ export function brennstoffBereit(planet, def, level) {
       ((planet.ressourcen && planet.ressourcen[resId]) || 0) - verarbeitungsReserveFuer(planet, resId);
     const reichweite = pufferReichweiteMs(vorrat, proStunde);
     if (reichweite < PUFFER_MINDESTDAUER_MS) return false;
-    if (planet.reaktorAus && reichweite < BRENNSTOFF_ANLAUF_MS) return false;
+    if (planet.brennstoffAus && planet.brennstoffAus[def.id] && reichweite < BRENNSTOFF_ANLAUF_MS) return false;
   }
   return true;
 }
@@ -930,13 +1020,30 @@ export function brennstoffProStunde(planet) {
 // Planetenuhr (simulation.js), NIE aus einer reinen Abfrage heraus: eine
 // Abfrage, die den Zustand ändert, wäre für die Oberfläche und die
 // Messwerkzeuge unsichtbarer Spielverlauf.
+//
+// A-148: Seit die Kernkraftanlage ein ZWEITES `def.brennstoff`-Gebäude ist
+// (neben dem Kraftwerk), kann ein Planet zwei davon gleichzeitig tragen.
+// `planet.reaktorAus` war EIN Bit für den ganzen Planeten -- bis hierhin
+// unschädlich, weil es nie mehr als eine brennende Anlage gab. Mit zweien
+// hätte das gemeinsame Bit die Anlaufzeit der einen Anlage von der
+// Brennstofflage der ANDEREN abhängig gemacht (wer zuletzt in der Schleife
+// dran ist, gewinnt) -- exakt das Flackern, das die Hysterese verhindern
+// soll, nur zwischen zwei Anlagen statt am Leerstand einer einzigen. Das Bit
+// ist deshalb jetzt JE GEBÄUDE (`planet.brennstoffAus[gebaeudeId]`), das
+// Kraftwerk verhält sich dabei unverändert -- ein Planet mit nur einer
+// brennenden Anlage sieht exakt dasselbe Bit wie vorher, nur eine Ebene
+// tiefer verschachtelt.
 export function reaktorBitNachziehen(planet) {
-  let aus = planet.reaktorAus === true;
-  let hatBrennstoff = false;
   for (const [id, def] of BRENNSTOFF_GEBAEUDE) {
     const level = (planet.gebaeude && planet.gebaeude[id]) || 0;
-    if (level <= 0) continue;
-    hatBrennstoff = true;
+    if (level <= 0) {
+      // Abgerissen oder nie gebaut: kein Bit zu pflegen. Ohne diesen Zweig
+      // bliebe ein einmal "aus" gesetztes Bit stehen, falls die Anlage
+      // später neu gebaut wird -- ein unsichtbarer Alt-Zustand.
+      if (planet.brennstoffAus) delete planet.brennstoffAus[id];
+      continue;
+    }
+    let aus = !!(planet.brennstoffAus && planet.brennstoffAus[id]);
     for (const [resId, spec] of Object.entries(def.brennstoff)) {
       const proStunde = rate(spec, level);
       if (proStunde <= 0) continue;
@@ -946,9 +1053,91 @@ export function reaktorBitNachziehen(planet) {
       if (reichweite < PUFFER_MINDESTDAUER_MS) aus = true;
       else if (reichweite >= BRENNSTOFF_ANLAUF_MS) aus = false;
     }
+    if (aus) {
+      if (!planet.brennstoffAus) planet.brennstoffAus = {};
+      planet.brennstoffAus[id] = true;
+    } else if (planet.brennstoffAus) {
+      delete planet.brennstoffAus[id];
+    }
   }
-  if (aus && hatBrennstoff) planet.reaktorAus = true;
-  else delete planet.reaktorAus;
+  // Kein leeres Objekt liegen lassen -- ein Planet ohne brennende Anlage
+  // soll wieder exakt so aussehen wie einer, der nie eine hatte.
+  if (planet.brennstoffAus && Object.keys(planet.brennstoffAus).length === 0) delete planet.brennstoffAus;
+}
+
+// --- Fossiler Vorrat je Planet (A-147) --------------------------------------
+//
+// Zweite Brennstoff-Art neben der Lager-basierten oben: KEIN RESSOURCEN-
+// Eintrag, kein Lager, kein Markt, keine Route -- ein einziges Feld am
+// Planeten (`planet.fossilVorrat`, Tonnen), weil es ihn nur einmal gibt und
+// er nicht handelbar sein soll (Tobi, 23.08., zu Gas als Lager-Ressource:
+// "Aber in dem Fall erstmal nicht"). Dasselbe Grundprinzip wie beim
+// Kraftwerk (A-055, Weg B): binäres Tor, Abzug beim Fortschreiben, NIE in
+// der Ratenrechnung -- sonst derselbe Fluss-Kreis (Energie hinge an
+// Fossilvorrat, der an nichts weiter hängt, also unkritisch, aber die
+// Ratenrechnung darf trotzdem nicht von einem sich ändernden Bestand lesen).
+//
+// OHNE Hysterese, anders als beim Reaktor: der Vorrat wächst nie nach (nichts
+// fördert ihn), ein einmal erloschenes Feld springt also nie wieder an --
+// den Flacker-Fall, den der Zündspeicher beim Kraftwerk dämpft, gibt es hier
+// strukturell nicht.
+const FOSSIL_GEBAEUDE = Object.entries(BUILDINGS)
+  .filter(([, def]) => def.fossil)
+  .map(([id, def]) => [id, def]);
+
+// Tonnen Vorrat je Echtzeitstunde. FESTER Umrechnungsfaktor auf die eigene
+// Energieproduktion (FOSSIL.tonnenProMWh, siehe Herleitung in data.js) statt
+// einer eigenen {basis,faktor}-Kurve: Verbrennung gewinnt mit der Stufe
+// nichts an Wirkungsgrad, der Verbrauch MUSS also exakt mit der Produktion
+// wachsen. Eine zweite, unabhängig gepflegte Kurve wäre die Fehlerklasse aus
+// dem ANREICHERUNG_VERLUST-Kommentar: zwei Fassungen derselben Zahl.
+export function fossilVerbrauchProStunde(def, level) {
+  if (!def.fossil || level <= 0) return 0;
+  const produktionEnergie = def.produktion && def.produktion.energie;
+  return rate(produktionEnergie, level) * FOSSIL.tonnenProMWh;
+}
+
+// Brennt dieses Gebäude gerade -- liest ausschließlich den Bestand. Wie
+// brennstoffBereit oben, aber ohne Reserve (nichts sonst will fossilVorrat)
+// und ohne Hysterese (s.o.).
+export function fossilBereit(planet, def, level) {
+  if (!def.fossil || level <= 0) return true;
+  return (planet.fossilVorrat || 0) > 0;
+}
+
+// Wie lange trägt der fossile Vorrat noch -- dieselbe konservative Zahl wie
+// brennstoffReichweiteMs (ohne Zufluss), fürs "Restreichweite in
+// Spieljahren" an der Kachel (A-147, Definition von fertig 3).
+export function fossilReichweiteMs(planet) {
+  let knappste = Infinity;
+  for (const [id, def] of FOSSIL_GEBAEUDE) {
+    const level = (planet.gebaeude && planet.gebaeude[id]) || 0;
+    if (level <= 0) continue;
+    const proStunde = fossilVerbrauchProStunde(def, level);
+    if (proStunde <= 0) continue;
+    const reichweite = pufferReichweiteMs(planet.fossilVorrat || 0, proStunde);
+    if (reichweite < knappste) knappste = reichweite;
+  }
+  return knappste;
+}
+
+// Zieht den Vorrat nach -- aufgerufen beim Fortschreiben der Planetenuhr
+// (simulation.js, wie reaktorBitNachziehen), NIE aus einer reinen Abfrage
+// heraus (derselbe Grund wie dort: unsichtbarer Spielverlauf). `stunden` ist
+// die bereits auf die nächste Ereignisgrenze geschnittene Spanne
+// (pufferGrenzeStunden unten) -- die Rate ist in ihr konstant, "Rate ×
+// Zeitspanne" gilt also exakt, kein Krümel-Fehler wie A-119.
+export function fossilVorratNachziehen(planet, stunden) {
+  for (const [id, def] of FOSSIL_GEBAEUDE) {
+    const level = (planet.gebaeude && planet.gebaeude[id]) || 0;
+    if (level <= 0 || (planet.fossilVorrat || 0) <= 0) continue;
+    const proStunde = fossilVerbrauchProStunde(def, level);
+    if (proStunde <= 0) continue;
+    const neu = (planet.fossilVorrat || 0) - proStunde * stunden;
+    // Auf null einrasten wie in planetRatenAnwenden -- kein negativer Krümel,
+    // der eine weitere Mini-Reichweite vorgaukelt.
+    planet.fossilVorrat = neu < 1e-6 ? 0 : neu;
+  }
 }
 
 // Reihenfolge, in der Lager-Ressourcen aufgelöst werden müssen: ein Eingangs-
@@ -1044,6 +1233,31 @@ export function vorratsanteil(planet) {
 // driftet eine von beiden lautlos auseinander (A-112-Fehlerklasse).
 export function bevoelkerungsWachstumsrate(planet) {
   return BEVOELKERUNG.basisRateJahr + BEVOELKERUNG.vorratsBonusMaxJahr * vorratsanteil(planet);
+}
+
+// Arbeitskraft-Leerlauf (A-155): der Anteil der laufenden Förderung, der bei
+// einer gegebenen Beschäftigungsquote (gebundene / verfügbare Arbeitskraft)
+// gestohlen wird -- STETIG zwischen den vier Marken aus ARBEITSKRAFT_LEERLAUF
+// (data.js), dort steht auch die Begründung der Werte.
+//
+// EINE Funktion für zwei Leser (B3): simulation.js zieht den Anteil bei der
+// Ratenanwendung von der laufenden Produktion ab, ui.js zeigt ihn an der
+// Arbeitskraft-Kachel, die die beiden Rohzahlen (frei/gesamt) ohnehin schon
+// führt. `quote` ≥ 1 (kein Leerlauf, eher Mangel) und `NaN` (kein Nenner,
+// z.B. eine Welt ohne Arbeitskraftbedarf) liefern beide 0.
+export function arbeitskraftDiebstahlAnteil(quote) {
+  const K = ARBEITSKRAFT_LEERLAUF;
+  if (!(quote < K.vollAb)) return 0;
+  if (quote >= K.ungemuetlichAb) {
+    const anteil = (K.vollAb - quote) / (K.vollAb - K.ungemuetlichAb);
+    return anteil * K.diebstahlBeiUngemuetlich;
+  }
+  if (quote >= K.kritischAb) {
+    const anteil = (K.ungemuetlichAb - quote) / (K.ungemuetlichAb - K.kritischAb);
+    return K.diebstahlBeiUngemuetlich + anteil * (K.diebstahlBeiKritisch - K.diebstahlBeiUngemuetlich);
+  }
+  const anteil = Math.max(0, Math.min(1, quote / K.kritischAb));
+  return K.diebstahlBeiNull + anteil * (K.diebstahlBeiKritisch - K.diebstahlBeiNull);
 }
 
 // Was ein Handelsposten dieser Stufe auf diesem Planeten an Abgaben abrechnet.
@@ -1528,6 +1742,28 @@ export function produktionsAufloesung(state, planet) {
       }
       // Regime A (Bestand über Reserve): nichts tun, die Lücke kommt aus dem
       // Lager und wird unten als negative Nettorate sichtbar.
+    } else if (angebot > nachfrage + 1e-9) {
+      // Regime C (A-154, E1): das Spiegelbild von Regime B -- dort drosselt
+      // der VERBRAUCH auf den Zustrom, wenn der Bestand unten anschlägt,
+      // hier drosselt die PRODUKTION auf den Abstrom, wenn er oben anschlägt
+      // (die Zielmenge aus A-153). Dieselbe Formel, umgedreht, dieselbe
+      // Zusicherung: Nettorate wird exakt 0, kein Hin- und Herschalten.
+      const max = maxBestandFuer(planet, resId);
+      if (max > 0) {
+        const bestand = (planet.ressourcen && planet.ressourcen[resId]) || 0;
+        if (pufferReichweiteMs(max - bestand, angebot - nachfrage) < PUFFER_MINDESTDAUER_MS) {
+          const anteil = angebot > 0 ? nachfrage / angebot : 0;
+          // NICHT faktoren[a.id] -- die bliebe sonst auch für andere
+          // Ressourcen derselben Anlage verändert (B3: eine Zahl, ein
+          // Rechenweg -- die Grundlast unten ist die einzige zusätzliche
+          // Untergrenze, keine zweite Drehung an dieser hier).
+          // `produktionsDrosselFaktor` ist eine reine Lesehilfe für die
+          // Energie-Fluss-Rechnung unten, kein zweiter persistenter Zustand.
+          for (const a of anlagen) if (a.prod[resId]) a.produktionsDrosselFaktor = anteil;
+          drosselung[resId] = anteil;
+          angebot = nachfrage;
+        }
+      }
     }
 
     produktion[resId] = angebot;
@@ -1595,9 +1831,21 @@ export function produktionsAufloesung(state, planet) {
     // sondern was die Anlagen nach ihrer Zuteilung wirklich ziehen. Sonst
     // lüde die Batterie bei gesetzten Prioritäten falsch -- eine Anlage im
     // Nachrang verbraucht weniger, als der Mittelwert behauptet.
+    // A-154: eine durch die Zielmenge gedrosselte Anlage zieht trotzdem ihre
+    // Grundlast (`DROSSELUNG.grundlastAnteil`) -- die Untergrenze gilt NUR
+    // für den tatsächlichen Verbrauch, nicht für `faktoren[a.id]` selbst
+    // (die bliebe sonst für andere Ressourcen derselben Anlage mitverändert,
+    // siehe Regime C oben). `Math.min` mit der Zuteilungsquote: die
+    // Grundlast erhöht den Verbrauch nie über das, was der Anlage
+    // tatsächlich zugeteilt wurde (ein echter Energiemangel sticht die
+    // Grundlast-Untergrenze).
+    const energieFaktorVon = (a) =>
+      a.produktionsDrosselFaktor === undefined
+        ? (faktoren[a.id] ?? 1)
+        : Math.min(faktoren[a.id] ?? 1, Math.max(DROSSELUNG.grundlastAnteil, a.produktionsDrosselFaktor));
     const wirklichVerbraucht =
       resId === "energie"
-        ? anlagen.reduce((summe, a) => summe + (a.energie || 0) * (faktoren[a.id] ?? 1), 0)
+        ? anlagen.reduce((summe, a) => summe + (a.energie || 0) * energieFaktorVon(a), 0)
         : verbrauch[resId] * energieFaktor;
     fluss[resId] = produktion[resId] - wirklichVerbraucht;
   }
@@ -1666,6 +1914,26 @@ export function pufferGrenzeStunden(state, planet) {
     if (frueheste === null || stunden < frueheste) frueheste = stunden;
   }
 
+  // A-154: das Spiegelbild der Schleife oben -- eine Ressource mit gesetzter
+  // Zielmenge (Max, A-153), die gerade WÄCHST, erreicht sie irgendwann. Der
+  // Moment trennt zwei Abschnitte mit konstanter Rate genauso wie eine
+  // Puffergrenze (Regime A -> C statt A -> B) -- deshalb dieselbe Funktion,
+  // nur mit der Zielmenge als Obergrenze und dem verbleibenden Spielraum
+  // (`max - bestand`) statt eines Vorrats über der Reserve.
+  for (const resId of LAGER_RESSOURCEN) {
+    const max = maxBestandFuer(planet, resId);
+    if (max <= 0) continue;
+    const nettoRate = lager[resId] || 0;
+    if (nettoRate <= 0) continue;
+    const bestand = (planet.ressourcen && planet.ressourcen[resId]) || 0;
+    const dauerMs = pufferReichweiteMs(max - bestand, nettoRate);
+    // Unter der Mindestdauer regelt produktionsAufloesung (Regime C) bereits
+    // herunter -- nichts mehr zu teilen, dieselbe Begründung wie oben.
+    if (dauerMs < PUFFER_MINDESTDAUER_MS || !Number.isFinite(dauerMs)) continue;
+    const stunden = dauerMs / MS_PRO_STUNDE_STATE;
+    if (frueheste === null || stunden < frueheste) frueheste = stunden;
+  }
+
   // Die Brennstoff-Schwellen (A-055) sind eigene Ereignis-Zeitpunkte: der
   // Moment, in dem das Tor kippt, trennt zwei Abschnitte mit konstanter
   // Rate -- exakt wie eine Puffergrenze, nur dass die Schwelle nicht die
@@ -1695,8 +1963,9 @@ export function pufferGrenzeStunden(state, planet) {
       } else if (!an && netto > 0) {
         // Erloschen, aber es läuft nach: Ereignis, wenn der Anlauf-Vorrat
         // beisammen ist (mit Hysterese-Bit die Anlaufmenge, ohne die
-        // Zündmenge).
-        const zielMs = planet.reaktorAus ? BRENNSTOFF_ANLAUF_MS : PUFFER_MINDESTDAUER_MS;
+        // Zündmenge). Das Bit ist seit A-148 je Gebäude (id aus der
+        // äußeren Schleife) -- siehe reaktorBitNachziehen.
+        const zielMs = planet.brennstoffAus && planet.brennstoffAus[id] ? BRENNSTOFF_ANLAUF_MS : PUFFER_MINDESTDAUER_MS;
         const zielMenge = (proStunde * zielMs) / MS_PRO_STUNDE_STATE;
         stunden = (zielMenge - vorrat) / netto;
       }
@@ -1704,6 +1973,22 @@ export function pufferGrenzeStunden(state, planet) {
       stunden = Math.max(0, stunden) + 1 / MS_PRO_STUNDE_STATE;
       if (frueheste === null || stunden < frueheste) frueheste = stunden;
     }
+  }
+
+  // Der fossile Vorrat (A-147) ist binär wie der Brennstoff oben, aber OHNE
+  // Hysterese und ohne Reserve: nur EIN Ereignis pro brennendem Gebäude ist
+  // überhaupt möglich, der Moment, in dem der Vorrat auf 0 fällt (ein
+  // bereits erloschenes Feld braucht keins mehr -- es springt nie wieder
+  // an). Derselbe +1-ms-Krümel wie oben, aus demselben Grund.
+  for (const [id, def] of FOSSIL_GEBAEUDE) {
+    const level = (planet.gebaeude && planet.gebaeude[id]) || 0;
+    if (level <= 0) continue;
+    const vorrat = planet.fossilVorrat || 0;
+    if (vorrat <= 0) continue;
+    const proStunde = fossilVerbrauchProStunde(def, level);
+    if (proStunde <= 0) continue;
+    const stunden = vorrat / proStunde + 1 / MS_PRO_STUNDE_STATE;
+    if (frueheste === null || stunden < frueheste) frueheste = stunden;
   }
   return frueheste;
 }
@@ -2107,13 +2392,27 @@ export function planetUebersicht(state, planet) {
     const verbrauch = raten.verbrauch[resId] || 0;
     // Wo weder produziert noch verbraucht wird, gibt es nichts zu berichten.
     // Eine Zeile „0" für jede Ressource wäre der Nullzustand als Phantasie.
-    if (produktion === 0 && verbrauch === 0) continue;
+    //
+    // A-154: EIN Fall bricht das -- eine Anlage, die vollständig auf die
+    // Zielmenge heruntergeregelt ist (Regime C, Nennbedarf 0), liest hier
+    // GENAUSO wie "nichts los" und würde spurlos verschwinden. Das ist
+    // genau der A-050/A-061-Fehlertyp ("ein gedrosselter Fluss nennt seinen
+    // Grund"), nur unsichtbar statt falsch: eine Anlage, die still weniger
+    // tut, ohne es zu sagen. `maxDrosselAktiv` hält die Zeile deshalb am
+    // Leben, auch bei produktion=verbrauch=0.
+    const maxGedrosselt = maxDrosselAktiv(planet, resId, raten.drosselung);
+    if (produktion === 0 && verbrauch === 0 && !maxGedrosselt) continue;
     fluesse.push({
       resId,
       produktion,
       verbrauch,
       netto: lagerAnzeige[resId] || 0,
       drosselung: raten.drosselung[resId] === undefined ? 1 : raten.drosselung[resId],
+      // A-154: unterscheidet den Grund fürs Anzeige-Wort -- Regime C ist
+      // die ABSICHTLICHE Zielmenge (kein Mangel, keine Warnfarbe), Regime B
+      // ein echter Engpass. Beide teilen sich `drosselung`, siehe
+      // maxDrosselAktiv.
+      maxGedrosselt,
     });
   }
 
@@ -2142,6 +2441,12 @@ export function planetUebersicht(state, planet) {
     verbrauch: raten.verbrauch.arbeitskraft || 0,
   };
   arbeitskraft.frei = arbeitskraft.produktion - arbeitskraft.verbrauch;
+  // A-155: Beschäftigungsquote aus denselben zwei Zahlen -- 1 (voll
+  // beschäftigt) ohne Arbeitskraftbedarf, damit eine Welt ohne Anlagen nicht
+  // als "leerlaufend" gilt.
+  arbeitskraft.quote =
+    arbeitskraft.produktion > 0 ? arbeitskraft.verbrauch / arbeitskraft.produktion : 1;
+  arbeitskraft.diebstahlAnteil = arbeitskraftDiebstahlAnteil(arbeitskraft.quote);
 
   // --- 4b. Anstehende Freischalt-Schwellen --------------------------------
   //

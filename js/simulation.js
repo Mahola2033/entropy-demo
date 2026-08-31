@@ -34,6 +34,7 @@ import {
   SUPERNOVA,
   jahreInMs,
   bevoelkerungsSchrittFaktor,
+  ARBEITSKRAFT_LEERLAUF,
 
   taugtAlsStartwelt,
   REICHWEITE,
@@ -49,6 +50,7 @@ import {
   pufferGrenzeStunden,
   verarbeitungsReserveFuer,
   reaktorBitNachziehen,
+  fossilVorratNachziehen,
   brennstoffReichweiteMs,
   affinitaetFaktor,
   gebaeudeKosten,
@@ -91,6 +93,7 @@ import {
   beziehungHandlung,
   beziehungAendern,
   beziehungZu,
+  arbeitskraftDiebstahlAnteil,
 } from "./state.js";
 import {
   ortVonPlanet,
@@ -279,6 +282,10 @@ function planetVorruecken(state, planet, bisZeitpunkt) {
     // Ereignis-Zeitpunkte (pufferGrenzeStunden), deshalb kippt das Bit in
     // einem großen Sprung an denselben Stellen wie in vielen kleinen.
     reaktorBitNachziehen(planet);
+    // Derselbe Platz, derselbe Grund, zweite Brennstoff-Art (A-147): der
+    // fossile Vorrat zieht NUR hier nach, mit der bereits auf die nächste
+    // Ereignisgrenze geschnittenen Spanne.
+    fossilVorratNachziehen(planet, stunden);
   }
 }
 
@@ -319,9 +326,43 @@ function verderbFaktor(resId, stunden) {
   };
 }
 
+// A-155: welche Bande bekommt gestohlene Fracht ab? Dieselbe Nähe-Messung
+// wie piratenZielsystem (Systemdistanz über entfernung), aber die NÄCHSTE
+// LEBENDE Bande statt der am besten geeigneten neuen -- die Beute geht an
+// eine bestehende Gruppe, keine Gründung.
+function piratenNaechsteBande(state, systemId) {
+  let beste = null;
+  let besteEntfernung = Infinity;
+  for (const fraktion of Object.values(state.fraktionen)) {
+    if (fraktion.art !== "pirat") continue;
+    const basis = planetById(state, fraktion.basisPlanet);
+    if (!basis) continue; // Splitter unterwegs -- noch keine Basis (piratenSchritt)
+    const d = entfernung(state.galaxie.seed, systemId, basis.systemId);
+    if (d < besteEntfernung) {
+      besteEntfernung = d;
+      beste = basis;
+    }
+  }
+  return beste && besteEntfernung <= PIRAT.diebstahlReichweite ? beste : null;
+}
+
 function planetRatenAnwenden(state, planet, stunden) {
   {
-    const { lager, fluss, produktion } = effektiveRaten(state, planet);
+    const { lager, fluss, produktion, verbrauch } = effektiveRaten(state, planet);
+
+    // A-155 (Arbeitskraft-Leerlauf): dieselbe Beschäftigungsquote wie die
+    // Kachel (state.js, planetUebersicht), aus denselben Rohwerten. Über die
+    // GANZE Spanne `stunden` konstant -- zwischen zwei Ereignissen ändert
+    // sich weder die Bevölkerung (eigenes "wachstum"-Ereignis) noch eine
+    // Anlagenstufe (eigenes "bau"/"werft"-Ereignis), also auch nicht die
+    // Quote. Genau darauf beruht schon jede andere Rate in dieser Funktion --
+    // die Bekannte Falle "als Ereignis schneiden, nicht als stetige Größe"
+    // ist damit erfüllt, ohne einen zweiten Ereignistyp zu brauchen.
+    const verfuegbareArbeitskraft = produktion.arbeitskraft || 0;
+    const gebundeneArbeitskraft = verbrauch.arbeitskraft || 0;
+    const beschaeftigungsquote =
+      verfuegbareArbeitskraft > 0 ? gebundeneArbeitskraft / verfuegbareArbeitskraft : 1;
+    const diebstahlAnteil = arbeitskraftDiebstahlAnteil(beschaeftigungsquote);
 
     // Forschung verlässt den Planeten, statt in ein Lager zu gehen -- sie
     // wird dem laufenden Projekt des Imperiums gutgeschrieben. Steht hier
@@ -348,6 +389,10 @@ function planetRatenAnwenden(state, planet, stunden) {
     }
 
     const zuwachs = {};
+    // A-155: was der Leerlauf stiehlt, je Ressource -- gesammelt statt sofort
+    // verrechnet, weil die Nutznießerin (die nächste Bande) erst nach dieser
+    // Schleife feststeht.
+    const gestohlen = {};
     for (const [resId, proStunde] of Object.entries(lager)) {
       const verderb = verderbFaktor(resId, stunden);
       // Erst den Altbestand zerfallen lassen, dann die Rate anwenden -- die
@@ -358,7 +403,13 @@ function planetRatenAnwenden(state, planet, stunden) {
       }
       const menge = proStunde * stunden * (verderb ? verderb.zuwachs : 1);
       if (menge >= 0) {
-        zuwachs[resId] = menge;
+        // A-155: "Ein Anteil der laufenden Förderung verschwindet" (Tobi,
+        // 16.08.) -- genau dieser eine Anteil an genau dieser einen Menge,
+        // keine zweite Rechnung (B3). Nichts zu drosseln heißt nichts zu
+        // stehlen: eine Welt ohne Produktion bleibt unberührt.
+        const anteil = diebstahlAnteil * menge;
+        zuwachs[resId] = menge - anteil;
+        if (anteil > 0) gestohlen[resId] = anteil;
         continue;
       }
       // Negative Nettorate: eine Verarbeitungskette zieht aus dem Bestand.
@@ -377,6 +428,29 @@ function planetRatenAnwenden(state, planet, stunden) {
     // Überproduktion bei vollem Lager verfällt bewusst -- anders als bei
     // Fracht gibt es hier kein "Schiff", das den Überschuss festhält.
     insLager(state, planet, zuwachs);
+
+    // A-155: "Die Piraten in der Nähe werden stärker" ist keine zweite
+    // Mechanik, sondern dieselbe Beute am anderen Ende -- was hier
+    // verschwindet, kommt (sofern eine Bande in Reichweite lebt) dort an.
+    // Gibt es keine, verschwindet es ersatzlos; das ist immer noch "gestohlen".
+    if (Object.keys(gestohlen).length > 0) {
+      const bande = piratenNaechsteBande(state, planet.systemId);
+      if (bande) hinzufuegen(bande.ressourcen, gestohlen);
+      // Ab 30 % Beschäftigung MUSS es der Spieler in den Meldungen sehen
+      // (Tobis Wortlaut, 25.08.). Gruppiert über `gruppe` (A-083): dieselbe
+      // Welt zählt hoch, statt das Logbuch zu fluten.
+      if (beschaeftigungsquote < ARBEITSKRAFT_LEERLAUF.kritischAb) {
+        meldungHinzufuegen(
+          state,
+          t("{planet}: nur {quote} % Beschäftigung – Arbeitskraft-Leerlauf stiehlt Ressourcen und stärkt Piraten in der Nähe.", {
+            planet: planet.name,
+            quote: Math.round(beschaeftigungsquote * 100),
+          }),
+          `leerlauf-${planet.id}`,
+          herkunftVon(planet)
+        );
+      }
+    }
   }
 }
 
@@ -2257,7 +2331,10 @@ function piratenHandeln(state, fraktion, basis, flotte) {
   // bewusst nicht dabei -- eine Piratenbasis hat weder das eine noch das
   // andere. Schlägt ein Verkauf fehl (Beziehung, leere Kasse des Partners),
   // ist das der normale Ausgang und kein Fehler.
-  for (const resId of ["metall", "silizium", "iridium", "antimaterie"]) {
+  //
+  // A-148: uran steht hier wie iridium (Beute, kein eigener Bedarf) --
+  // anders als tritium, das die Flotte selbst als Treibstoff braucht.
+  for (const resId of ["metall", "silizium", "iridium", "uran", "antimaterie"]) {
     const menge = Math.floor(basis.ressourcen[resId] || 0);
     if (menge > 0) verkaufen(state, basis, resId, menge);
   }

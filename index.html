@@ -130,12 +130,17 @@
         <h2 data-text="Anlagen & Sektoren"></h2>
         <ul id="gebaeude-liste" class="kachel-raster"></ul>
         <div id="gebaeude-warteschlange" class="warteschlange"></div>
-        <!-- Immer sichtbar, auch ohne laufende Kette: der Block erklärt dann,
-             dass es hier nichts zu regeln gibt. Ein Bereich, der je nach
-             Zustand auftaucht und verschwindet, würde das feste Layout
-             brechen (Muskelgedächtnis-Regel). -->
-        <h2 data-text="Verarbeitung"></h2>
-        <div id="verarbeitung-block"></div>
+      </section>
+
+      <!-- A-153: der Lager-Bereich, Block 1 (Bestände). Position 2, direkt
+           über Forschung (Tobis Entscheidung, 23.08. -- siehe der Kommentar
+           an BEREICHE in js/ui.js). Übernimmt die Verarbeitungs-Reserve, die
+           bis hierhin im Planet-Bereich stand (#verarbeitung-block, jetzt
+           entfernt) -- EIN Ort für alle drei Bestands-Stellschrauben statt
+           verteilter Orte. -->
+      <section class="bereich" data-bereich="lager" hidden>
+        <h2 data-text="Lager"></h2>
+        <div id="lager-block"></div>
       </section>
 
       <!-- A-144: Die Forschungs-Warteschlange stand hier bis v0.4.4 als

@@ -564,6 +564,50 @@ body {
   min-width: 0;
 }
 
+/* A-157: .res-oben/.res-unten sind Grid-Items ihrer Kachel (.res-kachel ist
+   ein Grid, s.o.) und tragen deshalb den Vorgabewert `min-width: auto` --
+   sie duerfen dann nicht schmaler werden als ihre min-content-Breite. Seit
+   A-142 tragen .speicher-zeile/.brennstoff-zeile IMMER einen Text (Leer-
+   Zustand statt vorher `null`), und der laengste ("Kein Energiespeicher
+   gebaut") reisst damit die Spalte auf: GEMESSEN am veroeffentlichten
+   0.5.0-Stand 18px/36px Ueberlauf und 6 Uebergriffe auf Nachbarkacheln
+   (Kraftwerk gebaut, kein Energiespeicher). `min-width: 0` erlaubt das
+   Schrumpfen; `.res-unten` hat bereits `flex-wrap: wrap` (s.o.) und bricht
+   sauber um -- nichts wird abgeschnitten. `min-width: 0` auf der KACHEL
+   selbst haette nicht geholfen, das Problem sitzt eine Ebene tiefer. */
+.res-oben,
+.res-unten {
+  min-width: 0;
+}
+
+/* A-157 Teil 2 -- GEMESSEN: der Fix oben reicht bei der Fluss-Kachel
+   (Energie) allein nicht. Deren `.res-unten` steht in SPALTENRICHTUNG
+   (flussKachelGeruest in js/ui.js, inline `flex-direction:column` -- daran
+   erkennbar, nicht anfassbar von hier aus). Die Zeilen darin (die anonyme
+   Zahl+Rate-Zeile, `.speicher-zeile`, `.brennstoff-zeile`) sind selbst
+   Flex-Items DIESES Containers und tragen deshalb IHREN EIGENEN
+   `min-width: auto` -- derselbe Defekt, eine Ebene tiefer, den der Fix oben
+   nur fuer die Kachel selbst behebt. GEMESSEN (2560x1440, Kraftwerk 14,
+   kein Energiespeicher, Lagerhalle 11): mit nur dem Fix oben blieb der
+   Uebergriff bei 19px -- gleich gross bei kleinen (17.141 MW frei) wie bei
+   grossen Zahlen (802.755 MW frei), weil die KONSTANTE "Kein
+   Energiespeicher gebaut" ihn verursacht, nicht die Zahl. `min-width: 0`
+   plus `flex-wrap: wrap` auf den direkten Kindzeilen laesst sie umbrechen,
+   genau wie `.res-unten` es fuer die einfache Kachel schon tut -- ohne die
+   festen Mindestbreiten von `.res-wert`/`.res-rate` (Anti-Jitter, A-142,
+   s.u.) anzutasten. Das Selektormuster `[style*="..."]` ist hier bereits
+   Praxis (s. `.res-kachel[style*="--res-farbe"]`). Nach dem Fix: 0px/0
+   Uebergriffe, an beiden Zahlen. */
+.res-unten[style*="column"] > span {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.speicher-stand,
+.speicher-zustand {
+  min-width: 0;
+}
+
 .res-oben {
   display: flex;
   align-items: baseline;
@@ -961,13 +1005,30 @@ body {
   line-height: 1.65;
 }
 
+/* A-160: Sprungnavigation am Kopf des Development-Bereichs -- vier Verweise
+   auf dieselben Marken, die A-040 für Meldungen vergibt. Dezent, weil sie
+   Werkzeug ist, kein Inhalt; die Verweise selbst erben ihre Akzentfarbe von
+   `.handbuch a` weiter unten, wie der Rückmeldung-Link im Feedback-Absatz. */
+.development-sprungnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--abstand-2);
+  margin: 0 0 var(--abstand-7);
+  font-size: var(--schrift-s);
+  color: var(--text-dezent);
+}
+
 .handbuch h3 {
   margin: var(--abstand-9) 0 var(--abstand-3);
   color: var(--testmodus-text);
   font-size: var(--schrift-xxl);
 }
 
-.handbuch h3:first-child {
+/* `:first-of-type`, nicht `:first-child` -- seit A-160 steht die
+   Sprungnavigation des Development-Bereichs (kein h3) vor der ersten
+   Überschrift. Sie soll trotzdem den knappen oberen Rand tragen, nicht den
+   vollen Abstand einer Kapitelüberschrift MITTEN im Text. */
+.handbuch h3:first-of-type {
   margin-top: var(--abstand-2);
 }
 
@@ -1884,6 +1945,54 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-m);
   padding: var(--abstand-3) var(--abstand-4);
+}
+
+/* Lager-Bereich, Block 1 (A-153). Eine Zeile je Ressource -- dieselbe
+   .markt-zeile-Optik, aber drei statt eine Stellschraube (Handels-Mindest,
+   Verarbeitungs-Reserve, Max). Das Standard-.bedienzeile-Raster (EIN
+   Eingabefeld, zwei Knöpfe) ist dafür zu eng gebaut -- statt ein zweites
+   Raster zu erfinden, teilt sich jede der drei Stellschrauben EINE Spalte
+   (Regler/Eingabe/Knopf-1/Knopf-2) mit einer kompakten Eingabe+Knopf-Gruppe,
+   das Raster selbst bleibt unverändert (Auftrag: "wird benutzt, nicht
+   nachgebaut"). Bestand und Balken teilen sich ebenso EINE Spalte (Regler),
+   übereinander gestapelt wie an der Lagerkachel oben. */
+.lager-zeile {
+  background: var(--bg-item);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  padding: var(--abstand-3) var(--abstand-6);
+  margin-bottom: var(--abstand-3);
+}
+.lager-bestand-saeule {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  min-width: 0;
+}
+.lager-feldgruppe {
+  display: flex;
+  align-items: center;
+  gap: var(--abstand-3);
+  min-width: 0;
+}
+.lager-feldgruppe input[type="number"] {
+  width: 100%;
+  min-width: 0;
+  background: var(--bg-item);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  padding: var(--abstand-3) var(--abstand-4);
+}
+.lager-feldgruppe button {
+  flex: 0 0 auto;
+  min-width: 2.2rem;
+}
+/* Ein Max-Feld ohne fördernde Anlage ist erklärt statt versteckt (G4) --
+   derselbe .dezent-Ton wie jede andere P18-Antwort im Spiel. */
+.lager-feldgruppe.lager-ohne-anlage {
+  color: var(--text-dezent);
+  font-style: italic;
 }
 
 .flotte-zeile {
@@ -3272,8 +3381,17 @@ body {
 /* A-082: Die Namenszeile der Welt steht ganz oben in „Diese Welt in Zahlen"
    -- vor den Werten, weil sie sagt, WESSEN Zahlen darunter stehen. Sie folgt
    dem Bedienzeilen-Raster (Prinzip 10b), damit sie sich wie jede andere
-   Eingabezeile im Spiel anfühlt. */
+   Eingabezeile im Spiel anfühlt.
+   A-159: Sie hat aber nur DREI Kinder -- Beschriftung (Spalte 1), Eingabe
+   (Spalte 4), Knopf (Spalte 5). Regler (2) und Zahl (3) bleiben leer,
+   beanspruchen im vollen 10b-Raster aber ihre volle Breite (7rem + 10rem),
+   bis das Raster über den ~400 px schmalen Kasten hinausragt. Dieselbe
+   Lösung wie bei .kommando-sprit weiter oben: die ROLLEN bleiben Spalte 1/
+   4/5, nur die hier ungebrauchten Spuren fallen -- und NUR hier -- auf
+   null zusammen. */
 .uebersicht-name {
+  --zeile-regler: 0;
+  --zeile-zahl: 0;
   margin-bottom: var(--abstand-5);
 }
 

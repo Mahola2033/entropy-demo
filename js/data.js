@@ -19,7 +19,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.5.0";
+export const VERSION = "0.6.0";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von uebernehmen.mjs beim Kopieren auf "spielkopie"
@@ -280,6 +280,15 @@ export const RESSOURCEN = {
   // Spezialisierung statt "eine Forschung boostet alles". Dichtes Material,
   // braucht pro Einheit mehr Lagerplatz.
   iridium: { id: "iridium", name: "Iridium", symbol: "💎", farbe: "#b39ddb", einheit: "t", art: "lager", start: 0, lagerverbrauch: 4, gebaeude: "iridiummine" },
+  // Brennstoff der Kernkraftanlage (A-148, zweiter Schritt der Energiekette).
+  // Anders als Iridium (siderophil, ins Zentrum gesunken) ist Uran
+  // lithophil -- es reichert sich MIT der Differenzierung der Kruste an
+  // (Granite, Pegmatite), nicht dagegen. Deshalb steigt seine Affinität mit
+  // derselben Reihenfolge wie Metall/Silizium (siehe PLANETEN_KLASSEN),
+  // nicht umgekehrt wie bei Iridium. Symbol bewusst nicht ☢️ (das trägt
+  // fusionstechnik) -- Yellowcake (U₃O₈, die geförderte Handelsform) ist
+  // namensgebend gelb.
+  uran: { id: "uran", name: "Uran", symbol: "🟡", farbe: "#f2c94c", einheit: "t", art: "lager", start: 0, lagerverbrauch: 3, gebaeude: "uranmine" },
   // Veredeltes Gut, zweite Verarbeitungskette (A-009). Entsteht aus Silizium
   // und viel Energie, und zwar MIT VERLUST -- das ist die These des Spiels
   // („jede Umwandlung verliert") zum ersten Mal an einer Kette, die im
@@ -426,6 +435,68 @@ export function bevoelkerungsSchrittFaktor(rJahr) {
   return Math.pow(1 + rJahr, BEVOELKERUNG.schrittMs / jahreInMs(1)) - 1;
 }
 
+// --- Arbeitskraft-Leerlauf (A-155) ------------------------------------------
+// Tobis Zeile vom 16.08.: "Nicht genutzte Arbeitskraft abstufend starten ab
+// 80% Arbeitenden klaut Ressourcen und verstärkt Piraten in der nähe." Und
+// seine Zahlen vom 25.08. auf die Nachfrage nach den Schwellen: "sagen wir
+// erstmal unter 50% Arbeitenden wird schon sehr ungemütlich und ab 30%
+// sollte es ein Problem sein das man angehen MUSS."
+//
+// Physikalisch: Menschen ohne Arbeit sind kein Nullposten -- sie essen
+// weiter (die Nahrungsrechnung kennt sie schon über BEVOELKERUNG) und sie
+// organisieren sich. Der Diebstahl ist die sichtbare Hälfte, die
+// Piratenverstärkung die, die später zurückkommt -- und es ist DERSELBE
+// Vorgang: was hier verschwindet, kommt (sofern eine Bande in der Nähe ist)
+// dort an. Damit hat Bevölkerung zum ersten Mal einen PREIS, nicht nur einen
+// Nutzen (das Regelwerk verlangt genau diese Entschärfung für "was nur
+// positiv wäre").
+//
+// Beschäftigungsquote = gebundene / verfügbare Arbeitskraft (dieselben zwei
+// Zahlen, die die Arbeitskraft-Kachel heute schon als "frei X von Y" zeigt --
+// state.js, planetUebersicht). Der gestohlene Anteil verläuft STETIG
+// zwischen den vier Marken (siehe arbeitskraftDiebstahlAnteil in state.js),
+// nicht sprunghaft -- Tobis zwei Sätze nennen nur die Bänder, die Höhe der
+// drei Zwischenwerte ist eine Umsetzungs-Entscheidung: spürbar bei
+// "ungemütlich", deutlich schmerzhaft bei "muss angegangen werden", aber
+// nie ein Totalausfall -- sonst wäre der vorgesehene Ausweg (P18: Anlagen
+// ausbauen, mehr Arbeitskraft binden) witzlos, weil nichts mehr da wäre, das
+// den Ausbau lohnt.
+export const ARBEITSKRAFT_LEERLAUF = {
+  // Ab hier (>=) nichts -- der Normalfall bleibt folgenlos.
+  vollAb: 0.8,
+  // 80% -> 50%: "sanft ansteigend, spürbar aber tragbar" (Tobi, sinngemäß).
+  ungemuetlichAb: 0.5,
+  // 50% -> 30%: "sehr ungemütlich" (Tobis Wortlaut, 25.08.).
+  kritischAb: 0.3,
+  // Anteil der laufenden Förderung, der bei den drei Marken gestohlen wird,
+  // linear zwischen den Punkten (0 bei vollAb).
+  diebstahlBeiUngemuetlich: 0.05,
+  diebstahlBeiKritisch: 0.12,
+  // unter 30%: "ein Problem, das man angehen MUSS" (Tobis Wortlaut, 25.08.) --
+  // der Wert bei voller Untätigkeit (Beschäftigung 0).
+  diebstahlBeiNull: 0.25,
+};
+
+// --- Drosselung auf Zielmenge (A-154) ---------------------------------------
+// E1: Erreicht der Bestand einer Ressource die im Lager-Bereich gesetzte
+// Zielmenge (Max, A-153), regelt sich die fördernde Anlage so weit herunter,
+// dass die Nettorate exakt 0 wird -- sie produziert genau, was abfließt.
+//
+// Die Grundlast ist der physikalische Kern, nicht eine Bremse: Bewetterung,
+// Wasserhaltung und Förderbänder laufen weiter, ob gefördert wird oder
+// nicht -- real sind das 30-50 % des Verbrauchs (§0b, A-145: kein Wert ohne
+// Begründung). Ein Drittel liegt in dieser Spanne und ist zugleich die
+// einfachste Zahl darin.
+//
+// Gilt NUR für Energie/Arbeitskraft (die laufenden Betriebskosten) -- die
+// PRODUKTION selbst darf bis auf 0 fallen (kein Abstrom, kein Grund zu
+// fördern), sonst würde eine Anlage ohne jeden Abnehmer den Bestand ewig
+// über die Zielmenge hinaustreiben und Kriterium 1 (Bestand pendelt sich
+// EIN) wäre verletzt.
+export const DROSSELUNG = {
+  grundlastAnteil: 1 / 3,
+};
+
 // Verdeckte Platzhalter am Ende der Ressourcenleiste. Man soll sehen, dass
 // das Spiel noch mehr zu bieten hat, ohne zu erfahren WAS -- deshalb eine
 // feste kleine Zahl statt der echten Restmenge (die wäre selbst schon eine
@@ -547,13 +618,19 @@ export const SYMBOLE = {
   // Gebäude
   metallmine: "🔩",
   siliziummine: "💠",
+  fossilanlage: "🛢️",
   kraftwerk: "⚡",
+  // Dasselbe Symbol wie fusionstechnik (Forschung) -- beide Nuklear-Themen,
+  // keine Kollision: verschiedene Kategorien, dasselbe Muster wie
+  // forschungslabor/forschungsschiff (beide 🔬).
+  kernkraftanlage: "☢️",
   solarfeld: "☀️",
   energiespeicher: "🔋",
   lagerhalle: "📦",
   tritiumextraktor: "⚛️",
   werft: "🏗️",
   iridiummine: "💎",
+  uranmine: "🟡",
   antimateriekollektor: "🌀",
   forschungslabor: "🔬",
   handelsposten: "🏪",
@@ -630,6 +707,45 @@ export const GEBAEUDE_GRUPPEN = [
   { id: "industrie", name: "Industrie & Wissenschaft" },
 ];
 
+// --- Fossile Verbrennung (A-147, erster Schritt der Energiekette) ---------
+// Umrechnung von erzeugter Energie auf verbrannten Vorrat -- über eine reale
+// Referenzgröße statt eine gegriffene Zahl: 1 t SKE (Tonne Steinkohleeinheit,
+// die genormte Energiewirtschafts-Einheit) = 29,3076 GJ = 8,141 MWh
+// Primärenergie. Ein Dampfkraftwerk (Rankine-Prozess, Carnot-begrenzt wie am
+// Kraftwerk-Kommentar erklärt) erreicht rund 35 % Wirkungsgrad. Macht
+//   1 MWh_el kostet 1 / (8,141 MWh/t × 0,35) ≈ 0,351 t Kohle.
+// Der Faktor bleibt über alle Stufen KONSTANT -- anders als beim Kraftwerk
+// oder der Kernkraftanlage gibt es hier keinen Effizienzgewinn mit der
+// Stufe: Verbrennung hängt an der Carnot-Grenze, nicht an der Baugröße. Der
+// Verbrauch wächst deshalb exakt mit der Produktion (1,15^Stufe), nicht mit
+// einer eigenen, flacheren Kurve.
+export const FOSSIL = {
+  tonnenProMWh: 0.351,
+  // Wie viele Spieljahre der Vorrat bei Affinität 1 und Dauerbetrieb auf
+  // Stufe 1 trägt -- Tobis Vorgabe (25.08.): "in lass es 100 Jahre sein
+  // verbaucht ist".
+  vorratJahre: 100,
+};
+
+// Vorrat bei Affinität 1 (Tonnen), hergeleitet statt gesetzt -- in der
+// "kleinen" Notation der Tabellen oben (roh, VOR der MASSSTAB-Skalierung
+// weiter unten in dieser Datei):
+//   Verbrauch Stufe 1 = rate({basis:60,faktor:1.15}, 1) × FOSSIL.tonnenProMWh
+//                      = 60 × 1 × 1,15¹ × 0,351 MW → 69 MW × 0,351 t/MWh
+//                      = 24,219 t je ECHTZEITSTUNDE
+//   100 Spieljahre = jahreInMs(100) = 36.525.000 ms ≈ 10,1458 Echtzeitstunden
+//                      (1 Sek. Echtzeit = 1 Spieltag, ZEIT.tageProJahr=365,25)
+//   Vorrat = 24,219 t/h × 10,1458 h ≈ 245,72 t
+// × MASSSTAB, aus demselben Grund wie BASE_STORAGE_CAP weiter unten: die
+// Produktion, gegen die hier gerechnet wird, trägt zur Laufzeit denselben
+// Faktor (RATEN_FELDER-Skalierung unten), eine Menge muss ihn also auch
+// tragen -- sonst verschiebt sich das Pacing bei einer künftigen
+// MASSSTAB-Änderung, ohne dass irgendein Test das sehen könnte.
+// GEGENPROBE der Planung: bei SUPERNOVA.jahreBisKollaps = 240 ist der Vorrat
+// nach 100/240 ≈ 42 % der Partie leer -- Vorlauf genug, dass der
+// Technologiewechsel in der ersten Hälfte kommen sieht, wer hinsieht.
+export const FOSSIL_VORRAT_BASIS = 245.72 * MASSSTAB;
+
 export const BUILDINGS = {
   metallmine: {
     id: "metallmine",
@@ -657,6 +773,64 @@ export const BUILDINGS = {
     produktion: { silizium: { basis: 100, faktor: 1.2 } },
     verbrauch: { energie: { basis: 12, faktor: 1.2 }, arbeitskraft: { basis: 15, faktor: 1.15 } },
   },
+  // Erster Schritt der Energiekette (A-147, KONZEPT-TECHBAUM.md "Die
+  // Energiekette": Fossil -> Wind/Solar -> Spaltung -> Fusion -> Zukunft).
+  // Tobis Vorschlag zur Bauform, wörtlich (23.08.): "I guess wir können
+  // einfach Fossil als Start nehmen die eine begrenzte Ressource verbraucht
+  // die dann einfach in lass es 100 Jahre sein verbaucht ist?"
+  //
+  // `fossil: true` ist das zweite Brennstoff-Tor neben `brennstoff` (A-055):
+  // KEINE Lager-Ressource, sondern ein einziges Feld am Planeten
+  // (`planet.fossilVorrat`, siehe neuerPlanet in state.js) -- Tobi, 23.08.,
+  // zur Frage nach Gas als Lager-Ressource: "Aber in dem Fall erstmal
+  // nicht." Der Umrechnungsfaktor und die Vorratsherleitung stehen an
+  // FOSSIL/FOSSIL_VORRAT_BASIS oben.
+  fossilanlage: {
+    id: "fossilanlage",
+    gruppe: "energie",
+    name: "Fossilanlage",
+    beschreibung:
+      "Verbrennt fossile Brennstoffe, die frühere Biomasse hinterlassen hat – billig und ab dem ersten Tag verfügbar, aber ein einmaliger Vorrat. Nur Welten, die einmal Leben trugen, haben ihn; eine frische Kolonie findet nichts.",
+    kategorie: "energie",
+    baseCost: { metall: 30, silizium: 10 },
+    costFactor: 1.5,
+    buildTimeDivisor: 3.0,
+    produktion: { energie: { basis: 60, faktor: 1.15 } },
+    verbrauch: { arbeitskraft: { basis: 8, faktor: 1.15 } },
+    // Kein `brennstoff`-Eintrag: der Vorrat ist kein RESSOURCEN-Posten, das
+    // Tor läuft über `fossil: true` (siehe brennstoffBereit/fossilBereit,
+    // js/state.js) statt über def.brennstoff.
+    fossil: true,
+  },
+  // Zweiter Schritt der Energiekette (A-148): die Grundlast. Überall baubar,
+  // unabhängig von Sonne und Biomasse -- teuer, und mit einem Brennstoff,
+  // den man erst fördern muss. Reale Kernspaltung von 1957 bis heute.
+  kernkraftanlage: {
+    id: "kernkraftanlage",
+    gruppe: "energie",
+    name: "Kernkraftanlage",
+    beschreibung:
+      "Kernspaltung im Druckwasserreaktor: schwere Kerne wie Uran-235 zerfallen unter Neutronenbeschuss und setzen dabei Bindungsenergie frei – ohne Fusions-Zündschwelle, aber mit demselben Dampfkreislauf. Läuft überall, unabhängig von Sonne und Biomasse. Verbrennt Uran aus dem Lager – ohne Brennstoff steht der Reaktor still.",
+    kategorie: "energie",
+    baseCost: { metall: 120, silizium: 90, iridium: 40 },
+    costFactor: 1.5,
+    buildTimeDivisor: 1.8,
+    produktion: { energie: { basis: 70, faktor: 1.18 } },
+    verbrauch: { arbeitskraft: { basis: 20, faktor: 1.15 } },
+    // Brennstoff aus dem BESTAND (A-055, Weg B) -- exakt derselbe Weg wie
+    // beim Kraftwerk, siehe dessen Kommentar für die Begründung (Kreis-
+    // Schutz, Hysterese über planet.brennstoffAus/BRENNSTOFF_ANLAUF_MS --
+    // seit dieser Anlage EIN Bit je Gebäude, nicht mehr eines je Planet,
+    // siehe reaktorBitNachziehen in js/state.js).
+    //
+    // Brennstoff-Faktor 1,12 gegen Energie-Faktor 1,18 -- dieselbe Richtung
+    // wie beim Kraftwerk (bessere Reaktoren je Stufe: höhere Anreicherung,
+    // engere Neutronenökonomie), schwächer ausgeprägt als dort (1,1 gegen
+    // 1,2). Kernspaltung hat mehr Stellschrauben für Effizienzgewinne als
+    // ein reiner Dampfprozess (Fossilanlage, KONSTANTER Faktor), aber
+    // weniger Spielraum als eine sich verbessernde Fusionsgeometrie.
+    brennstoff: { uran: { basis: 1, faktor: 1.12 } },
+  },
   kraftwerk: {
     id: "kraftwerk",
     gruppe: "energie",
@@ -667,6 +841,16 @@ export const BUILDINGS = {
     baseCost: { metall: 75, silizium: 30 },
     costFactor: 1.5,
     buildTimeDivisor: 2.5,
+    // A-149: dritter und letzter Schritt der Energiekette. Das Tor gilt
+    // fürs BAUEN, wie beim Schirm (magnetschild, grep "benoetigt forschung
+    // magnetosphaerentechnik") -- kannBauen prüft es bei jedem neuen
+    // Bauauftrag, ein bereits gebautes Kraftwerk verliert dadurch nichts
+    // (produktionsAufloesung fragt `benoetigt` nie ab, nur der Ausbau-Weg).
+    // fusionstechnik existiert bereits (voraussetzungen: energietechnik 3)
+    // und gab bisher nur einen Boost -- jetzt zusätzlich das Schalt-Ereignis,
+    // das Prinzip 12 verlangt ("Technologien sollen Regeln ändern, nicht nur
+    // Zahlen").
+    benoetigt: { forschung: "fusionstechnik" },
     produktion: { energie: { basis: 80, faktor: 1.2 } },
     verbrauch: { arbeitskraft: { basis: 10, faktor: 1.15 } },
     // Brennstoff aus dem BESTAND (A-055, Weg B): der Abzug läuft beim
@@ -815,6 +999,22 @@ export const BUILDINGS = {
     costFactor: 1.5,
     buildTimeDivisor: 2.2,
     produktion: { iridium: { basis: 50, faktor: 1.2 } },
+    verbrauch: { energie: { basis: 16, faktor: 1.2 }, arbeitskraft: { basis: 22, faktor: 1.15 } },
+  },
+  // Uranförderung (A-148, zweiter Schritt der Energiekette). Nach dem Muster
+  // der Iridiummine -- eigene Fördermenge, eigene Affinität je Planet
+  // (PLANETEN_KLASSEN.geologie.uran), sonst dieselbe Struktur.
+  uranmine: {
+    id: "uranmine",
+    gruppe: "foerderung",
+    name: "Uranmine",
+    beschreibung:
+      "Fördert Uranerz. Anders als Iridium ist Uran ein Kristallisationsprodukt der Kruste selbst – es reichert sich in Graniten und Pegmatiten an, je differenzierter das Gestein.",
+    kategorie: "mine",
+    baseCost: { metall: 180, silizium: 120 },
+    costFactor: 1.5,
+    buildTimeDivisor: 2.2,
+    produktion: { uran: { basis: 50, faktor: 1.2 } },
     verbrauch: { energie: { basis: 16, faktor: 1.2 }, arbeitskraft: { basis: 22, faktor: 1.15 } },
   },
   antimateriekollektor: {
@@ -1162,6 +1362,13 @@ export const PIRAT = {
   // die im Gefahrenobjekt steht, und bekommt etwas Material dazu.
   startVorrat: { metall: 600, silizium: 200 },
 
+  // Wie weit eine Bande als "in der Nähe" gilt, wenn Arbeitskraft-Leerlauf
+  // (A-155) Ressourcen stiehlt: dieselbe Bande bekommt sie als Beute gutge-
+  // schrieben, statt dass sie im Nichts verschwindet. Vorerst dieselbe
+  // Distanz wie splitterReichweite -- beides beschreibt "wie weit trägt der
+  // Einfluss einer Bande", eine eigene Zahl ohne eigenen Anlass wäre Zier.
+  diebstahlReichweite: 40,
+
   // --- Teilung (Etappe 2) ---------------------------------------------
   // Tobis Vorgabe: über einer Größe muss gesplittert werden, **und der
   // Splitter wird eine EIGENE Fraktion.** Die Schwelle steht als Modifikator
@@ -1251,7 +1458,36 @@ export const BOT = {
     // ein weiteres Kraftwerk genau die falsche Antwort -- es stünde genauso
     // dunkel da. Erst Nachschub sichern, dann Kapazität.
     { gebaeude: "tritiumextraktor", wenn: "brennstoff" },
-    { gebaeude: "kraftwerk", wenn: "energie" },
+    // A-149: kraftwerk -> solarfeld, NICHT fossilanlage. Das Kraftwerk hängt
+    // jetzt an fusionstechnik -- ein Bot ohne diese Forschung (praktisch
+    // jeder junge Bot) hätte sonst NIE eine Antwort auf einen Energie-
+    // Engpass gefunden (kannBauen scheitert, botEngpass meldet denselben
+    // Engpass jeden Takt neu, der Bot stünde ohne Strom da -- genau die
+    // Frage, die dieser Auftrag selbst aufwirft: "steht dort auch eine
+    // Alternative, oder stehen die Bots künftig ohne Strom da?").
+    //
+    // ERSTER VERSUCH war die Fossilanlage (A-147) -- billigste Energie,
+    // sofort baubar. GEMESSEN in tests/bots.test.js hat genau das einen
+    // Bot für immer ins Dunkle gesetzt: ihr Vorrat ist ENDLICH (das ist ihr
+    // ganzer Sinn), und ein Bot kennt keine Reichweiten-Anzeige, die ihn
+    // rechtzeitig umsteuern ließe -- er baut sie einfach weiter aus, bis der
+    // Vorrat (bei Stufe 4 nach rund zwölf Spielstunden) auf null fällt, und
+    // DANN NIE WIEDER. `engpaesse` feuert bei jedem neuen Engpass erneut auf
+    // dasselbe tote Gebäude -- ein Dauerausfall, gemessen mit
+    // ENTROPY_SAAT=8: "Energie dauerhaft unterdeckt: 0 % nach 12 h und 0 %
+    // nach 24 h". Das Solarfeld hat dieses Problem strukturell nicht: kein
+    // Brennstoff, kein Vorrat, der ausgehen könnte -- die einzige Grenze ist
+    // die Teilchenflut, Jahrhunderte nach dem Zeithorizont, in dem ein
+    // junger Bot überhaupt steht. Ein Bot braucht eine Quelle, die er nicht
+    // beaufsichtigen muss; die Fossilanlage verlangt genau das, was seiner
+    // Regelmenge fehlt (§ 0b: das Spiel richtet sich nicht nach den Bots,
+    // aber ihre Regeln müssen zu dem passen, was sie NICHT können).
+    // Engpaesse trägt nur EIN Gebäude je Bedingung (siehe Kommentar oben);
+    // ein zweiter Eintrag für kernkraftanlage bleibt aus demselben Grund wie
+    // vorher draußen -- eine echte Design-Entscheidung, nicht Teil dieser
+    // Runde. kraftwerk selbst bleibt aus der Liste draußen, seine ehemalige
+    // Rolle übernimmt das Solarfeld.
+    { gebaeude: "solarfeld", wenn: "energie" },
     { gebaeude: "farm", wenn: "nahrung" },
     { gebaeude: "wohnmodul", wenn: "wohnraum" },
   ],
@@ -1273,7 +1509,26 @@ export const BOT = {
     // plus den Anlauf der Förderung tragen.
     brennstoffStunden: 24,
   },
-  ausbau: ["metallmine", "siliziummine", "kraftwerk", "farm", "wohnmodul", "handelsposten"],
+  // A-148: uranmine ans Ende gehängt, NICHT eingeschoben -- die Reihenfolge
+  // vor ihr bleibt sonst exakt wie vorher (dieselbe Zusicherung wie bei
+  // A-134 Punkt 1 fuer forschungslabor). Bots foerdern damit Uran als Teil
+  // ihres normalen Ausbaus.
+  //
+  // A-149: "kraftwerk" an SEINER Stelle (nicht verschoben) durch "solarfeld"
+  // ersetzt, NICHT durch "fossilanlage" -- siehe die ausführliche Messung am
+  // Kommentar von `engpaesse` oben. Dieselbe Falle träfe hier sogar härter:
+  // `ausbau` ist die DAUERHAFTE Rotation, ein Bot würde eine erschöpfte
+  // Fossilanlage immer weiter ausbauen (jede Stufe kostet mehr, bringt aber
+  // dauerhaft null), statt je zu erkennen, dass der Vorrat für IMMER leer
+  // ist. Ein Bot, der "kraftwerk" hier stehen ließe, würde in jedem Takt
+  // versuchen, es zu bauen, an der Forschungssperre scheitern (kannBauen)
+  // und zum naechsten Listeneintrag weiterziehen -- funktional harmlos, aber
+  // ein Bau-Versuch, der nie gelingt, ist trotzdem der falsche Ausbau-
+  // Schritt fuer einen Bot ohne Fusionstechnik. kernkraftanlage bleibt aus
+  // demselben Grund wie oben draußen: ihre Aufnahme wäre eine Design-
+  // Entscheidung (wann lohnt sich die teurere Grundlast?), keine reine
+  // Ersetzung.
+  ausbau: ["metallmine", "siliziummine", "solarfeld", "farm", "wohnmodul", "handelsposten", "uranmine"],
 
   // A-137, zweiter Anlauf: steht ein Sparziel (siehe unten, `kolonie`), bleibt
   // dieser ANTEIL des AKTUELLEN Bestands je benötigter Ressource unangetastet
@@ -1625,17 +1880,21 @@ export const PLANETEN_KLASSEN = {
   kleinwelt: {
     id: "kleinwelt", name: "Kleinwelt", masse: [0.01, 0.1], schwerkraft: 0.3,
     oberflaeche: true, atmosphaere: false,
-    geologie: { metall: 1.2, silizium: 0.9, iridium: 0.9 },
+    // Uran (A-148): lithophil, reichert sich MIT der Krustendifferenzierung
+    // an (Granite, Pegmatite) -- eine kleine, kaum differenzierte Welt ohne
+    // anhaltenden Vulkanismus hat davon am wenigsten, eine Supererde mit mehr
+    // innerer Wärme am meisten. Gegenläufig zu Iridium (siderophil).
+    geologie: { metall: 1.2, silizium: 0.9, iridium: 0.9, uran: 0.7 },
   },
   felswelt: {
     id: "felswelt", name: "Felswelt", masse: [0.1, 2], schwerkraft: 1.0,
     oberflaeche: true, atmosphaere: true,
-    geologie: { metall: 1.0, silizium: 1.0, iridium: 0.6 },
+    geologie: { metall: 1.0, silizium: 1.0, iridium: 0.6, uran: 1.0 },
   },
   supererde: {
     id: "supererde", name: "Supererde", masse: [2, 10], schwerkraft: 1.8,
     oberflaeche: true, atmosphaere: true,
-    geologie: { metall: 1.6, silizium: 1.5, iridium: 1.4 },
+    geologie: { metall: 1.6, silizium: 1.5, iridium: 1.4, uran: 1.5 },
   },
   // Ab hier: kein fester Boden. Nur Schwebeanlagen, kein Terraforming.
   miniNeptun: {
@@ -1896,6 +2155,11 @@ export const MARKT_PREISE = {
   metall: { verkauf: 1.0, kauf: 1.6 },
   silizium: { verkauf: 1.4, kauf: 2.2 },
   tritium: { verkauf: 1.8, kauf: 2.8 },
+  // Zwischen Deuterium und Iridium eingeordnet: real ist Uran in der
+  // Erdkruste rund 500× häufiger als Iridium (eines der seltensten Elemente
+  // überhaupt), aber seltener als die Grundstoffe -- eine eigene Mine
+  // braucht es trotzdem.
+  uran: { verkauf: 2.2, kauf: 3.4 },
   iridium: { verkauf: 6, kauf: 9 },
   antimaterie: { verkauf: 40, kauf: 60 },
 };
@@ -2073,8 +2337,14 @@ export const RESEARCH = {
   fusionstechnik: {
     id: "fusionstechnik",
     name: "Fusionstechnik",
+    // A-149: seit dieser Runde schaltet die erste Stufe zusätzlich das
+    // Kraftwerk frei (BUILDINGS.kraftwerk.benoetigt) -- vorher gab die
+    // Forschung nur den Boost. Erst am Ende genannt, wie die
+    // Erstklärungs-Konvention es für Feature-Text hält: die eigentliche
+    // Wirkung (was erforschen ERMÖGLICHT) vor der Verbesserung (was es an
+    // Bestehendem verstärkt).
     beschreibung:
-      "Zweite Stufe der Energiegewinnung. Verbessert Kraftwerke um weitere 10% pro Stufe. Fusion gewinnt Energie nur, solange die Kerne leichter sind als Eisen – dort sind sie am festesten gebunden. Jenseits davon kostet Verschmelzen Energie, statt welche zu liefern.",
+      "Zweite Stufe der Energiegewinnung. Verbessert Kraftwerke um weitere 10% pro Stufe. Fusion gewinnt Energie nur, solange die Kerne leichter sind als Eisen – dort sind sie am festesten gebunden. Jenseits davon kostet Verschmelzen Energie, statt welche zu liefern. Schaltet das Kraftwerk frei.",
     baseCost: { metall: 500, silizium: 400 },
     costFactor: 1.7,
     buildTimeDivisor: 1.4,

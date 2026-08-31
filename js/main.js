@@ -26,6 +26,8 @@ import {
 import { testmodusEinrichten } from "./testmodus.js";
 import { spracheLaden, t } from "./sprache.js";
 import { phase, stockungenBeobachten, stockungsBericht } from "./stockung.js";
+import { KACHELWAECHTER_ZUSTAENDE } from "./kachelwaechter-zustaende.js";
+import { kachelnBilanz } from "./kachelwaechter.js";
 
 const root = document;
 // Sprache VOR dem ersten Rendern festlegen -- sonst blitzt einmal die falsche
@@ -167,6 +169,25 @@ startAufholen(state).then((diagnose) => {
   speichern(state);
 });
 
+// Kachel-Wächter (A-158): einen der drei benannten Zustände live einsetzen
+// und danach prüfen -- vor jedem Release, von Hand, wie die übrigen
+// Debug-Werkzeuge hier. `state` ist `const` (oben) und von mehreren
+// Closures eingefangen (Render-/Speicher-Takt) -- ersetzt werden deshalb
+// die EIGENSCHAFTEN des vorhandenen Objekts, nie die Referenz selbst.
+//   __entropy.kachelWaechter.zustand("mitte");  // frueh | mitte | spaet
+//   __entropy.kachelWaechter.pruefen();         // Bilanz der aktuellen Ansicht
+function kachelWaechterZustandSetzen(name, saat) {
+  const bauer = KACHELWAECHTER_ZUSTAENDE[name];
+  if (!bauer) {
+    throw new Error(t('kachelWaechter: unbekannter Zustand "{name}" -- frueh, mitte oder spaet.', { name }));
+  }
+  const frisch = bauer(saat);
+  for (const schluessel of Object.keys(state)) delete state[schluessel];
+  Object.assign(state, frisch);
+  render(state, root);
+  return t('Zustand "{name}" gesetzt und gerendert.', { name });
+}
+
 // Für schnelles Debuggen in der Konsole erreichbar machen.
 //
 // `profilStarten`/`profilLesen` schlüsseln die Renderkosten je Bereich auf
@@ -179,4 +200,8 @@ window.__entropy = {
   profilLesen: renderProfilLesen,
   profilAnsichten: () => renderProfilAnsichten(state, root),
   stockungen: stockungsBericht,
+  kachelWaechter: {
+    zustand: kachelWaechterZustandSetzen,
+    pruefen: () => kachelnBilanz(root),
+  },
 };

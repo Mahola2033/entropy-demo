@@ -64,6 +64,7 @@ export const EN = {
   Silizium: "Silicon",
   Deuterium: "Deuterium",
   Iridium: "Iridium",
+  Uran: "Uranium",
   Elektronik: "Electronics",
   Antimaterie: "Antimatter",
   Credits: "Credits",
@@ -98,11 +99,14 @@ export const EN = {
   // --- Gebäude ------------------------------------------------------------
   Metallmine: "Metal Mine",
   Siliziummine: "Silicon Mine",
+  Fossilanlage: "Fossil Plant",
+  Kernkraftanlage: "Nuclear Plant",
   Kraftwerk: "Power Plant",
   Lagerhalle: "Warehouse",
   "Deuterium-Extraktor": "Deuterium Extractor",
   Werft: "Shipyard",
   Iridiummine: "Iridium Mine",
+  Uranmine: "Uranium Mine",
   Fertigung: "Fabrication Plant",
   Antimateriefabrik: "Antimatter Plant",
   Forschungslabor: "Research Lab",
@@ -117,27 +121,47 @@ export const EN = {
     "Extracts metal from the crust. Worlds close to their star are richer in metal because the light material was boiled away early on – Mercury is made up of a strikingly large share of iron.",
   "Baut Silizium für Bauteile und Elektronik ab. Sauerstoff und Silizium sind die beiden häufigsten Elemente jeder Gesteinskruste – neun Zehntel davon sind Silikate.":
     "Mines silicon for components and electronics. Oxygen and silicon are the two most common elements in any rocky crust – nine tenths of it is silicates.",
+  "Verbrennt fossile Brennstoffe, die frühere Biomasse hinterlassen hat – billig und ab dem ersten Tag verfügbar, aber ein einmaliger Vorrat. Nur Welten, die einmal Leben trugen, haben ihn; eine frische Kolonie findet nichts.":
+    "Burns fossil fuels left behind by past biomass – cheap and available from day one, but a one-time reserve. Only worlds that once carried life have it; a fresh colony finds none.",
+  "Fördert Uranerz. Anders als Iridium ist Uran ein Kristallisationsprodukt der Kruste selbst – es reichert sich in Graniten und Pegmatiten an, je differenzierter das Gestein.":
+    "Mines uranium ore. Unlike iridium, uranium is a crystallization product of the crust itself – it concentrates in granites and pegmatites, the more differentiated the rock.",
+  "Kernspaltung im Druckwasserreaktor: schwere Kerne wie Uran-235 zerfallen unter Neutronenbeschuss und setzen dabei Bindungsenergie frei – ohne Fusions-Zündschwelle, aber mit demselben Dampfkreislauf. Läuft überall, unabhängig von Sonne und Biomasse. Verbrennt Uran aus dem Lager – ohne Brennstoff steht der Reaktor still.":
+    "Nuclear fission in a pressurized water reactor: heavy nuclei like uranium-235 split under neutron bombardment, releasing binding energy – without fusion's ignition threshold, but with the same steam cycle. Runs anywhere, independent of sun or biomass. Burns uranium from storage – without fuel the reactor stands still.",
   "Fusionsreaktor. Die Reaktion setzt schnelle Neutronen frei – ungeladen, also nur schwer abzuschirmen und nur als Wärme erntbar. Deshalb steckt in jedem Kraftwerk ein Dampfkreislauf, so altmodisch das klingt. Verbrennt Deuterium aus dem Lager – ohne Brennstoff zündet die Fusion nicht.":
     "Fusion reactor. The reaction releases fast neutrons – uncharged, therefore hard to shield and harvestable only as heat. That is why every power plant contains a steam cycle, however old-fashioned that sounds. Burns deuterium from storage – without fuel the fusion does not ignite.",
   Solarfeld: "Solar Field",
   Hydrokultur: "Hydroponics",
   "Baut Nahrung unter Kunstlicht in geschlossenen Regalen – unabhängig von Sonne und Ozonschicht. Teuer erkauft: Pflanzen verwerten nur rund ein Prozent des Lichts, und hier kommt jedes Photon aus der Steckdose. Die teure Antwort, wenn draußen nichts mehr wächst.":
     "Grows food under artificial light in sealed racks – independent of sun and ozone layer. Dearly bought: plants convert only about one percent of the light, and here every photon comes out of the socket. The expensive answer when nothing grows outside any more.",
-  "Für Energie gibt es zwei Wege, und sie unterscheiden sich im Preis: Das Kraftwerk verbrennt Deuterium aus dem Lager – geht der Brennstoff aus, zündet die Fusion nicht mehr und der Reaktor steht, bis wieder Vorrat für den Anlauf da ist. Das Solarfeld braucht keinen Brennstoff und liefert sternnah am meisten – aber seine Halbleiter überstehen die Teilchenflut nicht: ungeschirmte Felder sind danach Schrott. Der bequeme Weg ist der verwundbare; ein Energiespeicher überbrückt Lücken in beiden.":
-    "There are two paths to power, and they differ in their price: the power plant burns deuterium from storage – once the fuel runs out, the fusion no longer ignites and the reactor stands still until there is stock for a fresh start-up. The solar field needs no fuel and yields the most close to the star – but its semiconductors do not survive the particle flood: unshielded fields are scrap afterwards. The convenient path is the vulnerable one; an energy storage bridges gaps in both.",
+  "Für Energie gibt es mehrere Wege, und sie unterscheiden sich im Preis: Die Fossilanlage ist die billigste und von Anfang an baubar, aber ihr Vorrat ist endlich und wächst nie nach. Die Kernkraftanlage verbrennt Uran aus dem Lager und läuft dafür immer und überall – die teuerste Wahl. Das Kraftwerk (erst nach Fusionstechnik erforscht) verbrennt Deuterium – geht der Brennstoff aus, zündet die Fusion nicht mehr und der Reaktor steht, bis wieder Vorrat für den Anlauf da ist. Das Solarfeld braucht keinen Brennstoff und liefert sternnah am meisten – aber seine Halbleiter überstehen die Teilchenflut nicht: ungeschirmte Felder sind danach Schrott. Der bequeme Weg ist der verwundbare; ein Energiespeicher überbrückt Lücken in allen.":
+    "There are several paths to power, and they differ in their price: the fossil plant is the cheapest and buildable from the start, but its reserves are finite and never grow back. The nuclear plant burns uranium from storage and runs anywhere, anytime in return – the most expensive choice. The power plant (researched only after fusion technology) burns deuterium – once the fuel runs out, the fusion no longer ignites and the reactor stands still until there is stock for a fresh start-up. The solar field needs no fuel and yields the most close to the star – but its semiconductors do not survive the particle flood: unshielded fields are scrap afterwards. The convenient path is the vulnerable one; an energy storage bridges gaps in all of them.",
   "Kein Brennstoff – der Reaktor ist aus. Er zündet wieder, sobald Deuterium für {dauer} im Lager liegt.":
     "No fuel – the reactor is out. It ignites again once there is deuterium for {dauer} in storage.",
+  "Kein Brennstoff – der Reaktor ist aus. Er zündet wieder, sobald Uran für {dauer} im Lager liegt.":
+    "No fuel – the reactor is out. It ignites again once there is uranium for {dauer} in storage.",
   "Kein Brennstoff – Reaktor aus": "No fuel – reactor out",
-  // A-142: der Slot bleibt reserviert, statt bei fehlendem Kraftwerk zu
-  // verschwinden (G4/R-8).
-  "Ohne Kraftwerk gibt es keinen Brennstoffverbrauch – erst danach zieht der Reaktor Deuterium aus dem Lager.":
-    "Without a power plant there is no fuel draw – only once it is built does the reactor pull deuterium from storage.",
-  "Kein Kraftwerk gebaut": "No power plant built",
+  // A-142: der Slot bleibt reserviert, statt bei fehlender Brennstoffanlage
+  // zu verschwinden (G4/R-8). A-147: Text jetzt für Kraftwerk UND
+  // Fossilanlage gemeinsam (kein zweiter leerer Zustand), die alten
+  // kraftwerk-spezifischen Fassungen sind damit Geschichte.
+  "Ohne Kraftwerk oder Fossilanlage gibt es keinen Brennstoffverbrauch zu zeigen.":
+    "Without a power plant or fossil plant there is no fuel draw to show.",
+  "Keine brennstoffgebundene Anlage gebaut": "No fuel-based facility built",
   "Deuterium im Lager geteilt durch den Verbrauch des Kraftwerks – Zufluss nicht eingerechnet.":
     "Deuterium in storage divided by the power plant's consumption – inflow not included.",
+  "Uran im Lager geteilt durch den Verbrauch der Kernkraftanlage – Zufluss nicht eingerechnet.":
+    "Uranium in storage divided by the nuclear plant's consumption – inflow not included.",
   "Brennstoff für {dauer}": "Fuel for {dauer}",
   "Der Reaktor verbrennt bei jeder Last gleich viel: Stufe {stufe} zieht {rate}, ausgelastet wie im Leerlauf. Jede weitere Ausbaustufe zieht mehr – die Reichweite gilt für die jetzige Stufe.":
     "The reactor burns the same at any load: level {stufe} draws {rate}, fully loaded or idling. Every further level draws more – the range holds for the current level.",
+  // --- Fossilanlage (A-147) ------------------------------------------------
+  "Der fossile Vorrat dieses Planeten ist aufgebraucht – anders als Brennstoff aus dem Lager wächst er nicht nach.":
+    "This planet's fossil reserves are used up – unlike fuel from storage, they never grow back.",
+  "Fossiler Vorrat aufgebraucht": "Fossil reserves used up",
+  "Fossiler Vorrat geteilt durch den Verbrauch der Fossilanlage – der Vorrat wächst nie nach.":
+    "Fossil reserves divided by the fossil plant's consumption – reserves never grow back.",
+  "Stufe {stufe} verbrennt {rate} t/Jahr. Jede weitere Ausbaustufe zieht mehr – die Reichweite gilt für die jetzige Stufe.":
+    "Level {stufe} burns {rate} t/year. Every further level draws more – the range holds for the current level.",
   "Achtung: Ungeschirmte Solarfelder überstehen die Teilchenflut nicht.":
     "Warning: unshielded solar fields will not survive the particle flood.",
   "Photovoltaik in Feldern. Halbleiter ernten Licht direkt, ohne Brennstoff und ohne Dampfkreislauf – aber ihr Kristallgitter ist empfindlich: schnelle geladene Teilchen schlagen Atome von ihren Plätzen, und genau daraus besteht eine Teilchenflut. Sternnahe Orbits liefern mehr, weil die Bestrahlungsstärke mit dem Abstandsquadrat fällt.":
@@ -201,8 +225,8 @@ export const EN = {
     "Increases the maximum range of your probes and shortens travel times between systems. Fuel demand does not grow with speed but exponentially in it – whoever carries fuel must accelerate that fuel too. This is why any improvement to the drive is worth more than any bigger tank.",
   "Erhöht die Kapazität aller Lagerhallen um 6% pro Stufe.":
     "Increases the capacity of all warehouses by 6% per level.",
-  "Zweite Stufe der Energiegewinnung. Verbessert Kraftwerke um weitere 10% pro Stufe. Fusion gewinnt Energie nur, solange die Kerne leichter sind als Eisen – dort sind sie am festesten gebunden. Jenseits davon kostet Verschmelzen Energie, statt welche zu liefern.":
-    "Second tier of power generation. Improves power plants by a further 10% per level. Fusion only yields energy while the nuclei are lighter than iron – that is where binding is tightest. Beyond it, fusing costs energy instead of releasing it.",
+  "Zweite Stufe der Energiegewinnung. Verbessert Kraftwerke um weitere 10% pro Stufe. Fusion gewinnt Energie nur, solange die Kerne leichter sind als Eisen – dort sind sie am festesten gebunden. Jenseits davon kostet Verschmelzen Energie, statt welche zu liefern. Schaltet das Kraftwerk frei.":
+    "Second tier of power generation. Improves power plants by a further 10% per level. Fusion only yields energy while the nuclei are lighter than iron – that is where binding is tightest. Beyond it, fusing costs energy instead of releasing it. Unlocks the power plant.",
   "Verbessert die Ausbeute deiner Iridiumminen um 7% pro Stufe.":
     "Improves the yield of your iridium mines by 7% per level.",
   "Startet mit einem Klick so viele Sonden, wie es unerforschte einfache Ziele im System gibt -- statt jede einzeln loszuschicken.":
@@ -261,6 +285,10 @@ export const EN = {
   "{flotte} wurde überfallen: {fracht} verloren.":
     "{flotte} was raided: lost {fracht}.",
   "{flotte}: verlorene Fracht": "{flotte}: lost cargo",
+
+  // --- Arbeitskraft-Leerlauf (A-155) ---------------------------------------
+  "{planet}: nur {quote} % Beschäftigung – Arbeitskraft-Leerlauf stiehlt Ressourcen und stärkt Piraten in der Nähe.":
+    "{planet}: only {quote} % employment – idle workforce steals resources and strengthens nearby pirates.",
 
   // --- Energiespeicher (v0.29) --------------------------------------------
   Energiespeicher: "Energy Store",
@@ -855,6 +883,19 @@ export const EN = {
     "Processing may draw from storage down to this level. Below it, it runs only on what comes in.",
   Setzen: "Set",
   Entfernen: "Remove",
+
+  // --- Lager, Block 1: Bestände (A-153) ------------------------------------
+  "Außenposten haben keine Wirtschaft, die sich einstellen ließe.":
+    "Outposts have no economy to configure.",
+  "Hier stellst du ein, wie die Wirtschaft dieses Planeten laufen soll: 🏪 schützt einen Bestand gegen Handel und Verkauf, ⚗️ gegen die eigene Verarbeitung, Max regelt die fördernde Anlage auf eine Zielmenge herunter.":
+    "Here you set how this planet's economy should run: 🏪 protects a stock against trade and sale, ⚗️ against its own processing, Max throttles the producing facility down to a target amount.",
+  "Schützt diesen Bestand gegen Handel und Verkauf -- darunter wird nicht verkauft.":
+    "Protects this stock against trade and sale -- nothing is sold below this level.",
+  Max: "Max",
+  "Zielmenge, auf die sich die fördernde Anlage herunterregelt (wirkt ab A-154).":
+    "Target amount the producing facility throttles down to (takes effect with A-154).",
+  "Keine Anlage, die gedrosselt werden könnte.": "No facility that could be throttled.",
+  "keine Anlage": "no facility",
   "Reicht der Zustrom nicht, nehmen Anlagen den Rest aus dem Lager – bis zur eingestellten Reserve. Danach drosseln sie anteilig, statt den Bestand aufzubrauchen.":
     "If the inflow is not enough, facilities take the rest from storage – down to the reserve you set. After that they throttle proportionally instead of using up the stock.",
 
@@ -1217,8 +1258,8 @@ export const EN = {
     "You run exactly one world: {planet}. One habitat, a small stock of supplies – and a sky full of stars where no one has ever been.",
   // A-045: der alte Satz empfahl das Forschen, das im Startzustand gar nicht
   // geht -- genau die Stelle, die Chris gemeldet hat.
-  "Zum Anfangen genügt ein Handgriff: im Bereich Planet eine Anlage ausbauen – Kraftwerk und Wohnmodul tragen alles andere. Geforscht wird erst, wenn ein Forschungslabor steht; Forschung ist kein Kauf, sondern Arbeit, und ohne Labor arbeitet niemand daran.":
-    "One move is enough to start: upgrade a facility under Planet – the power plant and the habitat carry everything else. Research only begins once a research lab stands; research is not a purchase but work, and without a lab nobody is doing it.",
+  "Zum Anfangen genügt ein Handgriff: im Bereich Planet eine Anlage ausbauen – Fossilanlage und Wohnmodul tragen alles andere. Geforscht wird erst, wenn ein Forschungslabor steht; Forschung ist kein Kauf, sondern Arbeit, und ohne Labor arbeitet niemand daran.":
+    "One move is enough to start: upgrade a facility under Planet – the fossil plant and the habitat carry everything else. Research only begins once a research lab stands; research is not a purchase but work, and without a lab nobody is doing it.",
   "Die Uhr oben im Kopf zeigt, wieviel Zeit bleibt. Alles Weitere steht im Handbuch – jederzeit, unterster Eintrag in der Leiste links.":
     "The clock in the header shows how much time is left. Everything else is in the manual – at any time, bottom entry in the bar on the left.",
   "Handbuch öffnen": "Open the manual",
@@ -1381,6 +1422,9 @@ export const EN = {
   "reicht {dauer}": "lasts {dauer}",
   "frei {frei} von {gesamt}": "{frei} free of {gesamt}",
   "gedrosselt auf {anteil}%": "throttled to {anteil}%",
+  "Zielmenge erreicht – Anlage läuft auf Grundlast": "Target reached – facility runs on base load",
+  "{quote} % beschäftigt – Leerlauf kostet {anteil} % Förderung":
+    "{quote} % employed – idle workforce costs {anteil} % of output",
   "Bevölkerung & Schwellen": "Population & Thresholds",
   "Wohnraum voll": "housing full",
   "wächst nicht": "not growing",
@@ -1462,4 +1506,12 @@ export const EN = {
   "Verkleinert die ganze Oberfläche zwischen 70 % und 100 % -- wirkt sofort. Praktisch bei wenig Bildschirmplatz, geht auf Kosten der Lesbarkeit.":
     "Shrinks the whole interface between 70% and 100% -- takes effect immediately. Useful when screen space is tight, at the cost of readability.",
   Schließen: "Close",
+
+  // --- Kachel-Wächter (A-158) -- nur die Konsole (window.__entropy) sieht
+  // diese Texte, keine Spielfläche. Laufen trotzdem durch t() wie alles
+  // andere: eine eigene Ausnahme für "das liest ja nur die Planung" wäre
+  // genau die Lücke, die tests/sprache.test.js schließen soll.
+  'kachelWaechter: unbekannter Zustand "{name}" -- frueh, mitte oder spaet.':
+    'kachelWaechter: unknown state "{name}" -- frueh, mitte or spaet.',
+  'Zustand "{name}" gesetzt und gerendert.': 'State "{name}" set and rendered.',
 };

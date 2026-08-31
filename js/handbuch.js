@@ -96,10 +96,14 @@ export function handbuchAbschnitte() {
         t(
           "Energie und Arbeitskraft sind keine Vorräte, sondern Flüsse. Sie werden in jedem Moment erzeugt und im selben Moment verbraucht. Reicht ein Fluss nicht, wird gedrosselt – und zwar alles, was daran hängt."
         ),
-        // A-055: die Energie-Wahl samt ihrem Risiko -- Pflichttext, nicht
-        // Beiwerk (die Kachel warnt zwar, aber sie erklärt nicht das WARUM).
+        // A-055/A-147/A-148/A-149: die Energie-Wahl samt ihrem Risiko --
+        // Pflichttext, nicht Beiwerk (die Kachel warnt zwar, aber sie
+        // erklärt nicht das WARUM). Seit der Energiekette sind es vier Wege
+        // statt zwei -- Text entsprechend erweitert, nicht nur die zwei
+        // ursprünglichen behalten (sonst vergliche das Handbuch zwei von
+        // vier Optionen, genau die Falle aus A-149).
         t(
-          "Für Energie gibt es zwei Wege, und sie unterscheiden sich im Preis: Das Kraftwerk verbrennt Deuterium aus dem Lager – geht der Brennstoff aus, zündet die Fusion nicht mehr und der Reaktor steht, bis wieder Vorrat für den Anlauf da ist. Das Solarfeld braucht keinen Brennstoff und liefert sternnah am meisten – aber seine Halbleiter überstehen die Teilchenflut nicht: ungeschirmte Felder sind danach Schrott. Der bequeme Weg ist der verwundbare; ein Energiespeicher überbrückt Lücken in beiden."
+          "Für Energie gibt es mehrere Wege, und sie unterscheiden sich im Preis: Die Fossilanlage ist die billigste und von Anfang an baubar, aber ihr Vorrat ist endlich und wächst nie nach. Die Kernkraftanlage verbrennt Uran aus dem Lager und läuft dafür immer und überall – die teuerste Wahl. Das Kraftwerk (erst nach Fusionstechnik erforscht) verbrennt Deuterium – geht der Brennstoff aus, zündet die Fusion nicht mehr und der Reaktor steht, bis wieder Vorrat für den Anlauf da ist. Das Solarfeld braucht keinen Brennstoff und liefert sternnah am meisten – aber seine Halbleiter überstehen die Teilchenflut nicht: ungeschirmte Felder sind danach Schrott. Der bequeme Weg ist der verwundbare; ein Energiespeicher überbrückt Lücken in allen."
         ),
         t(
           "Arbeitskraft kommt aus deiner Bevölkerung, und Bevölkerung wächst nur, wenn Wohnraum frei ist. Deshalb ist ein Wohnmodul selten das, was am dringendsten aussieht, und oft das, was am meisten bringt: es hebt nicht eine Zahl, sondern die Obergrenze aller anderen."
@@ -361,8 +365,13 @@ export function erststartTafel(planetName) {
       // ehrlich. Bewusst FEST und nicht zustandsabhängig: das Handbuch baut
       // bei jedem Aufruf neu, und ein wahrer fester Satz ist billiger als
       // eine Zustandsprüfung, die dasselbe sagt.
+      //
+      // A-149: „Kraftwerk" hier wäre seit dieser Runde eine Lüge -- es
+      // braucht jetzt Fusionstechnik und ist am Anfang gar nicht baubar. Die
+      // Fossilanlage (A-147) übernimmt seinen Platz als das, was am ersten
+      // Tag WIRKLICH baubar ist -- derselbe feste Satz, dieselbe Ehrlichkeit.
       t(
-        "Zum Anfangen genügt ein Handgriff: im Bereich Planet eine Anlage ausbauen – Kraftwerk und Wohnmodul tragen alles andere. Geforscht wird erst, wenn ein Forschungslabor steht; Forschung ist kein Kauf, sondern Arbeit, und ohne Labor arbeitet niemand daran."
+        "Zum Anfangen genügt ein Handgriff: im Bereich Planet eine Anlage ausbauen – Fossilanlage und Wohnmodul tragen alles andere. Geforscht wird erst, wenn ein Forschungslabor steht; Forschung ist kein Kauf, sondern Arbeit, und ohne Labor arbeitet niemand daran."
       ),
     ],
     // Steht getrennt, weil es kein Inhalt ist, sondern der Weg zum Rest.
