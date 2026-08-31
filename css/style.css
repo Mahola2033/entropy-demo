@@ -467,9 +467,15 @@ body {
    derselbe Grund wie bei .kachel-raster -- neuer Inhalt bekommt eine Kachel,
    nichts anderes bewegt sich (Prinzip: statisches Layout, Muskelgedächtnis).
 
-   Die Trennung in Vorräte oben / Kapazitäten unten ist Tobis Vorgabe: sie
-   trennt zwei verschiedene Fragen ("wie viel habe ich" gegen "wie viel kann
-   ich") und hält die obere Reihe frei für künftige Ressourcen. */
+   Die Trennung in Bestandsreihe oben / Dauerreihe unten ist Tobis Vorgabe
+   (ENTWURF-LAGER.md 4.1). Bis A-162 hieß die untere Reihe "Kapazitäten" und
+   zeigte nur, was man KANN (Arbeitskraft/Energie/Forschung + Lager) --
+   seither trägt sie zusätzlich Bevölkerung und Credits, weil ALLE SECHS
+   immer sichtbar sein sollen, nicht weil sie eine Kapazität hätten. Die
+   Bestandsreihe darüber ist seit A-162 zuklappbar (Griff + Mangelzeile
+   zwischen den beiden Reihen, s.u.) -- der Name "Kapazitäten" blieb im Code
+   trotzdem stehen (`.res-reihe-kapazitaet`, `kapazitaeten` in `js/ui.js`),
+   Umbenennen wäre hier Lärm ohne Gegenwert. */
 .ressourcenleiste {
   grid-area: ressourcen;
   display: flex;
@@ -516,8 +522,54 @@ body {
 .res-reihe-kapazitaet {
   grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
   /* Höher, weil hier ein Auslastungsbalken mit drinsteckt -- und bei
-     Batterien zusätzlich eine Speicherzeile. */
+     Batterien zusätzlich eine Speicherzeile. Gilt strukturell weiter für
+     Arbeitskraft/Energie/Forschung/Lager; Bevölkerung und Credits (A-162)
+     tragen keinen Balken und nutzen die Mindesthöhe nicht aus -- das ist der
+     Trade-off aus Teil 2 (dieselbe Reihe, nicht zwei mit eigenem Raster). */
   grid-auto-rows: minmax(5.25rem, auto);
+}
+
+/* A-162 Teil 3: der Griff sitzt zwischen den beiden Reihen der Kopfzeile,
+   dieselbe Bauform wie der Meldungsgriff (A-144) -- kleiner Icon-Knopf statt
+   der vollen Seitenleiste der Statusspalte, weil hier eine horizontale Zeile
+   und keine vertikale Spalte umschaltet. */
+.res-bestand-leiste {
+  display: flex;
+  align-items: center;
+  gap: var(--abstand-3);
+  /* Feste Mindesthöhe -- dieselbe Begründung wie bei .res-reihe oben: die
+     Mangelzeile wechselt zwischen "Alle Bestände stabil" und einer Liste von
+     Symbol+Name-Paaren, beides genau eine Textzeile hoch. Ohne die
+     Mindesthöhe hier gäbe es nichts zu messen, aber auch nichts, das
+     garantiert stabil bliebe, sobald ein Browser mal anders umbricht. */
+  min-height: 1.6rem;
+}
+
+.res-bestand-griff {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  color: var(--text-dezent);
+  cursor: pointer;
+  font-size: var(--schrift-m);
+  padding: var(--abstand-1) var(--abstand-3);
+  flex: none;
+}
+
+.res-bestand-griff:hover {
+  background: var(--bg-item);
+  color: var(--text);
+}
+
+.res-mangelzeile {
+  color: var(--text-dezent);
+  font-size: var(--schrift-s);
+}
+
+/* Dieselbe Klasse wie bei Meldungen/Statusspalte (A-144) -- ein Muster fürs
+   Wegklappen im ganzen Spiel, keine zweite Erfindung je Ort. */
+.res-reihe.eingeklappt {
+  display: none;
 }
 
 /* Sicherheitsnetz für Zahlen, die größer werden, als hier je gemessen wurde
@@ -620,12 +672,6 @@ body {
   font-size: var(--schrift-xs);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-}
-
-.res-stufe {
-  color: var(--text-dezent);
-  font-size: var(--schrift-xs);
-  font-variant-numeric: tabular-nums;
 }
 
 .res-unten {
@@ -837,6 +883,13 @@ body {
 .kachel-verbrauch {
   color: var(--abgang);
   font-variant-numeric: tabular-nums;
+}
+
+/* A-168: eine brennstoffgebundene Anlage, die gerade keinen Brennstoff hat
+   -- kein Abgang mehr (sie verbraucht ja gerade nichts), sondern derselbe
+   Mangel-Ton wie überall sonst im Spiel (Prinzip 11). */
+.kachel-verbrauch.warnung {
+  color: var(--warnung);
 }
 
 .lager-balken-rahmen {

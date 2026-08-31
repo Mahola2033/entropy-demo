@@ -28,6 +28,66 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.7.0",
+    de: [
+      "Dies ist der siebte veröffentlichte Demo-Stand — fünf Runden seit dem letzten. Dein Spielstand bleibt erhalten.",
+      "Wichtig, falls du schon länger spielst: Die Fossilanlage konnte in älteren Spielständen nie brennen. Ihr Vorrat wurde nur beim Anlegen einer Welt festgelegt, und wer vorher angefangen hatte, dessen Welt hatte gar keinen — die Anlage stand da und lieferte nichts, egal wann du sie gebaut hast. Das ist behoben: Deine Welt bekommt ihren vollen Vorrat, denn verbrannt wurde davon nie etwas.",
+      "Jede brennstoffgebundene Anlage zeigt jetzt ihre eigene Restreichweite. Vorher war nur eine davon sichtbar — wer ein Fusionskraftwerk hatte, erfuhr nie, wie es um seine Fossil- oder Kernkraftanlage steht. Und eine Anlage, die ohne Brennstoff dasteht, sagt das jetzt an ihrer eigenen Kachel, statt weiter eine Leistung zu behaupten.",
+      "Die Kopfleiste ist aufgeräumt: Die Ausbaustufe steht nicht mehr in jeder Kachel — du siehst sie an der Anlage selbst. Bevölkerung und Credits stehen jetzt in der oberen Reihe, die immer sichtbar bleibt. Und die Bestände darunter lassen sich wegklappen; zugeklappt zeigt eine schmale Zeile nur noch das, was gerade knapp wird.",
+    ],
+    en: [
+      "This is the seventh published demo build — five rounds since the last one. Your save game is preserved.",
+      "Important if you have been playing for a while: the fossil plant could never burn in older saves. Its deposit was only set when a world was created, so anyone who had started earlier had none at all — the plant just sat there producing nothing, no matter when you built it. This is fixed: your world gets its full deposit, since none of it was ever burned.",
+      "Every fuel-burning facility now shows its own remaining range. Before, only one of them was visible — anyone with a fusion reactor never learned how their fossil or nuclear plant was doing. And a facility left without fuel now says so on its own tile, instead of continuing to claim an output.",
+      "The header bar is tidier: the upgrade level no longer appears on every tile — you see it on the facility itself. Population and credits now sit in the top row, which always stays visible. And the stocks below can be folded away; when folded, a slim line shows only what is currently running short.",
+    ],
+  },
+  {
+    version: "0.6.5",
+    de: [
+      "Nur intern: der Schablonen-Wächter (A-104) folgt jetzt dem Brennstoff-Behälter aus A-168 -- ein Slot mit null bis drei Zeilen statt genau einer. Löst den Veröffentlichungs-Riegel, den das erneut verriegelt hatte.",
+    ],
+    en: [
+      "Internal only: the template guard (A-104) now follows the fuel container from A-168 -- one slot holding zero to three lines instead of exactly one. Unblocks the release check, which this had locked again.",
+    ],
+  },
+  {
+    version: "0.6.4",
+    de: [
+      "Die Energie-Kachel zeigt jetzt jede gebaute Brennstoffanlage einzeln – bisher gewann bei mehreren immer nur eine, und eine erschöpfte Fossilanlage oder ein leergelaufener Reaktor blieben unsichtbar, solange eine andere Anlage lief. Eine Anlage ohne Brennstoff meldet sich jetzt auch an ihrer eigenen Kachel, statt nur eine Leistung zu versprechen, die sie gerade nicht liefert.",
+    ],
+    en: [
+      "The energy tile now shows every built fuel-based plant separately – previously, with more than one, only a single one ever won out, and an exhausted fossil plant or a stalled reactor stayed invisible as long as another plant was running. A plant without fuel now also flags it on its own tile, instead of only promising an output it isn't currently delivering.",
+    ],
+  },
+  {
+    version: "0.6.3",
+    de: [
+      "Repariert: Die Fossilanlage konnte in Spielständen, die vor dem 25. August entstanden sind, nie brennen – egal wann sie gebaut oder wie weit sie ausgebaut wurde. Betroffene Spielstände bekommen ihren vollen, ungenutzten Vorrat zurück; ein bereits verbrauchter Vorrat bleibt unverändert, wie er war.",
+    ],
+    en: [
+      "Fixed: The fossil plant could never burn in saves created before August 25 – no matter when it was built or how far it was upgraded. Affected saves get their full, unused reserve back; a reserve that was already spent stays exactly as it was.",
+    ],
+  },
+  {
+    version: "0.6.2",
+    de: [
+      "Nur intern: der Schablonen-Wächter (A-104) folgt jetzt dem nachgezogenen Katalog aus A-162 -- die Ausbaustufe ist kein Pflicht-Slot mehr in den drei Kopfkacheln. Löst den Veröffentlichungs-Riegel, den das erneut verriegelt hatte.",
+    ],
+    en: [
+      "Internal only: the template guard (A-104) now follows the updated catalog from A-162 -- the build level is no longer a required slot in the three header tiles. Unblocks the release check, which this had locked again.",
+    ],
+  },
+  {
+    version: "0.6.1",
+    de: [
+      "Die Kopfzeile ist aufgeräumt: Die Ausbaustufe steht nur noch an der Anlage selbst, nicht mehr zusätzlich in jeder Kachel oben. Bevölkerung und Credits stehen jetzt bei Arbeitskraft, Energie, Forschung und Lager – diese sechs sind immer sichtbar. Die Bestände darunter (Metall, Silizium & Co.) lassen sich über einen Griff wegklappen; zugeklappt zeigt eine schmale Zeile, was gerade knapp wird.",
+    ],
+    en: [
+      "The header row is tidied up: the build level now shows only at the facility itself, no longer in every tile up top as well. Population and Credits now sit alongside Workforce, Energy, Research and Storage – these six stay always visible. The stockpile below (Metal, Silicon & co.) can be collapsed with a handle; collapsed, a narrow line shows what's currently running short.",
+    ],
+  },
+  {
     version: "0.6.0",
     de: [
       "Dies ist der sechste veröffentlichte Demo-Stand — elf Runden seit dem letzten. Dein Spielstand bleibt erhalten.",

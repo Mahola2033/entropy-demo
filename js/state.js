@@ -113,13 +113,6 @@ function startForschung() {
 }
 
 export function neuerPlanet({ id, systemId, orbit, name, typ, groesse = 150, startvorrat = false, art = null, klasse = null, zone = null, wasser = null, schwerkraft = 1, fraktion = SPIELER_FRAKTION }) {
-  // Fossiler Vorrat (A-147): "nur auf Welten, die Leben hatten" --
-  // KONZEPT-TECHBAUM.md. Der prüfbare Stellvertreter dafür ist dieselbe
-  // Nahrungs-Affinität, die auch die Förderung skaliert: null bei
-  // Welten ohne Boden/Atmosphäre/Wasser (nie Biomasse), sonst linear mit ihr.
-  // `klasse` fehlt nur beim eigenschaftslosen Generalisten (Altfälle/Tests) --
-  // dort gilt affinitaetFaktors eigene Vorgabe, 1 (siehe dort).
-  const nahrungAffinitaet = klasse ? (affinitaetVon({ klasse, zone, wasser }).nahrung ?? 1) : 1;
   return {
     id,
     systemId,
@@ -147,7 +140,13 @@ export function neuerPlanet({ id, systemId, orbit, name, typ, groesse = 150, sta
     // deshalb ein eigenes Feld statt eines RESSOURCEN-Eintrags. Ein
     // Außenposten hat keine Wirtschaft und keine Anlage, die ihn verbrennen
     // könnte -- 0 ist hier keine Sonderregel, nur konsequent.
-    fossilVorrat: typ === "aussenposten" ? 0 : Math.round(FOSSIL_VORRAT_BASIS * nahrungAffinitaet * 100) / 100,
+    //
+    // A-171: die Rechnung selbst steht jetzt einmal in `vollerFossilVorrat`
+    // (weiter unten) -- geteilt mit `fossilVorratVon`, das dieselbe Zahl als
+    // Vorgabe für Spielstände liefert, denen dieses Feld fehlt (vor A-147).
+    // Zwei Fassungen derselben Rechnung wären die Fehlerklasse, die der
+    // ANREICHERUNG_VERLUST-Kommentar in data.js schon namentlich führt.
+    fossilVorrat: vollerFossilVorrat({ typ, klasse, zone, wasser }),
     // Schiffe stehen dort, wo sie gebaut wurden bzw. wohin sie zurückkehren.
     schiffe: typ === "aussenposten" ? {} : startSchiffe(),
     // Gekaufte Ware: gehört dem Spieler, liegt aber am Markt, bis eine Flotte
@@ -1097,12 +1096,43 @@ export function fossilVerbrauchProStunde(def, level) {
   return rate(produktionEnergie, level) * FOSSIL.tonnenProMWh;
 }
 
+// Der volle, ungeminderte Fossilvorrat einer Welt -- "nur auf Welten, die
+// Leben hatten" (KONZEPT-TECHBAUM.md), derselbe Stellvertreter wie bei
+// jeder anderen Nahrungs-Affinität: null bei Welten ohne Boden/Atmosphäre/
+// Wasser, sonst linear mit ihr. `klasse` fehlt nur beim eigenschaftslosen
+// Generalisten (Altfälle/Tests) -- dort gilt affinitaetFaktors eigene
+// Vorgabe, 1 (siehe dort). GETEILT zwischen `neuerPlanet` (einmalig beim
+// Anlegen) und `fossilVorratVon` (A-171, bei jedem Lesen als Vorgabe für ein
+// fehlendes Feld) -- deshalb ein eigener Name, keine Kopie der Formel.
+function vollerFossilVorrat({ typ, klasse, zone, wasser }) {
+  if (typ === "aussenposten") return 0;
+  const nahrungAffinitaet = klasse ? (affinitaetVon({ klasse, zone, wasser }).nahrung ?? 1) : 1;
+  return Math.round(FOSSIL_VORRAT_BASIS * nahrungAffinitaet * 100) / 100;
+}
+
+// A-171 (Tobis Meldung 31.08.: "ich bin jetzt softlocked"): ein Spielstand
+// von vor A-147 hat `fossilVorrat` gar nicht -- jeder Leser, der bisher
+// `planet.fossilVorrat || 0` schrieb, las das fehlende Feld als 0, und die
+// Anlage brannte nie, unabhängig von Stufe oder Baujahr. Vorbild
+// `affinitaetVon` (data.js, selbes Muster): die Vorgabe wirkt bei JEDEM
+// Zugriff, nicht als Migration -- ein fehlendes Feld kann so nichts
+// kaputtmachen, und die Runde bleibt Kategorie 1 (kein SAVE_VERSION-Sprung).
+//
+// `??`, NICHT `||`: eine echte 0 (Vorrat bereits verbrannt) ist ein
+// gültiger, von der Vorgabe verschiedener Zustand und bleibt 0 -- nur ein
+// FEHLENDES Feld bekommt die volle Vorgabe. `fossilVorratNachziehen` (s.u.)
+// schreibt das Feld, sobald wirklich gefördert wird; die Vorgabe greift nur
+// bis zum ersten Mal Verbrennen.
+export function fossilVorratVon(planet) {
+  return planet.fossilVorrat ?? vollerFossilVorrat(planet);
+}
+
 // Brennt dieses Gebäude gerade -- liest ausschließlich den Bestand. Wie
 // brennstoffBereit oben, aber ohne Reserve (nichts sonst will fossilVorrat)
 // und ohne Hysterese (s.o.).
 export function fossilBereit(planet, def, level) {
   if (!def.fossil || level <= 0) return true;
-  return (planet.fossilVorrat || 0) > 0;
+  return fossilVorratVon(planet) > 0;
 }
 
 // Wie lange trägt der fossile Vorrat noch -- dieselbe konservative Zahl wie
@@ -1115,7 +1145,7 @@ export function fossilReichweiteMs(planet) {
     if (level <= 0) continue;
     const proStunde = fossilVerbrauchProStunde(def, level);
     if (proStunde <= 0) continue;
-    const reichweite = pufferReichweiteMs(planet.fossilVorrat || 0, proStunde);
+    const reichweite = pufferReichweiteMs(fossilVorratVon(planet), proStunde);
     if (reichweite < knappste) knappste = reichweite;
   }
   return knappste;
@@ -1130,10 +1160,13 @@ export function fossilReichweiteMs(planet) {
 export function fossilVorratNachziehen(planet, stunden) {
   for (const [id, def] of FOSSIL_GEBAEUDE) {
     const level = (planet.gebaeude && planet.gebaeude[id]) || 0;
-    if (level <= 0 || (planet.fossilVorrat || 0) <= 0) continue;
+    // A-171: dieselbe Vorgabe wie überall -- ein fehlendes Feld ist der
+    // volle Vorrat, keine 0. Einmal gelesen, für Wächter UND Abzug.
+    const vorrat = fossilVorratVon(planet);
+    if (level <= 0 || vorrat <= 0) continue;
     const proStunde = fossilVerbrauchProStunde(def, level);
     if (proStunde <= 0) continue;
-    const neu = (planet.fossilVorrat || 0) - proStunde * stunden;
+    const neu = vorrat - proStunde * stunden;
     // Auf null einrasten wie in planetRatenAnwenden -- kein negativer Krümel,
     // der eine weitere Mini-Reichweite vorgaukelt.
     planet.fossilVorrat = neu < 1e-6 ? 0 : neu;
@@ -1983,7 +2016,7 @@ export function pufferGrenzeStunden(state, planet) {
   for (const [id, def] of FOSSIL_GEBAEUDE) {
     const level = (planet.gebaeude && planet.gebaeude[id]) || 0;
     if (level <= 0) continue;
-    const vorrat = planet.fossilVorrat || 0;
+    const vorrat = fossilVorratVon(planet);
     if (vorrat <= 0) continue;
     const proStunde = fossilVerbrauchProStunde(def, level);
     if (proStunde <= 0) continue;

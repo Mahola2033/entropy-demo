@@ -1120,39 +1120,59 @@ function fossilBrennstoffZeile(planet, stufe) {
 // A-076: liefert WERTE, kein HTML. Die Zeile ist ein fester Knoten in der
 // Kachel und bekommt bloß frische Werte -- siehe renderRessourcen.
 //
-// A-147/A-148: bis zu drei brennstoffgebundene Energiequellen, aber EIN Slot
-// (die Kachel-Zeile ist 186 px breit ausgereizt, siehe Kommentar in
-// kraftwerkBrennstoffZeile). Priorität Kraftwerk vor Kernkraftanlage vor
-// Fossilanlage -- das Kraftwerk gewinnt, wenn mehrere stehen, unverändertes
-// Verhalten gegenüber vor A-147 ("Nicht anfassen: Das Kraftwerk und seine
-// Verfügbarkeit"). Alle drei gleichzeitig ist nur in der kurzen
-// Übergangszeit vor A-149 (Kraftwerk hinter Forschung) überhaupt möglich;
-// siehe A-147-Ergebnis für den Rand-Fall. brennstoffReichweiteMs/
+// A-147/A-148: bis zu drei brennstoffgebundene Energiequellen. BIS A-168
+// EIN Slot, Priorität Kraftwerk vor Kernkraftanlage vor Fossilanlage -- wer
+// ein Kraftwerk hatte, sah nie den Zustand seiner anderen Anlagen (Tobis
+// Fund 31.08.: "ich sehe nirgendwo etwas zu Fossilen Brennstoffen", während
+// seine Fossilanlage längst stillstand). Seit A-168 bekommt JEDE gebaute
+// Anlage ihre eigene Zeile -- Reihenfolge unverändert Kraftwerk,
+// Kernkraftanlage, Fossilanlage.
+//
+// BEKANNTER RAND-FALL, NICHT TEIL DIESER RUNDE: brennstoffReichweiteMs/
 // brennstoffProStunde sind planetweite Minima/Summen über ALLE
-// Lager-Brennstoff-Gebäude (BRENNSTOFF_GEBAEUDE) -- stehen Kraftwerk UND
-// Kernkraftanlage gleichzeitig, kann die angezeigte Zahl deshalb von der
-// JEWEILS ANDEREN Anlage stammen. Derselbe Rand-Fall wie oben, nicht extra
-// gelöst.
-function brennstoffZeile(planet) {
+// Lager-Brennstoff-Gebäude (BRENNSTOFF_GEBAEUDE), nicht je Anlage getrennt.
+// Stehen Kraftwerk UND Kernkraftanlage gleichzeitig (erst seit A-149 selten,
+// aber möglich), zeigen beide Zeilen dieselbe Reichweite-Zahl, auch wenn sie
+// unterschiedliche Ressourcen (Deuterium/Uran) verbrennen -- vor A-168 war
+// das unsichtbar (nur eine der beiden stand je da), jetzt wird es sichtbar.
+// Fossilanlage ist davon nicht betroffen: fossilReichweiteMs kennt nur sie.
+function brennstoffZeilen(planet) {
   const kraftwerkStufe = (planet.gebaeude && planet.gebaeude.kraftwerk) || 0;
-  if (kraftwerkStufe > 0) return kraftwerkBrennstoffZeile(planet, kraftwerkStufe);
-
   const kernkraftStufe = (planet.gebaeude && planet.gebaeude.kernkraftanlage) || 0;
-  if (kernkraftStufe > 0) return kernkraftBrennstoffZeile(planet, kernkraftStufe);
-
   const fossilStufe = (planet.gebaeude && planet.gebaeude.fossilanlage) || 0;
-  if (fossilStufe > 0) return fossilBrennstoffZeile(planet, fossilStufe);
 
   // A-142 (= A-108 Punkt 3, R-8/G4): Keine Brennstoffanlage heißt keine
   // Buchung, nicht "nichts zu sagen" -- der Slot bleibt reserviert statt zu
   // verschwinden. Das war der A-104-Befund: eine frische Kolonie verlor
   // hier eine ganze Zeile, die Kopfreihe wurde flacher, und alles darunter
-  // rutschte hoch (der ~20-px-Versatz aus Tobis Bericht).
-  return {
-    titel: t("Ohne Kraftwerk oder Fossilanlage gibt es keinen Brennstoffverbrauch zu zeigen."),
-    text: `⚡ ${t("Keine brennstoffgebundene Anlage gebaut")}`,
-    warnung: false,
-  };
+  // rutschte hoch (der ~20-px-Versatz aus Tobis Bericht). Unverändert seit
+  // A-142, jetzt nur der einzige Eintrag einer Liste statt der einzige
+  // Rückgabewert einer Funktion.
+  if (kraftwerkStufe <= 0 && kernkraftStufe <= 0 && fossilStufe <= 0) {
+    return [
+      {
+        schluessel: "leer",
+        titel: t("Ohne Kraftwerk oder Fossilanlage gibt es keinen Brennstoffverbrauch zu zeigen."),
+        text: `⚡ ${t("Keine brennstoffgebundene Anlage gebaut")}`,
+        warnung: false,
+      },
+    ];
+  }
+
+  const zeilen = [];
+  if (kraftwerkStufe > 0) {
+    const z = kraftwerkBrennstoffZeile(planet, kraftwerkStufe);
+    if (z) zeilen.push({ schluessel: "kraftwerk", ...z });
+  }
+  if (kernkraftStufe > 0) {
+    const z = kernkraftBrennstoffZeile(planet, kernkraftStufe);
+    if (z) zeilen.push({ schluessel: "kernkraft", ...z });
+  }
+  if (fossilStufe > 0) {
+    const z = fossilBrennstoffZeile(planet, fossilStufe);
+    if (z) zeilen.push({ schluessel: "fossil", ...z });
+  }
+  return zeilen;
 }
 
 function flussSpeicherZeile(planet, resId, netto) {
@@ -1232,7 +1252,6 @@ function resKachelGeruest() {
   div.innerHTML = `
       <span class="res-oben">
         <span class="res-name"></span>
-        <span class="res-stufe"></span>
       </span>
       <span class="res-unten">
         <span class="res-zahl">
@@ -1247,7 +1266,7 @@ function resKachelGeruest() {
 
 function resKachelFuellen(
   div,
-  { symbol, name, wert, stufe, rate, rateKlasse = "", klassen = "", titel = "", farbe = "", zusatz = "" }
+  { symbol, name, wert, rate, rateKlasse = "", klassen = "", titel = "", farbe = "", zusatz = "" }
 ) {
   div.className = `res-kachel ${klassen}`;
   attributSetzen(div, "title", titel);
@@ -1257,7 +1276,6 @@ function resKachelFuellen(
   attributSetzen(div, "style", farbe ? `--res-farbe:${farbe}` : null);
   textSetzen(div.querySelector(".res-symbol"), symbol);
   textSetzen(div.querySelector(".res-name"), name);
-  textSetzen(div.querySelector(".res-stufe"), stufe);
   textSetzen(div.querySelector(".res-wert"), wert);
   const rateEl = div.querySelector(".res-rate");
   rateEl.className = `res-rate ${rateKlasse}`;
@@ -1282,7 +1300,6 @@ function flussKachelGeruest() {
   div.innerHTML = `
         <span class="res-oben">
           <span class="res-name"></span>
-          <span class="res-stufe"></span>
         </span>
         <span class="res-unten" style="flex-direction:column;align-items:stretch;gap:.2rem">
           <span style="display:flex;justify-content:space-between;gap:.5rem">
@@ -1302,17 +1319,16 @@ function flussKachelGeruest() {
           <span class="energie-balken-rahmen speicher-rahmen" hidden>
             <span class="energie-balken speicher"></span>
           </span>
-          <span class="brennstoff-zeile" hidden></span>
+          <span class="brennstoff-zeilen" style="display:flex;flex-direction:column;gap:.2rem" hidden></span>
         </span>`;
   return div;
 }
 
-function flussKachelFuellen(div, { symbol, name, stufe, wert, rate, knapp, auslastung, speicher, brennstoff, titel }) {
+function flussKachelFuellen(div, { symbol, name, wert, rate, knapp, auslastung, speicher, brennstoffZeilen, titel }) {
   div.className = "res-kachel energie";
   attributSetzen(div, "title", titel);
   textSetzen(div.querySelector(".res-symbol"), symbol);
   textSetzen(div.querySelector(".res-name"), name);
-  textSetzen(div.querySelector(".res-stufe"), stufe);
 
   const wertEl = div.querySelector(".res-wert");
   wertEl.className = `res-wert ${knapp ? "warnung" : ""}`;
@@ -1341,13 +1357,25 @@ function flussKachelFuellen(div, { symbol, name, stufe, wert, rate, knapp, ausla
     );
   }
 
-  const brennEl = div.querySelector(".brennstoff-zeile");
-  brennEl.hidden = !brennstoff;
-  if (brennstoff) {
-    brennEl.className = `dezent brennstoff-zeile ${brennstoff.warnung ? "warnung" : ""}`;
-    attributSetzen(brennEl, "title", brennstoff.titel);
-    textSetzen(brennEl, brennstoff.text);
-  }
+  // A-168: JEDE gebaute brennstoffgebundene Anlage bekommt ihre eigene
+  // Zeile -- `listeAbgleichen` wie bei den Lagerbalken-Segmenten, statt
+  // eines einzelnen Knotens, den nur eine Anlage gewinnen konnte.
+  const brennContainer = div.querySelector(".brennstoff-zeilen");
+  const zeilenListe = brennstoffZeilen || [];
+  brennContainer.hidden = zeilenListe.length === 0;
+  listeAbgleichen(brennContainer, zeilenListe, {
+    schluessel: (z) => z.schluessel,
+    bauen: () => {
+      const span = document.createElement("span");
+      span.className = "dezent brennstoff-zeile";
+      return span;
+    },
+    aktualisieren: (span, z) => {
+      span.className = `dezent brennstoff-zeile ${z.warnung ? "warnung" : ""}`;
+      attributSetzen(span, "title", z.titel);
+      textSetzen(span, z.text);
+    },
+  });
 }
 
 function lagerKachelGeruest() {
@@ -1356,7 +1384,6 @@ function lagerKachelGeruest() {
   div.innerHTML = `
       <span class="res-oben">
         <span class="res-name"></span>
-        <span class="res-stufe"></span>
       </span>
       <span class="res-unten" style="flex-direction:column;align-items:stretch;gap:.2rem">
         <span class="res-zahl">
@@ -1389,13 +1416,31 @@ function balkenFuellen(rahmenEl, segmente) {
   });
 }
 
-function lagerKachelFuellen(div, { titel, stufe, wert, segmente, prognose }) {
+function lagerKachelFuellen(div, { titel, wert, segmente, prognose }) {
   attributSetzen(div, "title", titel);
   textSetzen(div.querySelector(".res-name"), t("Lager"));
-  textSetzen(div.querySelector(".res-stufe"), stufe);
   textSetzen(div.querySelector(".res-wert"), wert);
   textSetzen(div.querySelector(".lager-prognose"), prognose);
   balkenFuellen(div.querySelector(".lager-balken-rahmen"), segmente);
+}
+
+// A-162 Teil 3: dieselbe Bauform wie der Meldungsgriff (A-144,
+// meldungenGriffEinrichten) -- ein modulweiter Wächter gegen doppelte
+// Verdrahtung (Prinzip 8a, der Knopf steht nur einmal im Gerüst, aber
+// renderRessourcen läuft jeden Takt), der Zustand im SPIELSTAND statt in der
+// Sitzung (state.bestandsreiheZu, `|| false`-Muster wie state.meldungenZu --
+// ein fehlendes Feld in einem alten Stand liest sich als "offen").
+let ressourcenBestandGriffVerdrahtet = false;
+
+function ressourcenBestandGriffEinrichten(state, root) {
+  if (ressourcenBestandGriffVerdrahtet) return;
+  const knopf = root.querySelector("#res-bestand-griff");
+  if (!knopf) return;
+  ressourcenBestandGriffVerdrahtet = true;
+  knopf.addEventListener("click", () => {
+    state.bestandsreiheZu = !(state.bestandsreiheZu || false);
+    render(state, root);
+  });
 }
 
 function renderRessourcen(state, root, planet) {
@@ -1413,10 +1458,21 @@ function renderRessourcen(state, root, planet) {
   }
   if (leiste.dataset.form !== "leiste") {
     leiste.dataset.form = "leiste";
-    leiste.innerHTML = `<div class="res-reihe"></div><div class="res-reihe res-reihe-kapazitaet"></div>`;
+    // A-162 Teil 3/4: Der Griff sitzt ZWISCHEN den beiden Reihen -- am
+    // unteren Rand der Bestandsreihe, die er bedient. Die Mangelzeile im
+    // selben Knoten steht IMMER im Baum (Teil 4: "die Zeile ist immer da"),
+    // sichtbar wird sie erst, wenn die Bestandsreihe zu ist -- s.u.
+    leiste.innerHTML = `
+      <div class="res-reihe"></div>
+      <div class="res-bestand-leiste">
+        <button class="res-bestand-griff" id="res-bestand-griff"></button>
+        <span class="res-mangelzeile" id="res-mangelzeile" hidden></span>
+      </div>
+      <div class="res-reihe res-reihe-kapazitaet"></div>`;
   }
   const reiheVorraete = leiste.firstElementChild;
   const reiheKapazitaeten = leiste.lastElementChild;
+  ressourcenBestandGriffEinrichten(state, root);
 
   const { lager, fluss, produktion, verbrauch, bedarf, drosselung, effizienz, verderb } = effektiveRaten(
     state,
@@ -1427,22 +1483,31 @@ function renderRessourcen(state, root, planet) {
   // schrumpfendem Nahrungsbestand später vollläuft als hier behauptet.
   const lagerAnzeige = {};
   for (const resId of LAGER_RESSOURCEN) lagerAnzeige[resId] = sichtbareRate(lager, verderb, resId);
-  // Nur die Stufe der Förderanlage -- welches Gebäude gemeint ist, steht im
-  // title. Abgekürzte Namen ("Meta. 3") wären schmal, aber unleserlich.
-  const stufeVon = (resId) => {
-    const gebaeudeId = RESSOURCEN[resId].gebaeude;
-    if (!gebaeudeId) return "";
-    return `Lv ${planet.gebaeude[gebaeudeId] || 0}`;
-  };
 
   // Zwei getrennte Reihen statt einer umbrechenden Zeile (Tobis Vorgabe,
-  // 2026-08-16): oben was man HAT, unten was man KANN. Das trennt zwei
-  // verschiedene Fragen und macht nebenbei den springenden Umbruch unmöglich
-  // -- siehe .ressourcenleiste in style.css.
+  // 2026-08-16): oben was man HAT, unten was man KANN.
+  //
+  // A-162 Teil 2: "was man KANN" trifft nur noch auf drei der sechs Kacheln
+  // zu (Arbeitskraft, Energie, Forschung) -- Lager, Bevölkerung und Credits
+  // stehen HIER, weil sie IMMER SICHTBAR sein sollen (ENTWURF-LAGER.md 4.1),
+  // nicht weil sie eine Kapazität hätten. `kapazitaeten`/`reiheKapazitaeten`/
+  // `.res-reihe-kapazitaet` heißen bewusst weiter so (Umbenennen wäre Lärm
+  // ohne Gegenwert) -- ihre Rolle ist jetzt "die Dauerreihe", nicht mehr
+  // "was man kann".
   const vorraete = [];
   const kapazitaeten = [];
+  // A-162 Teil 4: Kandidaten für die Mangelzeile -- "negative Rate bei
+  // knappem Bestand" (ENTWURF-LAGER.md 4.3, Zeile 175/176), nicht die
+  // "voll"-Warnung derselben CSS-Klasse (die ist Überfluss, kein Mangel).
+  // Gesammelt während des Baus von `vorraete`, gelesen erst am Ende, wenn
+  // feststeht, ob die Bestandsreihe überhaupt zu ist.
+  const mangelListe = [];
 
-  for (const resId of LAGER_RESSOURCEN) {
+  // A-162 Teil 2: aus dem Schleifenkörper herausgezogen, damit dieselbe
+  // Rechnung für Bevölkerung/Credits (jetzt Dauerreihe) UND die restlichen
+  // Lagerressourcen (Bestandsreihe) gilt -- eine Ressource, ein Weg, ihre
+  // Kachel zu bauen (Prinzip 5).
+  const lagerEintrag = (resId) => {
     const def = RESSOURCEN[resId];
     // lagerverbrauch ist ein Volumen: m³ pro Einheit dieser Ressource.
     const volumen = def.lagerverbrauch;
@@ -1518,14 +1583,27 @@ function renderRessourcen(state, root, planet) {
         : t(" · Platz für {platz}", { platz: fmt(eigenerSpeicher) });
     }
 
-    vorraete.push({
+    // A-162 Teil 4: "negative Rate bei knappem Bestand" -- exakt der Fall
+    // `zieht` oben, nicht die "voll"-Warnung weiter unten (Überfluss ist kein
+    // Mangel). `pufferReichweiteMs` ist dieselbe Funktion, die schon
+    // `flussSpeicherZeile` für "reicht noch X" nutzt -- keine zweite Rechnung
+    // für dieselbe Frage.
+    if (zieht) {
+      mangelListe.push({
+        symbol: def.symbol || "•",
+        name: t(def.name),
+        reichweiteMs: pufferReichweiteMs(bestandJetzt, -rate),
+      });
+    }
+
+    return {
       schluessel: resId,
+      art: "bestand",
       symbol: def.symbol || "•",
       name: t(def.name),
       wert: hatSpeicher
         ? `${fmt(bestandJetzt)} / ${fmt(eigenerSpeicher)}`
         : mitEinheit(resId, bestandJetzt),
-      stufe: stufeVon(resId),
       rate: hatSpeicher
         ? speicherVoll
           ? t("voll")
@@ -1568,7 +1646,15 @@ function renderRessourcen(state, root, planet) {
       // Dieselbe Farbe wie das Segment im Lagerbalken -- die Kachel ist die
       // Legende dazu.
       farbe: volumen > 0 ? def.farbe : "",
-    });
+    };
+  };
+
+  // A-162 Teil 2: Bevölkerung und Credits laufen NICHT mehr durch diese
+  // Schleife in die Bestandsreihe -- sie werden weiter unten explizit in die
+  // Dauerreihe gehängt, an der Stelle, die 4.1 vorgibt (nach Lager).
+  for (const resId of LAGER_RESSOURCEN) {
+    if (resId === "credits" || resId === "bevoelkerung") continue;
+    vorraete.push(lagerEintrag(resId));
   }
 
   // Fluss-Ressourcen: kein Bestand, sondern Erzeugung gegen Verbrauch. Der
@@ -1593,7 +1679,7 @@ function renderRessourcen(state, root, planet) {
     const auslastung = prod > 0 ? braucht / prod : braucht > 0 ? 1 : 0;
     const frei = Math.max(0, prod - braucht);
     const speicherDaten = flussSpeicherZeile(planet, resId, fluss[resId] || 0);
-    const brennstoffDaten = resId === "energie" ? brennstoffZeile(planet) : null;
+    const brennstoffDaten = resId === "energie" ? brennstoffZeilen(planet) : null;
     // FORSCHUNG IST DER SONDERFALL DIESER KACHEL (A-028).
     //
     // Das Muster "verbraucht / erzeugt" passt fuer Strom und Arbeitskraft:
@@ -1623,7 +1709,6 @@ function renderRessourcen(state, root, planet) {
       art: "fluss",
       symbol: def.symbol || "•",
       name: t(def.name),
-      stufe: stufeVon(resId),
       wert: wertText,
       // A-143: Forschung rechnet ihre Rate wie jede andere -- in Spieljahren,
       // nicht in der internen Echtzeitstunde. MW/AK bleiben unangetastet:
@@ -1636,7 +1721,7 @@ function renderRessourcen(state, root, planet) {
       knapp,
       auslastung,
       speicher: speicherDaten,
-      brennstoff: brennstoffDaten,
+      brennstoffZeilen: brennstoffDaten,
       titel:
         (knapp
           ? t("{res} fehlt: {braucht} {einheit} gebraucht, nur {da} verfügbar – alle Anlagen laufen mit {anteil}%", {
@@ -1665,7 +1750,7 @@ function renderRessourcen(state, root, planet) {
             )
           : "") +
         (speicherDaten ? "\n" + speicherDaten.titel : "") +
-        (brennstoffDaten ? "\n" + brennstoffDaten.titel : ""),
+        (brennstoffDaten && brennstoffDaten.length ? "\n" + brennstoffDaten.map((z) => z.titel).join("\n") : ""),
     });
   }
 
@@ -1707,7 +1792,6 @@ function renderRessourcen(state, root, planet) {
     schluessel: "lager",
     art: "lager",
     titel: t("{belegt} von {gesamt} m³ belegt", { belegt: fmt(belegt), gesamt: fmt(gesamt) }),
-    stufe: `Lv ${planet.gebaeude.lagerhalle || 0}`,
     wert: `${formatKurz(belegt)} / ${formatKurz(gesamt)} m³`,
     prognose: lagerPrognoseText(state, planet, lagerAnzeige),
     segmente: segmente.map((s) => ({
@@ -1722,6 +1806,15 @@ function renderRessourcen(state, root, planet) {
     })),
   });
 
+  // A-162 Teil 2: Bevölkerung und Credits schließen die Dauerreihe ab, in
+  // genau der Reihenfolge aus 4.1 (Arbeitskraft · Energie · Forschung ·
+  // Lager · Bevölkerung · Credits). `lagerEintrag` liefert für beide dieselbe
+  // Kachel wie früher in der Bestandsreihe -- Bevölkerung zeigt bereits
+  // "x / y" (eigener Speicher = Wohnraum), Credits ist der Sonderfall ohne
+  // Kapazität, Balken oder (seit Teil 1) Stufe.
+  kapazitaeten.push(lagerEintrag("bevoelkerung"));
+  kapazitaeten.push(lagerEintrag("credits"));
+
   // Verdeckte Platzhalter: zeigen Tiefe, ohne zu spoilern. Sie gehören zu den
   // VORRÄTEN -- es sind künftige Ressourcen, und dort ist der Platz für sie.
   for (let i = 0; i < UNBEKANNTE_RESSOURCEN.slots; i++) {
@@ -1730,7 +1823,6 @@ function renderRessourcen(state, root, planet) {
       symbol: UNBEKANNTE_RESSOURCEN.symbol,
       name: "???",
       wert: "???",
-      stufe: "",
       rate: "",
       klassen: "unbekannt",
       titel: t("Noch nicht entdeckt"),
@@ -1742,11 +1834,44 @@ function renderRessourcen(state, root, planet) {
     bauen: () => resKachelGeruest(),
     aktualisieren: (div, k) => resKachelFuellen(div, k),
   });
+  // A-162 Teil 2: die Dauerreihe trägt jetzt DREI Kachelarten -- "lager"
+  // (Auslastungsbalken), "fluss" (Arbeitskraft/Energie/Forschung, mit Balken
+  // und Speicher-/Brennstoffzeile) und die einfache Bestandskachel (jetzt
+  // "bestand": Bevölkerung, Credits) -- dieselbe Schablone wie in der
+  // Bestandsreihe, kein neuer Kachel-Typ.
   listeAbgleichen(reiheKapazitaeten, kapazitaeten, {
     schluessel: (k) => k.schluessel,
-    bauen: (k) => (k.art === "lager" ? lagerKachelGeruest() : flussKachelGeruest()),
-    aktualisieren: (div, k) => (k.art === "lager" ? lagerKachelFuellen(div, k) : flussKachelFuellen(div, k)),
+    bauen: (k) => (k.art === "lager" ? lagerKachelGeruest() : k.art === "fluss" ? flussKachelGeruest() : resKachelGeruest()),
+    aktualisieren: (div, k) =>
+      k.art === "lager" ? lagerKachelFuellen(div, k) : k.art === "fluss" ? flussKachelFuellen(div, k) : resKachelFuellen(div, k),
   });
+
+  // --- A-162 Teil 3/4: Griff-Zustand und Mangelzeile -----------------------
+  //
+  // Erst HIER gelesen, nicht am Funktionsanfang: `mangelListe` ist erst nach
+  // dem Bau von `vorraete` vollständig (sie wird währenddessen befüllt).
+  const bestandZu = state.bestandsreiheZu || false;
+  reiheVorraete.classList.toggle("eingeklappt", bestandZu);
+  const griff = leiste.querySelector("#res-bestand-griff");
+  griff.textContent = bestandZu ? "▸" : "▾";
+  attributSetzen(griff, "title", bestandZu ? t("Bestände wieder einblenden.") : t("Bestände wegklappen."));
+
+  // Immer berechnet und gesetzt, auch wenn gerade unsichtbar (`hidden`) --
+  // sonst zeigt ein frisches Aufklappen-Zuklappen für einen Frame den Stand
+  // vom letzten Mal, als die Reihe zu war (G4-Sprung, nur unsichtbar).
+  const dringendste = [...mangelListe].sort((a, b) => a.reichweiteMs - b.reichweiteMs).slice(0, 3);
+  const rest = mangelListe.length - dringendste.length;
+  const basisText = dringendste.map((m) => `${m.symbol} ${m.name}`).join(" · ");
+  const mangelzeile = leiste.querySelector("#res-mangelzeile");
+  mangelzeile.hidden = !bestandZu;
+  textSetzen(
+    mangelzeile,
+    mangelListe.length === 0
+      ? t("Alle Bestände stabil")
+      : rest > 0
+        ? t("{text}  (+{anzahl} weitere)", { text: basisText, anzahl: rest })
+        : basisText
+  );
 }
 
 // --- Navigation ---------------------------------------------------------
@@ -3184,6 +3309,41 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
     const speicherRes = vorschau.speicherRes;
     const speicherDelta = vorschau.speicher;
 
+    // A-168 (Tobis Fall: Fossilanlage Stufe 3, Vorrat aufgebraucht): die
+    // Zeilen oben (`energieText`, `hatProduktion`) sind eine Aussage über
+    // die FORMEL -- was diese Stufe bei vollem Brennstoff bringt/brächte.
+    // Das bleibt richtig. Was fehlte: dass eine bereits GEBAUTE, brennstoff-
+    // gebundene Anlage diese Formel gerade gar nicht einlöst. Dieselbe
+    // Prüfung wie an der Kopfleiste (brennstoffBereit deckt seit A-147 sowohl
+    // `def.fossil` als auch `def.brennstoff` ab -- EIN Tor, nicht zwei), nur
+    // zusätzlich an der eigenen Kachel, wie A-114 es für den laufenden
+    // Verbrauch schon eingeführt hat: eine eigene Zeile, nicht ein
+    // umgeschriebener Wert.
+    const brauchtBrennstoff = opts.defs === BUILDINGS && (def.fossil || def.brennstoff);
+    const brennstoffAus = brauchtBrennstoff && level >= 1 && !brennstoffBereit(planetFuerKachel, def, level);
+    // Dieselben Symbole/Texte wie an der Kopfleiste (brennstoffZeilen unten)
+    // -- eine Wahrheit, zwei Orte, kein zweiter Wortlaut. Die Kachel-Zeile
+    // bleibt kurz (wie kachel-verbrauch/-gewinn daneben), der Tooltip trägt
+    // denselben ausgeschriebenen Satz wie die jeweilige Kopfleisten-Zeile.
+    const brennstoffAusText = !brennstoffAus
+      ? ""
+      : id === "fossilanlage"
+        ? `🛢️ ${t("Fossiler Vorrat aufgebraucht")}`
+        : id === "kernkraftanlage"
+          ? `☢️ ${t("Kein Brennstoff – Reaktor aus")}`
+          : `⚛️ ${t("Kein Brennstoff – Reaktor aus")}`;
+    const brennstoffAusTitel = !brennstoffAus
+      ? ""
+      : id === "fossilanlage"
+        ? t("Der fossile Vorrat dieses Planeten ist aufgebraucht – anders als Brennstoff aus dem Lager wächst er nicht nach.")
+        : id === "kernkraftanlage"
+          ? t("Kein Brennstoff – der Reaktor ist aus. Er zündet wieder, sobald Uran für {dauer} im Lager liegt.", {
+              dauer: fmtDauer(BRENNSTOFF_ANLAUF_MS / 1000),
+            })
+          : t("Kein Brennstoff – der Reaktor ist aus. Er zündet wieder, sobald Deuterium für {dauer} im Lager liegt.", {
+              dauer: fmtDauer(BRENNSTOFF_ANLAUF_MS / 1000),
+            });
+
     const fertig = def.schluessel && level >= 1;
     const vorOffen = opts.voraussetzungen && !opts.voraussetzungen(id);
 
@@ -3224,6 +3384,7 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
       hatBrennstoff
         ? t("Brennt zusätzlich: {mehr}", { mehr: ratenBuendelText(brennstoffDelta) })
         : "",
+      brennstoffAusTitel,
       speicherDelta > 0
         ? t("Schafft Platz für {menge} {res} mehr", {
             // Einheit aus dem speicher-Eintrag, nicht aus def.einheit: beim
@@ -3264,6 +3425,7 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
          ${hatProduktion ? `<span class="kachel-gewinn">+${ratenBuendelText(produktionsDelta, true)}</span>` : ""}
          ${hatVerbrauch ? `<span class="kachel-verbrauch">−${ratenBuendelText(verbrauchsDelta, true)}</span>` : ""}
          ${hatBrennstoff ? `<span class="kachel-verbrauch">−${ratenBuendelText(brennstoffDelta, true)}</span>` : ""}
+         ${brennstoffAusText ? `<span class="kachel-verbrauch warnung">${brennstoffAusText}</span>` : ""}
          ${speicherDelta > 0 ? `<span class="kachel-gewinn">+${RESSOURCEN[speicherRes].symbol} ${fmt(speicherDelta)} ${speicherEinheit(speicherRes)}</span>` : ""}`;
     // A-130: geschrieben gegen zuletzt geschrieben, nie gegen zurückgelesen
     // (dasselbe Muster wie detail.dataset.stand in slotZeileFuellen) -- der

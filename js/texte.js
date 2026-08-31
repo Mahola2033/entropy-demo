@@ -773,6 +773,13 @@ export const EN = {
   "Meldungsliste ein-/ausklappen": "Show/hide the message list",
   "Meldungen wieder einblenden.": "Show the messages again.",
   "Meldungen wegklappen.": "Hide the messages.",
+  // A-162 Teil 3/4: derselbe Griff-Wortlaut, jetzt für die Bestandsreihe der
+  // Ressourcenleiste. "Alle Bestände stabil" ist die P18-Antwort der
+  // Mangelzeile, wenn keine Ressource gerade "negative Rate bei knappem
+  // Bestand" zeigt (ENTWURF-LAGER.md 4.3).
+  "Bestände wieder einblenden.": "Show the stockpile again.",
+  "Bestände wegklappen.": "Hide the stockpile.",
+  "Alle Bestände stabil": "All stockpiles stable",
   "Warteschlange ({belegt}/{max}) · noch {dauer}": "Queue ({belegt}/{max}) · {dauer} left",
   "Diese Aufträge starten nacheinander, sobald der laufende fertig ist. Die Kosten sind bereits abgezogen – ein eingereihter Auftrag findet also garantiert statt. Zusammen noch {dauer} Bauzeit.":
     "These orders start one after another as soon as the running one is done. Their costs are already deducted – a queued order is therefore guaranteed to happen. {dauer} of build time left in total.",
