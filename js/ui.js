@@ -397,10 +397,16 @@ export function markupSetzen(el, html) {
 }
 
 // Freier Spielertext, der über innerHTML in die Seite kommt, wird vom Browser
-// als AUSZEICHNUNG gelesen und nicht als Text. Der Flottenname ist die einzige
-// Stelle, an der der Spieler selbst schreibt -- und schon ein harmloses
-// Alpha & Omega oder <Vorhut> zerlegt damit die Zeile, in der er steht. Jeder
-// Name gehört deshalb vor dem innerHTML durch diesen Filter.
+// als AUSZEICHNUNG gelesen und nicht als Text. Bis A-173 stand hier, der
+// Flottenname sei die einzige Stelle, an der der Spieler selbst schreibt --
+// das stimmte seit A-082 nicht mehr (Planeten sind umbenennbar) und für einen
+// eingespielten Spielstand nie: JEDER Name, der aus dem Spielstand kommt
+// (Planet, Welt, Systemobjekt, Flotte), ist Spielertext. Schon ein harmloses
+// Alpha & Omega oder <Vorhut> zerlegt damit die Zeile, in der er steht --
+// eine Sicherheitsprüfung (A-173) hat es bis zur Codeausführung im Browser
+// durchgespielt. KEIN Text aus dem Spielstand geht deshalb je durch
+// innerHTML, ohne vorher durch diesen Filter (oder textSetzen/textContent)
+// gelaufen zu sein.
 //
 // Bewusst mit split/join statt mit einem regulären Ausdruck: tests/
 // uebersetzung.mjs zerlegt den Quelltext selbst in Zeichenketten, und ein
@@ -451,18 +457,57 @@ function forschungRestSekunden(state) {
 // "15 pro Jahr". Bis v0.5 stand hinter beidem dasselbe "/h" -- bei der
 // Arbeitskraft war das schon immer falsch, nur fiel es ohne Zeitmaßstab
 // niemandem auf.
-function ratenBuendelText(buendel, symbolisch = false) {
+//
+// A-165: die Aufteilung selbst ist eine Aussage über die RESSOURCE (Rate
+// gegen Dauerzustand), geteilt zwischen der Text- und der Markup-Fassung
+// unten -- nur WIE am Ende geschrieben wird, unterscheidet sich.
+function buendelAufteilen(buendel) {
   const proJahr = {};
   const dauerhaft = {};
   for (const [resId, wert] of Object.entries(buendel)) {
     if (RESSOURCEN[resId] && RESSOURCEN[resId].art === "fluss") dauerhaft[resId] = wert;
     else proJahr[resId] = Math.round(rateProJahr(wert));
   }
+  return { proJahr, dauerhaft };
+}
+
+function ratenBuendelText(buendel, symbolisch = false) {
+  const { proJahr, dauerhaft } = buendelAufteilen(buendel);
   const schreib = symbolisch ? buendelSymbole : buendelText;
   const teile = [];
   if (Object.keys(proJahr).length) teile.push(schreib(proJahr) + t("/Jahr"));
   if (Object.keys(dauerhaft).length) teile.push(schreib(dauerhaft));
   return teile.join(symbolisch ? "  " : ", ");
+}
+
+// A-165 (P19, Ausbau-Kachel -- Tobis Beispiele "AK"/"t/jahr"/"MW" stehen
+// alle drei hier): Markup-Fassung von ratenBuendelText, NICHT deren Umbau --
+// Tooltips (die Text-Fassung bedient) können kein Markup tragen, zwei
+// Fassungen derselben DARSTELLUNG sind hier richtig (Auftrag, Punkt 4).
+//
+// Je Eintrag: Symbol ungefärbt, Vorzeichen+Zahl gefärbt (vorzeichenSpan),
+// Einheit ungefärbt. `richtung` gilt fürs ganze Bündel (Produktion ist immer
+// Zufluss, Verbrauch immer Abgang -- ausbauVorschau trennt schon danach),
+// aber jeder EINTRAG bekommt trotzdem sein eigenes Vorzeichen: "Jeder
+// Eintrag ist für sich Zufluss oder Abgang" (Auftrag, Punkt 4) -- anders als
+// vorher, wo ein einzelnes +/− vor dem ganzen Bündel stand.
+function ratenBuendelMarkup(buendel, richtung) {
+  const { proJahr, dauerhaft } = buendelAufteilen(buendel);
+  const vorzeichen = richtung === "abgang" ? -1 : 1;
+  const eintrag = ([resId, betrag], suffix) => {
+    const def = RESSOURCEN[resId];
+    const symbol = def && def.symbol ? def.symbol : t(def ? def.name : resId);
+    const e = einheit(resId);
+    return `${symbol} ${vorzeichenSpan(vorzeichen * betrag, formatKurz)}${e ? " " + e : ""}${suffix}`;
+  };
+  const teile = [];
+  if (Object.keys(proJahr).length) {
+    teile.push(Object.entries(proJahr).map((e) => eintrag(e, t("/Jahr"))).join("  "));
+  }
+  if (Object.keys(dauerhaft).length) {
+    teile.push(Object.entries(dauerhaft).map((e) => eintrag(e, "")).join("  "));
+  }
+  return teile.join("  ");
 }
 
 // --- Aufschlüsselung der Renderkosten (A-030) -----------------------------
@@ -1613,9 +1658,9 @@ function renderRessourcen(state, root, planet) {
             // Zugewinn aussehen. Das Pluszeichen war hier die Lüge.
             lagerVoll
             ? t("Lager voll")
-            : vorzeichenSpan(rateProJahr(rate), (betrag) => mitEinheit(resId, betrag)) + t("/Jahr")
+            : vorzeichenMitEinheit(resId, rateProJahr(rate)) + t("/Jahr")
           : zieht
-            ? vorzeichenSpan(rateProJahr(rate), (betrag) => mitEinheit(resId, betrag)) + t("/Jahr")
+            ? vorzeichenMitEinheit(resId, rateProJahr(rate)) + t("/Jahr")
             : "",
       rateKlasse: zieht || speicherVoll || (lagerVoll && rate > 0) ? "warnung" : "",
       // A-052: DER VERDERB STAND HIER ALS EIGENE ZEILE (aus A-010) und hat
@@ -2290,7 +2335,7 @@ function renderAbspann(state, root) {
     .map(
       (w) => `
       <li class="${w.ueberlebt ? "abspann-hielt" : "abspann-verloren"}">
-        <span>${w.name}</span>
+        <span>${htmlText(w.name)}</span>
         <span>${
           w.schild > 0
             ? t("Schirm auf {anteil}% Versorgung", { anteil: Math.round(w.versorgung * 100) })
@@ -2853,7 +2898,7 @@ function renderStatus(state, root, planet, jetzt) {
     const ziel = planetById(state, transfer.zielPlanet);
     zeilen.push(
       zeile(
-        `${buendelText({ [transfer.resId]: transfer.menge })} → ${ziel ? ziel.name : "?"}`,
+        `${buendelText({ [transfer.resId]: transfer.menge })} → ${ziel ? htmlText(ziel.name) : "?"}`,
         fmtDauer((transfer.ankunftZeit - jetzt) / 1000)
       )
     );
@@ -3420,13 +3465,13 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
         // die KEIN Minus bekommen dürfen).
         `<span class="kachel-kosten"><span class="zeilen-marke">${t("Kosten")}</span> ${istForschung ? `${RESSOURCEN.forschung.symbol} ${fmt(aufwand)} ${RESSOURCEN.forschung.einheit}` : buendelSymbole(kosten, { abgang: true })}</span>
          <span class="kachel-dauer">${fmtDauer(dauer)}${
-           energieText ? ` · ${vorzeichenSpan(Math.round(energieDelta), (betrag) => `${fmt(betrag)} MW`)}` : ""
+           energieText ? ` · ${vorzeichenSpan(Math.round(energieDelta))} MW` : ""
          }</span>
-         ${hatProduktion ? `<span class="kachel-gewinn">+${ratenBuendelText(produktionsDelta, true)}</span>` : ""}
-         ${hatVerbrauch ? `<span class="kachel-verbrauch">−${ratenBuendelText(verbrauchsDelta, true)}</span>` : ""}
-         ${hatBrennstoff ? `<span class="kachel-verbrauch">−${ratenBuendelText(brennstoffDelta, true)}</span>` : ""}
+         ${hatProduktion ? `<span class="kachel-gewinn">${ratenBuendelMarkup(produktionsDelta, "zufluss")}</span>` : ""}
+         ${hatVerbrauch ? `<span class="kachel-verbrauch">${ratenBuendelMarkup(verbrauchsDelta, "abgang")}</span>` : ""}
+         ${hatBrennstoff ? `<span class="kachel-verbrauch">${ratenBuendelMarkup(brennstoffDelta, "abgang")}</span>` : ""}
          ${brennstoffAusText ? `<span class="kachel-verbrauch warnung">${brennstoffAusText}</span>` : ""}
-         ${speicherDelta > 0 ? `<span class="kachel-gewinn">+${RESSOURCEN[speicherRes].symbol} ${fmt(speicherDelta)} ${speicherEinheit(speicherRes)}</span>` : ""}`;
+         ${speicherDelta > 0 ? `<span class="kachel-gewinn">${RESSOURCEN[speicherRes].symbol} ${vorzeichenSpan(speicherDelta, fmt)} ${speicherEinheit(speicherRes)}</span>` : ""}`;
     // A-130: geschrieben gegen zuletzt geschrieben, nie gegen zurückgelesen
     // (dasselbe Muster wie detail.dataset.stand in slotZeileFuellen) -- der
     // Browser serialisiert innerHTML beim Auslesen normalisiert, ein reiner
@@ -3890,18 +3935,32 @@ function uebersichtGeruest(box, state, root) {
        ${schluessel.map(zeile).join("")}
        <div data-liste="${id}"></div>
      </div>`;
+  // A-169 (Tobis Meldung 31.08.: "da ist ein Riesen Feld mit nichts drin"):
+  // Die Namenszeile stand bis dahin als ERSTES KIND im 3-Spalten-Kartenraster
+  // -- ihre Rasterzelle wurde dadurch so hoch wie ihre Nachbarkarte (146 px),
+  // ihr Inhalt aber blieb 30 px, macht 116 px sichtbar leere Fläche direkt
+  // neben zwei gerahmten Karten. Weg B aus dem Auftrag: die Zeile wandert als
+  // eigene Kopfzeile ÜBER das Raster, über die volle Breite -- damit teilt
+  // sie keine Rasterzeile mehr mit einer Karte (das Leerflächen-Problem
+  // verschwindet strukturell, nicht durch einen Rahmen darum, den der
+  // Auftrag ausdrücklich als Risiko nennt) und ist sichtbar etwas ANDERES
+  // als die Karten, keine schlechte davon. `.uebersicht-raster` trägt jetzt
+  // das Grid, das vorher an `.uebersicht` selbst hing (css/style.css) --
+  // Spaltenzahl/-breite (Nicht anfassen) unverändert, nur der Träger wechselt.
   box.innerHTML = `
     <div class="uebersicht-name bedienzeile">
       <span class="zeile-beschriftung" data-namen-marke></span>
       <input type="text" class="zeile-eingabe" maxlength="${PLANETENNAME_MAX}" data-planet-name />
       <button class="zeile-knopf-1" data-planet-umbenennen></button>
     </div>
-    <div class="uebersicht-hinweis dezent" data-hinweis hidden></div>
-    ${gruppe("standort", ["welt", "orbit", "schwerkraft", "vorkommen"])}
-    ${gruppe("bestaende", ["warenlager"])}
-    ${gruppe("fluesse", ["energie", "brennstoff", "arbeitskraft"])}
-    ${gruppe("bevoelkerung", ["menschen", "wohnraum"])}
-    ${gruppe("laufendes", ["bau", "forschung", "werftauftrag"])}`;
+    <div class="uebersicht-raster">
+      <div class="uebersicht-hinweis dezent" data-hinweis hidden></div>
+      ${gruppe("standort", ["welt", "orbit", "schwerkraft", "vorkommen"])}
+      ${gruppe("bestaende", ["warenlager"])}
+      ${gruppe("fluesse", ["energie", "brennstoff", "arbeitskraft"])}
+      ${gruppe("bevoelkerung", ["menschen", "wohnraum"])}
+      ${gruppe("laufendes", ["bau", "forschung", "werftauftrag"])}
+    </div>`;
 
   const feld = box.querySelector("[data-planet-name]");
   const uebernehmen = () => {
@@ -3922,10 +3981,18 @@ function uebersichtGeruest(box, state, root) {
 // `wert >= 0 ? "+" : "−"` mehr an einzelnen Fundstellen.
 //
 // `formatBetrag` bekommt den BETRAG (ohne Vorzeichen) und liefert ihn fertig
-// formatiert, eng anliegende Einheiten eingeschlossen ("14 MW", "9 %") --
-// die sind Teil der Zahl. Ein nachgestelltes Wort wie "/Jahr" gehört NICHT
-// in `formatBetrag`, sondern bleibt beim Aufrufer außerhalb, unbunt (P19
-// Regel 2: der Text daneben bleibt Textfarbe).
+// formatiert. A-165 (Tobis Feedback 31.08., wörtlich: „Ich würde nur die
+// Zahl selber Grün/Rot haben wollen sowohl wie das -/+ allerdingst nicht
+// sowas wie AK oder t/jahr oder MW") korrigiert eine falsche Lesart von P19
+// Regel 2, die bis dahin genau hier stand: „eng anliegende Einheiten sind
+// Teil der Zahl". Das war NIE, was P19 sagt -- der Katalog nennt „−14 MW"
+// nur als Beispiel für Zahl+Vorzeichen, nicht als Freibrief für die Einheit
+// (KONZEPT-UI.md P19 Regel 2: „Zahl und Vorzeichen werden eingefärbt, der
+// begleitende Text nicht"). `formatBetrag` liefert deshalb NUR die Zahl
+// (Dezimaltrennzeichen/Kürzel wie „1,2 Mio" eingeschlossen), NIE eine
+// Einheit -- die bleibt beim Aufrufer außerhalb, unbunt, egal ob „/Jahr",
+// „MW", „%" oder „AK". Siehe `vorzeichenMitEinheit` unten für den häufigsten
+// Fall (Ressourcen-Rate mit Einheit).
 //
 // Null hat keine Richtung: kein Vorzeichen, keine Farbe (Definition von
 // fertig des Auftrags) -- wer eine Rate erst ab einer Sichtbarkeitsgrenze
@@ -3944,10 +4011,20 @@ export function vorzeichenSpan(wert, formatBetrag = fmt) {
   return `<span class="${wert > 0 ? "zufluss" : "abgang"}">${vorzeichenText(wert, formatBetrag)}</span>`;
 }
 
+// A-165: der häufigste Fall -- eine Ressourcen-Rate mit ihrer Einheit
+// (mitEinheit). Vorher stand `mitEinheit` selbst in `formatBetrag` und
+// färbte die Einheit mit ("−1.875 t/Jahr" komplett rot statt nur "−1.875");
+// dieser Baustein trennt beides an EINER Stelle statt an fünf Fundstellen
+// einzeln (ANREICHERUNG_VERLUST-Klasse vermieden, siehe data.js).
+function vorzeichenMitEinheit(resId, wert) {
+  const e = einheit(resId);
+  return vorzeichenSpan(wert, formatKurz) + (e ? " " + e : "");
+}
+
 // Eine Rate steht in den Tabellen pro ECHTZEITSTUNDE und wird -- wie überall
 // sonst im Spiel -- pro SPIELJAHR angezeigt. Mit Vorzeichen, weil eine
 // Nettorate ohne Vorzeichen die halbe Auskunft wäre. Liefert Markup
-// (vorzeichenSpan) -- Aufrufer setzen das Ergebnis über `markupSetzen`.
+// (vorzeichenMitEinheit) -- Aufrufer setzen das Ergebnis über `markupSetzen`.
 function nettoText(resId, proStunde) {
   const jahr = rateProJahr(proStunde);
   // KEIN Minus vor einer Null: `formatKurz` schneidet ab, aus −0,33 t/Jahr
@@ -3955,7 +4032,7 @@ function nettoText(resId, proStunde) {
   // Fehler und ist auch einer -- die Anzeige behauptete eine Richtung, die
   // sie gar nicht mehr auflöst.
   const sichtbar = nettoSichtbar(jahr) ? jahr : 0;
-  return vorzeichenSpan(sichtbar, (betrag) => mitEinheit(resId, betrag)) + t("/Jahr");
+  return vorzeichenMitEinheit(resId, sichtbar) + t("/Jahr");
 }
 
 // Löst die Anzeige diese Jahresrate überhaupt noch auf? Dieselbe Abschneide-
@@ -3976,9 +4053,11 @@ function dezimal(zahl, stellen = 2) {
 }
 
 // Markup (vorzeichenSpan) -- Aufrufer setzen das Ergebnis über `markupSetzen`.
+// A-165: „%" ist begleitender Text wie jede andere Einheit, bleibt also
+// außerhalb des Spans (vorher in `formatBetrag`, färbte mit).
 function prozentText(faktor) {
   const p = Math.round((faktor - 1) * 100);
-  return vorzeichenSpan(p, (betrag) => `${betrag} %`);
+  return vorzeichenSpan(p) + " %";
 }
 
 function renderUebersicht(state, root, planet) {
@@ -4116,10 +4195,10 @@ function renderUebersicht(state, root, planet) {
     t("{erzeugt} erzeugt · {gebraucht} gebraucht · {netto}", {
       erzeugt: fmt(Math.round(e.produktion)),
       gebraucht: fmt(Math.round(e.verbrauch)),
-      // A-126 (P19): "MW" gehört zur Zahl ("−14 MW" ist EIN gefärbter Block,
-      // KONZEPT-UI.md P19), deshalb im Formatierer und nicht mehr fest im
-      // Satz -- sonst stünde die Einheit außerhalb des Spans.
-      netto: vorzeichenSpan(Math.round(e.netto), (betrag) => `${fmt(betrag)} MW`),
+      // A-165: "MW" ist begleitender Text, keine Zahl -- das war hier bis
+      // dahin falsch gelesen ("−14 MW" komplett gefärbt). Zahl in den Span,
+      // Einheit fest im Satz (P19 Regel 2).
+      netto: `${vorzeichenSpan(Math.round(e.netto))} MW`,
     })
   );
   box.querySelector('[data-wert="energie"]').classList.toggle("warnung", e.effizienz < 1);
@@ -4139,7 +4218,7 @@ function renderUebersicht(state, root, planet) {
           Object.entries(e.brennstoffRaten)
             .map(
               ([resId, proStunde]) =>
-                ` · ${vorzeichenSpan(-rateProJahr(proStunde), (betrag) => mitEinheit(resId, betrag))}${t("/Jahr")}`
+                ` · ${vorzeichenMitEinheit(resId, -rateProJahr(proStunde))}${t("/Jahr")}`
             )
             .join("")
   );
@@ -5009,7 +5088,7 @@ function renderLager(state, root, planet) {
       ]);
 
       const rateEl = zeile.querySelector("[data-rate]");
-      markupSetzen(rateEl, vorzeichenSpan(Math.round(rateProJahr(rate)), (b) => mitEinheit(resId, b)) + t("/Jahr"));
+      markupSetzen(rateEl, vorzeichenMitEinheit(resId, Math.round(rateProJahr(rate))) + t("/Jahr"));
       rateEl.classList.toggle("warnung", zieht);
 
       // 🏪 Handels-Mindest -- immer bedienbar, unabhängig von einer Anlage:
@@ -5816,7 +5895,7 @@ function flottenDetail(state, root, flotte) {
   box.innerHTML = `
     <h3 class="unter-titel">${t("{flotte} im Hafen bei {planet}", {
       flotte: htmlText(flotte.name),
-      planet: hafen.name,
+      planet: htmlText(hafen.name),
     })}</h3>
     <div class="flotte-reihe">
       ${Object.keys(SCHIFFE).map((id) => `
@@ -7226,7 +7305,7 @@ function slotZeileFuellen(state, systemId, objekt, flotte, li) {
   // unten nur, wenn sich der Inhalt WIRKLICH geändert hat. Über textContent
   // stand das Markup wörtlich im Spiel ("<span class=…>", Tobis Screenshot).
   const detail = li.querySelector("[data-slot-detail]");
-  const detailHtml = `${objekt.name}${objekt.entdeckt ? " · " + slotDetail(state, objekt, gesperrt, eigen) : ""}`;
+  const detailHtml = `${htmlText(objekt.name)}${objekt.entdeckt ? " · " + slotDetail(state, objekt, gesperrt, eigen) : ""}`;
   if (detail.dataset.stand !== detailHtml) {
     detail.dataset.stand = detailHtml;
     detail.innerHTML = detailHtml;

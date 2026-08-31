@@ -19,7 +19,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.7.0";
+export const VERSION = "0.8.0";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von uebernehmen.mjs beim Kopieren auf "spielkopie"
@@ -274,7 +274,14 @@ export const RESSOURCEN = {
   // Umbenannt wurde NUR, was der Spieler sieht. Die ID `tritium` steckt in
   // jedem Spielstand -- sie zu ändern bricht laufende Partien und ist damit
   // Save-Kategorie 3. Der Umzug kommt im Sammel-Sprung, nicht einzeln (A-007).
-  tritium: { id: "tritium", name: "Deuterium", symbol: "⚛️", farbe: "#6ee7a8", einheit: "t", art: "lager", start: 600, lagerverbrauch: 1.5, gebaeude: "tritiumextraktor" },
+  // A-174 (Tobis Wortlaut 31.08.: "Startvorrat Deuterium sollte auf null"):
+  // die 600 t waren ein Überbleibsel aus der Zeit, in der das Kraftwerk
+  // (Zug eins) Deuterium brannte und ohne Vorrat sofort ohne Brennstoff
+  // dagestanden hätte. Seit A-149 hängt das Kraftwerk hinter fusionstechnik
+  // -- zu Spielbeginn verbraucht nichts mehr Deuterium. Dieselbe Regel wie
+  // beim Energiespeicher (siehe startRessourcen, js/state.js): der Bestand
+  // beginnt bei null, eine geladene Batterie zum Start wäre ein Geschenk.
+  tritium: { id: "tritium", name: "Deuterium", symbol: "⚛️", farbe: "#6ee7a8", einheit: "t", art: "lager", start: 0, lagerverbrauch: 1.5, gebaeude: "tritiumextraktor" },
   // Mittelseltenes Strategiematerial -- eigene Kategorie (siehe iridiummine),
   // damit Fördertechnik es NICHT automatisch mitboostet. Erzwingt echte
   // Spezialisierung statt "eine Forschung boostet alles". Dichtes Material,

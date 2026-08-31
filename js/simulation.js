@@ -5799,9 +5799,13 @@ export function kannBauen(state, planet, gebaeudeId) {
 }
 
 // Läuft schon ein Bau, wird der neue Auftrag eingereiht statt gestartet.
-// Kosten werden immer sofort abgezogen (auch für Warteschlangeneinträge) --
-// dieselbe "sofort committen" Regel wie bei Fracht/Logistiknetz, damit ein
-// eingereihter Bau garantiert stattfindet.
+// A-178: Hier stand bis dahin, Kosten würden immer sofort abgezogen, auch für
+// Warteschlangeneinträge -- das stimmt seit A-012 (FIFO ohne Reservierung,
+// Abschnitt weiter unten) nicht mehr, und der Widerspruch zwischen beiden
+// Kommentaren in derselben Datei war vermutlich die Ursache dafür, dass
+// bauWarteschlangeEntfernen/werftWarteschlangeEntfernen wartende Einträge
+// bedingungslos erstatteten (ein Dupe, siehe A-178). Ein wartender Eintrag
+// zahlt NICHTS -- erst der Kopf, beim Start.
 /**
  * @param zeit Startzeitpunkt des Baus. Vorgabe ist die Spielzeit -- richtig
  *   für die Oberfläche, denn dort IST gerade jetzt. Wer aus einem Ereignis
@@ -5952,18 +5956,20 @@ export function kopfPruefen(state, planet, zeit) {
   }
 }
 
-// Storniert einen noch nicht gestarteten Warteschlangeneintrag und erstattet
-// die Kosten -- über insLager, damit eine zwischenzeitlich volle Lagerkapazität
-// die Erstattung nicht verschluckt (wie überall sonst im Spiel).
+// Nichts zu erstatten: ein wartender Eintrag hat noch nichts bezahlt (A-012,
+// FIFO ohne Reservierung -- derselbe Satz wie bei
+// forschungWarteschlangeEntfernen, dasselbe Vorbild).
+//
+// A-178: Bis hierher erstattete diese Funktion bedingungslos die vollen
+// Kosten, obwohl ein wartender Eintrag (per FIFO-Definition noch nicht der
+// bezahlte Kopf) nie etwas gezahlt hat -- einreihen, herausnehmen, kassieren.
+// Der Kommentar über bauStarten weiter oben behauptete das Gegenteil ("Kosten
+// werden immer sofort abgezogen, auch für Warteschlangeneinträge") und ist
+// seit A-012 falsch; korrigiert.
 export function bauWarteschlangeEntfernen(state, planet, index) {
   const eintrag = planet.bauWarteschlange[index];
   if (!eintrag) return { ok: false, grund: t("Eintrag nicht gefunden.") };
-  const kosten = gebaeudeKosten(planet, BUILDINGS[eintrag.gebaeudeId], eintrag.zielLevel);
-  const { abgelehnt } = insLager(state, planet, kosten);
   planet.bauWarteschlange.splice(index, 1);
-  if (Object.keys(abgelehnt).length) {
-    meldungHinzufuegen(state, t("{planet}: Lager voll – Erstattung teilweise verloren.", { planet: planet.name }), null, herkunftVon(planet));
-  }
   return { ok: true };
 }
 
@@ -6200,15 +6206,14 @@ export function schiffBauen(state, planet, schiffId, anzahl = 1, zeit = null, nu
   return { ok: true };
 }
 
+// Nichts zu erstatten: ein wartender Eintrag hat noch nichts bezahlt --
+// dieselbe A-178-Korrektur wie bei bauWarteschlangeEntfernen, aus demselben
+// Grund (`schiffKosten` wächst linear mit `anzahl`, der Dupe war hier am
+// größten).
 export function werftWarteschlangeEntfernen(state, planet, index) {
   const eintrag = planet.werftWarteschlange[index];
   if (!eintrag) return { ok: false, grund: t("Eintrag nicht gefunden.") };
-  const kosten = schiffKosten(planet, eintrag.schiffId, eintrag.anzahl);
-  const { abgelehnt } = insLager(state, planet, kosten);
   planet.werftWarteschlange.splice(index, 1);
-  if (Object.keys(abgelehnt).length) {
-    meldungHinzufuegen(state, t("{planet}: Lager voll – Erstattung teilweise verloren.", { planet: planet.name }), null, herkunftVon(planet));
-  }
   return { ok: true };
 }
 

@@ -145,8 +145,13 @@ export function buendelSymbole(buendel, { abgang = false } = {}) {
   return Object.entries(buendel)
     .map(([resId, betrag]) => {
       const def = RESSOURCEN[resId];
-      const menge = mitEinheit(resId, betrag);
-      const stueck = abgang ? `<span class="abgang">−${menge}</span>` : menge;
+      // A-165 (P19, Tobis Feedback 31.08.): "−${menge}" faerbte bis dahin
+      // die Einheit mit ("−60 t" komplett rot statt nur "−60"). Die Einheit
+      // steht jetzt AUSSERHALB des Spans, in normaler Textfarbe.
+      const e = einheit(resId);
+      const stueck = abgang
+        ? `<span class="abgang">−${formatKurz(betrag)}</span>${e ? " " + e : ""}`
+        : mitEinheit(resId, betrag);
       return `${def && def.symbol ? def.symbol : name(resId)} ${stueck}`;
     })
     .join("  ");

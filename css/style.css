@@ -752,9 +752,13 @@ body {
   background: var(--warnung);
 }
 
-/* Zusatzertrag der nächsten Stufe -- die Zahl, die beim Ausbauen zählt. */
+/* Zusatzertrag der nächsten Stufe -- die Zahl, die beim Ausbauen zählt.
+   A-165 (P19, Tobis Feedback 31.08.): KEINE eigene Farbe mehr -- die kam
+   bis dahin für die ganze Zeile (Symbol, Zahl UND Einheit rot/grün), jetzt
+   trägt jeder Eintrag sein eigenes Vorzeichen über vorzeichenSpan
+   (--zufluss/--abgang, js/ui.js ratenBuendelMarkup). Symbol und Einheit
+   bleiben dadurch in normaler Textfarbe. */
 .kachel-gewinn {
-  color: var(--zufluss);
   font-variant-numeric: tabular-nums;
 }
 
@@ -879,9 +883,12 @@ body {
    richtig unter der alten Regel und ist unter P19 falsch: Tobis Entscheidung
    vom 23.08. weitet Rot ausdrücklich auf jeden Abgang aus, nicht nur auf
    Mangel ("Ich denke das darauf zu erweitern tut der Warnung hier kommt ne
-   Konsequenz keinen abbruch"). Ein Verbrauch IST ein Abgang -- --abgang. */
+   Konsequenz keinen abbruch"). Ein Verbrauch IST ein Abgang -- --abgang.
+   A-165: KEINE eigene Farbe mehr an DIESER Klasse -- dieselbe Begründung
+   wie bei .kachel-gewinn oben, das Vorzeichen (und damit die Farbe) sitzt
+   seither je Eintrag im nested vorzeichenSpan. Die WARNUNG-Variante direkt
+   darunter bleibt unverändert (kein Bündel, keine Zahl, eigene Regel). */
 .kachel-verbrauch {
-  color: var(--abgang);
   font-variant-numeric: tabular-nums;
 }
 
@@ -3412,8 +3419,17 @@ body {
    Wert („Brennstoff —") die Spalte nicht um eine Zeile hochzieht, sobald er
    erscheint oder verschwindet. Dieselbe Regel wie bei `.lager-prognose`
    (A-051).
-*/
-.uebersicht {
+
+   A-169 (Tobis Meldung 31.08.: "da ist ein Riesen Feld mit nichts drin"):
+   `.uebersicht` (der äußere Behälter, `#planet-uebersicht`) trug dieses
+   Grid bis dahin SELBST -- die Namenszeile stand als erstes Grid-Kind darin
+   und teilte sich eine Rasterzeile mit einer 146 px hohen Karte, obwohl ihr
+   eigener Inhalt nur 30 px braucht. Das Grid wandert jetzt auf einen NEUEN
+   inneren Träger, `.uebersicht-raster` -- Spaltenzahl/-breite UNVERÄNDERT
+   (Nicht anfassen), nur ohne die Namenszeile als Mitglied. `.uebersicht`
+   selbst ist jetzt nur noch der äußere Block, der Kopfzeile (`.uebersicht-
+   name`) und Raster STAPELT, kein Grid mehr. */
+.uebersicht-raster {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
   /* Deckel bei drei Spalten. Ohne ihn legte auto-fit auf WQHD mit
@@ -3424,7 +3440,6 @@ body {
   max-width: 76rem;
   align-items: start;
   gap: var(--abstand-4);
-  margin-bottom: var(--abstand-7);
 }
 
 .uebersicht-hinweis {
@@ -3441,11 +3456,21 @@ body {
    bis das Raster über den ~400 px schmalen Kasten hinausragt. Dieselbe
    Lösung wie bei .kommando-sprit weiter oben: die ROLLEN bleiben Spalte 1/
    4/5, nur die hier ungebrauchten Spuren fallen -- und NUR hier -- auf
-   null zusammen. */
+   null zusammen.
+   A-169: Sie ist jetzt eine KOPFZEILE über dem Kartenraster (`.uebersicht-
+   raster`), keine Rasterzelle mehr darin -- über die volle Breite, wie der
+   Auftrag es für diesen Weg vorgibt, damit sie sichtbar etwas ANDERES ist
+   als die Karten darunter, keine leere Karte unter ihnen. */
 .uebersicht-name {
   --zeile-regler: 0;
   --zeile-zahl: 0;
-  margin-bottom: var(--abstand-5);
+  margin-bottom: var(--abstand-6);
+}
+
+/* Reiner Stapel-Behälter: Kopfzeile, dann das Kartenraster. Kein Grid mehr
+   hier selbst (das trägt seit A-169 `.uebersicht-raster`). */
+.uebersicht {
+  margin-bottom: var(--abstand-7);
 }
 
 .uebersicht-gruppe {

@@ -2,6 +2,26 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
+  <!--
+    A-173, zweite Verteidigungslinie (B3 einer Sicherheitsprüfung): kein
+    Text aus dem Spielstand soll je durch innerHTML gehen, aber diese Zeile
+    begrenzt den Schaden, falls doch eine Stelle übersehen wird. GitHub
+    Pages lässt sich keine eigene Antwortkopfzeile setzen -- das `meta`-
+    Element ist hier der einzige verfügbare Hebel.
+
+    `script-src 'self'` ist der Riegel, auf den es ankommt: er blockiert
+    eingeschleustes `onerror=`/`onclick=` und jedes nachgeladene Skript.
+    `style-src 'self' 'unsafe-inline'` ist NICHT verhandelbar -- das Spiel
+    schreibt `style`-Attribute in seine Vorlagen (u. a. Balken/Anteile in
+    ui.js und aufholen.js). Das ist harmlos, `script-src` bleibt scharf.
+    `connect-src 'none'` schneidet zusätzlich jeden Abfluss ab -- das Spiel
+    stellt ohnehin keine Netzanfrage (nachgesehen).
+
+    Selbst nachgemessen, nicht dem Bericht geglaubt (Definition von fertig
+    3): alle neun Bereiche + Kachel-Wächter 6/6 grün + Konsole ohne
+    blockierte Anfragen unter genau dieser Richtlinie, siehe A-173-Ergebnis.
+  -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Entropy</title>
   <link rel="stylesheet" href="css/style.css" />

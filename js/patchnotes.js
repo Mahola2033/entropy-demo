@@ -28,6 +28,68 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.8.0",
+    de: [
+      "Dies ist der achte veröffentlichte Demo-Stand — fünf Runden seit dem letzten. Dein Spielstand bleibt erhalten.",
+      "Zwei Reparaturen, die den bisherigen Stand betrafen und die du kennen solltest. Erstens: Ein Spielstand konnte beim Einspielen Code im Browser ausführen, weil Namen aus der Datei ungefiltert in die Anzeige gingen. Das ist geschlossen, und die Seite begrenzt jetzt zusätzlich, was überhaupt laufen darf. Wer nur eigene Stände lädt, war nie in Gefahr — wer einen fremden geschickt bekam, schon.",
+      "Zweitens: Einen Bau- oder Werftauftrag aus der Warteschlange zu nehmen, bevor er dran war, gab Material zurück, das dafür nie bezahlt wurde. Wer das wiederholt tat, konnte sich beliebig viele Rohstoffe erzeugen. Behoben. Einen laufenden, bereits bezahlten Auftrag abzubrechen erstattet weiterhin voll.",
+      "Der Start hat keinen Deuterium-Vorrat mehr. Seit die Fusionstechnik das Kraftwerk freischaltet, verbrennt zu Spielbeginn nichts mehr Deuterium — der Vorrat lag nur da. Du förderst es jetzt selbst, bevor du es brauchst.",
+      "Zwei Kleinigkeiten an der Oberfläche: Bei Raten trägt nur noch die Zahl samt Vorzeichen die Farbe, nicht mehr die Einheit dahinter. Und die Namenszeile der Planetenübersicht steht jetzt in einer eigenen Kopfzeile statt als leere Karte zwischen den anderen.",
+    ],
+    en: [
+      "This is the eighth published demo build — five rounds since the last one. Your save is preserved.",
+      "Two fixes that affected the previous build and that you should know about. First: loading a save file could execute code in your browser, because names from the file went into the display unfiltered. That is closed, and the page now also limits what is allowed to run at all. Anyone loading only their own saves was never at risk — anyone who was sent someone else's was.",
+      "Second: removing a build or shipyard order from the queue before it had started refunded material that was never actually spent on it. Doing that repeatedly let you create unlimited resources. Fixed. Cancelling a running, already-paid order still refunds it in full.",
+      "The start no longer comes with a deuterium reserve. Since fusion technology unlocks the power plant, nothing burns deuterium at the start any more — the reserve just sat there. You now extract it yourself, before you need it.",
+      "Two small interface changes: on rates, only the number and its sign carry the colour now, not the unit behind it. And the name row of the planet overview sits in its own header line instead of an empty card between the others.",
+    ],
+  },
+  {
+    version: "0.7.5",
+    de: [
+      "Fehler behoben: Einen Bau- oder Werftauftrag aus der Warteschlange zu nehmen, bevor er dran war, gab fälschlich Material zurück, das dafür nie bezahlt wurde. Ein laufender, bereits bezahlter Auftrag wird beim Abbrechen weiterhin voll erstattet – daran ändert sich nichts.",
+    ],
+    en: [
+      "Fixed a bug: removing a build or shipyard order from the queue before it had started incorrectly refunded material that was never actually spent on it. Cancelling a running, already-paid order still refunds it in full – that part is unchanged.",
+    ],
+  },
+  {
+    version: "0.7.4",
+    de: [
+      "Eine neue Welt startet jetzt ohne Deuterium – der alte Startvorrat war ein Überbleibsel aus der Zeit, in der das Fusionskraftwerk vom ersten Tag an baubar war. Heute braucht am Spielanfang niemand Deuterium, der Speicher trägt also einfach das, was du selbst förderst.",
+    ],
+    en: [
+      "A new world now starts without deuterium – the old starting stock was a leftover from when the fusion reactor was buildable from day one. Nothing at the start of the game needs deuterium anymore, so the stockpile now simply reflects what you mine yourself.",
+    ],
+  },
+  {
+    version: "0.7.3",
+    de: [
+      "Sicherheit: Wer einen fremden Spielstand einspielte, war angreifbar – Namen aus dem Stand (Planet, Welt, Systemobjekt, Hafen) konnten Code im Browser ausführen, statt nur angezeigt zu werden. Das ist behoben, und eine zweite Absicherung (Content-Security-Policy) begrenzt zusätzlich, was so etwas künftig anrichten könnte.",
+    ],
+    en: [
+      "Security: importing someone else's save left you exposed – names from the save (planet, world, system object, harbor) could execute code in the browser instead of just being shown. This is fixed, and a second safeguard (Content Security Policy) further limits what something like this could do in the future.",
+    ],
+  },
+  {
+    version: "0.7.2",
+    de: [
+      "Die Namenszeile in „Diese Welt in Zahlen“ steht jetzt als eigene Kopfzeile über den Kacheln, statt als leeres, überdimensioniertes Feld daneben.",
+    ],
+    en: [
+      "The name row in \"This world in numbers\" now sits as its own header above the tiles, instead of as an empty, oversized field next to them.",
+    ],
+  },
+  {
+    version: "0.7.1",
+    de: [
+      "Bei Zahlen mit Vorzeichen ist jetzt nur noch die Zahl selbst grün oder rot – die Einheit daneben (t/Jahr, MW, AK, %, cr …) bleibt in normaler Schrift. Am deutlichsten an den Baukacheln: Kosten, Ertrag, Verbrauch und Brennstoff zeigen ihr Vorzeichen jetzt je Eintrag, nicht mehr als eine Farbe über die ganze Zeile.",
+    ],
+    en: [
+      "For signed numbers, only the number itself is now green or red – the unit next to it (t/yr, MW, workforce, %, credits …) stays in normal text. Most visible on the build tiles: cost, output, upkeep and fuel now show their sign per entry, instead of one colour across the whole line.",
+    ],
+  },
+  {
     version: "0.7.0",
     de: [
       "Dies ist der siebte veröffentlichte Demo-Stand — fünf Runden seit dem letzten. Dein Spielstand bleibt erhalten.",
