@@ -19,7 +19,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.8.0";
+export const VERSION = "0.8.16";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von uebernehmen.mjs beim Kopieren auf "spielkopie"
@@ -67,7 +67,51 @@ export const DEMO_SAAT = 20269933;
 // die Anzeigetext zusammensetzt.
 import { t } from "./sprache.js";
 
-export const MASSSTAB = 50;
+// A-164 (31.08.2026): Von 50 auf 125.000 (×2.500) -- die Maßstabsrunde.
+// Vorher skalierte EIN MASSSTAB Material, Menschen und Arbeitskraft
+// gemeinsam; das trug nicht mehr (bei 125.000 hätte der Arbeitskraftbedarf
+// der Anlagen auf 360 % Beschäftigung gezogen). Menschen und Arbeitskraft
+// haben deshalb jetzt eigene Faktoren, siehe MENSCHEN_FAKTOR und
+// ARBEITSKRAFT_MASSSTAB unten. Herleitung: AUFTRAEGE/ENTWURF-MASSSTAB.md.
+export const MASSSTAB = 125000;
+
+// Bevölkerungsmengen sind MENSCHEN, keine Materialmenge -- sie skalieren
+// zusätzlich zu MASSSTAB mit einem eigenen Faktor, sonst bliebe die
+// Startbevölkerung bei 125 statt 3.000 Mio (MASSSTAB allein trägt nur den
+// ×2.500-Sprung der Materialseite). 1.000 (roh) × 125.000 (MASSSTAB) × 24
+// (hier) = 3.000.000.000. Gilt für jede Menschenzahl, die heute schon durch
+// MASSSTAB lief: Startbevölkerung, Wohnraum-Basis, Bevölkerungsschwellen an
+// Gebäuden, Siedlerkapazität der Kolonieschiffe, Gründungsschwellen von
+// Piraten-Absplitterung und Bot-Kolonisierung -- dieselben Stellen, die
+// A-164 als "Menschen" von "Material" trennt. Herleitung und Zielwerte:
+// AUFTRAEGE/A-164-massstabsrunde.md, AUFTRAEGE/ENTWURF-MASSSTAB.md.
+export const MENSCHEN_FAKTOR = 24;
+
+// Arbeitskraft zählt MENSCHEN, nicht Material, UND ist kein Bestand -- sie
+// darf deshalb weder an MASSSTAB (Material) noch an MENSCHEN_FAKTOR hängen
+// (dieser skaliert Bestände/Schwellen, nicht laufenden Bedarf). Eigener,
+// feinjustierter Faktor: bei Stufe-19-Startanlagen ergäbe MASSSTAB pur eine
+// Welt, die ihre eigenen Anlagen nicht besetzen könnte (siehe A-164
+// Abschnitt 1).
+//
+// NACHGEEICHT gegen den im Auftrag vorgeschlagenen Wert 590 (dort als
+// Ausgangspunkt markiert, "wird feinjustiert, falls nötig"): 590 ergab an
+// der echten Startwelt (Startstufen aus START.startstufenHeimatwelt, siehe
+// unten) gemessen 1,6 % Beschäftigung statt der geforderten 80-90 % -- die
+// Arbeitskraft der Startanlagen macht nur einen winzigen Bruchteil dessen
+// aus, was 3 Mrd Menschen an Arbeitskraft stellen. 31.000 trifft ~86 %,
+// gemessen an derselben Welt. Definition von fertig in
+// AUFTRAEGE/A-164-massstabsrunde.md.
+export const ARBEITSKRAFT_MASSSTAB = 31000;
+
+// Nahrung zu Metall ist im Spiel bei gleicher Stufe 0,80:1, real 3,08:1 --
+// eine konstante Abweichung ×3,85 auf jeder Stufe (gemessen Stufe 8-24,
+// AUFTRAEGE/ENTWURF-MASSSTAB.md §3). Kein Balancing, sondern die Korrektur
+// eines nachgewiesenen Rechenfehlers im Verhältnis -- deshalb NICHT
+// MASSSTAB (der die Verhältnisse zwischen Rohstoffen bewusst unangetastet
+// lässt), sondern ein eigener, nur auf die Nahrungsproduktion wirkender
+// Aufschlag (Farm, Hydrokultur).
+export const NAHRUNG_KORREKTUR = 3.85;
 
 // --- Zeitmaßstab ----------------------------------------------------------
 // Bis v0.5 hatte das Spiel überhaupt keinen Referenzpunkt für Zeit: eine
@@ -430,8 +474,10 @@ export const BEVOELKERUNG = {
   // halbwegs volle Lager eine Reserve von Jahrhunderten (A-117).
   vorratsReichweiteMinStunden: 4,
   vorratsReichweiteVollStunden: 24,
-  nahrungProKopf: 0.05, // pro Stunde
-  arbeitskraftProKopf: 1,
+  // A-164: 1 t je Kopf und Spieljahr, umgerechnet auf Echtzeit-Stunde über
+  // ZEIT (9,856 Spieljahre/Echtzeitstunde) -- realer Anker statt Spielgefühl.
+  nahrungProKopf: 9.86, // pro Stunde
+  arbeitskraftProKopf: 0.25, // A-164
 };
 
 // Jahresrate -> realer Schrittfaktor, über den Zeitmaßstab gerechnet statt
@@ -592,6 +638,29 @@ export const START = {
   // Mindestens einer davon ist garantiert besiedelbar (siehe state.js
   // startsystemAufdecken) -- sonst hinge der Spielstart am Zufall.
   sichtbarePlaneten: 2,
+  // A-164: die Heimatwelt startet ab jetzt mit dem, was 3 Mrd Menschen zum
+  // Überleben brauchen (Tobis Entscheidung 24.08.), statt bei null. Gehört
+  // in die Weltgenerierung (neuerPlanet, gated auf typ === "heimat"), nicht
+  // in die Migration -- ein alter Spielstand behält seine Stufen, nur neue
+  // Welten starten so. Herleitung: AUFTRAEGE/ENTWURF-MASSSTAB.md §1-2.
+  //
+  // Wohnmodul bleibt bewusst bei 0 -- seine Basiskapazität IST schon die
+  // neue Startbevölkerung (RESSOURCEN.bevoelkerung.speicher.basis) und
+  // skaliert mit ihr. Stufe 24 wäre hier ein Fehler gewesen: der Ausbau auf
+  // 25 hätte 22 Echtzeitstunden gekostet statt 24 Minuten wie bei der
+  // Förderung (gemessen, ENTWURF-MASSSTAB.md §2.2). Alles, was hier nicht
+  // steht (Iridium, Antimaterie, Werft, Schirm, Forschungslabor über
+  // Stufe 5), bleibt bei null.
+  startstufenHeimatwelt: {
+    farm: 19,
+    metallmine: 19,
+    siliziummine: 19,
+    tritiumextraktor: 12, // Deuteriumanlage
+    uranmine: 12, // Uranförderung
+    lagerhalle: 15, // "Lagernetz" im Auftrag -- das Gebäude für Lagerkapazität
+    fossilanlage: 17,
+    kernkraftanlage: 16,
+  },
 };
 
 // Symbole für Gebäude, Forschungen und Schiffe -- eine Tabelle statt eines
@@ -649,6 +718,7 @@ export const SYMBOLE = {
   energietechnik: "🔌",
   sondentechnik: "📡",
   bergungstechnik: "🪝",
+  rueckbautechnik: "♻️",
   tiefenbohrung: "🕳️",
   resonanzzerlegung: "🔆",
   frachttechnik: "📦",
@@ -734,24 +804,41 @@ export const FOSSIL = {
   vorratJahre: 100,
 };
 
-// Vorrat bei Affinität 1 (Tonnen), hergeleitet statt gesetzt -- in der
-// "kleinen" Notation der Tabellen oben (roh, VOR der MASSSTAB-Skalierung
-// weiter unten in dieser Datei):
-//   Verbrauch Stufe 1 = rate({basis:60,faktor:1.15}, 1) × FOSSIL.tonnenProMWh
-//                      = 60 × 1 × 1,15¹ × 0,351 MW → 69 MW × 0,351 t/MWh
-//                      = 24,219 t je ECHTZEITSTUNDE
+// Vorrat bei Affinität 1 (Tonnen), hergeleitet aus der STARTSTUFE der
+// Fossilanlage (START.startstufenHeimatwelt.fossilanlage) statt als Zahl
+// eingetragen -- in der "kleinen" Notation der Tabellen oben (roh, VOR der
+// MASSSTAB-Skalierung weiter unten in dieser Datei):
+//   Verbrauch Stufe s = rate({basis:60,faktor:1.15}, s) × FOSSIL.tonnenProMWh
 //   100 Spieljahre = jahreInMs(100) = 36.525.000 ms ≈ 10,1458 Echtzeitstunden
 //                      (1 Sek. Echtzeit = 1 Spieltag, ZEIT.tageProJahr=365,25)
-//   Vorrat = 24,219 t/h × 10,1458 h ≈ 245,72 t
+//   Vorrat = Verbrauch(s) t/h × 10,1458 h
+// Bei Stufe 1 (bis A-164): 60×1×1,15¹×0,351 → 69 MW × 0,351 t/MWh
+//   = 24,219 t/h × 10,1458 h ≈ 245,72 t.
+// Bei der heutigen Startstufe 17 (A-164, Maßstabsrunde): 10.976,5 MW ×
+//   0,351 t/MWh = 3.852,7 t/h × 10,1458 h ≈ 39.089 t -- Faktor 159,08
+//   gegenüber Stufe 1.
+// A-196 (04.09.): Die Zahl 245,72 war korrekt, als sie geschrieben wurde,
+// und wurde falsch, weil A-164 an ANDERER Stelle die Startstufe hob, ohne
+// diese Rechnung mitzuziehen -- jede laufende Partie lief nach rund
+// 7 Echtzeitminuten trocken statt nach 100 Spieljahren (A-193 hat die Wirkung
+// gemessen). Eine neu eingetragene Zahl hätte irgendwann dasselbe Schicksal.
+// Deshalb hängt die Basis jetzt an der Startstufen-Konstante: ändert sich
+// diese künftig wieder, folgt der Vorrat von allein.
+//
 // × MASSSTAB, aus demselben Grund wie BASE_STORAGE_CAP weiter unten: die
 // Produktion, gegen die hier gerechnet wird, trägt zur Laufzeit denselben
 // Faktor (RATEN_FELDER-Skalierung unten), eine Menge muss ihn also auch
 // tragen -- sonst verschiebt sich das Pacing bei einer künftigen
 // MASSSTAB-Änderung, ohne dass irgendein Test das sehen könnte.
+export function fossilVorratBasisFuerStufe(stufe) {
+  const proStunde = rate({ basis: 60, faktor: 1.15 }, stufe) * FOSSIL.tonnenProMWh;
+  return proStunde * (jahreInMs(FOSSIL.vorratJahre) / (3600 * 1000)) * MASSSTAB;
+}
 // GEGENPROBE der Planung: bei SUPERNOVA.jahreBisKollaps = 240 ist der Vorrat
 // nach 100/240 ≈ 42 % der Partie leer -- Vorlauf genug, dass der
-// Technologiewechsel in der ersten Hälfte kommen sieht, wer hinsieht.
-export const FOSSIL_VORRAT_BASIS = 245.72 * MASSSTAB;
+// Technologiewechsel in der ersten Hälfte kommen sieht, wer hinsieht. Gilt
+// weiter, jetzt bei Startstufe 17 statt Stufe 1 (geprüft in fossilanlage.test.js).
+export const FOSSIL_VORRAT_BASIS = fossilVorratBasisFuerStufe(START.startstufenHeimatwelt.fossilanlage);
 
 export const BUILDINGS = {
   metallmine: {
@@ -1150,7 +1237,9 @@ export const BUILDINGS = {
     baseCost: { metall: 80, silizium: 50 },
     costFactor: 1.4,
     buildTimeDivisor: 2.5,
-    produktion: { nahrung: { basis: 120, faktor: 1.2 } },
+    // × NAHRUNG_KORREKTUR (A-164): das Verhältnis Nahrung:Metall war ×3,85
+    // zu niedrig gegen die Realität, siehe Konstante oben.
+    produktion: { nahrung: { basis: 120 * NAHRUNG_KORREKTUR, faktor: 1.2 } },
     verbrauch: { energie: { basis: 12, faktor: 1.2 }, arbeitskraft: { basis: 20, faktor: 1.15 } },
   },
   // Der Ausweg mit Preis (A-011): Nahrung aus Strom statt Licht. Nach dem
@@ -1171,7 +1260,8 @@ export const BUILDINGS = {
     baseCost: { metall: 120, silizium: 90 },
     costFactor: 1.4,
     buildTimeDivisor: 2.5,
-    produktion: { nahrung: { basis: 120, faktor: 1.2 } },
+    // × NAHRUNG_KORREKTUR (A-164), siehe Agrarkuppel oben.
+    produktion: { nahrung: { basis: 120 * NAHRUNG_KORREKTUR, faktor: 1.2 } },
     verbrauch: { energie: { basis: 100, faktor: 1.2 }, arbeitskraft: { basis: 14, faktor: 1.15 } },
   },
   wohnmodul: {
@@ -1234,7 +1324,7 @@ export const BUILDINGS = {
     gruppe: "industrie",
     name: "Handelsposten",
     beschreibung:
-      "Handelt mit fremden Imperien in Reichweite und zieht Abgaben aus der eigenen Bevölkerung. Gekaufte Ware muss von einer Flotte abgeholt werden. Die Abgaben wachsen mit Bevölkerung und Stufe, die Betriebskosten überlinear mit der Stufe – zu jeder Weltgröße gibt es deshalb eine beste Stufe. Unter rund 36.000 Einwohnern trägt sich schon die erste nicht.",
+      "Handelt mit fremden Imperien in Reichweite und zieht Abgaben aus der eigenen Bevölkerung. Gekaufte Ware muss von einer Flotte abgeholt werden. Die Abgaben wachsen mit Bevölkerung und Stufe, die Betriebskosten überlinear mit der Stufe – zu jeder Weltgröße gibt es deshalb eine beste Stufe. Unter rund 2,16 Mrd Einwohnern trägt sich schon die erste nicht.",
     kategorie: "handel",
     baseCost: { metall: 250, silizium: 150 },
     costFactor: 1.5,
@@ -2101,6 +2191,23 @@ export const STARTWELT = {
   schwerkraftMax: 1.2,
 };
 
+// A-190 (Tobi 31.08.: „Ich bin für eine auswählbare startschwierigkeit").
+// `tests/arena.mjs` maß über 18 Startwelten eine binäre Spaltung: warm+reich,
+// habitabel+mäßig, kalt+reich, warm+mäßig und kalt+mäßig gewannen 13 von 13,
+// äußer+reich und äußer+mäßig verloren 5 von 5 (Fossilvorrat 1–2k statt
+// 5–14k, Energiedeckung 0 % zur Halbzeit). Zone "äußer" fällt deshalb als
+// Startwelt komplett weg (siehe heimatOrbitWaehlen in welt.js) -- diese
+// Tabelle liefert stattdessen die drei WÄHLBAREN Stufen, aus den gemessenen
+// Rändern des spielbaren Bandes und der Mitte hergeleitet (Herleitung der
+// Planung, keine Vorgabe von Tobi -- siehe A-190-Auftrag):
+export const STARTSCHWIERIGKEIT = {
+  leicht: { zone: "warm", wasser: "reich" },
+  normal: { zone: "habitabel", wasser: "maessig" },
+  schwer: { zone: "kalt", wasser: "maessig" },
+};
+// Vorgabe (Definition von fertig 3): wer nichts wählt, bekommt Normal.
+export const STARTSCHWIERIGKEIT_VORGABE = "normal";
+
 // `schwerkraft` ist optional: die Zonen-/Klassenprüfung funktioniert auch ohne
 // (etwa wenn nur gefragt wird, ob ein Orbit überhaupt bewohnbar wäre).
 export function taugtAlsStartwelt({ klasse, zone, wasser, schwerkraft }) {
@@ -2126,13 +2233,24 @@ export function taugtAlsStartwelt({ klasse, zone, wasser, schwerkraft }) {
 //           Ertrag an der Bevölkerung hängt.
 //   SENKE:  Betriebskosten desselben Postens, fest je Stufe. Daraus folgt eine
 //           Aussage, die vorher keine war: EIN HANDELSPOSTEN MUSS SICH ERST
-//           VERDIENEN. Unter rund 30.000 Einwohnern kostet er mehr, als er
-//           einbringt.
+//           VERDIENEN. Unter rund 2,16 Mrd Einwohnern kostet er mehr, als er
+//           einbringt (A-164: Zahl seit MENSCHEN_FAKTOR neu gerechnet, das
+//           Verhältnis -- 72 % der Startbevölkerung -- ist unverändert).
 //
 // Beide Zahlen sind PRO KOPF und tragen deshalb KEINEN Maßstab -- die
 // Bevölkerung selbst ist bereits skaliert, genau wie bei nahrungProKopf.
+//
+// A-164, Bekannte Falle: Abgaben sind die QUELLE, Betriebskosten (SENKE,
+// verbrauch.credits oben) die Gegenseite -- und die SENKE trägt MASSSTAB
+// (×2.500, wie jeder andere Materialverbrauch), NICHT MENSCHEN_FAKTOR.
+// Ohne Gegenrechnung würde die QUELLE mit der vollen Bevölkerung (×2.500 ×
+// MENSCHEN_FAKTOR) wachsen -- ein Handelsposten würde 24× mehr einbringen,
+// als er kostet, gegen das Verhältnis, das vor dieser Runde galt. Deshalb
+// hier durch MENSCHEN_FAKTOR geteilt: Abgaben bleiben an der Bevölkerung
+// bemessen (Quelle ist die Wirtschaft der Menschen), wachsen aber im selben
+// Verhältnis zur Betriebskosten-Senke wie zuvor.
 export const GELD = {
-  abgabenProKopf: 0.05,
+  abgabenProKopf: 0.05 / MENSCHEN_FAKTOR,
 };
 
 // --- Handelsbereitschaft (v0.67) -------------------------------------------
@@ -2284,6 +2402,22 @@ export const RESEARCH = {
     buildTimeDivisor: 1.5,
     bergungProLevel: 0.15,
     nurDurchEntdeckung: true,
+    voraussetzungen: { foerdertechnik: 2 },
+  },
+  // A-185 (R-37/R-39): hebt die Erstattung bei Abriss UND Verschrottung.
+  // Anders als ihre nächste Verwandte `bergungstechnik` OHNE
+  // `nurDurchEntdeckung` -- die Wahl, ob und wie man zurückbaut, soll jedem
+  // offenstehen, nicht nur, wer ein Wrack fand. Die Prozentpunkte je Stufe
+  // stehen nicht hier, sondern bei RUECKBAU/RECYCLING: beide Bänder lesen
+  // dieselbe Stufe dieser einen Forschung.
+  rueckbautechnik: {
+    id: "rueckbautechnik",
+    name: "Rückbautechnik",
+    beschreibung:
+      "Erhöht die Erstattung bei Abriss und Verschrottung pro Stufe -- bis 70% bei Gebäuden, 80% bei Schiffen (beides ab Stufe 5).",
+    baseCost: { metall: 300, silizium: 220 },
+    costFactor: 1.8,
+    buildTimeDivisor: 1.5,
     voraussetzungen: { foerdertechnik: 2 },
   },
   tiefenbohrung: {
@@ -2750,18 +2884,22 @@ export const SCHIFFE = {
     //
     // Die Zahl steht zwischen zwei Grenzen, beide gemessen:
     //  - NACH OBEN durch den Wohnraum der neuen Welt. Ein Wohnmodul der Stufe
-    //    0 fasst 50.000 Menschen (RESSOURCEN.bevoelkerung.speicher.basis) --
-    //    mehr Siedler als das wären beim ersten Atemzug schon obdachlos.
-    //  - NACH UNTEN durch die Heimatwelt. Beim Erreichen der nötigen Werft
-    //    (Stufe 4, nach 24 bis 48 h) hat sie 350.000 bis 700.000 Menschen;
-    //    unter etwa 5 % wäre der Abgang keine Entscheidung, sondern eine
-    //    Formalität.
+    //    0 fasst 3 Mrd Menschen (RESSOURCEN.bevoelkerung.speicher.basis, seit
+    //    A-164) -- mehr Siedler als das wären beim ersten Atemzug schon
+    //    obdachlos.
+    //  - NACH UNTEN durch die Heimatwelt. Sie wächst prozentual, das
+    //    Verhältnis aus der ursprünglichen Messung gilt unverändert weiter
+    //    (siehe unten); unter etwa 5 % wäre der Abgang keine Entscheidung,
+    //    sondern eine Formalität.
     //
-    // 800 × MASSSTAB = 40.000: vier Fünftel des neuen Wohnraums (die Kolonie
+    // 800 × MASSSTAB × MENSCHEN_FAKTOR = 2,4 Mrd (A-164, vorher 800 ×
+    // MASSSTAB = 40.000): vier Fünftel des neuen Wohnraums (die Kolonie
     // braucht sofort ein zweites Wohnmodul) und rund ein Zehntel der
-    // Heimatwelt. Zum Vergleich: eine abtrünnige Fraktion nimmt 400 mit
-    // (PIRAT.gruendung.bevoelkerung) -- ein Kolonieschiff ist der doppelte
-    // Aufbruch, und er kostet auch das Doppelte.
+    // Heimatwelt -- dasselbe Verhältnis wie vorher, weil beide Seiten
+    // denselben MENSCHEN_FAKTOR tragen. Zum Vergleich: eine abtrünnige
+    // Fraktion nimmt 400 mit (PIRAT.gruendung.bevoelkerung) -- ein
+    // Kolonieschiff ist der doppelte Aufbruch, und er kostet auch das
+    // Doppelte.
     siedlerKapazitaet: 800,
     kosten: { metall: 3500, silizium: 2200, elektronik: 400 },
     bauzeitSek: 420,
@@ -2873,8 +3011,31 @@ export const REPARATUR = {
   zeitFaktor: 0.5,
   // Recycling zahlt sofort aus, aber weniger als eine Reparatur kosten würde --
   // ein echter Kompromiss zwischen "sofort etwas zurück" und "voller Wert".
-  recycleFaktor: 0.35,
+  // Der Startwert dieses Kompromisses ist seit A-185 RECYCLING.grundquote,
+  // nicht mehr fest hier -- siehe unten.
 };
+
+// Abriss (Gebäude) und Verschrottung (Schiffe) erstatten einen Teil der
+// Baukosten -- nie alles (Prinzip 0: Recycling gibt nie alles zurück). Beide
+// Bänder lesen dieselbe Forschungsstufe (rueckbautechnik) und unterscheiden
+// sich nur in Start- und Zielwert (A-185, R-37/R-39, Tobis Zahlen):
+// Ein Gebäude hat Fundament, Aushub und Leitungen im Boden, die niemand
+// wieder herausholt -- deshalb liegt es beim Start UND beim Deckel unter dem
+// Schiff, das gebaute, zerlegbare Struktur ist.
+//
+// Fünf Stufen treffen beide Deckel genau (20 + 5×10 = 70, 35 + 5×9 = 80) --
+// das macht "höchste Stufe" zu einem Ort, den man erreicht, nicht zu einer
+// Asymptote. Forschungen in diesem Spiel haben sonst keine feste
+// Höchststufe; ab Stufe 5 wirkt diese hier einfach nicht mehr weiter.
+export const RUECKBAU = { grundquote: 0.2, proStufe: 0.1, deckel: 0.7 };
+export const RECYCLING = { grundquote: 0.35, proStufe: 0.09, deckel: 0.8 };
+
+// Rechnet ein Rückbau-/Recycling-Band (siehe oben) auf eine Quote in [0,1]
+// herunter. `stufe` ist die Forschungsstufe von rueckbautechnik -- 0, wenn
+// unerforscht oder (alter Spielstand) das Feld noch fehlt.
+export function erstattungsQuote(band, stufe) {
+  return Math.min(band.deckel, band.grundquote + band.proStufe * stufe);
+}
 
 // --- Bauwarteschlange ---------------------------------------------------
 // Harte Obergrenze, damit die Liste übersichtlich bleibt -- reine
@@ -2959,9 +3120,18 @@ const skaliereBuendel = (b) => {
   if (!b) return;
   for (const k of Object.keys(b)) b[k] = Math.round(b[k] * MASSSTAB);
 };
+// `arbeitskraft` bleibt hier bewusst aus -- sie ist keine Materialmenge und
+// trägt seit A-164 ihren eigenen Faktor (ARBEITSKRAFT_MASSSTAB, eigener
+// Durchlauf weiter unten), nicht MASSSTAB. Ohne diese Ausnahme würde sie
+// hier trotzdem mitskaliert (sie steckt in `verbrauch` wie jedes andere
+// Ratenfeld) und der eigene Durchlauf würde ein zweites Mal draufsetzen.
+const ARBEITSKRAFT_AUSSCHLUSS = new Set(["arbeitskraft"]);
 const skaliereRaten = (spezifikation) => {
   if (!spezifikation) return;
-  for (const spec of Object.values(spezifikation)) spec.basis = Math.round(spec.basis * MASSSTAB);
+  for (const [k, spec] of Object.entries(spezifikation)) {
+    if (ARBEITSKRAFT_AUSSCHLUSS.has(k)) continue;
+    spec.basis = Math.round(spec.basis * MASSSTAB);
+  }
 };
 
 // ALLE Ratenfelder einer Gebäudedefinition -- also jedes Feld, das `rate(spec,
@@ -3006,6 +3176,20 @@ for (const def of Object.values(BUILDINGS)) {
   for (const feld of RATEN_FELDER) skaliereRaten(feldAn(def, feld));
   def.buildTimeDivisor *= MASSSTAB;
 }
+// Arbeitskraft zählt Menschen, nicht Material (A-164, "Die drei Maßstäbe" in
+// AUFTRAEGE/A-164-massstabsrunde.md) -- eigener Durchlauf mit eigenem
+// Faktor statt eines weiteren Falls der Maßstabs-Falle. `skaliereRaten`
+// oben überspringt `arbeitskraft` ausdrücklich, damit hier nicht doppelt
+// skaliert wird. Deckt jedes RATEN_FELDER-Unterobjekt ab (auch
+// `anreicherung.verbrauch`), falls dort je ein Arbeitskraftposten entsteht.
+for (const def of Object.values(BUILDINGS)) {
+  for (const feld of RATEN_FELDER) {
+    const spec = feldAn(def, feld);
+    if (spec && spec.arbeitskraft) {
+      spec.arbeitskraft.basis = Math.round(spec.arbeitskraft.basis * ARBEITSKRAFT_MASSSTAB);
+    }
+  }
+}
 for (const def of Object.values(RESEARCH)) {
   skaliereBuendel(def.baseCost);
   def.buildTimeDivisor *= MASSSTAB;
@@ -3015,29 +3199,43 @@ for (const def of Object.values(SCHIFFE)) {
   // `tank` ist eine MENGE wie der Verbrauch -- beide müssen denselben Maßstab
   // tragen, sonst wäre die Reichweite um Faktor 50 falsch. Siebter Fall
   // dieser Falle im Projekt.
-  // `siedlerKapazitaet` ist eine PERSONENZAHL und damit eine Menge wie jede
-  // andere (A-043, seit A-132 der Name des Felds) -- unskaliert fasste ein
-  // Kolonieschiff 800 statt 40.000 Menschen und die neue Welt startete
-  // praktisch leer. Achter Fall dieser Falle.
-  for (const feld of ["kapazitaet", "verbrauchProStrecke", "tank", "hp", "angriff", "siedlerKapazitaet"]) {
+  for (const feld of ["kapazitaet", "verbrauchProStrecke", "tank", "hp", "angriff"]) {
     if (def[feld]) def[feld] = Math.round(def[feld] * MASSSTAB);
+  }
+  // `siedlerKapazitaet` ist eine PERSONENZAHL und damit ein MENSCH, keine
+  // Materialmenge (A-043, seit A-132 der Name des Felds) -- unskaliert
+  // fasste ein Kolonieschiff 800 statt 40.000 Menschen und die neue Welt
+  // startete praktisch leer. Achter Fall dieser Falle. Seit A-164 trägt sie
+  // MASSSTAB × MENSCHEN_FAKTOR wie jede andere Menschenzahl, nicht mehr nur
+  // MASSSTAB -- sonst wäre ein Kolonieschiff nur noch ein Bruchteil der
+  // Startbevölkerung wert gewesen, statt wie bisher 80 % davon.
+  if (def.siedlerKapazitaet) {
+    def.siedlerKapazitaet = Math.round(def.siedlerKapazitaet * MASSSTAB * MENSCHEN_FAKTOR);
   }
 }
 for (const def of Object.values(RESSOURCEN)) {
-  if (def.start) def.start = Math.round(def.start * MASSSTAB);
+  // Bevölkerung ist kein Material -- sie trägt zusätzlich zu MASSSTAB den
+  // MENSCHEN_FAKTOR (A-164). Jede andere Ressource (auch der Energiespeicher)
+  // bleibt bei reinem MASSSTAB, das ist ausdrücklich "Nicht anfassen".
+  const menschenZusatz = def.id === "bevoelkerung" ? MENSCHEN_FAKTOR : 1;
+  if (def.start) def.start = Math.round(def.start * MASSSTAB * menschenZusatz);
   // Eigene Speicherkapazität ist eine MENGE und muss denselben Maßstab
   // tragen wie der Startbestand -- sonst stünde die Bevölkerung sofort weit
   // über ihrem Wohnraum.
-  if (def.speicher) def.speicher.basis = Math.round(def.speicher.basis * MASSSTAB);
+  if (def.speicher) def.speicher.basis = Math.round(def.speicher.basis * MASSSTAB * menschenZusatz);
 }
-// BevölkerungsMENGEN folgen demselben Maßstab (bevoelkerungAb unten). Die
-// Wachstums-RATE dagegen ist ein Prozentsatz und maßstabsfrei -- 3 % von
-// 50.000 sind 3 % von 2.500.000, MASSSTAB kürzt sich heraus. (Bis A-117 stand
-// hier `BEVOELKERUNG.proSchritt = Math.round(BEVOELKERUNG.proSchritt *
-// MASSSTAB)` -- eine skalierte FESTE Menge; die proportionale Rate braucht
-// diese Zeile nicht mehr, siehe `bevoelkerungsSchrittFaktor` oben.)
+// BevölkerungsMENGEN folgen seit A-164 MASSSTAB × MENSCHEN_FAKTOR
+// (bevoelkerungAb unten), nicht mehr reinem MASSSTAB. Die Wachstums-RATE
+// dagegen ist ein Prozentsatz und bleibt maßstabsfrei -- 3 % von 3 Mrd sind
+// 3 % von 125 Mio, jeder Faktor kürzt sich heraus. (Bis A-117 stand hier
+// `BEVOELKERUNG.proSchritt = Math.round(BEVOELKERUNG.proSchritt * MASSSTAB)`
+// -- eine skalierte FESTE Menge; die proportionale Rate braucht diese Zeile
+// nicht mehr, siehe `bevoelkerungsSchrittFaktor` oben.)
+// `bevoelkerungAb` ist ein MENSCH, kein Material -- MASSSTAB × MENSCHEN_FAKTOR
+// wie jede andere Menschenzahl (A-164), sonst würde jede Bevölkerungsschwelle
+// gegen die 60.000-fach gewachsene Startbevölkerung verschwindend klein.
 for (const def of Object.values(BUILDINGS)) {
-  if (def.bevoelkerungAb) def.bevoelkerungAb = Math.round(def.bevoelkerungAb * MASSSTAB);
+  if (def.bevoelkerungAb) def.bevoelkerungAb = Math.round(def.bevoelkerungAb * MASSSTAB * MENSCHEN_FAKTOR);
 }
 for (const eintrag of VORKOMMEN_TABELLE) {
   eintrag.menge.min = Math.round(eintrag.menge.min * MASSSTAB);
@@ -3061,11 +3259,17 @@ export const REST_BAGATELLE_SKALIERT = Math.round(REST_BAGATELLE * MASSSTAB);
 // Auch die Kolonieschwelle der Bots ist eine MENGE -- fünfter Fall dieser
 // Falle im Projekt, deshalb steht sie direkt neben den anderen.
 BOT.startKasse = Math.round(BOT.startKasse * MASSSTAB);
-BOT.kolonie.abBevoelkerung = Math.round(BOT.kolonie.abBevoelkerung * MASSSTAB);
+// abBevoelkerung ist ein MENSCH (die Kolonisierungsschwelle des Bots), kein
+// Material -- MASSSTAB × MENSCHEN_FAKTOR wie jede andere Menschenzahl
+// (A-164). tritium/startmaterial bleiben Material und damit reines MASSSTAB.
+BOT.kolonie.abBevoelkerung = Math.round(BOT.kolonie.abBevoelkerung * MASSSTAB * MENSCHEN_FAKTOR);
 BOT.kolonie.tritium = Math.round(BOT.kolonie.tritium * MASSSTAB);
 skaliereBuendel(BOT.kolonie.startmaterial);
-PIRAT.gruendung.bevoelkerung = Math.round(PIRAT.gruendung.bevoelkerung * MASSSTAB);
-PIRAT.gruendung.abBevoelkerung = Math.round(PIRAT.gruendung.abBevoelkerung * MASSSTAB);
+// bevoelkerung/abBevoelkerung sind MENSCHEN (die Piraten-Absplitterung), kein
+// Material -- MASSSTAB × MENSCHEN_FAKTOR wie jede andere Menschenzahl
+// (A-164). Die Mitgift (unten) bleibt Material und damit reines MASSSTAB.
+PIRAT.gruendung.bevoelkerung = Math.round(PIRAT.gruendung.bevoelkerung * MASSSTAB * MENSCHEN_FAKTOR);
+PIRAT.gruendung.abBevoelkerung = Math.round(PIRAT.gruendung.abBevoelkerung * MASSSTAB * MENSCHEN_FAKTOR);
 for (const k of Object.keys(PIRAT.gruendung.mitgift)) {
   PIRAT.gruendung.mitgift[k] = Math.round(PIRAT.gruendung.mitgift[k] * MASSSTAB);
 }

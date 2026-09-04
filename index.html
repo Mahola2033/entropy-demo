@@ -311,31 +311,38 @@
              EIN VERSUCH mit drei Abschnitten (Tobis Wortlaut: "Wir probieren
              es mal mit drei."), keine Festlegung -- siehe Ergebnis A-144.
 
-             Statisch heißt: die Höhe springt nicht (Tobis Entscheidung,
-             25.08.). Jeder Abschnitt ist per CSS (.ws-mini) fest drei Zeilen
-             hoch und scrollt intern, egal ob leer oder bei zehn Einträgen. -->
+             A-180: Nur der laufende Auftrag (Kopf) steht fest. Die Warteliste
+             dahinter (.ws-mini) bekommt einen eigenen Griff -- dieselbe
+             Bauform wie .res-bestand-griff (A-162) -- und ist zugeklappt die
+             Vorgabe. "Statisch" heißt weiterhin: die Höhe springt nicht
+             (Tobis Entscheidung, 25.08.) -- WEDER durchs Einreihen/
+             Fertigwerden/Abbrechen NOCH von selbst; nur der Griff, eine
+             Spielerhandlung, darf sie ändern. -->
         <h2 data-text="Warteschlange"></h2>
 
         <div class="ws-abschnitt" data-ws="bau">
-          <h3 class="ws-deckel" data-text="Bau"></h3>
-          <div class="ws-mini">
-            <div id="status-bau-kopf"></div>
-            <div id="status-bau-warteschlange"></div>
+          <div class="ws-deckel-zeile">
+            <h3 class="ws-deckel" data-text="Bau"></h3>
+            <button class="res-bestand-griff" id="ws-bau-griff"></button>
           </div>
+          <div id="status-bau-kopf"></div>
+          <div class="ws-mini" id="status-bau-warteschlange"></div>
         </div>
         <div class="ws-abschnitt" data-ws="forschung">
-          <h3 class="ws-deckel" data-text="Forschung"></h3>
-          <div class="ws-mini">
-            <div id="status-forschung-kopf"></div>
-            <div id="status-forschung-warteschlange"></div>
+          <div class="ws-deckel-zeile">
+            <h3 class="ws-deckel" data-text="Forschung"></h3>
+            <button class="res-bestand-griff" id="ws-forschung-griff"></button>
           </div>
+          <div id="status-forschung-kopf"></div>
+          <div class="ws-mini" id="status-forschung-warteschlange"></div>
         </div>
         <div class="ws-abschnitt" data-ws="werft">
-          <h3 class="ws-deckel" data-text="Werft"></h3>
-          <div class="ws-mini">
-            <div id="status-werft-kopf"></div>
-            <div id="status-werft-warteschlange"></div>
+          <div class="ws-deckel-zeile">
+            <h3 class="ws-deckel" data-text="Werft"></h3>
+            <button class="res-bestand-griff" id="ws-werft-griff"></button>
           </div>
+          <div id="status-werft-kopf"></div>
+          <div class="ws-mini" id="status-werft-warteschlange"></div>
         </div>
 
         <!-- Rest-Statusblock: was A-144 abtrennte, blieb hier übrig --
@@ -414,6 +421,15 @@
              js/ui.js), nur an ihrem neuen Ort -- die Funktion kennt ihr Ziel
              über die ID, nicht über den umgebenden Rahmen. -->
         <div class="kopf-sprache" id="sprach-leiste"></div>
+      </div>
+
+      <div class="einstellungen-zeile">
+        <span class="dezent" data-text="Startschwierigkeit"></span>
+        <!-- A-190. Wirkt NICHT auf die laufende Partie -- eine Startwahl ist
+             keine laufende Einstellung, sondern gilt erst beim nächsten
+             Neustart (renderStartschwierigkeit in js/ui.js). Dieselbe
+             Leisten-Bauform wie die Sprachwahl, andere ID. -->
+        <div class="kopf-sprache" id="schwierigkeit-leiste"></div>
       </div>
 
       <div class="einstellungen-zeile">

@@ -22,6 +22,9 @@ import {
   FRAKTIONS_ARTEN,
   KAMPF,
   REPARATUR,
+  RUECKBAU,
+  RECYCLING,
+  erstattungsQuote,
   SPIELER_FRAKTION,
   BAUWARTESCHLANGE_MAX,
   HANDEL,
@@ -67,6 +70,7 @@ import {
   forschungVoraussetzungenErfuellt,
   forschungsQueueVon,
   forschungsWarteschlangeVon,
+  forschungVon,
   systemErreichbar,
   hatSprungroute,
   sprungrouteSetzen,
@@ -2712,10 +2716,39 @@ function botKolonieZiel(state, fraktion, welt) {
 // erneut. Gemessen hat das den Bots eine Bauschleife voller Tritiumextraktoren
 // und Werften beschert (Stufe 4 bzw. 3), während das Kolonieschiff, auf das
 // alles wartete, nie an die Reihe kam.
-function botHatOderBaut(planet, gebaeudeId) {
-  if ((planet.gebaeude[gebaeudeId] || 0) > 0) return true;
+// Steht dieser Bau schon an -- laufend oder in der Warteschlange?
+//
+// GETRENNT von botHatOderBaut, und der Unterschied ist der ganze Punkt:
+// botHatOderBaut fragt "gibt es das schon?" und zaehlt eine vorhandene Stufe
+// mit. Das ist richtig fuer Gebaeude, die man EINMAL braucht (Extraktor,
+// Fertigung, Labor), und falsch fuer die Engpass-Antwort und die
+// Ausbau-Rotation: dort soll Stufe 5 -> 6 weitergehen duerfen. Gefragt ist
+// dort nur: habe ich das gerade schon bestellt?
+//
+// GEMESSEN (Bot-Runde 31.08., 20 Tage, testSpiel):
+//   nach  1 Tag   Warteschlange 9: solarfeld 8x, metallmine 1x
+//   nach 20 Tagen Warteschlange 9: lagerhalle 5x, farm 3x, wohnmodul 1x
+//
+// Der Engpass "Energie" besteht weiter, solange das Solarfeld nicht FERTIG
+// ist -- also bestellte der Bot in jedem Takt (alle 5 Minuten) ein weiteres.
+// Acht der zehn Plaetze fuer ein Gebaeude, das er einmal braucht. Danach war
+// die Warteschlange dauerhaft voll und `kannBauen` antwortete auf ALLES mit
+// "Warteschlange voll (10/10)": kein Wohnmodul, keine Farm, kein Labor, keine
+// Fertigung. Der Bot sass nach 20 Tagen auf 1,78 Billionen Metall und konnte
+// nichts damit anfangen.
+//
+// Das ist BEOBACHTUNG B-3 und der Auslöser des stillgelegten Tests
+// "es bestellt denselben Bau nicht in jedem Takt neu".
+function botBautSchon(planet, gebaeudeId) {
   if (planet.bauQueue && planet.bauQueue.gebaeudeId === gebaeudeId) return true;
   return (planet.bauWarteschlange || []).some((e) => e.gebaeudeId === gebaeudeId);
+}
+
+// Dieselbe Grenze, dieselbe Funktion: die Warteschlangen-Haelfte steht nur
+// EINMAL da und wird hier mitbenutzt, statt zweimal ausgeschrieben zu werden.
+function botHatOderBaut(planet, gebaeudeId) {
+  if ((planet.gebaeude[gebaeudeId] || 0) > 0) return true;
+  return botBautSchon(planet, gebaeudeId);
 }
 
 // A-137: aus einem an Geld gescheiterten Versuch (nurGeld, siehe kannBauen/
@@ -3015,15 +3048,6 @@ function botSchritt(state, fraktion, zeit) {
   // dafür, dass es trotzdem nicht zu früh passiert.
   const ohneNachschub = botOhneNachschub(state, welt);
   const engpass = botEngpass(state, welt);
-  if (!ohneNachschub && !engpass) {
-    if (botKolonisieren(state, fraktion, welt, zeit, sparzielVerworfen)) return;
-    // A-134 Punkt 1: eigene Stufe, NICHT in BOT.ausbau eingetragen -- die
-    // Auffangliste nimmt den ERSTEN baubaren Eintrag, und Minen sind
-    // praktisch immer baubar; ein Labor am Listenende käme nie an die Reihe.
-    if (!botHatOderBaut(welt, "forschungslabor")) {
-      if (bauStarten(state, welt, "forschungslabor", zeit, true).ok) return;
-    }
-  }
   const wunsch = engpass
     ? (BOT.engpaesse.find((e) => e.wenn === engpass) || {}).gebaeude
     : null;
@@ -3036,6 +3060,10 @@ function botSchritt(state, fraktion, zeit) {
   // wie vorher (ohneNachschub, wunsch, knappste, ...BOT.ausbau) -- zwei
   // Schleifen statt einer aendern nichts daran, wer zuerst drankommt.
   for (const gebaeudeId of [ohneNachschub, wunsch].filter(Boolean)) {
+    // Nicht zweimal dasselbe bestellen (B-3). Der Engpass verschwindet erst,
+    // wenn der Bau FERTIG ist -- ohne diese Zeile bestellt der Bot in jedem
+    // Takt nach und verstopft sich seine eigene Warteschlange.
+    if (botBautSchon(welt, gebaeudeId)) continue;
     // Durch dieselbe Tür wie die Oberfläche: kannBauen prüft Kosten,
     // Voraussetzungen, Bevölkerungsschwellen und Affinitätssperren.
     // Bots bestehen auf Bezahlbarkeit (A-012): ein wartender Auftrag wuerde
@@ -3043,7 +3071,77 @@ function botSchritt(state, fraktion, zeit) {
     // brauchen. Der Spieler darf warten, die KI soll entscheiden.
     if (bauStarten(state, welt, gebaeudeId, zeit, true).ok) return;
   }
+  // DAS FORSCHUNGSLABOR (A-134 Punkt 1, neu eingeordnet in der Bot-Runde
+  // 31.08.).
+  //
+  // Es stand vorher zusammen mit dem Kolonisieren hinter
+  // `!ohneNachschub && !engpass` -- also nur in einem Takt GANZ ohne Engpass.
+  // GEMESSEN nach 20 Tagen: ein produktives Imperium hat immer einen (Lager
+  // frei 0, Energiedeckung 19 %), also kam das Labor nie und KEIN einziger
+  // Bot hatte je etwas erforscht.
+  //
+  // Jetzt steht es NACH der Engpass-Antwort und VOR der Ausbau-Rotation.
+  // Beides ist Absicht:
+  //   - nach dem Engpass, damit Strom, Nahrung und Lager weiter vorgehen
+  //     (Test "das Labor verdraengt nicht die Grundversorgung"),
+  //   - vor der Rotation, weil die den ERSTEN baubaren Eintrag nimmt und
+  //     Minen praktisch immer baubar sind. Am Listenende käme es nie dran --
+  //     genau der Grund, aus dem es urspruenglich nicht in BOT.ausbau steht.
+  // `botHatOderBaut` macht es einmalig: steht oder liegt es in der Schlange,
+  // passiert hier nichts mehr.
+  // KOLONISIEREN (neu eingeordnet in der Bot-Runde 31.08.).
+  //
+  // Es stand hinter `!ohneNachschub && !engpass`, aus einem nachvollziehbaren
+  // Grund: erst die eigene Welt, dann die naechste. Nur ist dieses Gate in der
+  // Praxis nie offen -- GEMESSEN blieb jedes Imperium bei einem Planeten, weil
+  // Lager (frei 0) und Energie (19 % Deckung) dauerhaft als Engpass gelten.
+  //
+  // Die ABSICHT bleibt hier vollstaendig erhalten: der Aufruf steht weiterhin
+  // NACH der Engpass-Antwort (Strom, Nahrung, Lager, Wohnraum gehen vor) und
+  // VOR der Ausbau-Rotation -- genau die Stellung, die der urspruengliche
+  // Kommentar verlangt ("Stuende es hinten, kaeme es nie dran"). Geaendert
+  // ist nur, dass ein LAUFENDER Engpass es nicht mehr komplett aussperrt,
+  // sondern die Antwort darauf schlicht vorher drankommt.
+  if (botKolonisieren(state, fraktion, welt, zeit, sparzielVerworfen)) return;
+
+  // DIE FERTIGUNG GEHOERT VOR DAS LABOR, weil das Labor sie braucht: seit
+  // A-009 kostet es ELEKTRONIK, und Elektronik gibt es nur aus der Fertigung.
+  //
+  // GEMESSEN in derselben Runde: nachdem das Labor aus dem Engpass-Gate
+  // heraus war, lautete die Antwort auf jeden Bauversuch
+  // "Nicht genug Ressourcen (Elektronik)" -- bei 11 gebauten Gebaeudearten
+  // und Billionen Metall. Die Fertigung stand bis dahin NUR in
+  // botKolonisieren, also hinter demselben `!engpass`-Gate, das schon das
+  // Labor nie erreichte.
+  //
+  // Sie steht hier und ausdruecklich NICHT in BOT.nachschub -- dort haette
+  // sie Vorrang vor Strom, Farm und Wohnmodul, und der Bot baute sich eine
+  // Fabrik ohne Strom und ohne Belegschaft (die Messung dazu steht am
+  // Kommentar von BOT.nachschub). An dieser Stelle laeuft die
+  // Grundversorgung bereits ueber die Engpass-Antwort darueber.
+  if (!botHatOderBaut(welt, "fertigung")) {
+    if (bauStarten(state, welt, "fertigung", zeit, true).ok) return;
+  }
+
+  if (!botHatOderBaut(welt, "forschungslabor")) {
+    if (bauStarten(state, welt, "forschungslabor", zeit, true).ok) return;
+  }
+
+  // ZUR ROTATION, gemessen und BEWUSST NICHT geaendert (Bot-Runde 31.08.):
+  // `BOT.ausbau` nimmt immer den ERSTEN baubaren Eintrag, und die ersten
+  // beiden sind Metall- und Siliziummine -- die sind praktisch immer baubar.
+  // Es lag nahe, hier nach erreichter Stufe zu sortieren, damit "Rotation"
+  // auch rotiert. GEMESSEN bringt das exakt null: die Energiedeckung blieb
+  // auf 59 % / 56 %, Ziffer fuer Ziffer dieselbe. Der Grund steht eine Zeile
+  // tiefer -- `knappste` steht VOR der Liste und liefert ebenfalls eine Mine,
+  // die Reihenfolge dahinter kommt gar nicht zum Tragen. Die Aenderung ist
+  // deshalb zurueckgenommen: eine wirkungslose Aenderung in der Bot-KI ist
+  // Risiko ohne Ertrag. Siehe BEOBACHTUNG B-1 fuer den offenen Befund.
   for (const gebaeudeId of [knappste, ...BOT.ausbau].filter(Boolean)) {
+    // Auch hier: eine Stufe je Gebaeude in der Schlange genuegt (B-3). Die
+    // Rotation bleibt erhalten -- steht der Bau nicht mehr an, ist die
+    // naechste Stufe wieder frei.
+    if (botBautSchon(welt, gebaeudeId)) continue;
     if (!botSparReserveErlaubt(state, fraktion, welt, gebaeudeId)) continue;
     if (bauStarten(state, welt, gebaeudeId, zeit, true).ok) return;
   }
@@ -3746,6 +3844,9 @@ export function reparieren(state, flotte, typ) {
 
 // Recycling zahlt sofort aus (weniger als eine Reparatur wert wäre) und
 // entfernt die Schiffe -- eine echte Entscheidung statt eines Sonderfalls.
+// Die Quote ist seit A-185 dieselbe Forschung wie beim Gebäude-Abriss
+// (RECYCLING statt RUECKBAU, siehe data.js) -- 0.35 ohne Forschung ist der
+// heutige Startwert, keine neue Zahl.
 export function kannRecyceln(state, flotte, typ) {
   const check = kannUmladen(state, flotte);
   if (!check.ok) return check;
@@ -3758,8 +3859,10 @@ export function recyceln(state, flotte, typ) {
   if (!check.ok) return check;
   const anzahl = flotte.schiffe[typ];
   const gesundAnteil = 1 - schadensAnteil(flotte, typ);
+  const rueckbauStufe = forschungVon(state, fraktionVon(flotte)).rueckbautechnik || 0;
+  const quote = erstattungsQuote(RECYCLING, rueckbauStufe);
 
-  const rueckerstattung = skalieren(SCHIFFE[typ].kosten, anzahl * gesundAnteil * REPARATUR.recycleFaktor);
+  const rueckerstattung = skalieren(SCHIFFE[typ].kosten, anzahl * gesundAnteil * quote);
   insLager(state, check.planet, rueckerstattung);
   flotte.schiffe[typ] = 0;
   delete flotte.schiffSchaden[typ];
@@ -6010,29 +6113,81 @@ export function warteschlangeVerschieben(warteschlange, index, richtung) {
   return warteschlangeUmordnen(warteschlange, index, index + richtung);
 }
 
+// ERSTATTET WIRD NUR, WAS BEZAHLT WURDE (A-012). Ein wartender Auftrag hat
+// nie gezahlt -- ihn zu erstatten waere eine Gelddruckmaschine: einreihen,
+// abbrechen, kassieren. Gemeinsam fuer bauAbbrechen/werftAbbrechen (A-183,
+// vorher an beiden Stellen von Hand): beide brechen den GERADE LAUFENDEN
+// Kopf ab, volle Erstattung, kein Zeitanteil-Abzug. Der Rest ihrer Koerper
+// (welches Queue-Feld, shift, kopfPruefen) bleibt an den Aufrufstellen -- er
+// unterscheidet sich zwischen Bau und Werft und ist NICHT gemeinsam.
+// forschungAbbrechen ruft das absichtlich NICHT auf: sie erstattet nichts,
+// bezahlt wurde mit Strom, Menschen und Laborbedarf, die sind verbraucht.
+function abbruchErstatten(state, planet, kosten, laeuft) {
+  if (!laeuft) return;
+  const { abgelehnt } = insLager(state, planet, kosten);
+  if (Object.keys(abgelehnt).length) {
+    meldungHinzufuegen(state, t("{planet}: Lager voll – Erstattung teilweise verloren.", { planet: planet.name }), null, herkunftVon(planet));
+  }
+}
+
 // Bricht den GERADE LAUFENDEN Bau ab (nicht die Warteschlange dahinter) --
-// volle Erstattung, kein Zeitanteil-Abzug, dieselbe einfache v1-Regel wie
-// beim Entfernen aus der Warteschlange. Rückt danach den nächsten
+// Erstattung siehe abbruchErstatten. Rückt danach den nächsten
 // Warteschlangeneintrag nach (startet jetzt, nicht zur ursprünglich
 // geplanten Zeit -- der Bau wurde ja gerade erst abgebrochen).
 export function bauAbbrechen(state, planet) {
   if (!planet.bauQueue) return { ok: false, grund: t("Kein laufender Bauauftrag.") };
   const abgebrochen = planet.bauQueue;
-  // ERSTATTET WIRD NUR, WAS BEZAHLT WURDE (A-012). Ein wartender Auftrag hat
-  // nie gezahlt -- ihn zu erstatten waere eine Gelddruckmaschine: einreihen,
-  // abbrechen, kassieren. Der Erstattungspfad samt seiner Lager-voll-Meldung
-  // bleibt fuer laufende Auftraege unveraendert.
   const laeuft = abgebrochen.fertigZeit !== null;
   const kosten = gebaeudeKosten(planet, BUILDINGS[abgebrochen.gebaeudeId], abgebrochen.zielLevel);
-  const { abgelehnt } = laeuft ? insLager(state, planet, kosten) : { abgelehnt: {} };
+  abbruchErstatten(state, planet, kosten, laeuft);
   const naechster = planet.bauWarteschlange.shift();
   const jetzt = spielzeitJetzt(state);
   planet.bauQueue = naechster ? { ...naechster, startZeit: null, fertigZeit: null } : null;
   kopfPruefen(state, planet, jetzt);
+  return { ok: true };
+}
+
+// Eine Anlage um EINE Stufe zurückbauen (A-095) -- seit A-185 mit
+// Erstattung. Zurück kommt der laufende Betrieb SOFORT (Arbeitskraft und
+// Strom der abgerissenen Stufe stehen sofort wieder anderen Anlagen zur
+// Verfügung, weil die Flüsse aus der STUFE gerechnet werden und nirgends
+// gespeichert sind) UND ein Teil der Baukosten -- die Quote steht bei
+// RUECKBAU in data.js und erreicht nie 100% (Prinzip 0: Recycling gibt nie
+// alles zurück).
+//
+// Zwei Sperren, beide aus demselben Grund: solange dieselbe Anlage baut oder
+// in der Warteschlange steht, wäre der Rückbau ein Rennen zwischen zwei
+// Zahlen. Der Bau hat Kosten gebucht und eine Zielstufe im Kopf; zöge man ihm
+// die Ausgangsstufe unter den Füßen weg, käme am Ende irgendetwas heraus.
+// Erst abbrechen, dann abreißen -- und der Abbruch erstattet ohnehin.
+//
+// Gerechnet wird mit den Kosten der ABGERISSENEN Stufe (`gebaeudeKosten`,
+// dieselbe Funktion wie bauAbbrechen) -- BEWUSST MIT dem vollen
+// Schwerkraftfaktor: anders als bei Schiffen (die man versetzen kann) wird
+// ein Gebäude auf demselben Planeten gebaut und abgerissen, der Faktor
+// kürzt sich für den Spieler nicht heraus (A-185, „Zur Schwerkraft").
+//
+// Rückgabe wie bei den übrigen Operationen: { ok } oder { ok: false, grund }.
+export function rueckbauen(state, planet, gebaeudeId) {
+  if (!planet || !planet.gebaeude) return { ok: false, grund: t("Kein Planet gewählt.") };
+  const stufe = planet.gebaeude[gebaeudeId] || 0;
+  if (stufe <= 0) return { ok: false, grund: t("Hier steht nichts, was sich abreißen ließe.") };
+  if (planet.bauQueue && planet.bauQueue.gebaeudeId === gebaeudeId) {
+    return { ok: false, grund: t("Diese Anlage wird gerade gebaut – erst den Bau abbrechen.") };
+  }
+  if ((planet.bauWarteschlange || []).some((e) => e.gebaeudeId === gebaeudeId)) {
+    return { ok: false, grund: t("Diese Anlage steht in der Warteschlange – erst den Auftrag herausnehmen.") };
+  }
+  const rueckbauStufe = forschungVon(state, fraktionVon(planet)).rueckbautechnik || 0;
+  const quote = erstattungsQuote(RUECKBAU, rueckbauStufe);
+  const kosten = gebaeudeKosten(planet, BUILDINGS[gebaeudeId], stufe);
+  const erstattung = skalieren(kosten, quote);
+  const { abgelehnt } = insLager(state, planet, erstattung);
+  planet.gebaeude[gebaeudeId] = stufe - 1;
   if (Object.keys(abgelehnt).length) {
     meldungHinzufuegen(state, t("{planet}: Lager voll – Erstattung teilweise verloren.", { planet: planet.name }), null, herkunftVon(planet));
   }
-  return { ok: true };
+  return { ok: true, stufe: stufe - 1, erstattung };
 }
 
 // A-134: fraktionsgebunden über fraktionVon(planet) -- derselbe Weg wie bei
@@ -6217,20 +6372,18 @@ export function werftWarteschlangeEntfernen(state, planet, index) {
   return { ok: true };
 }
 
-// Bricht den GERADE LAUFENDEN Schiffbau ab -- gleiche Regel wie bauAbbrechen.
+// Bricht den GERADE LAUFENDEN Schiffbau ab -- gleiche Regel wie bauAbbrechen,
+// Erstattung siehe abbruchErstatten.
 export function werftAbbrechen(state, planet) {
   if (!planet.werftQueue) return { ok: false, grund: t("Kein laufender Schiffbau.") };
   const abgebrochen = planet.werftQueue;
   const laeuft = abgebrochen.fertigZeit !== null;
   const kosten = schiffKosten(planet, abgebrochen.schiffId, abgebrochen.anzahl);
-  const { abgelehnt } = laeuft ? insLager(state, planet, kosten) : { abgelehnt: {} };
+  abbruchErstatten(state, planet, kosten, laeuft);
   const naechster = planet.werftWarteschlange.shift();
   const jetzt = spielzeitJetzt(state);
   planet.werftQueue = naechster ? { ...naechster, startZeit: null, fertigZeit: null } : null;
   kopfPruefen(state, planet, jetzt);
-  if (Object.keys(abgelehnt).length) {
-    meldungHinzufuegen(state, t("{planet}: Lager voll – Erstattung teilweise verloren.", { planet: planet.name }), null, herkunftVon(planet));
-  }
   return { ok: true };
 }
 

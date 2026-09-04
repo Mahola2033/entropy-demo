@@ -24,6 +24,7 @@
 
 import { t } from "./sprache.js";
 import { feedbackAdresse } from "./feedback.js";
+import { BEGRIFF_VORWARNZEIT } from "./texte.js";
 
 export function handbuchAbschnitte() {
   return [
@@ -69,10 +70,12 @@ export function handbuchAbschnitte() {
           "Alles Weitere folgt daraus. Eine Stunde vor dem Bildschirm sind rund zehn Spieljahre. Produktionsangaben pro Jahr meinen also Spieljahre, nicht deine Stunden."
         ),
         t(
-          "Wichtig: die Frist läuft weiter, während du nicht da bist. Das ist hart und beabsichtigt – eine Frist, die auf dich wartet, ist keine. Wer abends aufhört und morgens zurückkommt, findet eine Welt vor, die inzwischen gelebt hat."
+          "Wichtig: die {begriff} läuft weiter, während du nicht da bist. Das ist hart und beabsichtigt – eine {begriff}, die auf dich wartet, ist keine. Wer abends aufhört und morgens zurückkommt, findet eine Welt vor, die inzwischen gelebt hat.",
+          { begriff: t(BEGRIFF_VORWARNZEIT) }
         ),
         t(
-          "Entropy ist deshalb ein Spiel für nebenbei. Es läuft langsam, und das ist Absicht und nicht dein Fehler: Fortschritt braucht hier Geduld, in den ersten Minuten passiert wenig, und die Welt arbeitet auch dann weiter, wenn du nicht hinsiehst. Wegzugehen ist kein Aussetzen – nur die Frist wartet eben auch nicht."
+          "Entropy ist deshalb ein Spiel für nebenbei. Es läuft langsam, und das ist Absicht und nicht dein Fehler: Fortschritt braucht hier Geduld, in den ersten Minuten passiert wenig, und die Welt arbeitet auch dann weiter, wenn du nicht hinsiehst. Wegzugehen ist kein Aussetzen – nur die {begriff} wartet eben auch nicht.",
+          { begriff: t(BEGRIFF_VORWARNZEIT) }
         ),
         // A-073: die zwei Sätze zum Spielstand stehen HIER und nicht in einem
         // eigenen Abschnitt -- wer über das Weggehen liest, ist genau der,
@@ -229,7 +232,8 @@ export function handbuchAbschnitte() {
           "Der Bildschirm hat vier feste Zonen, und sie ändern ihre Plätze nie: der Kopf ganz oben, die beiden Ressourcenreihen darunter, links die Bereichsleiste – und rechts eine Spalte, die man auf- und zuklappen kann."
         ),
         t(
-          "Im Kopf stehen zwei Zeiten nebeneinander, und sie meinen Verschiedenes. Das Datum ist der Kalender deiner Welt und läuft immer. Die Uhr daneben ist die Frist: sie nennt das nächste Ereignis der Supernova und zeigt als Balken, wieviel davon schon vorbei ist. Gibt es gerade keine Frist, ist die Uhr weg – das Datum bleibt."
+          "Im Kopf stehen zwei Zeiten nebeneinander, und sie meinen Verschiedenes. Das Datum ist der Kalender deiner Welt und läuft immer. Die Uhr daneben ist die {begriff}: sie nennt das nächste Ereignis der Supernova und zeigt als Balken, wieviel davon schon vorbei ist. Gibt es gerade keine {begriff}, ist die Uhr weg – das Datum bleibt.",
+          { begriff: t(BEGRIFF_VORWARNZEIT) }
         ),
         t(
           "Darunter liegen zwei Reihen, und der Unterschied zwischen ihnen ist der wichtigste in der ganzen Wirtschaft. Oben steht, was du HAST: Lagerbestände, die sich ansammeln. Unten steht, was du KANNST: Strom, Arbeitskraft und Lagerplatz – Größen, die pro Zeit anfallen oder als Platz begrenzt sind und nicht gespart werden können. Wer die untere Reihe für einen Vorrat hält, wundert sich früher oder später."
@@ -345,7 +349,7 @@ export function erststartTafel(planetName) {
     .filter(Boolean);
 
   return {
-    titel: t("Eine Welt, und eine Frist"),
+    titel: t("Eine Welt, und eine {begriff}", { begriff: t(BEGRIFF_VORWARNZEIT) }),
     absaetze: [
       t(
         "Du führst genau eine Welt: {planet}. Ein Wohnmodul, ein kleiner Vorrat – und ein Himmel voller Sterne, in denen noch nie jemand war.",

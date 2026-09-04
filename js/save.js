@@ -9,11 +9,13 @@ import {
   pauseNachziehen,
   speicherbarerVersatz,
   spielDatum,
+  vollerFossilVorrat,
 } from "./state.js";
 import { piratenWeltStart, botWeltStart, piratenNamenNachziehen } from "./simulation.js";
 import { notausgangLoeschen } from "./aufholen.js";
 import { DEMO_SAAT, VERSION } from "./data.js";
 import { t } from "./sprache.js";
+import { startschwierigkeit } from "./schwierigkeit.js";
 
 const STORAGE_KEY = "entropy-save";
 
@@ -35,7 +37,12 @@ function neueWelt() {
   // DEMO_SAAT statt Zufall: die Demo läuft auf einer festen, geprüften
   // Galaxie (Tobis Entscheidung, Begründung und Messwerte in data.js).
   // Steht `null` dort, wird wie früher gewürfelt.
-  const state = neuesSpiel(DEMO_SAAT ?? undefined);
+  //
+  // A-190: die Zone/Wasser-Kombination der Heimatwelt kommt zusätzlich aus
+  // der gespeicherten Startschwierigkeit (js/schwierigkeit.js) -- derselbe
+  // Seed erzeugt damit je nach Wahl eine andere Heimatwelt, der Rest der
+  // Galaxie (Nachbarsysteme, sterbender Stern) bleibt unverändert.
+  const state = neuesSpiel(DEMO_SAAT ?? undefined, startschwierigkeit());
   // Reihenfolge: erst die Imperien, dann die Raeuber -- die Piraten setzen
   // sich in Systeme, in denen noch niemand sitzt.
   botWeltStart(state);
@@ -76,6 +83,33 @@ function sicherungenLoeschen() {
   }
 }
 
+// A-184: der Lese-Gegenpart zu altenStandSichern. Es liegt laut Kommentar
+// oben IMMER NUR EINE Sicherung -- die erste passende Kennung reicht also.
+// `kennung` ist entweder eine Versionszahl als String (laden(), nach einer
+// Migration), "unlesbar" (laden(), kaputter Stand) oder "ersetzt"
+// (standUebernehmen()) -- dieselben drei Werte, mit denen altenStandSichern
+// weiter oben aufgerufen wird.
+//
+// Bewusst KEIN Einspielweg: dieser Export legt den Rohtext nur offen, damit
+// die Oberfläche ihn ins vorhandene Textfeld legen kann. Übernommen wird er
+// weiterhin ausschließlich über den bestehenden "Einspielen"-Knopf und damit
+// über denselben Filter wie jeder fremde Text (standPruefen, A-173) -- kein
+// zweiter Schreibweg, keine zweite Sicherheitsstelle.
+export function sicherungLesen() {
+  try {
+    if (typeof localStorage === "undefined") return { vorhanden: false };
+    for (const schluessel of Object.keys(localStorage)) {
+      if (!schluessel.startsWith(SICHERUNG_PRAEFIX)) continue;
+      const text = localStorage.getItem(schluessel);
+      if (text === null) continue;
+      return { vorhanden: true, kennung: schluessel.slice(SICHERUNG_PRAEFIX.length), text };
+    }
+    return { vorhanden: false };
+  } catch {
+    return { vorhanden: false }; // z.B. blockierter Speicher -- dieselbe stumme Duldung wie sicherungenLoeschen
+  }
+}
+
 // --- Migration (A-141) ------------------------------------------------------
 //
 // Bis hierher wies laden() JEDEN Stand mit abweichender SAVE_VERSION hart ab
@@ -99,8 +133,61 @@ function sicherungenLoeschen() {
 // Umrechnung schuld ist. Er ist außerdem der Platzhalter, den der
 // Sammel-Sprung später mit echtem Inhalt füllt (die vier Punkte aus
 // SAMMEL-SPRUNG.md -- unangetastet, das ist eigene Arbeit).
+// 32 -> 33 (A-164, die Maßstabsrunde): der Sammel-Sprung, den der 31->32-
+// Platzhalter oben vorbereitet hat, bekommt jetzt echten Inhalt.
+//
+// Bestände und Kapazitäten aller Lagerressourcen tragen den MASSSTAB-Sprung
+// nach -- dieselbe Rechnung, die MASSSTAB beim Laden für eine FRISCHE Welt
+// macht (js/data.js). Bevölkerung ist zusätzlich kein Material, sondern ein
+// MENSCH (siehe js/data.js, "Die drei Maßstäbe") und trägt deshalb obendrauf
+// den Menschen-Faktor. Gebäudestufen bleiben unverändert -- ein alter Stand
+// behält seine Stufen, die neuen Startstufen (START.startstufenHeimatwelt)
+// gelten nur für neu erzeugte Welten. Herleitung und Zielwerte:
+// AUFTRAEGE/A-164-massstabsrunde.md Abschnitt 4, AUFTRAEGE/ENTWURF-MASSSTAB.md.
+//
+// Die beiden Faktoren stehen hier bewusst als LITERALE Zahlen, nicht als
+// Import von MASSSTAB/MENSCHEN_FAKTOR aus data.js: eine Migration ist ein
+// historischer Schnappschuss des Sprungs, der damals stattfand. Zöge sie den
+// LEBENDEN Wert, würde eine spätere Maßstabsrunde diesen Schritt rückwirkend
+// umdeuten -- derselbe Grund, aus dem der 31->32-Eintrag oben "32" statt
+// SAVE_VERSION schreibt.
+// 33 -> 34 (A-196, 04.09.2026): FOSSIL_VORRAT_BASIS hing bis hierhin an
+// Stufe 1, die Startstufe der Fossilanlage stand seit A-164 aber schon bei
+// 17 (Faktor 159,08 mehr Verbrauch). Jeder gespeicherte fossilVorrat war
+// damit gegen eine 159-fach zu kleine Basis verbucht -- praktisch jede
+// laufende Partie stand bei 0, unabhängig von Spielzeit oder Stufe. Ein
+// Anteil des Reststands trüge deshalb keine Information (ein Anteil von 0
+// bleibt 0); jeder Planet bekommt seinen vollen, an der KORRIGIERTEN Basis
+// hergeleiteten Vorrat -- dieselbe Rechnung wie `neuerPlanet` für eine
+// frische Welt (`vollerFossilVorrat`, js/state.js), NICHT die literale
+// A164-Sprung-Handschrift der Migration darüber: die Vorratsherleitung ist
+// keine Konstante aus einem historischen Moment, sondern folgt bewusst der
+// LEBENDEN FOSSIL_VORRAT_BASIS -- genau das war der Fehler, den A-196 behebt.
+const MASSSTAB_SPRUNG_A164 = 2500; // 125.000 / 50
+const MENSCHEN_FAKTOR_A164 = 24;
 const MIGRATIONEN = {
   31: (stand) => ({ ...stand, version: 32 }),
+  32: (stand) => ({
+    ...stand,
+    version: 33,
+    planeten: (stand.planeten || []).map((planet) => {
+      if (!planet.ressourcen) return planet;
+      const ressourcen = {};
+      for (const [resId, menge] of Object.entries(planet.ressourcen)) {
+        const zusatz = resId === "bevoelkerung" ? MENSCHEN_FAKTOR_A164 : 1;
+        ressourcen[resId] = Math.round(menge * MASSSTAB_SPRUNG_A164 * zusatz);
+      }
+      return { ...planet, ressourcen };
+    }),
+  }),
+  33: (stand) => ({
+    ...stand,
+    version: 34,
+    planeten: (stand.planeten || []).map((planet) => ({
+      ...planet,
+      fossilVorrat: vollerFossilVorrat(planet),
+    })),
+  }),
 };
 
 // Schickt einen Stand Schritt für Schritt durch eine Migrationstabelle, bis
@@ -252,6 +339,10 @@ export function zuruecksetzen() {
     // FRISCHES Spiel die Tafel für ein Problem, das mit dem alten Stand
     // verschwunden ist.
     notausgangLoeschen();
+    // A-184 (Tobis Weg 1): die Sicherung jetzt lesbar zu machen (s.o.) ist
+    // nur die halbe Regel -- die Gegenleistung ist, dass ein Zurücksetzen sie
+    // wirklich mit wegräumt. Nach dieser Zeile ist bewusst nichts mehr da.
+    sicherungenLoeschen();
   } catch (e) {
     // Wirft das Löschen, bliebe das location.reload() im Aufrufer aus -- und
     // zurück bliebe ein laufendes Spiel mit gesetzter Sperre, das nie wieder

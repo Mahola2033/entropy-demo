@@ -77,13 +77,20 @@ export function feedbackKoerper() {
     "",
     "",
     "---",
+    // A-176 (B4 der Sicherheitspruefung, KOSMETISCH): der Tester sieht die
+    // Zeile erst im GitHub-Formular, NACHDEM sie zusammengestellt ist -- sie
+    // nennt jetzt selbst, dass sie danach oeffentlich stehen bleibt, statt es
+    // ihn erst beim Absenden merken zu lassen.
     browser
-      ? t("Version {version} ({stand}) · {browser} – automatisch eingetragen, bitte stehen lassen.", {
-          version: VERSION,
-          stand: STAND,
-          browser,
-        })
-      : t("Version {version} ({stand}) – automatisch eingetragen, bitte stehen lassen.", {
+      ? t(
+          "Version {version} ({stand}) · {browser} – automatisch eingetragen, bitte stehen lassen; wird öffentlich sichtbar.",
+          {
+            version: VERSION,
+            stand: STAND,
+            browser,
+          }
+        )
+      : t("Version {version} ({stand}) – automatisch eingetragen, bitte stehen lassen; wird öffentlich sichtbar.", {
           version: VERSION,
           stand: STAND,
         }),

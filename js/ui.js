@@ -43,6 +43,8 @@ import {
   rateProJahr,
   ANREICHERUNG_VERLUST,
   ARBEITSKRAFT_LEERLAUF,
+  RUECKBAU,
+  erstattungsQuote,
 } from "./data.js";
 import {
   effektiveRaten,
@@ -77,7 +79,6 @@ import {
   supernovaRestMs,
   stromPrioritaet,
   stromPrioritaetSetzen,
-  rueckbauen,
   anreicherungAn,
   anreicherungSetzen,
   anreicherungLaeuft,
@@ -118,7 +119,7 @@ import {
   planetUebersicht,
   beschaffungsZeiten,
   brennstoffBereit,
-  brennstoffReichweiteMs,
+  brennstoffReichweiteAnlageMs,
   brennstoffProStunde,
   BRENNSTOFF_ANLAUF_MS,
   fossilBereit,
@@ -136,6 +137,7 @@ import {
   warteschlangeVerschieben,
   warteschlangeUmordnen,
   bauAbbrechen,
+  rueckbauen,
   kannForschen,
   forschungWarteschlangeEntfernen,
   forschungAbbrechen,
@@ -211,11 +213,13 @@ import {
   flotteTankAnteile,
 } from "./flotten.js";
 import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js";
+import { BEGRIFF_VORWARNZEIT } from "./texte.js";
 import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js";
 // Nur für den Neustart-Knopf im Abspann. Der Weg dorthin ist derselbe wie im
 // Testmodus (js/testmodus.js) -- ein zweiter Reset wäre eine zweite Wahrheit
 // darüber, was "neu anfangen" bedeutet.
-import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen } from "./save.js";
+import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js";
+import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js";
 import { systemName, sternFuer } from "./galaxie.js";
 // Die beiden Karten. Sie holen sich von hier `listeAbgleichen` zurück -- ein
 // Ringtausch, der trägt, weil keine der beiden Dateien beim LADEN etwas aus
@@ -226,7 +230,7 @@ import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js";
 import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js";
 import { feedbackAdresse } from "./feedback.js";
 import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js";
-import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole } from "./ressourcen.js";
+import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js";
 
 // UI-lokaler Regler-Zustand für die Flotten-Beladung/Tanken-Schieber --
 // bewusst NICHT Teil des Spielzustands. Nötig, weil render() auch von einem
@@ -726,6 +730,7 @@ export function render(state, root) {
   renderGrundskalierung(state, root);
   renderEinstellungen(state, root);
   renderSprachwahl(state, root);
+  renderStartschwierigkeit(root);
   renderFeedbackLink(root);
   renderFesteTexte(root);
   root.querySelector("#planet-name").textContent = planet.name;
@@ -944,6 +949,42 @@ function renderSprachwahl(state, root) {
   });
 }
 
+// Startschwierigkeit im Einstellungsfenster (A-190). Gleiche Bauform wie
+// renderSprachwahl, aber ein Klick wirkt NICHT auf die laufende Partie --
+// nur auf die NÄCHSTE neue Welt (js/save.js, neueWelt() liest
+// startschwierigkeit() bei jedem Aufruf frisch; siehe Kommentar dort und in
+// js/schwierigkeit.js). Der Merker trägt zusätzlich die aktive Sprache --
+// anders als bei der Sprachwahl selbst ist die Sprache hier nicht das, was
+// umgeschaltet wird, und ein reiner Sprachwechsel müsste die Beschriftung
+// trotzdem erneuern.
+function renderStartschwierigkeit(root) {
+  const leiste = root.querySelector("#schwierigkeit-leiste");
+  if (!leiste) return;
+  const aktiv = startschwierigkeit();
+  const merker = `${sprache()}:${aktiv}`;
+  if (leiste.dataset.gezeichnet === merker) return;
+  leiste.dataset.gezeichnet = merker;
+  const stufen = [
+    { code: "leicht", name: t("Leicht") },
+    { code: "normal", name: t("Normal") },
+    { code: "schwer", name: t("Schwer") },
+  ];
+  const hinweis = t("Wirkt erst beim nächsten Neustart – ändert nicht die laufende Partie.");
+  leiste.innerHTML = stufen
+    .map(
+      (s) =>
+        `<button data-schwierigkeit="${s.code}" class="${s.code === aktiv ? "aktiv" : ""}" title="${hinweis}">${s.name}</button>`
+    )
+    .join("");
+  leiste.querySelectorAll("button[data-schwierigkeit]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      startschwierigkeitSetzen(btn.dataset.schwierigkeit);
+      leiste.dataset.gezeichnet = ""; // erzwingt den Neuaufbau der Leiste
+      renderStartschwierigkeit(root);
+    });
+  });
+}
+
 // Ein fehlendes Feld liest sich als 100 % (Kategorie 1, siehe Auftrag) -- ein
 // Spielstand von vor dieser Runde kennt state.grundskalierung nicht und soll
 // trotzdem unverändert aussehen.
@@ -1053,7 +1094,7 @@ function kraftwerkBrennstoffZeile(planet, stufe) {
     });
     return { titel: text, text: `⚛️ ${t("Kein Brennstoff – Reaktor aus")}`, warnung: true };
   }
-  const reichweite = brennstoffReichweiteMs(planet);
+  const reichweite = brennstoffReichweiteAnlageMs(planet, "kraftwerk");
   if (!Number.isFinite(reichweite)) return null;
   // DIE BEDINGUNG DIESER ZAHL (A-088, die A-050-Lehre: eine Zahl ohne ihre
   // Bedingung ist eine halbe Auskunft).
@@ -1092,7 +1133,7 @@ function kraftwerkBrennstoffZeile(planet, stufe) {
 
 // A-148: dritte Anlage mit demselben Lager-Brennstoff-Mechanismus wie das
 // Kraftwerk (nur Uran statt Deuterium) -- deshalb dieselben Bausteine
-// (brennstoffBereit/brennstoffReichweiteMs/brennstoffProStunde), nur mit
+// (brennstoffBereit/brennstoffReichweiteAnlageMs/brennstoffProStunde), nur mit
 // kernkraftanlage-eigenem Wortlaut. Absichtlich eine eigene Funktion statt
 // einer geteilten Abstraktion über den Stoffnamen: dieselbe Kollegen-Wahl
 // wie bei rohRaten/produktionsAufloesung (siehe deren Kommentare) -- zwei
@@ -1105,7 +1146,7 @@ function kernkraftBrennstoffZeile(planet, stufe) {
     });
     return { titel: text, text: `☢️ ${t("Kein Brennstoff – Reaktor aus")}`, warnung: true };
   }
-  const reichweite = brennstoffReichweiteMs(planet);
+  const reichweite = brennstoffReichweiteAnlageMs(planet, "kernkraftanlage");
   if (!Number.isFinite(reichweite)) return null;
   const verbrauchText = Object.entries(brennstoffProStunde(planet))
     .map(([resId, proStunde]) => ratenText(resId, proStunde))
@@ -1173,14 +1214,26 @@ function fossilBrennstoffZeile(planet, stufe) {
 // Anlage ihre eigene Zeile -- Reihenfolge unverändert Kraftwerk,
 // Kernkraftanlage, Fossilanlage.
 //
-// BEKANNTER RAND-FALL, NICHT TEIL DIESER RUNDE: brennstoffReichweiteMs/
-// brennstoffProStunde sind planetweite Minima/Summen über ALLE
-// Lager-Brennstoff-Gebäude (BRENNSTOFF_GEBAEUDE), nicht je Anlage getrennt.
-// Stehen Kraftwerk UND Kernkraftanlage gleichzeitig (erst seit A-149 selten,
-// aber möglich), zeigen beide Zeilen dieselbe Reichweite-Zahl, auch wenn sie
-// unterschiedliche Ressourcen (Deuterium/Uran) verbrennen -- vor A-168 war
-// das unsichtbar (nur eine der beiden stand je da), jetzt wird es sichtbar.
-// Fossilanlage ist davon nicht betroffen: fossilReichweiteMs kennt nur sie.
+// A-188 (B-8, Fund aus A-168): DIE REICHWEITE-ZAHL kam bis hierher aus
+// brennstoffReichweiteMs, dem planetweiten MINIMUM über ALLE
+// Lager-Brennstoff-Gebäude (BRENNSTOFF_GEBAEUDE) -- standen Kraftwerk UND
+// Kernkraftanlage gleichzeitig (erst seit A-149 selten, aber möglich),
+// zeigten beide Zeilen dieselbe Zahl, obwohl sie unterschiedliche Ressourcen
+// (Deuterium/Uran) verbrennen: die Anlage mit dem reichlicheren Brennstoff
+// behauptete die Knappheit der anderen. Kraftwerk- und Kernkraft-Zeile rufen
+// deshalb jetzt brennstoffReichweiteAnlageMs mit ihrer eigenen Gebäude-Id --
+// das planetweite Minimum bleibt für seine ANDEREN Aufrufer unverändert
+// (Bot-Engpass in js/simulation.js, Übersicht in js/state.js).
+// Fossilanlage war davon nie betroffen: fossilReichweiteMs kannte immer nur
+// sie.
+//
+// NICHT TEIL DIESER RUNDE, gefunden beim Bauen: brennstoffProStunde
+// (die "Verbrauch"-Zeile im selben Tooltip, s.u.) summiert weiterhin über
+// ALLE Brennstoffgebäude -- stehen Kraftwerk UND Kernkraftanlage zugleich,
+// nennt der Tooltip beider Zeilen Deuterium UND Uran, nicht nur den eigenen
+// Stoff. Kleinerer Fehler als die Reichweite-Zahl (die Rate an sich stimmt,
+// nur die zweite Ressource gehört nicht in DIESE Zeile) -- Fund für die
+// Planung, nicht Teil dieses Auftrags.
 function brennstoffZeilen(planet) {
   const kraftwerkStufe = (planet.gebaeude && planet.gebaeude.kraftwerk) || 0;
   const kernkraftStufe = (planet.gebaeude && planet.gebaeude.kernkraftanlage) || 0;
@@ -1658,9 +1711,9 @@ function renderRessourcen(state, root, planet) {
             // Zugewinn aussehen. Das Pluszeichen war hier die Lüge.
             lagerVoll
             ? t("Lager voll")
-            : vorzeichenMitEinheit(resId, rateProJahr(rate)) + t("/Jahr")
+            : vorzeichenMitEinheit(resId, rateProJahr(rate)) + einheitSpan(t("/Jahr"))
           : zieht
-            ? vorzeichenMitEinheit(resId, rateProJahr(rate)) + t("/Jahr")
+            ? vorzeichenMitEinheit(resId, rateProJahr(rate)) + einheitSpan(t("/Jahr"))
             : "",
       rateKlasse: zieht || speicherVoll || (lagerVoll && rate > 0) ? "warnung" : "",
       // A-052: DER VERDERB STAND HIER ALS EIGENE ZEILE (aus A-010) und hat
@@ -2127,6 +2180,14 @@ let aktiverBereich = "planet";
 // das hier ist der STARTwert, kein Zwang.
 let statusOffen = true;
 
+// A-180: je Warteschlangen-Abschnitt (Bau/Forschung/Werft) ein eigener
+// Klapp-Zustand -- dieselbe Technik wie statusOffen (Modulvariable, NICHT im
+// Spielstand: die Runde bleibt dadurch Kategorie 1, kein `|| false`-Feld
+// nötig). Zugeklappt ist die Vorgabe, auch beim allerersten Aufruf --
+// 333 px sprengen die Statusspalte an Tobis wie an Klaus' Fenstergröße
+// (R-28), der laufende Auftrag bleibt trotzdem immer sichtbar.
+const wsWarteOffen = { bau: false, forschung: false, werft: false };
+
 // Das Einstellungsfenster (A-140). Bewusst UI-Zustand wie aktiverBereich und
 // statusOffen, nicht Spielstand: OB das Fenster offen ist, gehört nicht in
 // die Speicherdatei -- WAS darin eingestellt wird (Grundskalierung), schon.
@@ -2185,8 +2246,8 @@ function uhrStufe(anteilUebrig) {
 // TOBIS BEFUND (16.08.2026, erstes eigenes Spielen der Demo): "Der Countdown
 // zur Supanova muss bisschen Auffälliger designed sein." Er sah aus wie eine
 // Statuszeile, weil er eine war: ein Satz in Fließtext, in derselben Größe und
-// Farbe wie alles andere im Kopf. Jetzt trägt er eine Marke ("FRIST"), die
-// Restzeit als große Zahl, den Grund klein daneben und einen Balken, der
+// Farbe wie alles andere im Kopf. Jetzt trägt er eine Marke ("VORWARNZEIT",
+// A-179), die Restzeit als große Zahl, den Grund klein daneben und einen Balken, der
 // zeigt, wieviel schon weg ist -- ein Balken beantwortet "wie spät ist es
 // eigentlich" ohne eine einzige zusätzliche Zahl.
 //
@@ -2255,16 +2316,17 @@ function renderSupernova(state, root, jetzt) {
     ? "\n" + t("Achtung: Ungeschirmte Solarfelder überstehen die Teilchenflut nicht.")
     : "";
   if (sn.phase === "vorwarnung") {
-    textSetzen(marke, t("FRIST"));
+    textSetzen(marke, t(BEGRIFF_VORWARNZEIT.toUpperCase()));
     textSetzen(was, t("bis {stern} kollabiert", { stern: name }));
-    // A-150: Klaus' Frage ("Die erste Frist geht nur bis zum Flash ist
-    // unklar") -- der Countdown sagt jetzt selbst, dass diese erste Frist
-    // NICHT das ganze Spiel ist, sondern von einer zweiten, kürzeren Frist
-    // gefolgt wird (Blitz -> Flut). Derselbe Tooltip, ein Satz mehr.
+    // A-150: Klaus' Frage ("Die erste Vorwarnzeit geht nur bis zum Flash ist
+    // unklar") -- der Countdown sagt jetzt selbst, dass diese erste
+    // Vorwarnzeit NICHT das ganze Spiel ist, sondern von einer zweiten,
+    // kürzeren Vorwarnzeit gefolgt wird (Blitz -> Flut). Derselbe Tooltip,
+    // ein Satz mehr.
     el.title =
       t(
-        "Das Neutrino-Observatorium liest die Brennstufe im Kern von {stern}, {lj} Lichtjahre entfernt. Wenn er kollabiert, zerlegt der Blitz die Ozonschicht – und mit ihr die Landwirtschaft jeder ungeschützten Welt. Diese erste Frist ist nicht die letzte: danach beginnt eine zweite, kürzere Frist bis zur Teilchenflut.",
-        { stern: name, lj: (sn.entfernung * LJ_PRO_EINHEIT).toFixed(0) }
+        "Das Neutrino-Observatorium liest die Brennstufe im Kern von {stern}, {lj} Lichtjahre entfernt. Wenn er kollabiert, zerlegt der Blitz die Ozonschicht – und mit ihr die Landwirtschaft jeder ungeschützten Welt. Diese erste {begriff} ist nicht die letzte: danach beginnt eine zweite, kürzere {begriff} bis zur Teilchenflut.",
+        { stern: name, lj: (sn.entfernung * LJ_PRO_EINHEIT).toFixed(0), begriff: t(BEGRIFF_VORWARNZEIT) }
       ) + solarWarnung;
   } else if (sn.phase === "blitz") {
     textSetzen(marke, t("FLUT"));
@@ -2824,6 +2886,32 @@ function renderStatus(state, root, planet, jetzt) {
   // P18: ein leerer Abschnitt bleibt nicht leer, er trägt seine Antwort.
   const leerZeile = () => `<div class="status-zeile ruhig"><span>${t("Nichts in Arbeit.")}</span><span></span></div>`;
 
+  // A-180: Griff je Abschnitt -- EINMAL verdrahtet (Prinzip 8a), danach nur
+  // noch Zustand nachgezogen. `anzahl` ist die Zahl der WARTENDEN (ohne den
+  // laufenden Kopf, der bleibt ja sichtbar) -- P18: wartet nichts, hat der
+  // Griff nichts zu tun und verschwindet, statt wirkungslos dazustehen.
+  const wsGriffAktualisieren = (ws, anzahl) => {
+    const knopf = root.querySelector(`#ws-${ws}-griff`);
+    const mini = root.querySelector(`#status-${ws}-warteschlange`);
+    if (!knopf || !mini) return;
+    if (!knopf.dataset.verdrahtet) {
+      knopf.dataset.verdrahtet = "1";
+      knopf.addEventListener("click", () => {
+        wsWarteOffen[ws] = !wsWarteOffen[ws];
+        render(state, root);
+      });
+    }
+    const offen = wsWarteOffen[ws];
+    mini.classList.toggle("zu", !offen);
+    knopf.hidden = anzahl === 0;
+    knopf.textContent = `${offen ? "▾" : "▸"} ${anzahl}`;
+    attributSetzen(
+      knopf,
+      "title",
+      offen ? t("Warteliste zuklappen.") : t("{anzahl} in der Warteliste – aufklappen.", { anzahl })
+    );
+  };
+
   const bauKopf = root.querySelector("#status-bau-kopf");
   bauKopf.innerHTML = planet.bauQueue
     ? zeile(`${t(BUILDINGS[planet.bauQueue.gebaeudeId].name)} → ${planet.bauQueue.zielLevel}`, kopfZeitText(state, planet, planet.bauQueue, "bau", jetzt))
@@ -2836,6 +2924,7 @@ function renderStatus(state, root, planet, jetzt) {
     null,
     (w) => warteschlangeKosten(planet, w)
   );
+  wsGriffAktualisieren("bau", planet.bauWarteschlange.length);
 
   const forschungKopf = root.querySelector("#status-forschung-kopf");
   forschungKopf.innerHTML = state.forschungsQueue
@@ -2854,6 +2943,7 @@ function renderStatus(state, root, planet, jetzt) {
       return fluss > 0 ? (aufwand / fluss) * 3600 : Infinity;
     }
   );
+  wsGriffAktualisieren("forschung", state.forschungsWarteschlange.length);
 
   const werftKopf = root.querySelector("#status-werft-kopf");
   werftKopf.innerHTML = planet.werftQueue
@@ -2867,6 +2957,7 @@ function renderStatus(state, root, planet, jetzt) {
     null,
     (w) => warteschlangeKosten(planet, w)
   );
+  wsGriffAktualisieren("werft", planet.werftWarteschlange.length);
 
   // Rest-Statusblock: was übrig bleibt, wenn Bau/Forschung/Werft abgetrennt
   // sind -- Flottenbewegung und Logistiktransfers. Kein Bauauftrag, passt in
@@ -3547,6 +3638,10 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
       // verdrahtet: dieselbe Frage stellt sich bei jedem Gebäude, das einer
       // Ressource ihre Kapazität gibt.
       let schrumpfWarnung = "";
+      // A-185: die Anzeige sagt die Zahl VOR dem Klick -- Quote und
+      // Erstattungsbündel derselben Stufe, die `rueckbauen` gleich bucht.
+      let rueckbauQuoteWert = 0;
+      let rueckbauErstattung = {};
       if (istGebaeude && stufeJetzt > 0) {
         const kapazitaetsRes = speicherRessourceVon(id);
         if (kapazitaetsRes === "bevoelkerung") {
@@ -3559,6 +3654,8 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
             });
           }
         }
+        rueckbauQuoteWert = erstattungsQuote(RUECKBAU, state.forschung.rueckbautechnik || 0);
+        rueckbauErstattung = skalieren(gebaeudeKosten(planetFuerKachel, BUILDINGS[id], stufeJetzt), rueckbauQuoteWert);
       }
       attributSetzen(
         rueckbauKnopfF,
@@ -3567,8 +3664,15 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
           ? t("Erst den laufenden Auftrag abbrechen oder aus der Warteschlange nehmen.")
           : gefragt
             ? schrumpfWarnung +
-              t("Noch einmal klicken: Stufe {stufe} wird abgerissen, ohne Erstattung.", { stufe: stufeJetzt })
-            : t("Eine Stufe abreißen – keine Erstattung. Arbeitskraft und Strom werden frei.")
+              t("Noch einmal klicken: Stufe {stufe} wird abgerissen, {quote} % Erstattung ({erstattung}).", {
+                stufe: stufeJetzt,
+                quote: Math.round(rueckbauQuoteWert * 100),
+                erstattung: buendelText(rueckbauErstattung),
+              })
+            : t("Eine Stufe abreißen – {quote} % Erstattung ({erstattung}). Arbeitskraft und Strom werden frei.", {
+                quote: Math.round(rueckbauQuoteWert * 100),
+                erstattung: buendelText(rueckbauErstattung),
+              })
       );
     }
 
@@ -3880,7 +3984,7 @@ function kachelGeruest(state, root, opts, id) {
       }
       delete rueckbauKnopf.dataset.gefragt;
       rueckbauFrage = null;
-      rueckbauen(aktiverPlanet(state), id);
+      rueckbauen(state, aktiverPlanet(state), id);
       render(state, root);
     });
   }
@@ -4011,6 +4115,16 @@ export function vorzeichenSpan(wert, formatBetrag = fmt) {
   return `<span class="${wert > 0 ? "zufluss" : "abgang"}">${vorzeichenText(wert, formatBetrag)}</span>`;
 }
 
+// A-182: die Einheit als EIGENER Knoten mit fester Grundfarbe (css/style.css,
+// `.res-rate.warnung .res-einheit`) -- ohne ihn erbt sie `--warnung` von
+// `.res-rate.warnung`, sobald die Zeile zugleich eine Vorzeichen-Rate UND
+// warnt (P19/A-165 traf nur den Normalfall). Bloßer Text bekommt hier
+// bewusst keinen Knoten (leerer String bleibt leer), NUR ein tatsächliches
+// Einheitenwort wird umschlossen.
+function einheitSpan(text) {
+  return text ? `<span class="res-einheit">${text}</span>` : "";
+}
+
 // A-165: der häufigste Fall -- eine Ressourcen-Rate mit ihrer Einheit
 // (mitEinheit). Vorher stand `mitEinheit` selbst in `formatBetrag` und
 // färbte die Einheit mit ("−1.875 t/Jahr" komplett rot statt nur "−1.875");
@@ -4018,7 +4132,7 @@ export function vorzeichenSpan(wert, formatBetrag = fmt) {
 // einzeln (ANREICHERUNG_VERLUST-Klasse vermieden, siehe data.js).
 function vorzeichenMitEinheit(resId, wert) {
   const e = einheit(resId);
-  return vorzeichenSpan(wert, formatKurz) + (e ? " " + e : "");
+  return vorzeichenSpan(wert, formatKurz) + (e ? " " + einheitSpan(e) : "");
 }
 
 // Eine Rate steht in den Tabellen pro ECHTZEITSTUNDE und wird -- wie überall
@@ -7861,7 +7975,7 @@ function spielstandAbschnitt(state, titel, absatz) {
   knoten.push(
     absatz(
       t(
-        "Einspielen ersetzt die laufende Partie. Der bisherige Stand wandert dabei in die Rettungs-Sicherung des Browsers – aber verlass dich nicht darauf, hol ihn dir vorher heraus."
+        "Einspielen ersetzt die laufende Partie. Der bisherige Stand wandert dabei in die Rettungs-Sicherung des Browsers – mit „Sicherung holen“ kommst du wieder heran. Aber es liegt immer nur EINE dort: Das nächste Einspielen überschreibt sie."
       )
     )
   );
@@ -7941,6 +8055,38 @@ function spielstandAbschnitt(state, titel, absatz) {
       location.reload();
     })
   );
+
+  // A-184 (R-38 Weg 1): der Knopf existiert nur, wenn tatsächlich eine
+  // Sicherung da ist -- kein deaktivierter Knopf, der "geht sowieso nicht"
+  // erklären müsste. Er spielt NICHTS ein (das bleibt "Einspielen" mit seiner
+  // eigenen Prüfung, Rückfrage und seinem location.reload()) -- er legt den
+  // Rohtext nur ins vorhandene Feld, genau wie "Stand anzeigen" es für den
+  // laufenden Stand tut.
+  const sicherung = sicherungLesen();
+  if (sicherung.vorhanden) {
+    reihe.appendChild(
+      knopf(t("Sicherung holen"), () => {
+        feld.value = sicherung.text;
+        feld.focus();
+        feld.select();
+        if (sicherung.kennung === "unlesbar") {
+          sagen(
+            t(
+              "Ein Stand, der sich nicht laden ließ. „Einspielen“ wird ihn vermutlich abweisen – kopier ihn heraus, wenn du ihn aufheben willst."
+            )
+          );
+        } else if (sicherung.kennung === "ersetzt") {
+          sagen(t("Sicherung von vor dem letzten Einspielen. Zum Zurückholen auf „Einspielen“."));
+        } else {
+          sagen(
+            t("Sicherung von vor der letzten Aktualisierung (Spielstand-Version {kennung}). Zum Zurückholen auf „Einspielen“.", {
+              kennung: sicherung.kennung,
+            })
+          );
+        }
+      })
+    );
+  }
 
   knoten.push(reihe, feld, meldung);
   return knoten;

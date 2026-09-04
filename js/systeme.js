@@ -11,6 +11,27 @@ import { schluesselImSystem, systemName } from "./galaxie.js";
 // Laufzeit-Zwischenspeicher, wird nicht gespeichert.
 const cache = new Map();
 
+// Die einzige Wahrheit darueber, was ein Orbit-Zustand tragen darf --
+// durchgesetzt beim Lesen (holeSystem) UND beim Schreiben (setzeOrbitZustand),
+// nicht nur beschrieben. Gemessen an allen setzeOrbitZustand-Aufrufstellen
+// ausserhalb dieser Datei (A-175). Ein neues Feld gehoert HIER eingetragen --
+// sonst wird es nie gespeichert, und niemand findet heraus, warum.
+const ORBIT_ZUSTAND_FELDER = [
+  "entdeckt",
+  "verwertet",
+  "restErtrag",
+  "fraktionId",
+  "verteidigerBesiegt",
+  "verteidigerSchiffe",
+  "verteidigerSchaden",
+  "geerntetZeit",
+  // A-194: die Startsystem-Zusicherung aus state.js -- ein flaches Feld,
+  // das holeSystem beim Zusammenbau auf das verschachtelte
+  // objekt.daten.kolonisierbar überträgt (siehe unten). Bleibt selbst flach,
+  // die Sicherheitsmaßnahme aus A-175 gilt unverändert.
+  "kolonisierbarErzwungen",
+];
+
 function cacheSchluessel(state, systemId) {
   // A-082: Im HEIMATSYSTEM steht der Name der eigenen Welt mit im Schluessel.
   // Grund: das System traegt ihn als Beschriftung seines Heimat-Orbits, und
@@ -40,12 +61,23 @@ export function holeSystem(state, systemId) {
   });
   system.name = systemName(state.galaxie.seed, systemId);
 
-  // Gespeicherten Fortschritt darüberlegen.
+  // Gespeicherten Fortschritt darüberlegen -- NUR die erlaubten Felder
+  // (ORBIT_ZUSTAND_FELDER, A-175). Ein Spielstand kann beliebige Fremdfelder
+  // tragen (fremde Herkunft, manuell bearbeitet); sie duerfen das Orbitobjekt
+  // nie erreichen. `feld in gespeichert` statt einer Wahrheitspruefung, weil
+  // `restErtrag: null` und `verteidigerSchiffe: {}` gueltige Werte sind.
   const zustand = state.systemZustand[systemId];
   if (zustand) {
     for (const objekt of system.objekte) {
       const gespeichert = zustand[objekt.orbit];
-      if (gespeichert) Object.assign(objekt, gespeichert);
+      if (!gespeichert) continue;
+      for (const feld of ORBIT_ZUSTAND_FELDER) {
+        if (feld in gespeichert) objekt[feld] = gespeichert[feld];
+      }
+      // A-194: "kolonisierbarErzwungen" ist flach im Zustand, sein Ziel liegt
+      // aber verschachtelt (objekt.daten.kolonisierbar) -- die generische
+      // Schleife oben kennt nur flache Ziele, darum hier explizit zugestellt.
+      if (objekt.kolonisierbarErzwungen) objekt.daten.kolonisierbar = true;
     }
   }
 
@@ -53,15 +85,34 @@ export function holeSystem(state, systemId) {
   return system;
 }
 
-// Ändert ein Objekt und schreibt die Änderung in den Spielstand durch.
+// Ändert ein Objekt und schreibt die Änderung in den Spielstand durch. Prueft
+// gegen dieselbe Liste wie holeSystem (ORBIT_ZUSTAND_FELDER, A-175) -- ein
+// unbekanntes Feld ist hier ein Programmierfehler, kein Angriff. Es wird nicht
+// still verschluckt (Konsolenwarnung), aber auch nicht angewandt: sonst wirkt
+// es in der laufenden Partie, verschwindet nach dem naechsten Laden spurlos,
+// und niemand findet heraus, warum -- Lesen und Schreiben sollen dieselbe
+// Wahrheit zeigen, nicht erst nach einem Reload auseinanderlaufen.
 export function setzeOrbitZustand(state, systemId, orbit, felder) {
+  const erlaubt = {};
+  for (const feld of Object.keys(felder)) {
+    if (ORBIT_ZUSTAND_FELDER.includes(feld)) {
+      erlaubt[feld] = felder[feld];
+    } else {
+      // Terse, technisches Log statt Anzeigetext -- wie `save.js`s
+      // internen Diagnosezeilen ("zuruecksetzen: localStorage blockiert"),
+      // nicht wie dessen Spieler-Meldungen (die laufen durch t()). Adressat
+      // ist, wer den Aufruf geschrieben hat, nie der Spieler.
+      console.warn(`setzeOrbitZustand: unbekanntes Feld "${feld}" -- fehlt in ORBIT_ZUSTAND_FELDER (js/systeme.js).`);
+    }
+  }
+
   const system = holeSystem(state, systemId);
   const objekt = system.objekte.find((o) => o.orbit === orbit);
-  if (objekt) Object.assign(objekt, felder);
+  if (objekt) Object.assign(objekt, erlaubt);
 
   if (!state.systemZustand[systemId]) state.systemZustand[systemId] = {};
   const eintrag = state.systemZustand[systemId][orbit] || {};
-  state.systemZustand[systemId][orbit] = Object.assign(eintrag, felder);
+  state.systemZustand[systemId][orbit] = Object.assign(eintrag, erlaubt);
   return objekt;
 }
 

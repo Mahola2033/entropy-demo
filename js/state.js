@@ -76,7 +76,18 @@ import { t } from "./sprache.js";
 // (js/save.js, MIGRATIONEN). Ein Stand mit Version 31 wird seither
 // ANGEHOBEN statt verworfen; erst ein Stand ohne passendes Kettenglied
 // fällt weiter auf den alten Abweis-Weg zurück.
-export const SAVE_VERSION = 32;
+// 32 -> 33 (A-164, die Maßstabsrunde, 31.08.2026): der erste Sammel-Sprung
+// mit echtem Inhalt -- Bestände und Kapazitäten aller Lagerressourcen
+// tragen den neuen MASSSTAB nach (×2.500), Bevölkerung zusätzlich den
+// MENSCHEN_FAKTOR (×24). Gebäudestufen bleiben unverändert. Siehe
+// js/save.js MIGRATIONEN[32].
+// 33 -> 34 (A-196, 04.09.2026): FOSSIL_VORRAT_BASIS folgt seit dieser Runde
+// der Startstufe 17 statt Stufe 1 (Faktor 159,08) -- der gespeicherte Rest
+// jeder laufenden Partie war gegen die alte, zu kleine Basis verbucht und
+// praktisch überall bei 0. Jeder Planet bekommt seinen fossilVorrat deshalb
+// VOLL aufgefüllt, nicht anteilig (ein Anteil von 0 wäre wieder 0). Siehe
+// js/save.js MIGRATIONEN[33].
+export const SAVE_VERSION = 34;
 
 function startRessourcen(voll) {
   const res = {};
@@ -94,9 +105,13 @@ function startRessourcen(voll) {
   return res;
 }
 
-function startGebaeude() {
+// A-164: die Heimatwelt (Spieler UND jeder Bot, siehe neuerPlanet unten --
+// beide übergeben typ: "heimat") startet mit den Stufen aus
+// START.startstufenHeimatwelt statt bei null, jede Kolonie bleibt leer.
+function startGebaeude(typ) {
   const g = {};
   for (const id of Object.keys(BUILDINGS)) g[id] = 0;
+  if (typ === "heimat") Object.assign(g, START.startstufenHeimatwelt);
   return g;
 }
 
@@ -134,7 +149,7 @@ export function neuerPlanet({ id, systemId, orbit, name, typ, groesse = 150, sta
     schwerkraft,
     groesse,
     ressourcen: typ === "aussenposten" ? {} : startRessourcen(startvorrat),
-    gebaeude: typ === "aussenposten" ? {} : startGebaeude(),
+    gebaeude: typ === "aussenposten" ? {} : startGebaeude(typ),
     // Fossiler Vorrat der Fossilanlage (A-147, Tonnen) -- KEINE
     // Lager-Ressource (Tobi, 23.08.: "Aber in dem Fall erstmal nicht"),
     // deshalb ein eigenes Feld statt eines RESSOURCEN-Eintrags. Ein
@@ -196,10 +211,11 @@ export function neuerPlanet({ id, systemId, orbit, name, typ, groesse = 150, sta
 // Planeten in Sichtweite gelegt hat. Dieselbe Denkweise wie bei der
 // galaxieweiten Deadlock-Freiheit -- durch Konstruktion garantieren statt
 // auf Wahrscheinlichkeit hoffen.
-function startsystemAufdecken(seed, galaxie) {
+function startsystemAufdecken(seed, galaxie, schwierigkeit) {
   const system = systemGenerieren(seed, galaxie.heimatSystem, {
     schluessel: schluesselImSystem(galaxie, galaxie.heimatSystem),
     istHeimat: true,
+    schwierigkeit,
   });
 
   const planeten = system.objekte.filter((o) => o.typ === "planet");
@@ -214,9 +230,15 @@ function startsystemAufdecken(seed, galaxie) {
   // Hat das Heimatsystem gar keinen besiedelbaren Planeten, wird einer dazu
   // gemacht. Der Override läuft über denselben Mechanismus wie entdeckt/
   // verwertet, ist also ganz normaler Spielstand-Inhalt.
+  //
+  // A-194: FLACH, nicht verschachtelt. `daten: {...}` wurde beim Lesen
+  // verschluckt -- ORBIT_ZUSTAND_FELDER (js/systeme.js) lässt seit A-175 nur
+  // flache Werte durch, "daten" stand nie darin. `kolonisierbarErzwungen`
+  // ist die flache Zusicherung; holeSystem stellt sie auf
+  // objekt.daten.kolonisierbar zu.
   if (auswahl.length && !auswahl.some((o) => o.daten.kolonisierbar)) {
     const ziel = auswahl[0];
-    zustand[ziel.orbit] = { entdeckt: true, daten: { ...ziel.daten, kolonisierbar: true } };
+    zustand[ziel.orbit] = { entdeckt: true, kolonisierbarErzwungen: true };
   }
 
   // Die Eigenschaften der Heimatwelt reisen mit: sie ist seit v0.42 ein echter
@@ -236,7 +258,12 @@ function startsystemAufdecken(seed, galaxie) {
 // Gebraucht wird es von den Messwerkzeugen (tests/weltlauf.mjs): ein
 // Balancing-Werkzeug, das bei jedem Aufruf eine andere Galaxie misst, kann
 // eine Änderung nicht von der Streuung zwischen zwei Welten unterscheiden.
-export function neuesSpiel(saat) {
+//
+// `schwierigkeit` ist ebenfalls optional (A-190) -- ein Schlüssel aus
+// STARTSCHWIERIGKEIT ("leicht"/"normal"/"schwer", js/data.js). Fehlt sie
+// oder ist sie unbekannt, greift STARTSCHWIERIGKEIT_VORGABE ("normal") in
+// welt.js. Wirkt NUR auf die Heimatwelt dieser neuen Partie, nirgends sonst.
+export function neuesSpiel(saat, schwierigkeit) {
   const seed = (saat ?? Date.now()) >>> 0;
   // DIE UHR WIRD EINMAL GELESEN, und das ist keine Sparsamkeit.
   //
@@ -251,7 +278,7 @@ export function neuesSpiel(saat) {
   // benutzt EINEN Zeitpunkt, nicht zwei Ablesungen derselben Uhr.
   const jetzt = Date.now();
   const galaxie = galaxiePlanen(seed);
-  const start = startsystemAufdecken(seed, galaxie);
+  const start = startsystemAufdecken(seed, galaxie, schwierigkeit);
 
   const heimatwelt = neuerPlanet({
     id: 1,
@@ -976,6 +1003,13 @@ export function brennstoffBereit(planet, def, level) {
 // Wie lange trägt der Brennstoff-Vorrat noch, gemessen am ROHEN Verbrauch
 // aller brennenden Gebäude (ohne Zufluss -- die konservative, lesbare Zahl
 // für Anzeige und Bot-Vorausschau)? Infinity, wenn nichts brennt.
+//
+// PLANETWEITES MINIMUM -- bewusst so, für ihre beiden Aufrufer (A-188
+// geprüft, keiner umgestellt): die Engpass-Schwelle des Bots
+// (js/simulation.js) und ein weiterer Aufrufer hier in state.js wollen genau
+// wissen, wann dem Planeten ALS GANZEM zuerst der Saft ausgeht -- ein
+// planetweiter Engpass ist etwas anderes als die Reichweite einer einzelnen
+// Anlage. Für die ANZEIGE je Anlage siehe brennstoffReichweiteAnlageMs.
 export function brennstoffReichweiteMs(planet) {
   let knappste = Infinity;
   for (const [id, def] of BRENNSTOFF_GEBAEUDE) {
@@ -989,6 +1023,31 @@ export function brennstoffReichweiteMs(planet) {
       const reichweite = pufferReichweiteMs(vorrat, proStunde);
       if (reichweite < knappste) knappste = reichweite;
     }
+  }
+  return knappste;
+}
+
+// Schwester von brennstoffReichweiteMs (A-188, B-8/A-168): dieselbe Rechnung,
+// aber für EINE Anlage statt das Minimum über alle. Seit A-168 bekommt jede
+// gebaute Brennstoffanlage ihre eigene Zeile -- stehen Kraftwerk UND
+// Kernkraftanlage zugleich, zeigten beide bis hierher dieselbe planetweite
+// Zahl, obwohl sie verschiedene Ressourcen (Deuterium/Uran) verbrennen: die
+// Anlage mit dem reichlicheren Brennstoff behauptete die Knappheit der
+// anderen. Das Minimum INNERHALB einer Anlage bleibt (eine Anlage kann
+// mehrere Brennstoffe zugleich verbrennen, def.brennstoff) -- es fällt nur
+// zwischen den Anlagen weg.
+export function brennstoffReichweiteAnlageMs(planet, gebaeudeId) {
+  const def = BUILDINGS[gebaeudeId];
+  const level = (planet.gebaeude && planet.gebaeude[gebaeudeId]) || 0;
+  if (level <= 0 || !def || !def.brennstoff) return Infinity;
+  let knappste = Infinity;
+  for (const [resId, spec] of Object.entries(def.brennstoff)) {
+    const proStunde = rate(spec, level);
+    if (proStunde <= 0) continue;
+    const vorrat =
+      ((planet.ressourcen && planet.ressourcen[resId]) || 0) - verarbeitungsReserveFuer(planet, resId);
+    const reichweite = pufferReichweiteMs(vorrat, proStunde);
+    if (reichweite < knappste) knappste = reichweite;
   }
   return knappste;
 }
@@ -1102,9 +1161,11 @@ export function fossilVerbrauchProStunde(def, level) {
 // Wasser, sonst linear mit ihr. `klasse` fehlt nur beim eigenschaftslosen
 // Generalisten (Altfälle/Tests) -- dort gilt affinitaetFaktors eigene
 // Vorgabe, 1 (siehe dort). GETEILT zwischen `neuerPlanet` (einmalig beim
-// Anlegen) und `fossilVorratVon` (A-171, bei jedem Lesen als Vorgabe für ein
-// fehlendes Feld) -- deshalb ein eigener Name, keine Kopie der Formel.
-function vollerFossilVorrat({ typ, klasse, zone, wasser }) {
+// Anlegen), `fossilVorratVon` (A-171, bei jedem Lesen als Vorgabe für ein
+// fehlendes Feld) UND der 33->34-Migration (A-196, js/save.js, füllt jeden
+// Planeten voll auf) -- deshalb ein eigener Name, keine Kopie der Formel,
+// und deshalb exportiert.
+export function vollerFossilVorrat({ typ, klasse, zone, wasser }) {
   if (typ === "aussenposten") return 0;
   const nahrungAffinitaet = klasse ? (affinitaetVon({ klasse, zone, wasser }).nahrung ?? 1) : 1;
   return Math.round(FOSSIL_VORRAT_BASIS * nahrungAffinitaet * 100) / 100;
@@ -1458,37 +1519,6 @@ export function stromPrioritaetSetzen(planet, gebaeudeId, stufe) {
   if (!planet.stromPrioritaet) planet.stromPrioritaet = {};
   if (stufe === STROM_STUFEN.normal) delete planet.stromPrioritaet[gebaeudeId];
   else planet.stromPrioritaet[gebaeudeId] = stufe;
-}
-
-// Eine Anlage um EINE Stufe zurückbauen (A-095).
-//
-// Tobis Wunsch war knapp: „Gebäude zurückbauen." Die Form dahinter ist eine
-// Entscheidung der Planung, und sie passt zum Namen des Spiels: **keine
-// Materialerstattung.** Abriss vernichtet Wert -- was verbaut ist, ist
-// verbaut. Was zurückkommt, ist der laufende Betrieb: Arbeitskraft und Strom
-// der abgerissenen Stufe stehen sofort wieder anderen Anlagen zur Verfügung,
-// weil die Flüsse aus der STUFE gerechnet werden und nirgends gespeichert
-// sind.
-//
-// Zwei Sperren, beide aus demselben Grund: solange dieselbe Anlage baut oder
-// in der Warteschlange steht, wäre der Rückbau ein Rennen zwischen zwei
-// Zahlen. Der Bau hat Kosten gebucht und eine Zielstufe im Kopf; zöge man ihm
-// die Ausgangsstufe unter den Füßen weg, käme am Ende irgendetwas heraus.
-// Erst abbrechen, dann abreißen -- und der Abbruch erstattet ohnehin.
-//
-// Rückgabe wie bei den übrigen Operationen: { ok } oder { ok: false, grund }.
-export function rueckbauen(planet, gebaeudeId) {
-  if (!planet || !planet.gebaeude) return { ok: false, grund: t("Kein Planet gewählt.") };
-  const stufe = planet.gebaeude[gebaeudeId] || 0;
-  if (stufe <= 0) return { ok: false, grund: t("Hier steht nichts, was sich abreißen ließe.") };
-  if (planet.bauQueue && planet.bauQueue.gebaeudeId === gebaeudeId) {
-    return { ok: false, grund: t("Diese Anlage wird gerade gebaut – erst den Bau abbrechen.") };
-  }
-  if ((planet.bauWarteschlange || []).some((e) => e.gebaeudeId === gebaeudeId)) {
-    return { ok: false, grund: t("Diese Anlage steht in der Warteschlange – erst den Auftrag herausnehmen.") };
-  }
-  planet.gebaeude[gebaeudeId] = stufe - 1;
-  return { ok: true, stufe: stufe - 1 };
 }
 
 // Teilt einen knappen Fluss von der höchsten Prioritätsstufe abwärts zu.

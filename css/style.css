@@ -713,6 +713,16 @@ body {
   color: var(--warnung);
 }
 
+/* A-182: Tobis Vorgabe ("nur die Zahl selber Grün/Rot, nicht die Einheit")
+   galt bisher nur für den Normalfall -- warnt die Zeile ZUSÄTZLICH
+   (.res-rate.warnung), erbt die Einheit ohne diese Regel --warnung von der
+   Zeile, obwohl .abgang/.zufluss (js/ui.js vorzeichenSpan) nur die Zahl
+   färben sollten. Reine Textfälle ("Lager voll") haben keinen .res-einheit-
+   Knoten und bleiben deshalb vollständig gewarnt, wie vorgesehen. */
+.res-rate.warnung .res-einheit {
+  color: var(--akzent);
+}
+
 /* Verdeckte Platzhalter: zeigen, dass es mehr gibt, ohne zu verraten was. */
 .res-kachel.unbekannt {
   opacity: 0.4;
@@ -1385,11 +1395,12 @@ body {
   white-space: nowrap;
 }
 
-/* ==== WARTESCHLANGEN-ABSCHNITTE DER STATUSSPALTE (A-144) ====
+/* ==== WARTESCHLANGEN-ABSCHNITTE DER STATUSSPALTE (A-144, Griff seit A-180) ====
    Drei benannte Abschnitte -- Bau, Forschung, Werft -- als ausdrücklicher
    VERSUCH (Tobis Wortlaut: "Wir probieren es mal mit drei."), keine
-   Festlegung. Jeder zeigt den laufenden Kopf plus die volle Warteschlange
-   dahinter (renderWarteschlange, dieselbe Funktion wie im jeweiligen Tab). */
+   Festlegung. Jeder zeigt den laufenden Kopf FEST, dahinter die volle
+   Warteschlange (renderWarteschlange, dieselbe Funktion wie im jeweiligen
+   Tab) hinter einem eigenen Griff -- zugeklappt ist die Vorgabe (A-180). */
 .ws-abschnitt {
   display: flex;
   flex-direction: column;
@@ -1400,6 +1411,16 @@ body {
   margin-top: var(--abstand-4);
 }
 
+/* A-180: Deckel und Griff in einer Zeile -- dieselbe Reihenform wie
+   .res-bestand-leiste (A-162), nur für eine Überschrift statt eine
+   Bestandsreihe. */
+.ws-deckel-zeile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--abstand-3);
+}
+
 .ws-deckel {
   margin: 0;
   font-size: var(--schrift-m);
@@ -1408,12 +1429,15 @@ body {
   letter-spacing: 0.06em;
 }
 
-/* STATISCH HEISST: DIE HÖHE SPRINGT NICHT (Tobis Entscheidung, 25.08.). Fest
+/* STATISCH HEISST: DIE HÖHE SPRINGT NICHT (Tobis Entscheidung, 25.08.) --
+   weder durchs Einreihen, Fertigwerden oder Abbrechen noch von selbst; nur
+   der Griff (eine Spielerhandlung) darf sie ändern (A-180). Aufgeklappt fest
    drei Zeilen hoch, unabhängig vom Inhalt -- leer, halb voll oder bei zehn
    Einträgen (BAUWARTESCHLANGE_MAX). Mehr scrollt INNERHALB, der Abschnitt
-   selbst wächst nie (Prinzip 10: kein Sprung beim Einreihen oder
-   Fertigwerden). Braucht eine DEFINITE Höhe, kein min-height -- siehe DIE
-   HÖHENKETTE weiter oben in dieser Datei. */
+   selbst wächst nie (Prinzip 10). Braucht eine DEFINITE Höhe, kein
+   min-height -- siehe DIE HÖHENKETTE weiter oben in dieser Datei. Zugeklappt
+   (.zu) aus demselben Grund `height: 0`, nicht `auto` oder `display: none`
+   -- dieselbe Kette, derselbe Zwang zu einer definiten Höhe. */
 .ws-mini {
   display: flex;
   flex-direction: column;
@@ -1421,6 +1445,12 @@ body {
   height: 5.4rem;
   overflow-y: auto;
   font-size: var(--schrift-l);
+}
+
+.ws-mini.zu {
+  height: 0;
+  gap: 0;
+  overflow: hidden;
 }
 
 /* Bleibt für abgesetzte Blöcke innerhalb eines Bereichs (Flotten-Detail,

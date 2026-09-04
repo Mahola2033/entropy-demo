@@ -14,6 +14,27 @@
 // Namen tragen, dürfen aber die Reihenfolge wechseln -- im Englischen
 // passiert das regelmäßig.
 
+// A-179 (31.08.2026). Tobis Feedback, wörtlich: „FRIST muss was anderes
+// bekommen das gut klingt wie deadline, Frist klingt so nach Hausaufgaben
+// abgeben." Seine Entscheidung: „Vorwarnzeit probieren wir mal." Physikalisch
+// ist das Wort mehr als ein Klang: Neutrinos verlassen den kollabierenden
+// Sternkern Stunden bevor die Stoßwelle die Oberfläche erreicht und das Licht
+// losläuft -- genau diese Spanne misst das Neutrino-Observatorium im Spiel,
+// und der deutsche Fachbegriff dafür (reales Frühwarnsystem SNEWS) ist
+// „Vorwarnzeit".
+//
+// EINE Stelle für den Begriff: Sätze, die ihn nennen, tragen "{begriff}"
+// statt des Worts selbst und übergeben `t(BEGRIFF_VORWARNZEIT)` als Wert
+// (siehe js/handbuch.js, js/ui.js). Ein Wechsel des Begriffs ändert nur die
+// Zeile unten -- der Eintrag in EN darunter ist über denselben Schlüssel
+// berechnet, folgt also automatisch mit.
+//
+// Das ENGLISCHE Wort ändert sich NICHT mit: „deadline" ist unabhängig von der
+// deutschen Wortwahl richtig (Tobis Feedback galt nur der deutschen Seite,
+// Falle 1 im Auftrag) -- deshalb unten ein eigener, fest verdrahteter
+// EN-Wert statt einer Ableitung aus diesem Begriff.
+export const BEGRIFF_VORWARNZEIT = "Vorwarnzeit";
+
 export const EN = {
   // --- Rückbau (A-095) ----------------------------------------------------
   "Hier steht nichts, was sich abreißen ließe.": "There is nothing here to tear down.",
@@ -21,10 +42,12 @@ export const EN = {
     "This facility is under construction – cancel the build first.",
   "Diese Anlage steht in der Warteschlange – erst den Auftrag herausnehmen.":
     "This facility is in the queue – take the order out first.",
-  "Eine Stufe abreißen – keine Erstattung. Arbeitskraft und Strom werden frei.":
-    "Tear down one level – no refund. Workforce and power are freed up.",
-  "Noch einmal klicken: Stufe {stufe} wird abgerissen, ohne Erstattung.":
-    "Click again: level {stufe} will be torn down, with no refund.",
+  // A-185: die Quote kommt aus RUECKBAU (data.js) und der Stufe von
+  // rueckbautechnik -- 20% ohne Forschung, bis zu 70% ab Stufe 5.
+  "Eine Stufe abreißen – {quote} % Erstattung ({erstattung}). Arbeitskraft und Strom werden frei.":
+    "Tear down one level – {quote}% refund ({erstattung}). Workforce and power are freed up.",
+  "Noch einmal klicken: Stufe {stufe} wird abgerissen, {quote} % Erstattung ({erstattung}).":
+    "Click again: level {stufe} will be torn down, {quote}% refund ({erstattung}).",
   // R-3/A-100: warnt vorher, wenn der Rückbau Wohnraum unter die aktuelle
   // Bevölkerung drückt.
   "Wohnraum für {n} fällt weg – die Bevölkerung schrumpft. ":
@@ -179,8 +202,8 @@ export const EN = {
     "Turns silicon and a great deal of power into electronics. A semiconductor is not raw mass but purity: at most one atom in a billion may be foreign. Most of the material that goes in does not become components but waste – that loss is the price of refinement.",
   "Erzeugt Forschung, solange es Strom, Menschen und Laborbedarf hat. Ohne Labor forscht niemand – Erkenntnis entsteht nicht aus Vorräten, sondern aus laufender Arbeit.":
     "Produces research as long as it has power, people and lab supplies. Without a lab nobody researches – knowledge does not come from stockpiles but from work being done.",
-  "Handelt mit fremden Imperien in Reichweite und zieht Abgaben aus der eigenen Bevölkerung. Gekaufte Ware muss von einer Flotte abgeholt werden. Die Abgaben wachsen mit Bevölkerung und Stufe, die Betriebskosten überlinear mit der Stufe – zu jeder Weltgröße gibt es deshalb eine beste Stufe. Unter rund 36.000 Einwohnern trägt sich schon die erste nicht.":
-    "Trades with foreign empires in range and levies dues from its own population. Purchased goods must be collected by a fleet. Dues grow with population and level, running costs grow faster than linearly with level – so every world size has a best level. Below roughly 36,000 inhabitants even the first one does not pay for itself.",
+  "Handelt mit fremden Imperien in Reichweite und zieht Abgaben aus der eigenen Bevölkerung. Gekaufte Ware muss von einer Flotte abgeholt werden. Die Abgaben wachsen mit Bevölkerung und Stufe, die Betriebskosten überlinear mit der Stufe – zu jeder Weltgröße gibt es deshalb eine beste Stufe. Unter rund 2,16 Mrd Einwohnern trägt sich schon die erste nicht.":
+    "Trades with foreign empires in range and levies dues from its own population. Purchased goods must be collected by a fleet. Dues grow with population and level, running costs grow faster than linearly with level – so every world size has a best level. Below roughly 2.16 billion inhabitants even the first one does not pay for itself.",
   "Erzeugt Nahrung. Ohne sie schrumpft die Bevölkerung, sobald der Vorrat aufgebraucht ist. Pflanzen setzen nur etwa ein Prozent des einfallenden Lichts in Biomasse um – Landwirtschaft braucht deshalb vor allem Fläche und Licht, nicht bessere Technik.":
     "Produces food. Without it the population shrinks once the stockpile runs out. Plants turn only about one percent of incoming light into biomass – so farming needs area and light above all, not better technology.",
   "Schafft Platz für mehr Bevölkerung. Ohne freien Wohnraum wächst niemand nach. Ein Mensch atmet rund 0,8 Kilogramm Sauerstoff am Tag – ein geschlossener Kreislauf muss ihn zurückgewinnen, sonst wäre jede Kolonie eine Dauerlieferung.":
@@ -191,6 +214,7 @@ export const EN = {
   Energietechnik: "Power Tech",
   Sondentechnik: "Probe Tech",
   Bergungstechnik: "Salvage Tech",
+  Rückbautechnik: "Reclamation Tech",
   Tiefenbohrung: "Deep Drilling",
   Resonanzzerlegung: "Resonance Disassembly",
   Frachttechnik: "Cargo Tech",
@@ -215,6 +239,8 @@ export const EN = {
     "Shortens probe travel time by 10% per level.",
   "Erhöht die Ausbeute aus Wracks und Asteroiden um 15% pro Stufe.":
     "Increases yield from wrecks and asteroids by 15% per level.",
+  "Erhöht die Erstattung bei Abriss und Verschrottung pro Stufe -- bis 70% bei Gebäuden, 80% bei Schiffen (beides ab Stufe 5).":
+    "Increases the refund from demolition and scrapping per level -- up to 70% for buildings, 80% for ships (both from level 5).",
   "Erschließt tief liegende Vorkommen, an die normale Ausrüstung nicht herankommt.":
     "Opens up deep deposits that standard equipment cannot reach.",
   "Zerlegt fremdartige Strukturen, die sich mechanisch nicht öffnen lassen.":
@@ -439,14 +465,21 @@ export const EN = {
   "{menge} AK": "{menge} WF",
   // Die Uhr im Kopf. Marke, Restzeit und Grund stehen seit dem Umbau des
   // Countdowns getrennt -- vorher war es EIN Satz ("{stern} kollabiert in
-  // {dauer}"), und der las sich wie eine Statuszeile statt wie eine Frist.
-  FRIST: "DEADLINE",
+  // {dauer}"), und der las sich wie eine Statuszeile statt wie eine
+  // Vorwarnzeit. Schlüssel A-179: aus BEGRIFF_VORWARNZEIT berechnet (oben),
+  // damit die Marke bei einem Wortwechsel automatisch mitzieht.
+  [BEGRIFF_VORWARNZEIT.toUpperCase()]: "DEADLINE",
+  // Derselbe Begriff in Kleinschreibung, für {begriff}-Platzhalter in Sätzen
+  // (js/handbuch.js, js/ui.js) -- ohne diesen Eintrag fällt t(BEGRIFF_
+  // VORWARNZEIT) im Englischen auf den deutschen Text zurück, und "deadline"
+  // würde nirgends erscheinen (A-179, beim ersten Testlauf so aufgefallen).
+  [BEGRIFF_VORWARNZEIT]: "deadline",
   FLUT: "FLOOD",
   "bis {stern} kollabiert": "until {stern} collapses",
   "bis die Teilchenflut eintrifft": "until the particle flood arrives",
   "Die Flut ist da.": "The flood is here.",
-  "Das Neutrino-Observatorium liest die Brennstufe im Kern von {stern}, {lj} Lichtjahre entfernt. Wenn er kollabiert, zerlegt der Blitz die Ozonschicht – und mit ihr die Landwirtschaft jeder ungeschützten Welt. Diese erste Frist ist nicht die letzte: danach beginnt eine zweite, kürzere Frist bis zur Teilchenflut.":
-    "The neutrino observatory reads the burning stage in the core of {stern}, {lj} light years away. When it collapses, the flash will destroy the ozone layer – and with it the agriculture of every unprotected world. This first deadline isn't the last one: it's followed by a second, shorter deadline until the particle flood.",
+  "Das Neutrino-Observatorium liest die Brennstufe im Kern von {stern}, {lj} Lichtjahre entfernt. Wenn er kollabiert, zerlegt der Blitz die Ozonschicht – und mit ihr die Landwirtschaft jeder ungeschützten Welt. Diese erste {begriff} ist nicht die letzte: danach beginnt eine zweite, kürzere {begriff} bis zur Teilchenflut.":
+    "The neutrino observatory reads the burning stage in the core of {stern}, {lj} light years away. When it collapses, the flash will destroy the ozone layer – and with it the agriculture of every unprotected world. This first {begriff} isn't the last one: it's followed by a second, shorter {begriff} until the particle flood.",
   "{stern} ist kollabiert. Was jetzt heranzieht, ist die kosmische Teilchenflut – geladen, jahrtausendelang, und nur durch ein Magnetfeld aufzuhalten. Danach ist keine Flottenbewegung mehr möglich.":
     "{stern} has collapsed. What is coming now is the cosmic particle flood – charged, lasting millennia, and stoppable only by a magnetic field. After it, no fleet movement is possible.",
   "{stern} ist kollabiert. Der Blitz hat die Ozonschicht zerrissen – auf allen Welten wächst nichts mehr, bis sie sich erholt.":
@@ -675,8 +708,8 @@ export const EN = {
     "Whatever you notice belongs here – small things too, and “I did not understand this”. The form fills in version number and browser by itself; please leave them in, without them a report is hard to place.",
   "Diese Demo ist unterwegs, nicht fertig. Was zuletzt dazugekommen ist, was als Nächstes drankommt und wie du dich meldest, steht im Bereich Development – unterster Eintrag in der Leiste links.":
     "This demo is on its way, not finished. What was added last, what comes next and how to get in touch is in the Development area – bottom entry in the bar on the left.",
-  "Version {version} ({stand}) · {browser} – automatisch eingetragen, bitte stehen lassen.":
-    "Version {version} ({stand}) · {browser} – filled in automatically, please leave it in.",
+  "Version {version} ({stand}) · {browser} – automatisch eingetragen, bitte stehen lassen; wird öffentlich sichtbar.":
+    "Version {version} ({stand}) · {browser} – filled in automatically, please leave it in; this becomes publicly visible.",
   // Beschriftung der Kostenzeile auf jeder Kachel (A-044).
   Kosten: "Cost",
   // A-050: eine Rate, die im vollen Lager nirgends ankommt, darf nicht wie
@@ -770,6 +803,10 @@ export const EN = {
   // A-144: P18-Antwort der drei neuen Warteschlangen-Abschnitte (Bau,
   // Forschung, Werft), wenn weder ein Kopf läuft noch etwas wartet.
   "Nichts in Arbeit.": "Nothing in progress.",
+  // A-180: Griff je Warteschlangen-Abschnitt, dieselbe Bauform wie der
+  // Bestände-Griff (A-162) darunter -- zugeklappt ist die Vorgabe.
+  "Warteliste zuklappen.": "Collapse the wait list.",
+  "{anzahl} in der Warteliste – aufklappen.": "{anzahl} in the wait list – expand.",
   "Meldungsliste ein-/ausklappen": "Show/hide the message list",
   "Meldungen wieder einblenden.": "Show the messages again.",
   "Meldungen wegklappen.": "Hide the messages.",
@@ -1195,8 +1232,8 @@ export const EN = {
     "One second on screen is one day in the world. That is not a chosen trick but follows from population: it is the only quantity whose real rate no technology shifts. Set its growth to a realistic value and this scale falls out by itself.",
   "Alles Weitere folgt daraus. Eine Stunde vor dem Bildschirm sind rund zehn Spieljahre. Produktionsangaben pro Jahr meinen also Spieljahre, nicht deine Stunden.":
     "Everything else follows from that. One hour at the screen is roughly ten game years. Production figures per year therefore mean game years, not your hours.",
-  "Wichtig: die Frist läuft weiter, während du nicht da bist. Das ist hart und beabsichtigt – eine Frist, die auf dich wartet, ist keine. Wer abends aufhört und morgens zurückkommt, findet eine Welt vor, die inzwischen gelebt hat.":
-    "Important: the deadline keeps running while you are away. That is harsh and deliberate – a deadline that waits for you is not one. Stop in the evening and return in the morning, and you will find a world that has lived on without you.",
+  "Wichtig: die {begriff} läuft weiter, während du nicht da bist. Das ist hart und beabsichtigt – eine {begriff}, die auf dich wartet, ist keine. Wer abends aufhört und morgens zurückkommt, findet eine Welt vor, die inzwischen gelebt hat.":
+    "Important: the {begriff} keeps running while you are away. That is harsh and deliberate – a {begriff} that waits for you is not one. Stop in the evening and return in the morning, and you will find a world that has lived on without you.",
 
   "Vorräte, Strom und Menschen": "Stores, power and people",
   "Es gibt zwei sehr verschiedene Arten von Ressourcen, und der Unterschied entscheidet mehr als jede Zahl. Metall, Silizium und alles andere Gelagerte sammelt sich an: was du heute nicht brauchst, liegt morgen noch da.":
@@ -1260,7 +1297,7 @@ export const EN = {
   // js/handbuch.js). Zwei seiner vier Absätze sind wörtlich aus dem Handbuch
   // geborgt und stehen deshalb weiter oben -- hier steht nur, was es NICHT
   // schon gibt.
-  "Eine Welt, und eine Frist": "One world, and a deadline",
+  "Eine Welt, und eine {begriff}": "One world, and a {begriff}",
   "Du führst genau eine Welt: {planet}. Ein Wohnmodul, ein kleiner Vorrat – und ein Himmel voller Sterne, in denen noch nie jemand war.":
     "You run exactly one world: {planet}. One habitat, a small stock of supplies – and a sky full of stars where no one has ever been.",
   // A-045: der alte Satz empfahl das Forschen, das im Startzustand gar nicht
@@ -1278,8 +1315,8 @@ export const EN = {
   Feedback: "Feedback",
   "Was ist passiert?": "What happened?",
   "Was hast du erwartet?": "What did you expect?",
-  "Version {version} ({stand}) – automatisch eingetragen, bitte stehen lassen.":
-    "Version {version} ({stand}) – filled in automatically, please leave it in.",
+  "Version {version} ({stand}) – automatisch eingetragen, bitte stehen lassen; wird öffentlich sichtbar.":
+    "Version {version} ({stand}) – filled in automatically, please leave it in; this becomes publicly visible.",
   "Rückmeldung geben": "Send feedback",
   "Das hier ist ein Entwicklungsstand, kein fertiges Spiel. Was dir auffällt, ist deshalb ausdrücklich erwünscht: ein Fehler, eine Stelle, an der du nicht weiterwusstest, etwas, das sich falsch anfühlt.":
     "This is a work in progress, not a finished game. So whatever strikes you is explicitly welcome: a bug, a place where you got stuck, something that feels wrong.",
@@ -1356,13 +1393,13 @@ export const EN = {
     "Your window is smaller than Entropy expects – the interface is built for about 1900 × 950 points, here it is {breite} × {hoehe}. The page scrolls because of that, instead of cutting something off. You get more room with fullscreen (F11) or a lower Windows scaling setting.",
 
   // --- Ersteinstieg: was für ein Spiel das ist, und wo alles liegt (A-059) --
-  "Entropy ist deshalb ein Spiel für nebenbei. Es läuft langsam, und das ist Absicht und nicht dein Fehler: Fortschritt braucht hier Geduld, in den ersten Minuten passiert wenig, und die Welt arbeitet auch dann weiter, wenn du nicht hinsiehst. Wegzugehen ist kein Aussetzen – nur die Frist wartet eben auch nicht.":
-    "Entropy is therefore a game for the side of your day. It runs slowly, and that is on purpose and not your mistake: progress here takes patience, little happens in the first few minutes, and the world keeps working while you are not watching. Walking away is not pausing – it is only the deadline that does not wait either.",
+  "Entropy ist deshalb ein Spiel für nebenbei. Es läuft langsam, und das ist Absicht und nicht dein Fehler: Fortschritt braucht hier Geduld, in den ersten Minuten passiert wenig, und die Welt arbeitet auch dann weiter, wenn du nicht hinsiehst. Wegzugehen ist kein Aussetzen – nur die {begriff} wartet eben auch nicht.":
+    "Entropy is therefore a game for the side of your day. It runs slowly, and that is on purpose and not your mistake: progress here takes patience, little happens in the first few minutes, and the world keeps working while you are not watching. Walking away is not pausing – it is only the {begriff} that does not wait either.",
   "Die Oberfläche": "The screen",
   "Der Bildschirm hat vier feste Zonen, und sie ändern ihre Plätze nie: der Kopf ganz oben, die beiden Ressourcenreihen darunter, links die Bereichsleiste – und rechts eine Spalte, die man auf- und zuklappen kann.":
     "The screen has four fixed zones, and they never swap places: the header at the very top, the two resource rows below it, the area bar on the left – and on the right a column you can fold in and out.",
-  "Im Kopf stehen zwei Zeiten nebeneinander, und sie meinen Verschiedenes. Das Datum ist der Kalender deiner Welt und läuft immer. Die Uhr daneben ist die Frist: sie nennt das nächste Ereignis der Supernova und zeigt als Balken, wieviel davon schon vorbei ist. Gibt es gerade keine Frist, ist die Uhr weg – das Datum bleibt.":
-    "The header carries two times side by side, and they mean different things. The date is your world's calendar and always runs. The clock next to it is the deadline: it names the supernova's next event and shows as a bar how much of it has already passed. When there is no deadline, the clock is gone – the date stays.",
+  "Im Kopf stehen zwei Zeiten nebeneinander, und sie meinen Verschiedenes. Das Datum ist der Kalender deiner Welt und läuft immer. Die Uhr daneben ist die {begriff}: sie nennt das nächste Ereignis der Supernova und zeigt als Balken, wieviel davon schon vorbei ist. Gibt es gerade keine {begriff}, ist die Uhr weg – das Datum bleibt.":
+    "The header carries two times side by side, and they mean different things. The date is your world's calendar and always runs. The clock next to it is the {begriff}: it names the supernova's next event and shows as a bar how much of it has already passed. When there is no {begriff}, the clock is gone – the date stays.",
   "Darunter liegen zwei Reihen, und der Unterschied zwischen ihnen ist der wichtigste in der ganzen Wirtschaft. Oben steht, was du HAST: Lagerbestände, die sich ansammeln. Unten steht, was du KANNST: Strom, Arbeitskraft und Lagerplatz – Größen, die pro Zeit anfallen oder als Platz begrenzt sind und nicht gespart werden können. Wer die untere Reihe für einen Vorrat hält, wundert sich früher oder später.":
     "Below it lie two rows, and the difference between them is the most important one in the whole economy. The top row is what you HAVE: stored goods, which pile up. The bottom row is what you CAN DO: power, workforce and storage space – quantities that arrive per unit of time or are limited as room, and cannot be saved up. Mistake the bottom row for a stockpile and you will be surprised sooner or later.",
   "Links wechselst du den Bereich; sichtbar ist immer genau einer. Ein Punkt an einem Eintrag heißt: dort läuft gerade etwas. Dieselben Bereiche erreichst du mit den Zifferntasten – der Abschnitt Steuerung listet sie.":
@@ -1479,8 +1516,8 @@ export const EN = {
   Spielstand: "Save game",
   "Dein Spielstand liegt im Speicher deines Browsers – und der gehört dem Browser, nicht dir: „Chronik beim Schließen löschen“, Privatmodus oder knapper Speicherplatz können ihn jederzeit entfernen. Hier holst du ihn als Text heraus und legst ihn ab, wo er dir gehört.":
     "Your save game lives in your browser's storage – and that belongs to the browser, not to you: “clear history on close”, private mode or a shortage of space can remove it at any time. Here you can pull it out as text and keep it somewhere that is yours.",
-  "Einspielen ersetzt die laufende Partie. Der bisherige Stand wandert dabei in die Rettungs-Sicherung des Browsers – aber verlass dich nicht darauf, hol ihn dir vorher heraus.":
-    "Loading a save replaces the running game. The previous state is moved to the browser's rescue backup – but do not rely on that, pull it out first.",
+  "Einspielen ersetzt die laufende Partie. Der bisherige Stand wandert dabei in die Rettungs-Sicherung des Browsers – mit „Sicherung holen“ kommst du wieder heran. Aber es liegt immer nur EINE dort: Das nächste Einspielen überschreibt sie.":
+    "Loading a save replaces the running game. The previous state is moved to the browser's rescue backup – “Get backup” brings it back. But there is only ever ONE there: the next load overwrites it.",
   "Hier erscheint dein Spielstand – oder füge hier einen ein, den du zurückholen willst.":
     "Your save game appears here – or paste one here that you want to restore.",
   "Stand anzeigen": "Show save",
@@ -1489,6 +1526,14 @@ export const EN = {
   "Als Datei speichern": "Save to file",
   "Gespeichert als {datei}.": "Saved as {datei}.",
   Einspielen: "Load save",
+  // A-184 (R-38 Weg 1): der Knopf, der die Rettungs-Sicherung lesbar macht.
+  "Sicherung holen": "Get backup",
+  "Ein Stand, der sich nicht laden ließ. „Einspielen“ wird ihn vermutlich abweisen – kopier ihn heraus, wenn du ihn aufheben willst.":
+    "A save that could not be loaded. “Load save” will likely reject it – copy it out if you want to keep it.",
+  "Sicherung von vor dem letzten Einspielen. Zum Zurückholen auf „Einspielen“.":
+    "Backup from before the last load. Click “Load save” to bring it back.",
+  "Sicherung von vor der letzten Aktualisierung (Spielstand-Version {kennung}). Zum Zurückholen auf „Einspielen“.":
+    "Backup from before the last update (save version {kennung}). Click “Load save” to bring it back.",
   "Diesen Stand einspielen? Die laufende Partie wird dabei ersetzt.":
     "Load this save? The running game will be replaced.",
   "Kein Text eingefügt.": "No text pasted.",
@@ -1509,6 +1554,12 @@ export const EN = {
   // --- Einstellungsfenster (A-140) -----------------------------------------
   Einstellungen: "Settings",
   Sprache: "Language",
+  Startschwierigkeit: "Starting difficulty",
+  Leicht: "Easy",
+  Normal: "Normal",
+  Schwer: "Hard",
+  "Wirkt erst beim nächsten Neustart – ändert nicht die laufende Partie.":
+    "Takes effect on the next restart – does not change the current game.",
   "Größe der Oberfläche": "Interface size",
   "Verkleinert die ganze Oberfläche zwischen 70 % und 100 % -- wirkt sofort. Praktisch bei wenig Bildschirmplatz, geht auf Kosten der Lesbarkeit.":
     "Shrinks the whole interface between 70% and 100% -- takes effect immediately. Useful when screen space is tight, at the cost of readability.",

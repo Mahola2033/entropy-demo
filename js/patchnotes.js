@@ -28,6 +28,158 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.8.16",
+    de: [
+      "Die Fossilanlage, mit der jede neue Welt schon startet, war stärker ausgebaut, als ihr Brennstoffvorrat vorsah: Der Vorrat war für eine viel kleinere Anlage berechnet und deshalb nach rund sieben Minuten aufgebraucht, statt wie vorgesehen rund hundert Spieljahre zu tragen. Die Vorratsberechnung folgt jetzt der tatsächlichen Startgröße der Anlage — laufende Partien bekommen ihren Vorrat beim nächsten Laden nachgefüllt.",
+    ],
+    en: [
+      "The fossil-fuel plant every new world starts with had been upgraded further than its fuel reserve accounted for: the reserve was sized for a much smaller plant and ran out after about seven minutes instead of lasting roughly a hundred in-game years as intended. The reserve calculation now follows the plant's actual starting size — ongoing games have their reserve topped up the next time they load.",
+    ],
+  },
+  {
+    version: "0.8.15",
+    de: [
+      "Neue Partien beginnen jetzt zuverlässig mit einem besiedelbaren Planeten im Heimatsystem. Vorher konnten rund 3 von 100 neuen Partien in einem Heimatsystem ohne jeden besiedelbaren Planeten starten — ein Fehler beim Laden hatte die dafür eigentlich vorgesehene Garantie unbemerkt verschluckt.",
+    ],
+    en: [
+      "New games now reliably start with a colonizable planet in the home system. Previously, roughly 3 out of 100 new games could start in a home system with no colonizable planet at all — a loading bug had silently swallowed the safeguard meant to prevent exactly that.",
+    ],
+  },
+  {
+    version: "0.8.14",
+    de: [
+      "Nur intern: Eine Messrunde hat sieben mögliche Stellschrauben an den KI-Imperien durchprobiert und wieder zurückgenommen — am Spiel ändert sich dadurch nichts. Ergebnis der Messung: Die Energieversorgung der KI lässt sich mit keiner dieser Schrauben nennenswert verbessern, ein menschlicher Spieler erreicht unter denselben Startbedingungen aber mühelos das Doppelte.",
+      "Nur intern: Eine zweite Messrunde ist derselben Frage nachgegangen und hat die Ursache gefunden — sie liegt nicht darin, wie die KI spielt, sondern im Brennstoffvorrat, den jede neue Welt mitbekommt. Auch hier ändert sich am Spiel nichts; die Zahlen dazu liegen jetzt vor.",
+    ],
+    en: [
+      "Internal only: a measurement round tried seven possible adjustments to the AI empires and reverted every one of them — nothing about the game changes. What the measurement showed: none of those adjustments meaningfully improves the AI's power supply, while a human player reaches roughly twice the coverage from the same starting position.",
+      "Internal only: a second measurement round followed the same question and found the cause — it is not in how the AI plays but in the fuel reserve every new world starts with. Nothing about the game changes here either; the numbers are now on the table.",
+    ],
+  },
+  {
+    version: "0.8.13",
+    de: [
+      "Die Warteschlangen in der Statusspalte (Bau/Forschung/Werft) zeigen den laufenden Auftrag jetzt fest, die Warteliste dahinter ist zugeklappt die Vorgabe und lässt sich über einen kleinen Griff aufklappen – erkennbar an der Zahl der Wartenden, auch im zugeklappten Zustand. Vorher nahmen alle drei Listen dauerhaft viel Platz ein, selbst wenn nichts wartete.",
+    ],
+    en: [
+      "The queues in the status column (build/research/shipyard) now keep the running order always visible; the wait list behind it is collapsed by default and expands via a small grip – showing the number waiting even while collapsed. Previously all three lists permanently took up a lot of space, even when nothing was waiting.",
+    ],
+  },
+  {
+    version: "0.8.12",
+    de: [
+      "Die Rettungs-Sicherung im Bereich Development ist jetzt erreichbar: Wurde dein Spielstand zuletzt automatisch gesichert (bei einer Aktualisierung oder beim Einspielen eines anderen Stands), erscheint dort ein Knopf „Sicherung holen“, der ihn ins Textfeld legt – zum Zurückholen dann auf „Einspielen“. Ein Zurücksetzen räumt die Sicherung jetzt vollständig mit weg.",
+    ],
+    en: [
+      "The rescue backup in the Development area is now reachable: if your save was recently backed up automatically (during an update or when loading a different save), a “Get backup” button appears there that puts it in the text field – click “Load save” to bring it back. Resetting now also clears the backup completely.",
+    ],
+  },
+  {
+    version: "0.8.11",
+    de: [
+      "Nur intern: Der Abbruch eines laufenden Bau- oder Schiffbauauftrags erstattet die Kosten jetzt über eine einzige, gemeinsame Stelle statt über zwei fast identische Kopien. Kein Verhalten geändert.",
+    ],
+    en: [
+      "Internal only: cancelling a running build or shipyard order now refunds its cost through a single shared function instead of two near-identical copies. No behavior changed.",
+    ],
+  },
+  {
+    version: "0.8.10",
+    de: [
+      "Fehler behoben: Standen Kraftwerk und Kernkraftanlage auf demselben Planeten, zeigten beide dieselbe Brennstoff-Restreichweite — obwohl sie unterschiedliche Ressourcen (Deuterium/Uran) verbrennen und die Anlage mit dem reichlicheren Vorrat die Knappheit der anderen behauptete. Jede Anlage zeigt jetzt ihre eigene Zahl.",
+    ],
+    en: [
+      "Fixed: when a power plant and a nuclear plant stood on the same planet, both showed the same fuel range — even though they burn different resources (deuterium/uranium) and the one with more fuel left masked the shortage of the other. Each plant now shows its own number.",
+    ],
+  },
+  {
+    version: "0.8.9",
+    de: [
+      "Nur intern: ein neues Werkzeug (`npm run zustand`) gibt den gemessenen Projektzustand auf Knopfdruck aus, statt ihn in Dateien zu suchen. Außerdem: zwei Tests, die unter Last würfelten oder gegen eine veraltete Weltgröße liefen, sind wieder verlässlich.",
+    ],
+    en: [
+      "Internal only: a new tool (`npm run zustand`) prints the measured project state on demand instead of it having to be hunted down across files. Also: two tests that either flaked under load or ran against an outdated world scale are reliable again.",
+    ],
+  },
+  {
+    version: "0.8.8",
+    de: [
+      "Abriss und Verschrottung erstatten jetzt einen Teil der Baukosten: ein abgerissenes Gebäude gibt 20% zurück, ein verschrottetes Schiff 35%. Die neue Forschung „Rückbautechnik“ hebt beide Werte — bis 70% bei Gebäuden, bis 80% bei Schiffen.",
+    ],
+    en: [
+      "Demolishing buildings and scrapping ships now refund part of their build cost: a demolished building returns 20%, a scrapped ship 35%. The new “Reclamation Tech” research raises both — up to 70% for buildings, up to 80% for ships.",
+    ],
+  },
+  {
+    version: "0.8.7",
+    de: [
+      "Die KI-Imperien bauen jetzt deutlich vielseitiger: statt bei vier Gebäudearten steckenzubleiben, errichten sie inzwischen elf verschiedene und betreiben laufend Forschung. Vorher blieb ihre Bauwarteschlange dauerhaft blockiert, weil sie denselben Engpass in jedem Takt neu zu lösen versuchten, statt abzuwarten, bis der laufende Bau fertig ist.",
+    ],
+    en: [
+      "AI empires now build far more variety: instead of getting stuck at four building types, they now put up eleven different ones and keep research running. Previously their build queue stayed permanently jammed because they kept re-ordering the same fix for a shortage every tick instead of waiting for the current build to finish.",
+    ],
+  },
+  {
+    version: "0.8.6",
+    de: [
+      "Nur intern: Das Werkzeug, das die Demo zusammenstellt, erkennt jetzt zusätzlich Windows-Explorer- und Editor-Reste (desktop.ini, Thumbs.db, *.swp) und bricht ab, statt sie versehentlich mit auszuliefern.",
+    ],
+    en: [
+      "Internal only: the tool that assembles the demo now also catches Windows Explorer and editor leftovers (desktop.ini, Thumbs.db, *.swp) and stops instead of shipping them by accident.",
+    ],
+  },
+  {
+    version: "0.8.5",
+    de: [
+      "Der Text, den das Rückmeldungsformular vorausfüllt, sagt jetzt selbst, dass er öffentlich sichtbar wird. Gesammelt wird weiterhin nur Versionsnummer, Spielstand-Kennzeichnung und ein kurzer Browsername — kein Spielstand, keine persönlichen Daten.",
+    ],
+    en: [
+      "The text the feedback form pre-fills now states itself that it becomes publicly visible. Still only version number, build marker and a short browser name are collected — no save data, no personal information.",
+    ],
+  },
+  {
+    version: "0.8.4",
+    de: [
+      "Fehler behoben: Bei einer Warnzeile (z. B. Metall knapp) färbte sich die Einheit hinter der Zahl fälschlich mit rot — Tobis Vorgabe war, dass nur die Zahl selbst die Farbe trägt. Betrifft nur Fälle, in denen eine Rate gleichzeitig negativ UND knapp ist.",
+    ],
+    en: [
+      "Fixed a bug: on a warning row (e.g. metal running low), the unit after the number was incorrectly tinted red too — the rule is that only the number itself carries the colour. Only affected rows where a rate is negative AND running low at the same time.",
+    ],
+  },
+  {
+    version: "0.8.3",
+    de: [
+      "Der Countdown zur Supernova heißt jetzt Vorwarnzeit statt Frist — im Badge, im Text und im Handbuch. Was gemessen und gezählt wird, ändert sich dadurch nicht.",
+    ],
+    en: [
+      "The German term for the supernova countdown was renamed (\"Vorwarnzeit\" instead of \"Frist\") — the English wording (\"deadline\") is unchanged.",
+    ],
+  },
+  {
+    version: "0.8.2",
+    de: [
+      "Die Maßstabsrunde: reale Größenordnungen für Bevölkerung, Nahrung und Arbeitskraft. Eine neue Heimatwelt trägt jetzt 3 Milliarden Menschen statt 50.000 — und startet entsprechend ausgebaut (Farm, Metall- und Siliziumförderung auf Stufe 19, Deuterium- und Uranförderung auf Stufe 12, Lagerhalle auf Stufe 15, Fossilanlage auf Stufe 17, Kernkraftanlage auf Stufe 16; nur das Wohnmodul bleibt auf Stufe 0, seine Grundkapazität trägt die neue Bevölkerung bereits).",
+      "Nahrung war gegenüber Metall durchgängig um den Faktor 3,85 zu billig — die Korrektur ist eingebaut, real verhält sich Getreide zu Eisenerz wie gut 3 zu 1.",
+      "Dein bestehender Spielstand wird beim nächsten Laden automatisch angehoben: Bestände und Kapazitäten wachsen mit, die Bevölkerung eigens. Deine Gebäudestufen bleiben unverändert.",
+      "Noch nicht spielbereit: an der vorgeschriebenen Startwelt gemessen, reicht die Nahrungsproduktion nur für rund ein Zehntel des Bedarfs — die Bevölkerung würde in der ersten Spielstunde einbrechen. Dieser Stand geht nicht ohne eine weitere Balance-Runde in die Demo.",
+    ],
+    en: [
+      "The scale round: real-world magnitudes for population, food and workforce. A new homeworld now carries 3 billion people instead of 50,000 — and starts built up to match (farm, metal and silicon extraction at level 19, deuterium and uranium extraction at level 12, storage hall at level 15, fossil plant at level 17, nuclear plant at level 16; only the habitat module stays at level 0, its base capacity already carries the new population).",
+      "Food was consistently underpriced against metal by a factor of 3.85 — the correction is in, in reality grain relates to iron ore at roughly 3 to 1.",
+      "Your existing save is upgraded automatically on next load: stocks and capacities scale up, population by its own factor. Your building levels stay unchanged.",
+      "Not yet playable: measured against the prescribed starting world, food production only covers about a tenth of demand — population would collapse within the first game hour. This build needs another balance pass before it reaches the demo.",
+    ],
+  },
+  {
+    version: "0.8.1",
+    de: [
+      "Weitere Sicherheitslücke geschlossen, verwandt mit der aus dem letzten Stand: Ein eingespielter Spielstand konnte einem Systemobjekt (Planet, Fundstelle, Anomalie in der Galaxie) beliebige Felder unterschieben, statt nur die, die das Spiel dort selbst hinterlässt. Im schlimmsten Fall blockierte das die Galaxie-Ansicht dauerhaft. Wer nur eigene Stände lädt, war nie betroffen.",
+    ],
+    en: [
+      "Closed another security gap, related to the one from the last build: a loaded save file could slip arbitrary fields onto a system object (planet, find, anomaly in the galaxy) instead of only the ones the game itself ever writes there. In the worst case this permanently broke the galaxy view. Anyone loading only their own saves was never affected.",
+    ],
+  },
+  {
     version: "0.8.0",
     de: [
       "Dies ist der achte veröffentlichte Demo-Stand — fünf Runden seit dem letzten. Dein Spielstand bleibt erhalten.",

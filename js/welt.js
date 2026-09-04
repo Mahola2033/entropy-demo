@@ -26,6 +26,8 @@ import {
   planetName,
   taugtAlsStartwelt,
   STARTWELT,
+  STARTSCHWIERIGKEIT,
+  STARTSCHWIERIGKEIT_VORGABE,
   techStufe,
   mengeSkaliert,
 } from "./data.js";
@@ -147,31 +149,39 @@ function neuesObjekt(systemId, orbit, felder) {
  * Erzeugt ein System.
  * @param seed        Galaxie-Saat
  * @param systemId    Systemnummer
- * @param optionen    { schluessel: [techId...], istHeimat, heimatName }
+ * @param optionen    { schluessel: [techId...], istHeimat, heimatName,
+ *                      schwierigkeit } -- `schwierigkeit` (A-190) wirkt nur,
+ *                      wenn istHeimat gesetzt ist; siehe STARTSCHWIERIGKEIT.
  */
 // Wo im System liegt die Heimatwelt? Bis v0.42 war das schlicht der mittlere
 // Drittelbereich der Orbits -- eine Faustregel, die meistens in der
 // bewohnbaren Zone landete und manchmal eben nicht.
 //
-// Jetzt wird unter den Orbits gewählt, in denen überhaupt etwas wachsen KANN.
-// Das ist keine Bequemlichkeit, sondern die naheliegendste Begründung: eine
-// Zivilisation entsteht dort, wo sie entstehen kann. Gefragt wird über
-// dieselbe Regel, die auch fremde Imperien anlegt (taugtAlsStartwelt) -- mit
-// den günstigsten sonstigen Eigenschaften, denn hier geht es nur um die Frage,
-// ob die ZONE es zulässt.
-function heimatOrbitWaehlen(rng, orbitAnzahl, leuchtkraft) {
-  const bewohnbar = [];
+// Seit A-190 zielt die Wahl auf EINE feste Zone -- die, die die gewählte
+// Startschwierigkeit vorschreibt (STARTSCHWIERIGKEIT in data.js). Zone
+// "äußer" ist NIE ein Ziel und kommt in dieser Tabelle deshalb gar nicht vor:
+// rund 28 % der so erzeugten Startwelten waren nachweislich unspielbar
+// (Energiedeckung 0 % zur Halbzeit, kein Schirm möglich -- gemessen über 18
+// Welten mit tests/arena.mjs). Tobis Satz dazu ist wörtlich und ohne
+// Ermessensspielraum: „Wenn es wirklich unmöglich gibt schließen wir diese
+// komplett aus."
+function heimatOrbitWaehlen(rng, orbitAnzahl, leuchtkraft, zielZone) {
+  const passend = [];
   for (let orbit = 1; orbit <= orbitAnzahl; orbit++) {
-    const zone = orbitZone(orbit, orbitAnzahl, leuchtkraft).name;
-    if (taugtAlsStartwelt({ klasse: "felswelt", zone, wasser: "reich" })) bewohnbar.push(orbit);
+    if (orbitZone(orbit, orbitAnzahl, leuchtkraft).name === zielZone) passend.push(orbit);
   }
-  // Kein einziger bewohnbarer Orbit (sehr leuchtschwacher oder sehr heller
-  // Stern): dann die alte Faustregel. Der Aufrufer sichert die Bewohnbarkeit
-  // danach über die Eigenschaften ab.
-  if (!bewohnbar.length) {
-    return zwischen(rng, Math.max(1, Math.floor(orbitAnzahl * 0.3)), Math.ceil(orbitAnzahl * 0.7));
+  if (passend.length) return waehle(rng, passend);
+  // Die Zielzone kommt in diesem System gar nicht vor (sehr leuchtschwacher
+  // oder sehr heller Stern verschiebt die thermische Lage). Dieselbe
+  // Faustregel wie vor A-190 -- aber NIE Zone äußer: ausgerechnet ein sehr
+  // leuchtschwacher Stern schiebt dieselbe Orbit-Position genau dorthin.
+  // `heimatEigenschaften` sichert die Bewohnbarkeit danach über ihre eigenen
+  // Eigenschaften ab, notfalls mit ihrem eigenen Notnagel.
+  for (let versuch = 0; versuch < 20; versuch++) {
+    const orbit = zwischen(rng, Math.max(1, Math.floor(orbitAnzahl * 0.3)), Math.ceil(orbitAnzahl * 0.7));
+    if (orbitZone(orbit, orbitAnzahl, leuchtkraft).name !== "äußer") return orbit;
   }
-  return waehle(rng, bewohnbar);
+  return Math.max(1, Math.floor(orbitAnzahl * 0.3));
 }
 
 // Die Heimatwelt ist ein PLANET wie jeder andere -- mit Klasse, Zone und
@@ -206,7 +216,12 @@ function heimatMasse(rng, klasse) {
   return unten + rng() * (oben - unten);
 }
 
-function heimatEigenschaften(rng, orbit, orbitAnzahl, leuchtkraft) {
+// Seit A-190 stehen Zone UND Wasser fest -- `zielWasser` kommt von der
+// gewählten Startschwierigkeit, die Zone steckt schon im übergebenen Orbit
+// (heimatOrbitWaehlen hat ihn danach ausgesucht). Nur die KLASSE variiert
+// noch, gezogen aus der Gewichtstabelle der Zone, bis eine Kombination sowohl
+// nahrungstauglich (taugtAlsStartwelt) als auch im Schwerkraftband liegt.
+function heimatEigenschaften(rng, orbit, orbitAnzahl, leuchtkraft, zielWasser) {
   // Kann diese Klasse überhaupt eine Masse im Schwerkraftband haben? Eine
   // Supererde ist auch am unteren Rand ihres Bereichs noch zu schwer.
   const masseFuer = (g) => Math.pow(g, 1 / 0.46);
@@ -214,18 +229,22 @@ function heimatEigenschaften(rng, orbit, orbitAnzahl, leuchtkraft) {
     const k = PLANETEN_KLASSEN[klasseId];
     return k.masse[0] <= masseFuer(STARTWELT.schwerkraftMax) && k.masse[1] >= masseFuer(STARTWELT.schwerkraftMin);
   };
+  const zone = orbitZone(orbit, orbitAnzahl, leuchtkraft);
 
   for (let versuch = 0; versuch < 25; versuch++) {
-    const eig = planetEigenschaften(rng, orbit, orbitAnzahl, leuchtkraft);
-    if (taugtAlsStartwelt(eig) && bandTauglich(eig.klasse)) return eig;
+    const klasse = zieheGewichtet(rng, zone.klassen);
+    const eig = { klasse, zone: zone.name, wasser: zielWasser };
+    if (taugtAlsStartwelt(eig) && bandTauglich(klasse)) return eig;
   }
-  // Notnagel für den Fall, dass die Zone gar nichts Bewohnbares zulässt.
-  // Lieber eine bescheidene Welt als eine, auf der man verhungert.
+  // Notnagel für den Fall, dass die Zone (oder, im seltenen Fall aus
+  // heimatOrbitWaehlens eigenem Notnagel, eine ganz andere Zone) gar nichts
+  // Bewohnbares zulässt. Lieber eine bescheidene Welt als eine, auf der man
+  // verhungert -- zufällig dieselbe Kombination wie die Stufe "Normal".
   return { klasse: "felswelt", zone: "habitabel", wasser: "maessig" };
 }
 
 export function systemGenerieren(seed, systemId, optionen = {}) {
-  const { schluessel = [], istHeimat = false, heimatName = "Heimatwelt" } = optionen;
+  const { schluessel = [], istHeimat = false, heimatName = "Heimatwelt", schwierigkeit = STARTSCHWIERIGKEIT_VORGABE } = optionen;
   const rng = stromFuer(seed, systemId);
 
   // Der Stern kommt aus einem eigenen Zufallsstrom (galaxie.js) und wird nicht
@@ -234,8 +253,12 @@ export function systemGenerieren(seed, systemId, optionen = {}) {
   // nur weil eine neue Eigenschaft dazukommt.
   const stern = sternFuer(seed, systemId, istHeimat);
 
+  // A-190: eine unbekannte Stufe (z.B. aus einem älteren Aufruf) fällt auf
+  // Normal zurück, statt mit `undefined.zone` zu werfen.
+  const ziel = STARTSCHWIERIGKEIT[schwierigkeit] || STARTSCHWIERIGKEIT[STARTSCHWIERIGKEIT_VORGABE];
+
   const orbitAnzahl = ausBereich(rng, SYSTEM_REGELN.orbits);
-  const heimatOrbit = istHeimat ? heimatOrbitWaehlen(rng, orbitAnzahl, stern.leuchtkraft) : null;
+  const heimatOrbit = istHeimat ? heimatOrbitWaehlen(rng, orbitAnzahl, stern.leuchtkraft, ziel.zone) : null;
 
   const freieOrbits = mischen(
     rng,
@@ -248,7 +271,7 @@ export function systemGenerieren(seed, systemId, optionen = {}) {
     // Planet -- nur eingeschränkt auf das, was bewohnbar ist. Ohne diese Daten
     // war sie ein Generalist, der alles gleich gut konnte (siehe
     // heimatEigenschaften).
-    const eig = heimatEigenschaften(rng, heimatOrbit, orbitAnzahl, stern.leuchtkraft);
+    const eig = heimatEigenschaften(rng, heimatOrbit, orbitAnzahl, stern.leuchtkraft, ziel.wasser);
     const klasse = PLANETEN_KLASSEN[eig.klasse];
     const masse = heimatMasse(rng, klasse);
     const radius = radiusAusMasse(masse);
