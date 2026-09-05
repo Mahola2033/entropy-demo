@@ -22,8 +22,8 @@
 // Eine Meldung entsteht erst über der Schwelle, nie im Normalbetrieb
 // (ausdrückliche Falle 2 im Auftrag).
 
-import { meldungHinzufuegen } from "./state.js";
-import { t } from "./sprache.js";
+import { meldungHinzufuegen } from "./state.js?v=0.9.1";
+import { t } from "./sprache.js?v=0.9.1";
 
 // Ab hier ist es keine Stockung mehr, sondern ein Hänger. 50 ms wären die
 // Browser-Grenze für `longtask`, aber unter 200 ms merkt niemand etwas --

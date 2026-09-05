@@ -2,12 +2,12 @@
 // Offline-Zeitsimulation, die auch beim echten Laden läuft) und
 // Spielstand zurücksetzen. Kein Teil des eigentlichen Spieldesigns.
 
-import { aufholen, deckelMelden } from "./aufholen.js";
-import { STAND } from "./data.js";
-import { speichern, zuruecksetzen } from "./save.js";
-import { cacheLeeren } from "./systeme.js";
-import { zeitfaktorVon, zeitfaktorSetzen } from "./state.js";
-import { t } from "./sprache.js";
+import { aufholen, deckelMelden } from "./aufholen.js?v=0.9.1";
+import { STAND } from "./data.js?v=0.9.1";
+import { speichern, zuruecksetzen } from "./save.js?v=0.9.1";
+import { cacheLeeren } from "./systeme.js?v=0.9.1";
+import { zeitfaktorVon, zeitfaktorSetzen } from "./state.js?v=0.9.1";
+import { t } from "./sprache.js?v=0.9.1";
 
 // Welcher Faktor gerade gilt, steht an den Knöpfen selbst -- ein Zustand, den
 // man nicht sieht, ist im Testmodus so wertlos wie im Spiel (Prinzip 10a).

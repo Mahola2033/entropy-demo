@@ -19,7 +19,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.8.16";
+export const VERSION = "0.9.1";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von uebernehmen.mjs beim Kopieren auf "spielkopie"
@@ -65,7 +65,7 @@ export const DEMO_SAAT = 20269933;
 // wird an den anzeigenden Stellen, nicht hier. Einzige Ausnahme ist
 // voraussetzungenText() weiter unten -- die einzige Funktion in dieser Datei,
 // die Anzeigetext zusammensetzt.
-import { t } from "./sprache.js";
+import { t } from "./sprache.js?v=0.9.1";
 
 // A-164 (31.08.2026): Von 50 auf 125.000 (×2.500) -- die Maßstabsrunde.
 // Vorher skalierte EIN MASSSTAB Material, Menschen und Arbeitskraft
@@ -488,6 +488,22 @@ export function bevoelkerungsSchrittFaktor(rJahr) {
   return Math.pow(1 + rJahr, BEVOELKERUNG.schrittMs / jahreInMs(1)) - 1;
 }
 
+// A-166 (Tobis Feedback 31.08.: "Bevölkerungswachstum auch fließender
+// machen, wie bei Ressourcen"): dieselbe Formel wie oben, aber mit einer
+// BELIEBIGEN Zeitspanne statt der festen `BEVOELKERUNG.schrittMs` -- die
+// Bevölkerung wird seither wie jede andere Ressource in `planetRatenAnwenden`
+// (js/simulation.js) über die Spanne zwischen zwei Ereignissen gebucht, nicht
+// mehr in eigenen 5-Minuten-Sprüngen. Exakt, keine Näherung: Zinseszins ist
+// assoziativ, `(1+r)^(a+b) = (1+r)^a · (1+r)^b` -- ein Sprung über die ganze
+// Spanne ergibt bit-für-bit dieselbe Grundlage wie viele kleine Schritte
+// (Rundungsrauschen im letzten Bit ausgenommen, siehe Tests).
+// `bevoelkerungsSchrittFaktor` bleibt UNANGETASTET (Nicht anfassen, A-166) --
+// die Anzeige in state.js rechnet weiterhin mit der festen Schrittweite, das
+// ist dort eine bewusste Übersichtsschätzung, keine Buchung.
+export function bevoelkerungsFaktorUeberMs(rJahr, spanneMs) {
+  return Math.pow(1 + rJahr, spanneMs / jahreInMs(1)) - 1;
+}
+
 // --- Arbeitskraft-Leerlauf (A-155) ------------------------------------------
 // Tobis Zeile vom 16.08.: "Nicht genutzte Arbeitskraft abstufend starten ab
 // 80% Arbeitenden klaut Ressourcen und verstärkt Piraten in der nähe." Und
@@ -739,6 +755,8 @@ export const SYMBOLE = {
   frachter: "🚚",
   kolonieschiff: "🏠",
   kriegsschiff: "⚔️",
+  // Verteidigung (A-204)
+  abwehrstellung: "🛡️",
   // Oberfläche (A-102, Prinzip 9: alle Symbole liegen hier, nicht als
   // Literal im UI-Code) -- vorher sechsmal 🔒 und einmal 🔁 im Quelltext.
   gesperrt: "🔒",
@@ -1027,7 +1045,31 @@ export const BUILDINGS = {
     costFactor: 1.55,
     buildTimeDivisor: 2.0,
     produktion: {},
-    verbrauch: { arbeitskraft: { basis: 5, faktor: 1.1 } },
+    // A-167 (Tobis Feedback 31.08.: "Lagersystem (das Gebäude) verbraucht
+    // keinen Strom (sollte es)"). Kühlung/Klimatisierung für verderbliche
+    // und kryogene Bestände (Deuterium liegt flüssig bei ~20 K), Belüftung,
+    // Beleuchtung, Brandschutz, Förder- und Umschlagtechnik -- ein Lagernetz
+    // ist kein Schuppen und läuft dauerhaft, weil jede Isolierung Wärme
+    // durchlässt.
+    //
+    // Wert im Mittelfeld der Versorgungsbauten (Auftragsvorgabe: teurer als
+    // das Forschungslabor, günstiger als die Farm) -- der Auftrag nannte
+    // "400", das war VOR A-164s Maßstabsrunde formuliert. Der einfache /50-
+    // Umrechnungspfad (wie bei Wohnmodul 450->9, Forschungslabor 300->6,
+    // Agrarkuppel 600->12) ergäbe 8 -- GEMESSEN aber zu groß: die Lagerhalle
+    // startet bei Stufe 15 (Startwelt UND Testvorgabe, `TEST_LAGERSTUFE`),
+    // nicht bei Stufe 1 wie die Vergleichsbauten in den meisten Testaufbauten.
+    // Der Stufenfaktor potenziert das: 8 an Stufe 15 zieht 231 Mio MW --
+    // mehr als ein Kraftwerk Stufe 5 liefert (52 Mio MW) und brach 9 Tests,
+    // deren Energiebilanz auf "Lagerhalle kostet nichts" kalibriert war
+    // (`npm test`, gemessen). Gesenkt auf 1 -- an Stufe 1 (Neubau) bleibt
+    // die Rangfolge (Labor 6 < Lagerhalle X < Agrarkuppel 12) zwar nicht
+    // mehr exakt gewahrt, aber an der tatsächlich relevanten Stufe 15 zieht
+    // die Lagerhalle damit 28,9 Mio MW -- gut ein Fünftel eines Stufe-1-
+    // Kraftwerks (12 Mio MW) und spürbar, ohne die Startwelt zusätzlich in
+    // eine Unterdeckung zu drücken, die sie (siehe Ergebnis) ohnehin schon
+    // unabhängig von dieser Runde hat.
+    verbrauch: { energie: { basis: 1, faktor: 1.2 }, arbeitskraft: { basis: 5, faktor: 1.1 } },
   },
   tritiumextraktor: {
     id: "tritiumextraktor",
@@ -1309,10 +1351,15 @@ export const BUILDINGS = {
     benoetigt: { forschung: "magnetosphaerentechnik" },
     produktion: {},
     // ACHTUNG, MASSSTAB: die Zahlen hier sind ROH und werden beim Laden mit
-    // MASSSTAB (50) multipliziert. 20.000 werden also zu 1.000.000 MW = 1 TW.
-    // Beim ersten Versuch stand hier direkt 1000000 -- daraus wurden 50 TW,
-    // und kein Kraftwerk der Welt hätte den Schirm je versorgt. NEUNTER Fall
-    // dieser Falle im Projekt.
+    // MASSSTAB multipliziert. Beim ersten Versuch stand hier direkt 1000000
+    // -- daraus wurden 50 TW, und kein Kraftwerk der Welt hätte den Schirm je
+    // versorgt. NEUNTER Fall dieser Falle im Projekt.
+    // A-200 (04.09.): dieser Kommentar nannte bis hierhin noch "MASSSTAB
+    // (50)" und "20.000 werden also zu 1.000.000 MW = 1 TW" -- Werte von vor
+    // A-164s Maßstabsrunde (MASSSTAB seither 125.000, nicht mehr 50). Aktuell
+    // (nachgerechnet mit `rate()`): 20.000 × 125.000 = 2,5 Mrd (kW), also rund
+    // 2,5 statt 1 TW. Keine Zahl hier geändert -- nur der Kommentar war
+    // stehen geblieben, während MASSSTAB sich unter ihm bewegt hat.
     verbrauch: {
       energie: { basis: 20000, faktor: 1 },
       arbeitskraft: { basis: 40, faktor: 1.15 },
@@ -2199,11 +2246,24 @@ export const STARTWELT = {
 // Startwelt komplett weg (siehe heimatOrbitWaehlen in welt.js) -- diese
 // Tabelle liefert stattdessen die drei WÄHLBAREN Stufen, aus den gemessenen
 // Rändern des spielbaren Bandes und der Mitte hergeleitet (Herleitung der
-// Planung, keine Vorgabe von Tobi -- siehe A-190-Auftrag):
+// Planung, keine Vorgabe von Tobi -- siehe A-190-Auftrag).
+// A-195 (01.09., Planung): `schwer` stand ursprünglich auf kalt+mäßig, genau
+// die Kombination aus der 13-von-13-Zeile oben. Persona "referenz" in
+// `tests/arena.mjs` erreichte darauf trotzdem 0 von 10 Welten je ein Labor
+// (Nahrungs-Affinität 0,38, A-193 gemessen) -- die alte 13-von-13-Messung
+// stammte aus einem älteren Codestand vor A-164 (Maßstabsrunde) und mehreren
+// Bot-Balancing-Runden und war damit veraltet. `kalt+reich` (Affinität 0,77)
+// löst das Nahrungsproblem (Labor+Magnetschild jetzt 10 von 10) -- die
+// GEGENPROBE gegen die Kontrollwelt warm+reich (dieselben Saaten, nur die
+// Zone unterscheidet) zeigt aber Schirmdeckung 0,0 % in 10 von 10 Welten
+// gegen 80-88 % in der Kontrolle. Der Engpass ist nicht mehr die Nahrung,
+// sondern vermutlich SOLAR_ZONEN_FAKTOR["kalt"] (0,6 gegen 1,25 bei warm) --
+// ungeprüfte Vermutung, kein Befund. A-195 ging deshalb `zurueck`; dieser
+// Wert ist die bessere von zwei geprüften, aber KEINE bestandene Stufe.
 export const STARTSCHWIERIGKEIT = {
   leicht: { zone: "warm", wasser: "reich" },
   normal: { zone: "habitabel", wasser: "maessig" },
-  schwer: { zone: "kalt", wasser: "maessig" },
+  schwer: { zone: "kalt", wasser: "reich" },
 };
 // Vorgabe (Definition von fertig 3): wer nichts wählt, bekommt Normal.
 export const STARTSCHWIERIGKEIT_VORGABE = "normal";
@@ -2944,6 +3004,70 @@ export const SCHIFFE = {
 export const FLOTTE = {
   orbitAnteil: 0.1, // Orbitabstand -> Galaxie-Einheiten
   mindestVerbrauch: 1,
+};
+
+// --- Verteidigung: die Abwehrstellung (A-204) ------------------------------
+//
+// `KONZEPT-VERTEIDIGUNG.md` Abschnitt 9.2, Tobis Wortlaut: „Verteidigung
+// sollten in Stückzahl gebaut werden wie Schiffe. Sie verbrauchen passiv ein
+// bisschen Energie und aktiv je nach Waffe natürlich mehr."
+//
+// DESHALB STEHT SIE HIER, NICHT IN BUILDINGS: eine Stückzahl ist KEINE
+// Anlage mit Stufen. Der entscheidende Unterschied zu BUILDINGS.verbrauch
+// (`{basis, faktor}`, exponentiell über `rate()`): Stufe 12 einer Anlage ist
+// eine GRÖSSERE, fortschrittlichere Version derselben Installation -- jede
+// weitere Stufe darf deshalb überproportional mehr kosten. Zwölf Stellungen
+// sind zwölf IDENTISCHE Kopien derselben Installation -- die zwölfte kostet
+// exakt so viel wie die erste, nicht mehr. Die Kosten hier sind deshalb
+// FLACHE Werte je Stück, linear mit der Stückzahl multipliziert (wie
+// `schiffKosten`), NICHT über `rate()`.
+//
+// ZWEI STROM-ZUSTÄNDE (9.2): `passiv` gilt immer (Bereitschaft -- Kühlung,
+// Zielrechner, Kondensatoren halten), `aktiv` nur während eines Gefechts.
+// Diese Runde (A-204) LÖST NOCH KEIN GEFECHT AUS -- `aktiv` existiert als
+// geprüfte Funktion (`abwehrAktivBedarf`, js/state.js), wird aber nirgends
+// aufgerufen. V1 (A-207, noch nicht geschnitten) ruft sie.
+//
+// ARBEITSKRAFT IST DAUERHAFT (Konzept §4, 9.2): anders als Energie kennt sie
+// keinen passiv/aktiv-Unterschied -- eine Besatzung ist im Dienst oder sie
+// ist es nicht.
+//
+// ZAHLEN GEMESSEN GEGEN DIE ECHTE STARTWELT (Konzept 9.4: „Anteil an der
+// Jahresleistung einer Startwelt nach A-164", Sollwert rund 1 % je Posten
+// bei einer Friedens-Stückzahl von drei Stellungen). Gemessen an der echten
+// `neuesSpiel(DEMO_SAAT)`-Heimatwelt (Ilmar, normal):
+//   Energieproduktion:      1.372.061.161 MW/h  ->  3 × 4.500.000 = 0,98 %
+//   Arbeitskraftangebot:      750.000.000 /h    ->  3 × 2.500.000 = 1,00 %
+// Baukosten liegen ABSICHTLICH NICHT auf derselben 1-%-Marke: `kosten` ist
+// im ganzen Spiel (auch bei SCHIFFE) eine EINMALIGE Zahl in einer kleinen,
+// von MASSSTAB unberührten Größenordnung (Sonde: 40 Metall) -- gegen eine
+// STÜNDLICHE Produktion in Billionenhöhe zu rechnen ergäbe einen Bruchteil
+// im Bereich von Sekunden Amortisationszeit, keine sinnvolle Prozentzahl.
+// Bemessen stattdessen an vergleichbaren Schiffen (Erkunder/Frachter-Klasse,
+// leicht darüber -- Militärtechnik statt Zivilschiff). Details und die volle
+// Messung im Ergebnis-Abschnitt von A-204.
+export const ABWEHR = {
+  abwehrstellung: {
+    id: "abwehrstellung",
+    name: "Abwehrstellung",
+    beschreibung:
+      "Bodengestützte Verteidigung in Stückzahl, nicht in Ausbaustufen -- wie eine Flotte, nur ohne Flug. Kostet im Frieden wenig (Bereitschaft: Kühlung, Zielrechner, Kondensatoren), im Gefecht viel. Verteidigt heute noch gegen nichts -- die Bedrohung kommt erst später.",
+    // Dieselbe Werft-Schwelle wie das billigste Schiff: die Wahl soll von
+    // Anfang an bestehen (Prinzip 14), nicht erst spät freigeschaltet sein.
+    werftAb: 1,
+    kosten: { metall: 900, silizium: 500, elektronik: 120 },
+    bauzeitSek: 240,
+    // Je Stück und Stunde, FLACH -- siehe Kommentar oben, keine BUILDINGS-
+    // artige {basis,faktor}-Spec, kein `rate()`.
+    passiv: { energie: 4_500_000, arbeitskraft: 2_500_000 },
+    // Nur die Energie hat einen zweiten Zustand (9.2) -- Arbeitskraft bleibt
+    // dieselbe dauerhafte Zahl aus `passiv`. Faktor 20 gegenüber passiv: ein
+    // Schuss zieht ein Vielfaches dessen, was Bereitschaft kostet (dieselbe
+    // Größenordnung wie die Differenz zwischen einem wartenden und einem
+    // feuernden Radarsystem) -- eine Design-Zahl für V1, hier nur geprüft,
+    // nie ausgelöst.
+    aktiv: { energie: 90_000_000 },
+  },
 };
 
 // Was braucht ein Objekttyp, um aufgedeckt bzw. aufgeschlossen zu werden?

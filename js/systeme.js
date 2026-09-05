@@ -5,8 +5,8 @@
 // Orbit die Flags entdeckt/verwertet. Dadurch bleibt der Spielstand klein,
 // egal wie groß die Galaxie ist.
 
-import { systemGenerieren } from "./welt.js";
-import { schluesselImSystem, systemName } from "./galaxie.js";
+import { systemGenerieren } from "./welt.js?v=0.9.1";
+import { schluesselImSystem, systemName } from "./galaxie.js?v=0.9.1";
 
 // Laufzeit-Zwischenspeicher, wird nicht gespeichert.
 const cache = new Map();

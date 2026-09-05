@@ -1,8 +1,8 @@
 // Einstiegspunkt: Spielstand laden, Offline-Zeit nachrechnen, Render-/Tick-Loop starten.
 
-import { laden, speichern } from "./save.js";
-import { zeitfaktorAnwenden } from "./state.js";
-import { vorspulenBisJetzt } from "./simulation.js";
+import { laden, speichern } from "./save.js?v=0.9.1";
+import { zeitfaktorAnwenden } from "./state.js?v=0.9.1";
+import { vorspulenBisJetzt } from "./simulation.js?v=0.9.1";
 import {
   aufholen,
   aufholenLaeuft,
@@ -13,7 +13,7 @@ import {
   zeitsprungVerwerfen,
   notausgangLoeschen,
   NOTAUSGANG_ESKALATION,
-} from "./aufholen.js";
+} from "./aufholen.js?v=0.9.1";
 import {
   render,
   renderProfilStarten,
@@ -22,12 +22,12 @@ import {
   hotkeysEinrichten,
   notausgangTafel,
   fensterHinweisPruefen,
-} from "./ui.js";
-import { testmodusEinrichten } from "./testmodus.js";
-import { spracheLaden, t } from "./sprache.js";
-import { phase, stockungenBeobachten, stockungsBericht } from "./stockung.js";
-import { KACHELWAECHTER_ZUSTAENDE } from "./kachelwaechter-zustaende.js";
-import { kachelnBilanz } from "./kachelwaechter.js";
+} from "./ui.js?v=0.9.1";
+import { testmodusEinrichten } from "./testmodus.js?v=0.9.1";
+import { spracheLaden, t } from "./sprache.js?v=0.9.1";
+import { phase, stockungenBeobachten, stockungsBericht } from "./stockung.js?v=0.9.1";
+import { KACHELWAECHTER_ZUSTAENDE } from "./kachelwaechter-zustaende.js?v=0.9.1";
+import { kachelnBilanz } from "./kachelwaechter.js?v=0.9.1";
 
 const root = document;
 // Sprache VOR dem ersten Rendern festlegen -- sonst blitzt einmal die falsche

@@ -12,6 +12,7 @@ import {
   FLUSS_RESSOURCEN,
   AUSSENPOSTEN,
   SCHIFFE,
+  ABWEHR,
   MISSIONS_SCHIFF,
   MARKT_PREISE,
   KAMPF,
@@ -45,7 +46,7 @@ import {
   ARBEITSKRAFT_LEERLAUF,
   RUECKBAU,
   erstattungsQuote,
-} from "./data.js";
+} from "./data.js?v=0.9.1";
 import {
   effektiveRaten,
   sichtbareRate,
@@ -108,6 +109,8 @@ import {
   gebaeudeKosten,
   schiffKosten,
   schiffMaxBezahlbar,
+  abwehrstellungKosten,
+  abwehrBestand,
   warteschlangeKosten,
   stueckzahlAus,
   speicherKapazitaet,
@@ -125,7 +128,7 @@ import {
   fossilBereit,
   fossilReichweiteMs,
   fossilVerbrauchProStunde,
-} from "./state.js";
+} from "./state.js?v=0.9.1";
 import {
   bauStarten,
   forschungStarten,
@@ -147,6 +150,11 @@ import {
   werftWarteschlangeEntfernen,
   werftAbbrechen,
   schiffsBauzeitSek,
+  kannAbwehrBauen,
+  abwehrBauen,
+  abwehrWarteschlangeEntfernen,
+  abwehrAbbrechen,
+  abwehrBauzeitSek,
   flotteAufstellen,
   flotteUmbenennen,
   FLOTTENNAME_MAX,
@@ -191,7 +199,7 @@ import {
   routeStoppen,
   routeMindestbeladungSetzen,
   routeBeladungAnteil,
-} from "./simulation.js";
+} from "./simulation.js?v=0.9.1";
 import {
   flottePosition,
   flotteKapazitaet,
@@ -211,26 +219,26 @@ import {
   flotteSiedlerKapazitaet,
   flotteLadungAnteile,
   flotteTankAnteile,
-} from "./flotten.js";
-import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js";
-import { BEGRIFF_VORWARNZEIT } from "./texte.js";
-import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js";
+} from "./flotten.js?v=0.9.1";
+import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.1";
+import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.1";
+import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.1";
 // Nur für den Neustart-Knopf im Abspann. Der Weg dorthin ist derselbe wie im
 // Testmodus (js/testmodus.js) -- ein zweiter Reset wäre eine zweite Wahrheit
 // darüber, was "neu anfangen" bedeutet.
-import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js";
-import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js";
-import { systemName, sternFuer } from "./galaxie.js";
+import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.1";
+import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.1";
+import { systemName, sternFuer } from "./galaxie.js?v=0.9.1";
 // Die beiden Karten. Sie holen sich von hier `listeAbgleichen` zurück -- ein
 // Ringtausch, der trägt, weil keine der beiden Dateien beim LADEN etwas aus
 // der anderen benutzt, sondern erst beim Zeichnen. Die Alternative wäre ein
 // zweiter Abgleich-Mechanismus in karte.js gewesen, und genau davor warnt
 // Prinzip 5.
-import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js";
-import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js";
-import { feedbackAdresse } from "./feedback.js";
-import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js";
-import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js";
+import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.1";
+import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.1";
+import { feedbackAdresse } from "./feedback.js?v=0.9.1";
+import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.1";
+import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.1";
 
 // UI-lokaler Regler-Zustand für die Flotten-Beladung/Tanken-Schieber --
 // bewusst NICHT Teil des Spielzustands. Nötig, weil render() auch von einem
@@ -764,7 +772,10 @@ export function render(state, root) {
   // damit weg, nicht verdoppelt.
   if (sichtbar("lager")) teil("lager", () => renderLager(state, root, planet));
   if (sichtbar("forschung")) teil("forschung", () => renderForschung(state, root, planet));
-  if (sichtbar("werft")) teil("werft", () => renderWerft(state, root, planet, jetzt));
+  if (sichtbar("werft")) {
+    teil("werft", () => renderWerft(state, root, planet, jetzt));
+    teil("abwehr", () => renderAbwehr(state, root, planet, jetzt));
+  }
   if (sichtbar("handel")) {
     teil("markt", () => renderMarkt(state, root, planet));
     teil("logistiknetz", () => renderLogistiknetz(state, root, planet, jetzt));
@@ -793,6 +804,29 @@ export function render(state, root) {
   renderMeldungen(state, root);
 }
 
+// A-161: Sprungnavigation als eigene Spalte -- A-160 baute sie zuerst nur
+// für Development, als Kopfzeile im Fließtext. Diese Runde hebt sie auf die
+// gemeinsame Ebene (beide Bereiche teilen sich `.handbuch`) und macht daraus
+// eine Spalte, die beim Scrollen mitläuft (`.handbuch-nav`, CSS). `praefix`
+// ist die Sprungmarken-Vorsilbe aus A-040 (`handbuch-<id>`/
+// `development-<id>`, unverändert), `ziele` eine Liste aus `[id, Text]`.
+function sprungnavBauen(praefix, ziele, ariaLabel) {
+  const nav = document.createElement("nav");
+  nav.className = "handbuch-nav";
+  nav.setAttribute("aria-label", ariaLabel);
+  const liste = document.createElement("ul");
+  for (const [id, text] of ziele) {
+    const li = document.createElement("li");
+    const a = document.createElement("a");
+    a.href = `#${praefix}-${id}`;
+    a.textContent = text;
+    li.appendChild(a);
+    liste.appendChild(li);
+  }
+  nav.appendChild(liste);
+  return nav;
+}
+
 // Das Handbuch. Es hängt an KEINEM Spielzustand -- es erklärt Regeln, nicht
 // Zahlen -- und wird deshalb nur EINMAL je Sprache gebaut. Der Vermerk am
 // Element ist dasselbe Muster wie beim Abspann und bei der Sprachleiste: im
@@ -803,8 +837,11 @@ function renderHandbuch(root) {
   if (!block || block.dataset.gezeichnet === sprache()) return;
   block.dataset.gezeichnet = sprache();
 
-  block.replaceChildren(
-    ...handbuchAbschnitte().flatMap((abschnitt) => {
+  const abschnitte = handbuchAbschnitte();
+  const inhalt = document.createElement("div");
+  inhalt.className = "handbuch-inhalt";
+  inhalt.replaceChildren(
+    ...abschnitte.flatMap((abschnitt) => {
       const h3 = document.createElement("h3");
       h3.textContent = abschnitt.titel;
       // Sprungmarke: eine Meldung kann direkt hierher führen (A-040). Die
@@ -847,6 +884,8 @@ function renderHandbuch(root) {
       return [h3, ...absaetze];
     })
   );
+  const sprungziele = abschnitte.map((abschnitt) => [abschnitt.id, abschnitt.titel]);
+  block.replaceChildren(sprungnavBauen("handbuch", sprungziele, t("Inhalt")), inhalt);
 }
 
 // Ein Link, der das Spiel nicht verlässt.
@@ -4767,6 +4806,156 @@ function renderWerft(state, root, planet, jetzt) {
   );
 }
 
+// A-204: dieselbe Form wie renderWerft, absichtlich ohne die Ziel-Flotte-
+// Auswahl -- eine Abwehrstellung fliegt nie, sie landet immer als Bestand
+// auf demselben Planeten (Mechanismus Punkt 1). `Object.keys(ABWEHR)` statt
+// eines einzelnen Eintrags: diese Runde baut genau eine Sorte, eine zweite
+// braucht dann keine zweite Liste (Prinzip 5).
+function renderAbwehr(state, root, planet, jetzt) {
+  const liste = root.querySelector("#abwehr-liste");
+  const info = root.querySelector("#abwehr-info");
+
+  const listeLeeren = () => {
+    if (liste.firstChild) liste.innerHTML = "";
+    delete info.dataset.geruest;
+  };
+  if (planet.typ === "aussenposten") { listeLeeren(); info.textContent = t("Außenposten haben keine Werft."); return; }
+  if (werftTempo(planet) <= 0) { listeLeeren(); info.textContent = t("Ohne Werft lassen sich keine Abwehrstellungen bauen."); return; }
+
+  const infoGeruest = `abwehr-info:${sprache()}:${planet.id}`;
+  if (info.dataset.geruest !== infoGeruest) {
+    info.dataset.geruest = infoGeruest;
+    info.innerHTML = `<span data-abwehr-text></span> <button data-abwehr-abbrechen="1" hidden></button>`;
+    const abbrechen = info.querySelector("button[data-abwehr-abbrechen]");
+    abbrechen.textContent = t("Abbrechen");
+    attributSetzen(abbrechen, "title", t("Bricht den laufenden Abwehrbau ab. Die Kosten werden vollständig erstattet."));
+    abbrechen.addEventListener("click", () => {
+      abwehrAbbrechen(state, planet);
+      render(state, root);
+    });
+  }
+  textSetzen(
+    info.querySelector("[data-abwehr-text]"),
+    planet.abwehrQueue
+      ? t("Im Bau: {anzahl}× {abwehr} ({dauer})", {
+          anzahl: planet.abwehrQueue.anzahl,
+          abwehr: t(ABWEHR[planet.abwehrQueue.abwehrId].name),
+          dauer: fmtDauer((planet.abwehrQueue.fertigZeit - jetzt) / 1000),
+        })
+      : t("Bereitschaft")
+  );
+  info.querySelector("button[data-abwehr-abbrechen]").hidden = !planet.abwehrQueue;
+
+  listeAbgleichen(liste, Object.keys(ABWEHR), {
+    schluessel: (id) => `${planet.id}:${id}`,
+    bauen: (id) => {
+      const li = document.createElement("li");
+      li.className = "gebaeude-item";
+      li.innerHTML = `
+        <div class="kachel-kopf">
+          <span class="kachel-symbol">${SYMBOLE[id] || "▪"}</span>
+          <span class="kachel-name"></span>
+          <span class="kachel-stufe"></span>
+        </div>
+        <div class="kachel-mitte">
+          <span class="kachel-kosten"><span class="zeilen-marke" data-kosten-marke></span> <span data-kosten-wert></span></span>
+          <span class="kachel-dauer"></span>
+        </div>
+        <div class="dezent kachel-strom" data-abwehr-bedarf></div>
+        <div class="kachel-sperre" hidden></div>
+        <div class="schiff-knoepfe">
+          <input type="number" class="menge-feld" min="1" step="1" value="1" data-abwehr-menge="${id}" />
+          <button class="kachel-aktion" data-abwehr="${id}"></button>
+        </div>`;
+      const feld = li.querySelector("input[data-abwehr-menge]");
+      const bauen = () => {
+        const menge = stueckzahlAus(feld.value);
+        if (menge === null) return;
+        abwehrBauen(state, planet, id, menge);
+        render(state, root);
+      };
+      li.querySelector("button[data-abwehr]").addEventListener("click", bauen);
+      feld.addEventListener("keydown", (ereignis) => {
+        if (ereignis.key === "Enter") bauen();
+      });
+      feld.addEventListener("input", () => render(state, root));
+      return li;
+    },
+    aktualisieren: (li, id) => abwehrKachelFuellen(state, planet, li, id),
+  });
+
+  renderWarteschlange(
+    state, root, "#abwehr-warteschlange", planet.abwehrWarteschlange,
+    (e) => `${e.anzahl}× ${t(ABWEHR[e.abwehrId].name)}`,
+    (i) => abwehrWarteschlangeEntfernen(state, planet, i),
+    String(planet.id),
+    null,
+    (w) => warteschlangeKosten(planet, w)
+  );
+}
+
+// Die veränderlichen Teile einer Abwehr-Kachel -- dieselbe Aufteilung wie
+// werftKachelFuellen (Prinzip 8a: Gerüst und Inhalt getrennt).
+function abwehrKachelFuellen(state, planet, li, id) {
+  const def = ABWEHR[id];
+  const feldEl = li.querySelector("input[data-abwehr-menge]");
+  const feldMenge = stueckzahlAus((feldEl || {}).value);
+  const menge = feldMenge === null ? 1 : feldMenge;
+  const check = kannAbwehrBauen(state, planet, id, menge);
+  const laeuft = !!(planet.abwehrQueue && planet.abwehrQueue.abwehrId === id);
+  li.classList.toggle("item-aktiv", laeuft);
+  fortschrittSetzen(
+    li,
+    laeuft && planet.abwehrQueue.fertigZeit !== null
+      ? 1 - anteilVon((planet.abwehrQueue.fertigZeit - spielzeitJetzt(state)) / 1000, planet.abwehrQueue.dauerSek)
+      : 0
+  );
+  textSetzen(li.querySelector(".kachel-name"), t(def.name));
+  textSetzen(li.querySelector(".kachel-stufe"), String(abwehrBestand(planet, id)));
+  textSetzen(li.querySelector("[data-kosten-marke]"), t("Kosten"));
+  markupSetzen(li.querySelector("[data-kosten-wert]"), buendelSymbole(abwehrstellungKosten(planet, id, menge), { abgang: true }));
+
+  // A-204, DoD 2: derselbe Sichtbarkeits-Grundsatz wie an der Gebäudekachel
+  // (die Falle aus A-114/A-167) -- der passive Bedarf steht hier, unabhängig
+  // von der Bau-Warteschlange, denn er läuft weiter, sobald Stück stehen.
+  textSetzen(
+    li.querySelector("[data-abwehr-bedarf]"),
+    t("Bereitschaft: {menge}", {
+      menge: [
+        t("{menge} MW", { menge: fmt(def.passiv.energie) }),
+        t("{menge} AK", { menge: fmt(def.passiv.arbeitskraft) }),
+      ].join(" · "),
+    })
+  );
+
+  const sperre = li.querySelector(".kachel-sperre");
+  const bedingung = !check.ok && !check.nurGeld ? `${SYMBOLE.gesperrt} ${check.grund}` : "";
+  sperre.hidden = !bedingung;
+  if (bedingung) textSetzen(sperre, bedingung);
+  textSetzen(li.querySelector(".kachel-dauer"), fmtDauer(abwehrBauzeitSek(planet, id, menge)));
+
+  const knopf = li.querySelector("button[data-abwehr]");
+  attributSetzen(li.querySelector("input[data-abwehr-menge]"), "title", t("Wie viele auf einmal gebaut werden sollen."));
+  textSetzen(knopf, t("Bauen"));
+  knopf.disabled = feldMenge === null || !(check.ok || check.nurGeld === true);
+  attributSetzen(
+    knopf,
+    "title",
+    feldMenge === null ? t("Trag eine Stückzahl ein – mindestens 1.") : check.ok ? "" : check.grund
+  );
+
+  attributSetzen(li, "title", [
+    t(def.beschreibung),
+    t("Kosten: {kosten} · {dauer}", {
+      kosten: buendelText(abwehrstellungKosten(planet, id, menge), { abgang: true }),
+      dauer: fmtDauer(abwehrBauzeitSek(planet, id, menge)),
+    }),
+    check.ok ? "" : check.grund,
+  ]
+    .filter(Boolean)
+    .join("\n"));
+}
+
 // Was in einer Zeitangabe steht: eine Restdauer, wenn der Auftrag LÄUFT --
 // und sonst, worauf er wartet (A-012, Prinzip 10a: Blockiertes erklärt sich
 // selbst).
@@ -8126,30 +8315,19 @@ export function renderDevelopment(state, root) {
     return p;
   };
 
-  // --- Sprungnavigation (A-160) --------------------------------------------
+  // --- Sprungnavigation (A-160, seit A-161 eigene Spalte statt Kopfzeile) --
   // Tobis Regel: „nie irgendwas ganz am Ende von einem ewigen Text
-  // platzieren, was irgendjemand finden soll" -- die Reihenfolge unten trägt
-  // das einmal, die Navigation trägt es dauerhaft, auch wenn der Bereich
-  // weiter wächst. Springt auf dieselben Marken, die A-040 bereits vergibt
-  // (`development-<id>`) -- echte Anker, kein Klick-Handler nötig, dieselbe
-  // Seite.
-  const sprungnav = document.createElement("nav");
-  sprungnav.className = "development-sprungnav";
-  sprungnav.setAttribute("aria-label", t("Development"));
+  // platzieren, was irgendjemand finden soll" -- die Navigation trägt das
+  // dauerhaft, auch wenn der Bereich weiter wächst. Springt auf dieselben
+  // Marken, die A-040 bereits vergibt (`development-<id>`) -- echte Anker,
+  // kein Klick-Handler nötig, dieselbe Seite. Der Bau selbst steht jetzt in
+  // `sprungnavBauen` (gemeinsam mit dem Handbuch, siehe dort).
   const sprungziele = [
     ["feedback", t("Feedback")],
     ["roadmap", t("Roadmap")],
     ["patchnotes", t("Patchnotes")],
     ["spielstand", t("Spielstand")],
   ];
-  sprungziele.forEach(([id, text], i) => {
-    if (i > 0) sprungnav.appendChild(document.createTextNode(" · "));
-    const a = document.createElement("a");
-    a.href = `#development-${id}`;
-    a.textContent = text;
-    sprungnav.appendChild(a);
-  });
-  knoten.push(sprungnav);
 
   // --- Feedback -------------------------------------------------------------
   // Zuerst: der einzige Grund, warum ein Tester diesen Bereich überhaupt
@@ -8214,5 +8392,8 @@ export function renderDevelopment(state, root) {
   // --- Spielstand ---------------------------------------------------------
   knoten.push(...spielstandAbschnitt(state, titel, absatz));
 
-  block.replaceChildren(...knoten);
+  const inhalt = document.createElement("div");
+  inhalt.className = "handbuch-inhalt";
+  inhalt.replaceChildren(...knoten);
+  block.replaceChildren(sprungnavBauen("development", sprungziele, t("Development")), inhalt);
 }

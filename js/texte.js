@@ -287,6 +287,20 @@ export const EN = {
   "Bewaffnetes Schiff. Einziger Schiffstyp, der Gefahren-Objekte angreifen kann. Verstecken kann es sich nicht: jedes Schiff strahlt seine Abwärme gegen einen drei Grad über dem absoluten Nullpunkt kalten Hintergrund ab. Wer im System ist, ist sichtbar.":
     "Armed vessel. The only ship type that can attack hazard objects. It cannot hide: every ship radiates its waste heat against a background three degrees above absolute zero. Whoever is in the system is visible.",
 
+  // --- Verteidigung (A-204) -------------------------------------------------
+  Verteidigung: "Defense",
+  Abwehrstellung: "Defense Installation",
+  "Bodengestützte Verteidigung in Stückzahl, nicht in Ausbaustufen -- wie eine Flotte, nur ohne Flug. Kostet im Frieden wenig (Bereitschaft: Kühlung, Zielrechner, Kondensatoren), im Gefecht viel. Verteidigt heute noch gegen nichts -- die Bedrohung kommt erst später.":
+    "Ground-based defense built in numbers, not levels -- like a fleet, only it never flies. Costs little in peacetime (standby: cooling, targeting computer, capacitors), a lot in combat. Defends against nothing yet -- the threat comes later.",
+  "{anzahl}× {abwehr} auf {planet} fertiggestellt.": "{anzahl}× {abwehr} completed at {planet}.",
+  "Kein laufender Abwehrbau.": "No defense construction in progress.",
+  "Im Bau: {anzahl}× {abwehr} ({dauer})": "Building: {anzahl}× {abwehr} ({dauer})",
+  Bereitschaft: "Standing by",
+  "Bereitschaft: {menge}": "Standby: {menge}",
+  "Ohne Werft lassen sich keine Abwehrstellungen bauen.": "Without a shipyard no defense installations can be built.",
+  "Bricht den laufenden Abwehrbau ab. Die Kosten werden vollständig erstattet.":
+    "Cancels the defense installation under construction. The cost is fully refunded.",
+
   // --- Planetenmodell (v0.24) ---------------------------------------------
   // Namen aus planetName(): abgeleitet aus Klasse, Zone und Wasservorrat.
   "{objekt}: {fracht} geerntet – der Gürtel füllt sich wieder.":
@@ -581,6 +595,8 @@ export const EN = {
   "Ausgebrannte Sonde": "Burnt-out probe",
   "{planet}: Nahrung reicht nicht – die Bevölkerung schrumpft auf {menge}.":
     "{planet}: not enough food – the population shrinks to {menge}.",
+  "{planet}: Nur {prozent} % Strom – die Nahrungsproduktion sinkt im gleichen Maß, die Bevölkerung schrumpft auf {menge}. Eine neue Farm hilft hier nicht, Stromvorrang für die Farm schon.":
+    "{planet}: only {prozent} % power – food production drops by the same amount, the population shrinks to {menge}. A new farm won't help here, power priority for the farm will.",
   "Logistiknetz: {fracht} von {quelle} nach {ziel} unterwegs.":
     "Logistics network: {fracht} en route from {quelle} to {ziel}.",
   "{planet}: Lager voll – Logistiknetz-Lieferung teilweise verloren.":
@@ -694,6 +710,9 @@ export const EN = {
   Demo: "Demo",
   "+1 Tag": "+1 day",
   Pause: "Pause",
+  // A-161: aria-label der Sprungnavigation, gemeinsam für Handbuch und
+  // Development (siehe sprungnavBauen, js/ui.js).
+  Inhalt: "Contents",
   // --- Der Development-Bereich (A-054) ---
   Development: "Development",
   Patchnotes: "Patch notes",

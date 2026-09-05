@@ -24,7 +24,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Entropy</title>
-  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/style.css?v=0.9.1" />
 </head>
 <body>
   <!--
@@ -177,6 +177,14 @@
         <h2><span data-text="Werft"></span> <span class="dezent" id="werft-info"></span></h2>
         <ul id="werft-liste" class="kachel-raster"></ul>
         <div id="werft-warteschlange" class="warteschlange"></div>
+
+        <!-- A-204: Abwehrstellungen laufen über denselben Werft-Weg (Stückzahl,
+             Warteschlange), landen aber als Bestand am Planeten statt in einer
+             Flotte -- deshalb hier, als zweite Liste in derselben Werft-Ansicht,
+             nicht als eigener Reiter. -->
+        <h2><span data-text="Verteidigung"></span> <span class="dezent" id="abwehr-info"></span></h2>
+        <ul id="abwehr-liste" class="kachel-raster"></ul>
+        <div id="abwehr-warteschlange" class="warteschlange"></div>
       </section>
 
       <section class="bereich" data-bereich="flotten" hidden>
@@ -452,6 +460,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js"></script>
+  <script type="module" src="js/main.js?v=0.9.1"></script>
 </body>
 </html>

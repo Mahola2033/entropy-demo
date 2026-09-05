@@ -1069,23 +1069,119 @@ body {
 /* Das Handbuch ist der einzige Ort im Spiel mit echtem Fließtext. Er braucht
    andere Regeln als die Kachelraster daneben: eine begrenzte Zeilenlänge (ab
    etwa 75 Zeichen verliert das Auge beim Zeilenwechsel die Spur) und mehr
-   Zeilenabstand als eine Zahlenkolonne. */
+   Zeilenabstand als eine Zahlenkolonne.
+
+   A-161 (Tobis Meldung 26.08.: die Fläche neben dem Text blieb zu 52 % leer):
+   `.handbuch` ist jetzt der ZWEISPALTIGE RAHMEN (Text + Sprungnavigation),
+   nicht mehr der Textblock selbst -- der zieht in `.handbuch-inhalt` um und
+   behält seine 72ch dort unverändert. Der Rahmen selbst trägt bewusst KEIN
+   eigenes max-width: er darf die volle Bereichsbreite nutzen, sonst klebt
+   die zweispaltige Fläche wieder links wie vorher, nur diesmal mit der Nav
+   im leeren Rest. `align-items: flex-start`, weil die Nav (deutlich kürzer
+   als der Text) sonst auf die volle Texthöhe gestreckt würde.
+
+   `container-type: inline-size` statt einer Media Query für den Umbruch
+   unten: GEMESSEN, nicht angenommen, dass die Fensterbreite die falsche
+   Bezugsgröße ist. Bei Klaus' 1097×520 ist das FENSTER 1097 px breit, der
+   BEREICH (`.spielfeld` abzüglich Navigation und Statusspalte links/rechts)
+   aber nur 530 px -- eine `@media`-Schwelle auf Fensterbreite hätte bei
+   1097 px nicht ausgelöst und zwei Spalten in 530 px gepresst (270 px
+   Textspalte, weit unter 72ch). `@container` fragt die tatsächlich
+   verfügbare Breite ab, nicht die Fensterbreite.
+
+   Der Container ist bewusst NICHT `.handbuch` selbst, sondern sein
+   Elternelement (`.bereich[data-bereich="handbuch/development"]` weiter
+   unten) -- GEMESSEN: ein Element kann nicht nach seiner EIGENEN
+   Container-Query umbrechen (`.handbuch { flex-direction: column }` INNERHALB
+   einer `@container`-Regel, die `.handbuch` selbst aufspannt, blieb wirkungslos,
+   nur `.handbuch-nav` als echter Nachfahre reagierte). Ein Container muss
+   Vorfahre des Elements sein, das auf ihn reagiert. */
 .handbuch {
-  max-width: 72ch;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--abstand-9);
   line-height: 1.65;
 }
 
-/* A-160: Sprungnavigation am Kopf des Development-Bereichs -- vier Verweise
-   auf dieselben Marken, die A-040 für Meldungen vergibt. Dezent, weil sie
-   Werkzeug ist, kein Inhalt; die Verweise selbst erben ihre Akzentfarbe von
-   `.handbuch a` weiter unten, wie der Rückmeldung-Link im Feedback-Absatz. */
-.development-sprungnav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 var(--abstand-2);
-  margin: 0 0 var(--abstand-7);
+.bereich[data-bereich="handbuch"],
+.bereich[data-bereich="development"] {
+  container-type: inline-size;
+}
+
+.handbuch-inhalt {
+  max-width: 72ch;
+  min-width: 0; /* Flex-Kind schrumpft sonst nicht unter seinen Inhalt --
+    dieselbe Falle wie bei den nachgebenden Schienen anderswo im Spiel. */
+  flex: 1 1 auto;
+}
+
+/* A-160 baute diese Navigation zuerst als Kopfzeile NUR für Development.
+   A-161 hebt sie auf die gemeinsame Ebene (Handbuch UND Development teilen
+   sich `.handbuch`) und macht daraus eine Spalte, die beim Scrollen mitläuft
+   -- Sprungziele je Bereich weiterhin verschieden (vier feste bei
+   Development, ein Dutzend aus `handbuchAbschnitte()` beim Handbuch), der
+   Bau ist jetzt gemeinsam (`sprungnavBauen`, js/ui.js).
+
+   `position: sticky` braucht einen scrollenden Vorfahren -- das ist
+   `.spielfeld` (eigenes `overflow-y: auto`), AUSSER bei sehr niedrigen
+   Fenstern (Klaus' 1097×520), wo `.spielfeld` seine Mindesthöhe nicht mehr
+   unterschreiten kann und stattdessen die ganze Seite scrollt (siehe Kommentar
+   an `.spielfeld`, dieselbe Falle wie in `ABNAHME-0.5.0.md` dokumentiert).
+   Genau dort greift aber die schmale Falllinie unten (einspaltig, `sticky`
+   wirkungslos, weil `position: static`) -- die Mehrdeutigkeit betrifft also
+   nie den Fall, in dem `sticky` tatsächlich aktiv ist. GEMESSEN, nicht
+   angenommen: beide Prüfgrößen unten geprüft. */
+.handbuch-nav {
+  flex: 0 0 14rem;
+  /* Rechts von der Textspalte (Tobis Vorgabe: „eigene Spalte rechts") --
+     DOM-Reihenfolge bleibt Nav-vor-Inhalt (A-160-Muster, Screenreader/Tab
+     erreichen die Sprungziele zuerst), `order` dreht nur die VISUELLE
+     Reihenfolge. Bei schmalem Fenster (Medienquery unten) kippt `order`
+     zurück auf „zuerst" -- dort steht die Nav dann folgerichtig wieder vor
+     dem Text, DOM- und Leserichtung wieder gleich. */
+  order: 1;
+  position: sticky;
+  top: var(--abstand-7);
   font-size: var(--schrift-s);
+}
+
+.handbuch-nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--abstand-2);
+}
+
+.handbuch-nav a {
   color: var(--text-dezent);
+}
+
+/* Schmaler BEREICH (Klaus' 1097×520 ist der geprüfte Fall -- dort ist das
+   nicht dasselbe wie ein schmales FENSTER, siehe Kommentar an `.handbuch`
+   oben): zwei Spalten nebeneinander lassen der Textspalte nicht mehr genug
+   Raum, ohne die 72ch-Regel zu brechen. Die Navigation fällt ÜBER den Text
+   (Tobis Vorgabe: "nicht weg") -- `order` dreht die visuelle Reihenfolge,
+   ohne die DOM-Reihenfolge (und damit die Tab-Reihenfolge: erst zum Inhalt,
+   dann zur Navigation) zu ändern. Schwelle gemessen, nicht geraten -- siehe
+   Ergebnis A-161 (72ch ≈ 621 px + 14rem Nav + 2rem Lücke ≈ 877 px Mindestbreite
+   für zwei Spalten; 55rem Container-Breite ist die nächste runde Schwelle
+   darüber, mit Marge gegen Scrollbalken/Rundungsrauschen). */
+@container (max-width: 55rem) {
+  .handbuch {
+    flex-direction: column;
+  }
+  .handbuch-nav {
+    position: static;
+    order: -1;
+    flex-basis: auto;
+  }
+  .handbuch-nav ul {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0 var(--abstand-4);
+  }
 }
 
 .handbuch h3 {
@@ -1094,10 +1190,14 @@ body {
   font-size: var(--schrift-xxl);
 }
 
-/* `:first-of-type`, nicht `:first-child` -- seit A-160 steht die
-   Sprungnavigation des Development-Bereichs (kein h3) vor der ersten
-   Überschrift. Sie soll trotzdem den knappen oberen Rand tragen, nicht den
-   vollen Abstand einer Kapitelüberschrift MITTEN im Text. */
+/* Die erste Überschrift im Textfluss folgt direkt auf die Bereichs-`h2`
+   („Handbuch"/„Development") -- sie soll den knappen oberen Rand tragen,
+   nicht den vollen Abstand einer Kapitelüberschrift MITTEN im Text. Seit
+   A-161 steht in `.handbuch-inhalt` (nicht mehr in `.handbuch` selbst,
+   dessen erstes Kind seit A-161 die Sprungnavigation ist, ein `<nav>`, kein
+   `h3`) -- `:first-of-type` bleibt trotzdem richtig, weil es ausschließlich
+   den ERSTEN h3 innerhalb JEDES Vorfahren trifft, unabhängig von der
+   Verschachtelungstiefe. */
 .handbuch h3:first-of-type {
   margin-top: var(--abstand-2);
 }

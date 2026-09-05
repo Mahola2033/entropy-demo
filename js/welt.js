@@ -30,9 +30,9 @@ import {
   STARTSCHWIERIGKEIT_VORGABE,
   techStufe,
   mengeSkaliert,
-} from "./data.js";
-import { stromFuer, waehle, zwischen, mischen, gewichtetWaehlen } from "./zufall.js";
-import { sternFuer } from "./galaxie.js";
+} from "./data.js?v=0.9.1";
+import { stromFuer, waehle, zwischen, mischen, gewichtetWaehlen } from "./zufall.js?v=0.9.1";
+import { sternFuer } from "./galaxie.js?v=0.9.1";
 
 // Systeme können bis zu 50 Orbits haben -- römische Zahlen daher berechnen
 // statt aus einer Tabelle nehmen.

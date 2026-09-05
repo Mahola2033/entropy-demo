@@ -28,6 +28,117 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.9.1",
+    de: [
+      "Neu: Abwehrstellungen — bodengestützte Verteidigung, die du in Stückzahl baust, wie eine Flotte, nur ohne Flug. Sie kostet im Frieden wenig Strom und dauerhaft etwas Arbeitskraft, im Ernstfall deutlich mehr. Ehrlich gesagt: Sie verteidigt heute noch gegen gar nichts — die Bedrohung, gegen die sie gebaut ist, kommt erst im nächsten Stand. Der Grund: Wer sich nicht wehren kann, soll auch nicht angegriffen werden — die Wahl, vorzusorgen, muss zuerst da sein. Selbst die Supernova kennt einen Konter; diese Bedrohung wird keine Ausnahme.",
+    ],
+    en: [
+      "New: defense installations — ground-based defense you build in numbers, like a fleet, only it never flies. It costs little power in peacetime and a steady amount of labor, a lot more when it matters. To be upfront: it defends against nothing at all yet — the threat it's built for arrives in the next release. The reason: if you can't fight back, you shouldn't be attacked in the first place — the choice to prepare has to exist first. Even the supernova has a counter; this threat won't be the exception.",
+    ],
+  },
+  {
+    version: "0.9.0",
+    de: [
+      "Neuer veröffentlichter Demo-Stand — neun Runden seit dem letzten. Dein Spielstand bleibt erhalten und wird nicht zurückgesetzt.",
+      "Das Wichtigste zuerst, falls du auf „Schwer“ angefangen hast: Diese Stufe war im bisherigen Stand nicht schwer, sondern nicht zu gewinnen. Sie stand auf einer kalten Welt mit mäßigem Wasser, und dort reichte die Nahrung nie, um überhaupt bis zur Magnetosphärentechnik zu forschen — gemessen über zehn Welten, in keiner einzigen kam der Schirm zustande. „Schwer“ liegt jetzt auf einer kalten Welt mit reichem Wasser. Sie bleibt die härteste der drei, ist aber nachweislich zu schaffen. Eine laufende Partie behält ihre Welt; die Änderung gilt für neue.",
+      "Wenn dir die Bevölkerung wegbricht, sagt dir das Spiel jetzt, woran es wirklich liegt. Fehlt Strom, sinkt die Nahrungsproduktion im selben Maß mit — eine zusätzliche Farm hilft dann nicht, weil sie denselben Strommangel abbekommt. Die Meldung nennt jetzt den Strom als Ursache und weist auf den Stromvorrang hin, mit dem du die Farm vor allen anderen Anlagen versorgen kannst. Fehlt wirklich Farmkapazität, steht die alte Meldung unverändert da.",
+      "Die Bevölkerung wächst jetzt fließend statt in Sprüngen alle fünf Minuten — wie jede andere Ressource auch. Der Zähler steht nicht mehr still und springt dann, sondern läuft mit.",
+      "Das Lagernetz verbraucht ab jetzt Strom. Ein planetares Lager ist kein Schuppen: Kühlung für Verderbliches, Umschlagtechnik, und für flüssiges Deuterium bei rund 20 Kelvin läuft die Kälteanlage ohne Pause. Lagerkapazität ist damit zum ersten Mal eine Abwägung statt einer Sache, die man einfach mitbaut.",
+      "Das Handbuch hat eine Sprungnavigation bekommen und lässt die Fläche nicht mehr zu zwei Dritteln leer.",
+      "Und einer für die, die schon länger dabei sind: Wenn ein neuer Stand erschien, sah man beim Zurückkommen manchmal eine weiße Seite, bis man den Zwischenspeicher des Browsers leerte. Der Browser mischte dabei alte und neue Programmteile. Das kann jetzt nicht mehr passieren.",
+    ],
+    en: [
+      "A new published demo build — nine rounds since the last one. Your save is preserved and will not be reset.",
+      "Most important first, if you started on “Hard”: in the previous build that difficulty was not hard, it was unwinnable. It sat on a cold world with moderate water, and food there never sufficed to even research magnetosphere technology — measured across ten worlds, the shield came up in none of them. “Hard” now sits on a cold world with rich water. It stays the hardest of the three, but it is demonstrably beatable. A game in progress keeps its world; the change applies to new ones.",
+      "When your population collapses, the game now tells you what is actually causing it. If power is short, food production drops by the same proportion — another farm will not help, because it faces the same shortage. The message now names power as the cause and points to the power priority setting, which lets you supply the farm ahead of everything else. Where farm capacity is genuinely missing, the old message stands unchanged.",
+      "Population now grows continuously instead of jumping every five minutes — like every other resource. The counter no longer sits still and then leaps.",
+      "The storage network now draws power. A planetary warehouse is not a shed: cooling for perishables, handling machinery, and for liquid deuterium at around 20 Kelvin the refrigeration runs without pause. Storage capacity is therefore a trade-off for the first time, rather than something you simply build alongside.",
+      "The manual has gained jump navigation and no longer leaves two thirds of the area empty.",
+      "And one for returning players: when a new build appeared, you sometimes saw a blank page until you cleared your browser cache, because the browser mixed old and new program parts. That can no longer happen.",
+    ],
+  },
+  {
+    version: "0.8.25",
+    de: [
+      "Die Hungermeldung nennt jetzt die richtige Ursache: Wenn Strom fehlt, sinkt die Nahrungsproduktion im gleichen Maß – die Meldung sagt das jetzt und rät zum Stromvorrang für die Farm statt zu einer neuen Farm, die ohnehin denselben Strommangel abbekäme. Fehlt wirklich Farmkapazität, bleibt die bisherige Meldung stehen.",
+    ],
+    en: [
+      "The hunger message now names the real cause: when power is short, food production drops by the same amount – the message now says so and points to power priority for the farm instead of a new farm, which would face the same shortage anyway. Where farm capacity is genuinely missing, the previous message stays unchanged.",
+    ],
+  },
+  {
+    version: "0.8.24",
+    de: [
+      "Nur intern: Der Änderungsprotokoll-Absatz zu SAVE_VERSION behauptete eine feste Anzahl an Sprüngen, die schon länger nicht mehr stimmte. Er nennt jetzt den aktuellen Stand und verweist auf die Tabelle, die sich selbst pflegt, statt eine Zahl von Hand mitzuzählen. Am Spiel ändert sich nichts.",
+    ],
+    en: [
+      "Internal only: the changelog paragraph about SAVE_VERSION claimed a fixed number of jumps that had long since stopped being accurate. It now names the current value and points to the table that maintains itself, instead of hand-counting a number. Nothing about the game changes.",
+    ],
+  },
+  {
+    version: "0.8.23",
+    de: [
+      "Nur intern: Das Werkzeug, das die Demo veröffentlicht, sagte bei jedem Versionssprung dasselbe Wort: „Das setzt JEDEN Spielstand der Tester zurück.“ Seit alte Spielstände automatisch mitgezogen werden können, stimmt das oft nicht mehr — die Meldung liest jetzt nach, ob ein Weg dorthin existiert, und sagt „werden migriert“ statt „gehen verloren“, wenn das zutrifft. Außerdem prüft es jetzt zusätzlich, dass jede Programmdatei, auf die verwiesen wird, auch wirklich im Paket landet, statt das erst hinterher zu bemerken. Am Spiel selbst ändert sich nichts.",
+    ],
+    en: [
+      "Internal only: the tool that publishes the demo used to say the same thing on every version jump: \"This resets EVERY tester's save.\" Since old saves can now be carried forward automatically, that is often no longer true — the message now checks whether a path exists and says \"will be migrated\" instead of \"will be lost\" when it does. It also now checks that every program file something refers to actually ends up in the package, instead of finding out afterward. Nothing about the game itself changes.",
+    ],
+  },
+  {
+    version: "0.8.22",
+    de: [
+      "Handbuch und Development-Bereich zeigen jetzt eine Sprungnavigation neben dem Text — ein Klick auf einen Abschnittstitel springt direkt dorthin. Die Lesebreite bleibt gleich, die Fläche daneben wird jetzt genutzt.",
+    ],
+    en: [
+      "The handbook and the development section now show a jump navigation next to the text — clicking a section title jumps straight there. The reading width stays the same; the space next to it is now put to use.",
+    ],
+  },
+  {
+    version: "0.8.21",
+    de: [
+      "Die Bevölkerung wächst jetzt fließend statt in Fünf-Minuten-Sprüngen — sie ändert sich laufend, wie jede andere Zahl im Spiel. Wie schnell eine Welt wächst oder bei Nahrungsmangel schrumpft, bleibt gleich.",
+    ],
+    en: [
+      "Population now grows smoothly instead of jumping every five minutes — it changes continuously, like every other number in the game. How fast a world grows or shrinks under famine stays the same.",
+    ],
+  },
+  {
+    version: "0.8.20",
+    de: [
+      "Das Lagernetz braucht jetzt Strom, wie jede andere Anlage. Vorher war es die einzige Versorgungsanlage ohne Strombedarf — mehr Lagerkapazität kostete nichts. Jetzt ist der Ausbau eine echte Abwägung.",
+    ],
+    en: [
+      "The storage network now needs power, like every other facility. Before, it was the only supply building with no power draw — more storage capacity cost nothing. Expanding it is now a real trade-off.",
+    ],
+  },
+  {
+    version: "0.8.19",
+    de: [
+      "Nur intern: Behoben, dass Tester nach einem Release manchmal eine leere Seite sahen, bis sie ihren Browser-Cache selbst geleert haben. Ein zurückkehrender Besucher konnte alte und neue Programmdateien mischen; die Adressen der Programmdateien tragen jetzt die Versionsnummer, damit das nicht mehr passieren kann. Am Spiel selbst ändert sich nichts.",
+    ],
+    en: [
+      "Internal only: fixed testers occasionally seeing a blank page after a release until they cleared their browser cache themselves. A returning visitor could end up mixing old and new program files; file addresses now carry the version number so that can no longer happen. Nothing about the game itself changes.",
+    ],
+  },
+  {
+    version: "0.8.18",
+    de: [
+      "Nur intern: Eine Messrunde hat geprüft, warum eine kalte Startwelt am Ende einer Partie eine so viel kleinere Bevölkerung hat als eine warme. Ergebnis: kein allmähliches Gefälle, sondern eine Kante — der Bau der Schutzschild-Anlage reißt auf beiden Welten kurzzeitig ein Energiedefizit auf, das auch die Nahrungsversorgung drosselt. Eine warme Welt übersteht das dank ihres größeren Nahrungspuffers, eine kalte fällt danach in einen sich selbst verstärkenden Bevölkerungsrückgang. Am Spiel ändert sich dadurch nichts.",
+    ],
+    en: [
+      "Internal only: a measurement round checked why a cold starting world ends up with a far smaller population than a warm one. Result: not a gradual slope but a cliff — building the shield generator briefly opens an energy shortfall on both worlds that also throttles food supply. A warm world weathers this thanks to its larger food buffer; a cold one falls into a self-reinforcing population decline afterward. Nothing about the game changes.",
+    ],
+  },
+  {
+    version: "0.8.17",
+    de: [
+      "Nur intern: Eine Messrunde hat geprüft, ob eine sehr kalte Startwelt den Magnetschild vor der Teilchenflut überhaupt tragen kann. Ergebnis: rechnerisch und in einem direkten Testaufbau ja — es braucht dafür aber eine Bevölkerung, die um Größenordnungen höher liegt, als die Testspielweise auf einer solchen Welt bisher erreicht. Am Spiel ändert sich dadurch nichts, nur ein veralteter Kommentar im Quelltext wurde korrigiert.",
+    ],
+    en: [
+      "Internal only: a measurement round checked whether a very cold starting world can support the magnetic shield against the supernova flood at all. Result: yes, both by calculation and in a direct test setup — but it takes a population orders of magnitude larger than the test playstyle currently reaches on such a world. Nothing about the game changes; only a stale source-code comment was corrected.",
+    ],
+  },
+  {
     version: "0.8.16",
     de: [
       "Die Fossilanlage, mit der jede neue Welt schon startet, war stärker ausgebaut, als ihr Brennstoffvorrat vorsah: Der Vorrat war für eine viel kleinere Anlage berechnet und deshalb nach rund sieben Minuten aufgebraucht, statt wie vorgesehen rund hundert Spieljahre zu tragen. Die Vorratsberechnung folgt jetzt der tatsächlichen Startgröße der Anlage — laufende Partien bekommen ihren Vorrat beim nächsten Laden nachgefüllt.",

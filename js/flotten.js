@@ -9,16 +9,16 @@
 // Ereignis in vorspulenBisJetzt läuft. Die Position wird nur bei Bedarf
 // interpoliert -- für die Anzeige und im Moment des Umleitens.
 
-import { SCHIFFE, FLOTTE, RESEARCH, SONDE, unterlichtSekundenProEinheit } from "./data.js";
-import { systemPosition, entfernung } from "./galaxie.js";
+import { SCHIFFE, FLOTTE, RESEARCH, SONDE, unterlichtSekundenProEinheit } from "./data.js?v=0.9.1";
+import { systemPosition, entfernung } from "./galaxie.js?v=0.9.1";
 // Zugriff dieser Datei auf state.js: Zugehörigkeit (fraktionVon/planetenVon)
 // und seit A-133 der Forschungsstand einer Fraktion (forschungVon). Beides
 // hier nachzubauen wäre dieselbe Grenze an zwei Stellen -- genau das Muster,
 // an dem das Produktionsmodell in v0.18 einmal auseinandergelaufen ist. Kein
 // Kreis: state.js kennt flotten.js nicht.
-import { planetenVon, fraktionVon, forschungVon } from "./state.js";
-import { SPIELER_FRAKTION } from "./data.js";
-import { t } from "./sprache.js";
+import { planetenVon, fraktionVon, forschungVon } from "./state.js?v=0.9.1";
+import { SPIELER_FRAKTION } from "./data.js?v=0.9.1";
+import { t } from "./sprache.js?v=0.9.1";
 
 // --- Position -------------------------------------------------------------
 // Ein Ort ist immer { x, y, systemId|null, orbit|null }.

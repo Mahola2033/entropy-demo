@@ -20,8 +20,8 @@
 // URL-kodiert sein. Umlaute, Zeilenumbrüche und das # der Überschriften würden
 // die Adresse sonst zerlegen -- encodeURIComponent, nicht Handarbeit.
 
-import { VERSION, STAND } from "./data.js";
-import { t } from "./sprache.js";
+import { VERSION, STAND } from "./data.js?v=0.9.1";
+import { t } from "./sprache.js?v=0.9.1";
 
 export const FEEDBACK_REPO = "https://github.com/Mahola2033/entropy-demo";
 

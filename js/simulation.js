@@ -12,6 +12,7 @@ import {
   RESEARCH,
   RESSOURCEN,
   SCHIFFE,
+  ABWEHR,
   OBJEKT_REGELN,
   MISSIONS_SCHIFF,
   AUSSENPOSTEN,
@@ -36,7 +37,7 @@ import {
   BEVOELKERUNG,
   SUPERNOVA,
   jahreInMs,
-  bevoelkerungsSchrittFaktor,
+  bevoelkerungsFaktorUeberMs,
   ARBEITSKRAFT_LEERLAUF,
 
   taugtAlsStartwelt,
@@ -46,7 +47,7 @@ import {
   bauzeitFuerLevel,
   forschungsAufwand,
   voraussetzungenText,
-} from "./data.js";
+} from "./data.js?v=0.9.1";
 import {
   effektiveRaten,
   bevoelkerungsWachstumsrate,
@@ -58,6 +59,8 @@ import {
   affinitaetFaktor,
   gebaeudeKosten,
   schiffKosten,
+  abwehrstellungKosten,
+  abwehrBestand,
   speicherKapazitaet,
   aufnahmeGrenzeFuer,
   lagerFrei,
@@ -98,7 +101,7 @@ import {
   beziehungAendern,
   beziehungZu,
   arbeitskraftDiebstahlAnteil,
-} from "./state.js";
+} from "./state.js?v=0.9.1";
 import {
   ortVonPlanet,
   ortVonSystem,
@@ -118,9 +121,9 @@ import {
   schiffeGesamt,
   schiffeStaerke,
   schiffeText,
-} from "./flotten.js";
-import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js";
-import { stromFuer, waehle } from "./zufall.js";
+} from "./flotten.js?v=0.9.1";
+import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.1";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.1";
 import {
   reichenAus,
   fehlende,
@@ -131,8 +134,8 @@ import {
   buendelText,
   formatZahl as fmt,
   name as resName,
-} from "./ressourcen.js";
-import { t } from "./sprache.js";
+} from "./ressourcen.js?v=0.9.1";
+import { t } from "./sprache.js?v=0.9.1";
 
 // Kurzform: Ressourcen in ein Planetenlager einlagern, begrenzt durch den
 // gemeinsamen Pool und etwaige Annahmeregeln. Gibt zurück, was nicht
@@ -153,7 +156,7 @@ function insLager(state, planet, buendel) {
     (resId) => aufnahmeGrenzeFuer(planet, resId)
   );
 }
-import { systemName, entfernung } from "./galaxie.js";
+import { systemName, entfernung } from "./galaxie.js?v=0.9.1";
 
 const MS_PRO_STUNDE = 1000 * 60 * 60;
 
@@ -224,7 +227,7 @@ function planetGeaendert(planet) {
 function bezahlbarZeitpunkt(state, planet) {
   if (planet.bezahlbarMerker !== undefined) return planet.bezahlbarMerker;
   let spaeteste = null;
-  for (const art of ["bau", "werft"]) {
+  for (const art of ["bau", "werft", "abwehr"]) {
     const kopf = wartenderKopf(planet, art);
     if (!kopf) continue;
     const kosten = kopfKosten(planet, kopf, art);
@@ -352,12 +355,13 @@ function piratenNaechsteBande(state, systemId) {
 
 function planetRatenAnwenden(state, planet, stunden) {
   {
-    const { lager, fluss, produktion, verbrauch } = effektiveRaten(state, planet);
+    const { lager, fluss, produktion, verbrauch, drosselung, effizienz } = effektiveRaten(state, planet);
 
     // A-155 (Arbeitskraft-Leerlauf): dieselbe Beschäftigungsquote wie die
     // Kachel (state.js, planetUebersicht), aus denselben Rohwerten. Über die
     // GANZE Spanne `stunden` konstant -- zwischen zwei Ereignissen ändert
-    // sich weder die Bevölkerung (eigenes "wachstum"-Ereignis) noch eine
+    // sich weder die Bevölkerung (sie wird erst GANZ AM ENDE dieser Funktion
+    // gebucht, aus genau diesem Grund, siehe A-166 unten) noch eine
     // Anlagenstufe (eigenes "bau"/"werft"-Ereignis), also auch nicht die
     // Quote. Genau darauf beruht schon jede andere Rate in dieser Funktion --
     // die Bekannte Falle "als Ereignis schneiden, nicht als stetige Größe"
@@ -455,6 +459,87 @@ function planetRatenAnwenden(state, planet, stunden) {
         );
       }
     }
+
+    // --- A-166: Bevölkerung wächst/schrumpft STETIG ------------------------
+    // Tobis Feedback (31.08.): "Bevölkerungswachstum auch fließender machen,
+    // wie bei Ressourcen." Dieselbe Formel wie zuvor (bevoelkerungsWachstums-
+    // rate/basisRateJahr, PROPORTIONAL, A-117) -- nur über die tatsächlich
+    // verstrichene Spanne `stunden` gerechnet statt in festen 5-Minuten-
+    // Sprüngen. GANZ AM ENDE dieser Funktion, aus demselben Grund wie beim
+    // Verderb weiter oben: alles darüber (Arbeitskraft, Diebstahl, jede
+    // andere Rate) benutzt den Bestand VOR dem Zuwachs dieser Spanne -- exakt
+    // dasselbe Verhalten wie zuvor, als die Bevölkerung nur alle
+    // `BEVOELKERUNG.schrittMs` sprang: zwischen zwei Ereignissen war sie
+    // schon immer konstant (siehe Kommentar ganz oben in dieser Funktion).
+    //
+    // KEIN EIGENER EREIGNISTYP MEHR NÖTIG: `ressourcenVorruecken` rückt am
+    // Ende jedes `vorspulenBisJetzt`-Aufrufs ohnehin ALLE Planeten auf "jetzt"
+    // vor (siehe dort, "Zum Schluss ALLE auf jetzt") -- das reicht, um die
+    // Bevölkerung im gewöhnlichen Sekundentakt genauso oft zu buchen wie jede
+    // andere Ressource. Der Moment, in dem `drosselung.nahrung` die Schwelle 1
+    // kreuzt, ist bereits ein eigenes "puffer"-Ereignis (pufferGrenzeStunden)
+    // -- eine Spanne überstreicht also nie einen Versorgt/nicht-versorgt-
+    // Wechsel, exakt wie bei jeder anderen Rate hier.
+    //
+    // `wachstumGesperrt`: TEST-ONLY-Feld, nie von Produktionscode gesetzt --
+    // dieselbe Rolle wie `planet.affinitaet` als Überschreibung (state.js):
+    // ein paar Tests brauchen die Bevölkerung als Störgröße abgeschaltet,
+    // ohne Wohnraum oder Arbeitskraft mit anzufassen.
+    if (planet.typ !== "aussenposten" && !planet.wachstumGesperrt) {
+      const menschen = planet.ressourcen.bevoelkerung || 0;
+      // Aus null Menschen wächst niemand nach -- ohne diese Prüfung würde
+      // sich ein ausgestorbener Planet von selbst wiederbesiedeln. Der Weg
+      // zurück führt ausschließlich über gelieferte Siedler.
+      if (menschen > 0) {
+        const versorgt = (drosselung.nahrung === undefined ? 1 : drosselung.nahrung) >= 1;
+        const spanneMs = stunden * MS_PRO_STUNDE;
+        if (!versorgt) {
+          // Schrumpfen ist der SYMMETRISCHE Spiegel des Wachstums:
+          // `basisRateJahr` ohne Vorratsbonus, nie `bevoelkerungsWachstumsrate`
+          // -- ein Vorrat gibt es hier ohnehin nicht (drosselung.nahrung < 1
+          // heißt: Bedarf übersteigt Zustrom UND der Vorrat ist aufgebraucht).
+          const f = bevoelkerungsFaktorUeberMs(BEVOELKERUNG.basisRateJahr, spanneMs);
+          const neu = Math.max(0, menschen - menschen * f);
+          planet.ressourcen.bevoelkerung = neu;
+          // A-202: zwei Meldungen an EINER Schwelle (effizienz < 1), keine
+          // zweite Feinheit. `effizienz` ist der globale Energiefaktor des
+          // Planeten (effektiveRaten, oben mit destrukturiert) -- wenn er
+          // unter 1 liegt, ist die Nahrungsproduktion um genau diesen Faktor
+          // gedrosselt (gemessen in A-201, auf die Nachkommastelle exakt),
+          // und "baue eine Farm" ist der falsche Rat: die neue Farm liefe mit
+          // derselben Drosselung. Dann nennt die Meldung den Strom und den
+          // Hebel, der wirklich zieht (Stromvorrang). Fehlt dagegen wirklich
+          // Farmkapazität (effizienz === 1), bleibt die alte Meldung stehen
+          // -- unconditional derselbe Schlüssel `hunger-${planet.id}` in
+          // beiden Fällen, A-083s Gruppierung fasst die häufigen Aufrufe
+          // weiterhin zu EINER Zeile mit Zähler zusammen (kein Spam).
+          meldungHinzufuegen(
+            state,
+            effizienz < 1
+              ? t("{planet}: Nur {prozent} % Strom – die Nahrungsproduktion sinkt im gleichen Maß, die Bevölkerung schrumpft auf {menge}. Eine neue Farm hilft hier nicht, Stromvorrang für die Farm schon.", {
+                  planet: planet.name,
+                  prozent: Math.round(effizienz * 100),
+                  menge: Math.round(neu),
+                })
+              : t("{planet}: Nahrung reicht nicht – die Bevölkerung schrumpft auf {menge}.", {
+                  planet: planet.name,
+                  menge: Math.round(neu),
+                }),
+            `hunger-${planet.id}`,
+            herkunftVon(planet)
+          );
+        } else {
+          const platz = speicherKapazitaet(planet, "bevoelkerung");
+          const f = bevoelkerungsFaktorUeberMs(bevoelkerungsWachstumsrate(planet), spanneMs);
+          // Math.min deckelt das ENDERGEBNIS der Spanne, nicht jeden
+          // gedachten Zwischenschritt -- bei vollem Wohnraum (menschen >=
+          // platz) macht das keinen Unterschied, erspart aber den früheren
+          // Sonderfall "kein Wohnraum frei: Wachstum ruht still" als eigene
+          // Verzweigung.
+          planet.ressourcen.bevoelkerung = Math.min(platz, menschen + menschen * f);
+        }
+      }
+    }
   }
 }
 
@@ -541,6 +626,9 @@ function ereignisAuswahlLinear(state) {
     if (planet.werftQueue && planet.werftQueue.fertigZeit !== null) {
       pruefe(planet.werftQueue.fertigZeit, "werft", planet);
     }
+    if (planet.abwehrQueue && planet.abwehrQueue.fertigZeit !== null) {
+      pruefe(planet.abwehrQueue.fertigZeit, "abwehr", planet);
+    }
     // Verarbeitungsketten, die gerade aus dem Lager nachziehen: der Moment, in
     // dem der Bestand die Reserve erreicht, trennt zwei Abschnitte mit jeweils
     // KONSTANTER Rate. Nur deshalb bleibt "Rate × Zeitspanne" gültig.
@@ -564,7 +652,7 @@ function ereignisAuswahlLinear(state) {
     if (grenze !== null) pruefe(grenze, "puffer", planet);
     // Wartet vorn ein Auftrag auf Material? Dann ist der Moment, in dem er
     // bezahlbar wird, ein Ereignis wie jedes andere (A-012).
-    if (planet.bauQueue || planet.werftQueue) {
+    if (planet.bauQueue || planet.werftQueue || planet.abwehrQueue) {
       const bezahlbar =
         planet.bezahlbarMerker !== undefined ? planet.bezahlbarMerker : bezahlbarZeitpunkt(state, planet);
       if (bezahlbar !== null) pruefe(bezahlbar, "bezahlbar", planet);
@@ -668,12 +756,22 @@ function ereignisBauen(state, zeit, art, entitaet) {
       return { zeit, ausfuehren: (t) => bauAbschliessen(state, entitaet, t), planeten: [entitaet] };
     case "werft":
       return { zeit, ausfuehren: (t) => werftAbschliessen(state, entitaet, t), planeten: [entitaet] };
+    case "abwehr":
+      return { zeit, ausfuehren: (t) => abwehrAbschliessen(state, entitaet, t), planeten: [entitaet] };
     // Der Puffer-Handler tut nichts -- das Aufteilen des Intervalls IST seine
     // Aufgabe, danach rechnet produktionsAufloesung im gedrosselten Regime.
     case "puffer":
       return { zeit, ausfuehren: () => {}, planeten: [entitaet] };
+    // A-166: reiner Taktgeber, keine eigene Rechnung mehr (siehe
+    // planetUhrStarten oben) -- die Bevölkerung selbst ist bei `zeit` schon
+    // gebucht, weil `ressourcenVorruecken` den Planeten VOR diesem Handler
+    // sowieso bis `zeit` vorrückt (siehe vorspulenBisJetzt). Der Handler
+    // reiht nur den NÄCHSTEN Taktpunkt neu ein -- ohne das bliebe
+    // `naechstesWachstum` auf demselben Zeitpunkt stehen und würde jede
+    // weitere Ereignissuche blockieren (dieselbe Falle wie ein Ereignis, das
+    // sich nicht neu einplant, siehe Kommentar an EREIGNIS_DECKEL).
     case "wachstum":
-      return { zeit, ausfuehren: (t) => bevoelkerungSchritt(state, entitaet, t), planeten: [entitaet] };
+      return { zeit, ausfuehren: (t) => { entitaet.naechstesWachstum = t + BEVOELKERUNG.schrittMs; }, planeten: [entitaet] };
     case "forschung":
       return { zeit, ausfuehren: (t) => forschungAbschliessen(state, t), planeten: null };
     case "snBlitz":
@@ -925,7 +1023,7 @@ function neuerPlan() {
 function planPlanetRec(plan, planet) {
   let rec = plan.planeten.get(planet);
   if (!rec) {
-    rec = { seq: plan.seqPlanet++, bau: null, werft: null, puffer: null, bezahlbar: null, wachstum: null };
+    rec = { seq: plan.seqPlanet++, bau: null, werft: null, abwehr: null, puffer: null, bezahlbar: null, wachstum: null };
     plan.planeten.set(planet, rec);
     planVonPlanet.set(planet, plan);
     plan.planetenZahl++;
@@ -1037,10 +1135,12 @@ function planQuellenZeit(state, art, ent) {
       return ent.bauQueue && ent.bauQueue.fertigZeit !== null ? ent.bauQueue.fertigZeit : null;
     case "werft":
       return ent.werftQueue && ent.werftQueue.fertigZeit !== null ? ent.werftQueue.fertigZeit : null;
+    case "abwehr":
+      return ent.abwehrQueue && ent.abwehrQueue.fertigZeit !== null ? ent.abwehrQueue.fertigZeit : null;
     case "puffer":
       return pufferGrenzeZeitpunkt(state, ent);
     case "bezahlbar":
-      return ent.bauQueue || ent.werftQueue ? bezahlbarZeitpunkt(state, ent) : null;
+      return ent.bauQueue || ent.werftQueue || ent.abwehrQueue ? bezahlbarZeitpunkt(state, ent) : null;
     case "wachstum":
       return ent.naechstesWachstum || null;
     case "fraktion":
@@ -1114,6 +1214,10 @@ function planDirtyAbarbeiten(state, plan) {
       planQuelleSetzen(plan, rec, "puffer", GR_PLANET, 2, "puffer", planet, planQuellenZeit(state, "puffer", planet));
       planQuelleSetzen(plan, rec, "bezahlbar", GR_PLANET, 3, "bezahlbar", planet, planQuellenZeit(state, "bezahlbar", planet));
       planQuelleSetzen(plan, rec, "wachstum", GR_PLANET, 4, "wachstum", planet, planQuellenZeit(state, "wachstum", planet));
+      // A-204: eigener Rang 5, unter den fünf bestehenden -- keine der
+      // bisherigen Nummern verschiebt sich (Tie-Break-Reihenfolge bleibt
+      // exakt wie vor dieser Runde).
+      planQuelleSetzen(plan, rec, "abwehr", GR_PLANET, 5, "abwehr", planet, planQuellenZeit(state, "abwehr", planet));
     }
     plan.dirtyPlaneten.clear();
   }
@@ -1335,69 +1439,6 @@ function naechstesEreignis(state) {
   return gebaut;
 }
 
-// Bevölkerungsschritt: wächst bei gedeckter Versorgung und freiem Wohnraum,
-// schrumpft bei Nahrungsmangel -- symmetrisch, Tobis ausdrückliche
-// Entscheidung. Wie der Kampf eine bewusste Ausnahme von "verhindern statt
-// bestrafen".
-//
-// PROPORTIONAL zum Bestand (A-117): Zuwachs/Schwund ist `menschen × f`, mit
-// `f` aus `bevoelkerungsSchrittFaktor` -- keine feste Menge mehr. `f` wird
-// intern NICHT gerundet (bewusste Wahl gegen die "0,7 Menschen -> 0"-Falle
-// bei kleinen Welten): der Bruchteil bleibt im Bestand stehen und wächst im
-// nächsten Schritt weiter mit. Angezeigt wird ohnehin immer abgerundet
-// (`formatZahl`/`formatKurz` in js/ressourcen.js) -- eine Welt mit 30
-// Menschen wächst also spürbar langsamer als eine mit 500.000, verschwindet
-// aber nie in der Rundung.
-//
-// Die Prüfung liest `drosselung.nahrung` aus der Produktionsauflösung: die ist
-// genau dann < 1, wenn der Bedarf den Zustrom übersteigt UND der Vorrat
-// aufgebraucht ist. Solange noch Nahrung im Lager liegt, wächst die
-// Bevölkerung also weiter und zehrt den Vorrat auf -- man kann sich bewusst
-// übernehmen, und merkt es erst, wenn das Lager leer ist.
-function bevoelkerungSchritt(state, planet, zeit) {
-  // Ereigniszeit weiterreichen, nie spielzeitJetzt -- sonst driftet der
-  // Rhythmus bei Offline-Aufholung und Zeitsprüngen. Das gilt auch fürs
-  // proportionale Wachstum: die Aufholung ruft diese Funktion Schritt für
-  // Schritt auf (ein Ereignis je `schrittMs`), nie mit vielen Takten auf
-  // einmal -- ein hochmultiplizierter Schritt wäre bei proportionalem
-  // Wachstum Zinseszins und würde zu schnell wachsen.
-  planet.naechstesWachstum = zeit + BEVOELKERUNG.schrittMs;
-  if (planet.typ === "aussenposten") return;
-
-  const { drosselung } = effektiveRaten(state, planet);
-  const versorgt = (drosselung.nahrung === undefined ? 1 : drosselung.nahrung) >= 1;
-  const menschen = planet.ressourcen.bevoelkerung || 0;
-  const platz = speicherKapazitaet(planet, "bevoelkerung");
-
-  // Aus null Menschen wächst niemand nach. Ohne diese Prüfung würde sich ein
-  // ausgestorbener Planet von selbst wiederbesiedeln -- der Null-Zustand wäre
-  // dann keiner, sondern nur eine Delle. Der Weg zurück führt ausschließlich
-  // über gelieferte Siedler, und das ist die ursächliche Variante.
-  if (menschen <= 0) return;
-
-  if (!versorgt) {
-    // Schrumpfen ist der SYMMETRISCHE Spiegel des Wachstums: `basisRateJahr`
-    // ohne Vorratsbonus, nie `bevoelkerungsWachstumsrate` -- ein Vorrat gibt
-    // es hier ohnehin nicht (siehe Kommentar oben, "Vorrat aufgebraucht").
-    const f = bevoelkerungsSchrittFaktor(BEVOELKERUNG.basisRateJahr);
-    const neu = Math.max(0, menschen - menschen * f);
-    planet.ressourcen.bevoelkerung = neu;
-    meldungHinzufuegen(
-      state,
-      t("{planet}: Nahrung reicht nicht – die Bevölkerung schrumpft auf {menge}.", {
-        planet: planet.name,
-        menge: Math.round(neu),
-      }),
-      `hunger-${planet.id}`,
-      herkunftVon(planet)
-    );
-    return;
-  }
-  if (menschen >= platz) return; // kein Wohnraum frei: Wachstum ruht still
-  const f = bevoelkerungsSchrittFaktor(bevoelkerungsWachstumsrate(planet));
-  planet.ressourcen.bevoelkerung = Math.min(platz, menschen + menschen * f);
-}
-
 // Obergrenze der Ereignisse je Aufruf.
 //
 // Das ist eine ENDLOSSCHLEIFEN-SICHERUNG, kein Leistungsbudget: die Schleife
@@ -1467,11 +1508,28 @@ export const EREIGNIS_DECKEL = 2000000;
 // brauchen ihn nicht -- für sie erledigt das noch die erste
 // wiederkehrendeEinplanen() unten, VOR dem allerersten Ereignis.
 //
-// OHNE das bekäme der Planet sein erstes Wachstumsereignis erst beim
+// OHNE das bekäme der Planet seinen ersten Auffrisch-Zeitpunkt erst beim
 // nächsten EXTERNEN vorspulenBisJetzt-Aufruf: planPlanetNeu registriert ihn
 // beim Ereignisplan (A-035) SOFORT danach, und der liest naechstesWachstum in
 // genau diesem Moment -- 0 (der Rohzustand aus neuerPlanet) gilt dort als
 // "keine Quelle" (A-119).
+//
+// A-166: DER NAME BLEIBT, DIE AUFGABE ÄNDERT SICH. Bis A-166 löste dieses
+// Ereignis selbst den Bevölkerungsschritt aus (`bevoelkerungsSchritt`). Seit
+// die Bevölkerung STETIG in `planetRatenAnwenden` gebucht wird (siehe dort,
+// über die tatsächlich verstrichene Spanne, exakt statt in Schritten), tut
+// der Handler nichts mehr (wie beim "puffer"-Ereignis) -- `naechstesWachstum`
+// ist jetzt reiner TAKTGEBER: ohne ihn hätte ein Planet, an dem sonst nichts
+// hängt (kein Bau, keine Puffergrenze), über einen langen Sprung hinweg NUR
+// EINEN einzigen planetRatenAnwenden-Aufruf für die GANZE Spanne -- die
+// Bevölkerung selbst käme exakt gleich heraus (Zinseszins ist assoziativ),
+// aber JEDE ANDERE Rate, die von der zwischenzeitlich gewachsenen Bevölkerung
+// abhängt (allen voran Arbeitskraft und darüber Nahrung/Förderung), bliebe
+// für die ganze Spanne auf dem Startwert stehen, statt wie zuvor alle
+// `schrittMs` aufzufrischen. GEMESSEN, nicht vermutet: ohne diesen Taktgeber
+// wich `tests/planetenuhr.test.js` ("ein großer Sprung ergibt dasselbe wie
+// viele kleine") beim Nahrungsbestand eines unberührten Planeten um rund 15 %
+// zwischen einem großen Sprung und vielen kleinen ab -- mit ihm exakt.
 //
 // `zeit` ist immer die ÜBERGEBENE Ereigniszeit, nie spielzeitJetzt, sonst
 // driftet der Rhythmus bei der Aufholung, die diesen Fehler aufgedeckt hat.
@@ -1484,7 +1542,7 @@ function planetUhrStarten(planet, zeit) {
 // Eigene Funktion, damit beide Vorspul-Wege sie garantiert gleich machen.
 function wiederkehrendeEinplanen(state) {
   // Der Plan (A-035) existiert hier schon, wenn vorher einmal vorgespult
-  // wurde -- ein frisch gesetztes Wachstum ist eine NEUE Quelle und muss
+  // wurde -- ein frisch gesetzter Taktgeber ist eine NEUE Quelle und muss
   // gemeldet werden (die Selbstheilung greift nur bei Quellen, die schon
   // einmal im Heap standen).
   const plan = plaene.get(state);
@@ -3626,6 +3684,27 @@ function werftAbschliessen(state, planet, zeit) {
   );
   const naechster = planet.werftWarteschlange.shift();
   planet.werftQueue = naechster ? { ...naechster, startZeit: null, fertigZeit: null } : null;
+  kopfPruefen(state, planet, zeit);
+}
+
+// A-204: dieselbe Form wie werftAbschliessen, aber ohne die Flotten-Hälfte
+// -- eine Abwehrstellung hat kein `zielFlotte`, sie landet IMMER als Bestand
+// auf demselben Planeten, auf dem sie gebaut wurde (Mechanismus Punkt 1:
+// „Eine Bodenstellung fliegt nicht").
+function abwehrAbschliessen(state, planet, zeit) {
+  const queue = planet.abwehrQueue;
+  planet.abwehr[queue.abwehrId] = (planet.abwehr[queue.abwehrId] || 0) + queue.anzahl;
+  meldungHinzufuegen(
+    state,
+    t("{anzahl}× {abwehr} auf {planet} fertiggestellt.", {
+      anzahl: queue.anzahl,
+      abwehr: t(ABWEHR[queue.abwehrId].name),
+      planet: planet.name,
+    }),
+    null, herkunftVon(planet)
+  );
+  const naechster = planet.abwehrWarteschlange.shift();
+  planet.abwehrQueue = naechster ? { ...naechster, startZeit: null, fertigZeit: null } : null;
   kopfPruefen(state, planet, zeit);
 }
 
@@ -5971,9 +6050,9 @@ export function bauStarten(state, planet, gebaeudeId, zeit = null, nurWennBezahl
 // „was fehlt noch" und „was wird abgebucht" nie auseinanderlaufen können.
 export function kopfKosten(planet, kopf, art) {
   if (!kopf) return null;
-  return art === "bau"
-    ? gebaeudeKosten(planet, BUILDINGS[kopf.gebaeudeId], kopf.zielLevel)
-    : schiffKosten(planet, kopf.schiffId, kopf.anzahl);
+  if (art === "bau") return gebaeudeKosten(planet, BUILDINGS[kopf.gebaeudeId], kopf.zielLevel);
+  if (art === "abwehr") return abwehrstellungKosten(planet, kopf.abwehrId, kopf.anzahl);
+  return schiffKosten(planet, kopf.schiffId, kopf.anzahl);
 }
 
 // Worauf wartet der Kopf, und wie lange noch? Fuer die Anzeige (A-012).
@@ -6036,7 +6115,7 @@ export function kopfRestSekunden(kopf, jetzt) {
 
 // Der Kopf einer Warteschlange, sofern er WARTET (noch nicht bezahlt).
 export function wartenderKopf(planet, art) {
-  const kopf = art === "bau" ? planet.bauQueue : planet.werftQueue;
+  const kopf = art === "bau" ? planet.bauQueue : art === "abwehr" ? planet.abwehrQueue : planet.werftQueue;
   return kopf && kopf.fertigZeit === null ? kopf : null;
 }
 
@@ -6047,7 +6126,7 @@ export function wartenderKopf(planet, art) {
 // und das ist Absicht -- ein vierter Aufrufer wäre eine vierte Gelegenheit,
 // die Zeit falsch durchzureichen.
 export function kopfPruefen(state, planet, zeit) {
-  for (const art of ["bau", "werft"]) {
+  for (const art of ["bau", "werft", "abwehr"]) {
     const kopf = wartenderKopf(planet, art);
     if (!kopf) continue;
     const kosten = kopfKosten(planet, kopf, art);
@@ -6383,6 +6462,88 @@ export function werftAbbrechen(state, planet) {
   const naechster = planet.werftWarteschlange.shift();
   const jetzt = spielzeitJetzt(state);
   planet.werftQueue = naechster ? { ...naechster, startZeit: null, fertigZeit: null } : null;
+  kopfPruefen(state, planet, jetzt);
+  return { ok: true };
+}
+
+// --- Abwehrstellung (A-204) -------------------------------------------------
+//
+// DRITTE Bauschleife neben Bau und Werft, exakt nach dem Muster des
+// Schiffbaus (Konzept-VERTEIDIGUNG.md 9.2: „Stückzahl wie Schiffe" -- der
+// WEG der Werft, NICHT die Flottenzugehörigkeit, siehe A-204-Auftrag,
+// Mechanismus Punkt 2). Eigene Queue/Warteschlange (`abwehrQueue`/
+// `abwehrWarteschlange`, state.js neuerPlanet), eigener Bestand
+// (`planet.abwehr`) -- KEIN `zielFlotte`: eine Stellung fliegt nie, sie
+// landet immer am eigenen Planeten (dasselbe „im Hafen"-Ziel wie ein Schiff
+// ohne Flottenwunsch, nur ohne die Flotten-Alternative überhaupt).
+export function abwehrBauzeitSek(planet, abwehrId, anzahl) {
+  const tempo = werftTempo(planet);
+  if (tempo <= 0) return Infinity;
+  return Math.max(3, Math.round((ABWEHR[abwehrId].bauzeitSek * anzahl) / tempo));
+}
+
+export function kannAbwehrBauen(state, planet, abwehrId, anzahl = 1) {
+  if (!planet || planet.typ === "aussenposten") return { ok: false, grund: t("Außenposten haben keine Werft.") };
+  if (werftTempo(planet) <= 0) return { ok: false, grund: t("Hier steht keine Werft.") };
+  const laenge = (planet.abwehrQueue ? 1 : 0) + planet.abwehrWarteschlange.length;
+  if (laenge >= BAUWARTESCHLANGE_MAX) {
+    return { ok: false, grund: t("Warteschlange voll ({max}/{max}).", { max: BAUWARTESCHLANGE_MAX }) };
+  }
+  // Dieselbe Werft-Schwelle wie beim Schiffbau, dieselbe Reihenfolge der
+  // Prüfungen (erst die Stufe, dann das Geld -- „dafür ist deine Werft zu
+  // klein" ändert sich nicht dadurch, dass man später mehr hat).
+  const noetigeStufe = ABWEHR[abwehrId].werftAb || 1;
+  const stufe = planet.gebaeude.werft || 0;
+  if (stufe < noetigeStufe) {
+    return {
+      ok: false,
+      grund: t("Braucht Werft Stufe {noetig} (aktuell {aktuell}).", { noetig: noetigeStufe, aktuell: stufe }),
+    };
+  }
+  const kosten = abwehrstellungKosten(planet, abwehrId, anzahl);
+  if (!reichenAus(planet.ressourcen, kosten)) {
+    return { ...nichtGenug(planet.ressourcen, kosten), kosten, nurGeld: true };
+  }
+  return { ok: true, kosten };
+}
+
+export function abwehrBauen(state, planet, abwehrId, anzahl = 1, zeit = null, nurWennBezahlbar = false) {
+  const check = kannAbwehrBauen(state, planet, abwehrId, anzahl);
+  if (!check.ok && !(check.nurGeld && !nurWennBezahlbar)) return check;
+
+  const dauerSek = abwehrBauzeitSek(planet, abwehrId, anzahl);
+  if (!planet.abwehrQueue) {
+    planet.abwehrQueue = { abwehrId, anzahl, dauerSek, startZeit: null, fertigZeit: null };
+    kopfPruefen(state, planet, zeit ?? spielzeitJetzt(state));
+  } else {
+    planet.abwehrWarteschlange.push({ abwehrId, anzahl, dauerSek });
+  }
+  planetGeaendert(planet);
+  return { ok: true };
+}
+
+// Nichts zu erstatten: dieselbe A-178-Regel wie bei den anderen beiden
+// Warteschlangen -- ein wartender Eintrag hat noch nichts bezahlt.
+export function abwehrWarteschlangeEntfernen(state, planet, index) {
+  const eintrag = planet.abwehrWarteschlange[index];
+  if (!eintrag) return { ok: false, grund: t("Eintrag nicht gefunden.") };
+  planet.abwehrWarteschlange.splice(index, 1);
+  return { ok: true };
+}
+
+// Bricht die GERADE LAUFENDE Abwehr-Bestellung ab -- dieselbe Regel wie
+// bauAbbrechen/werftAbbrechen, Erstattung über die GEMEINSAME
+// abbruchErstatten (A-183) -- keine sechste Kopie, wie vom A-204-Auftrag
+// ausdrücklich verlangt.
+export function abwehrAbbrechen(state, planet) {
+  if (!planet.abwehrQueue) return { ok: false, grund: t("Kein laufender Abwehrbau.") };
+  const abgebrochen = planet.abwehrQueue;
+  const laeuft = abgebrochen.fertigZeit !== null;
+  const kosten = abwehrstellungKosten(planet, abgebrochen.abwehrId, abgebrochen.anzahl);
+  abbruchErstatten(state, planet, kosten, laeuft);
+  const naechster = planet.abwehrWarteschlange.shift();
+  const jetzt = spielzeitJetzt(state);
+  planet.abwehrQueue = naechster ? { ...naechster, startZeit: null, fertigZeit: null } : null;
   kopfPruefen(state, planet, jetzt);
   return { ok: true };
 }

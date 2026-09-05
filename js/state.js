@@ -21,6 +21,7 @@ import {
   WASSER_STUFEN,
   SCHWERKRAFT,
   SCHIFFE,
+  ABWEHR,
   LAGER_RESSOURCEN,
   FLUSS_RESSOURCEN,
   REICHWEITE,
@@ -48,17 +49,17 @@ import {
   FOSSIL_VORRAT_BASIS,
   ARBEITSKRAFT_LEERLAUF,
   DROSSELUNG,
-} from "./data.js";
-import { stromFuer, waehle } from "./zufall.js";
-import { systemGenerieren } from "./welt.js";
+} from "./data.js?v=0.9.1";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.1";
+import { systemGenerieren } from "./welt.js?v=0.9.1";
 // A-082: eigener Zufallsstrom für den Heimatweltnamen. Die Kennung ist eine
 // beliebige feste Zahl -- wichtig ist nur, dass sie keiner Systemkennung in
 // die Quere kommt und sich nie wieder ändert (sonst hieße jede bestehende
 // Partie beim nächsten Laden anders).
 const HEIMATWELT_NAMEN_KENNUNG = 900001;
-import { galaxiePlanen, entfernung, schluesselImSystem } from "./galaxie.js";
-import { skalieren } from "./ressourcen.js";
-import { t } from "./sprache.js";
+import { galaxiePlanen, entfernung, schluesselImSystem } from "./galaxie.js?v=0.9.1";
+import { skalieren } from "./ressourcen.js?v=0.9.1";
+import { t } from "./sprache.js?v=0.9.1";
 
 // v0.28: Sterntypen verschieben die Orbitzonen -- dieselbe Saat erzeugt jetzt
 // andere Planeten. Ein alter Spielstand trüge Fortschritt zu Orbits, in denen
@@ -121,10 +122,36 @@ function startSchiffe() {
   return s;
 }
 
+// A-204: derselbe Bestand-Vorgabe-Grundsatz wie bei Schiffen -- `|| 0` ist
+// für einen alten Spielstand richtig (wer noch keine gebaut hat, hat keine),
+// die Runde bleibt Kategorie 1.
+function startAbwehr() {
+  const a = {};
+  for (const id of Object.keys(ABWEHR)) a[id] = 0;
+  return a;
+}
+
 function startForschung() {
   const f = {};
   for (const id of Object.keys(RESEARCH)) f[id] = 0;
   return f;
+}
+
+// A-204: Nachtragen statt Migration (Kategorie 1, wie im Auftrag begründet:
+// `|| 0`/`|| {}` ist für einen alten Spielstand die richtige Vorgabe -- wer
+// noch keine Abwehrstellung gebaut hat, hat keine). Dasselbe Muster wie
+// piratenNamenNachziehen/pauseNachziehen (js/save.js): läuft unconditional
+// bei JEDEM Laden, EINE Stelle statt einer Bedingung an jeder Zugriffsstelle
+// (A-040). Schreibt echte Objekte/Arrays, nicht nur `undefined` -- ohne das
+// würde z.B. `planet.abwehrWarteschlange.push(...)` auf einem alten Stand
+// werfen.
+export function abwehrNachziehen(state) {
+  for (const planet of state.planeten || []) {
+    if (planet.typ === "aussenposten") continue;
+    if (!planet.abwehr) planet.abwehr = startAbwehr();
+    if (planet.abwehrQueue === undefined) planet.abwehrQueue = null;
+    if (!planet.abwehrWarteschlange) planet.abwehrWarteschlange = [];
+  }
 }
 
 export function neuerPlanet({ id, systemId, orbit, name, typ, groesse = 150, startvorrat = false, art = null, klasse = null, zone = null, wasser = null, schwerkraft = 1, fraktion = SPIELER_FRAKTION }) {
@@ -186,9 +213,10 @@ export function neuerPlanet({ id, systemId, orbit, name, typ, groesse = 150, sta
     // Planetare Affinität: { resId: faktor } auf die Förderung. Haken für
     // spezielle Planetenarten/Terraforming -- ohne Eintrag ändert sich nichts.
     affinitaet: {},
-    // Zeitpunkt des nächsten Bevölkerungsschritts. 0 heißt "noch nicht
-    // eingeplant" und wird beim ersten Vorspulen gesetzt -- neuerPlanet kennt
-    // die Spielzeit nicht und soll sie auch nicht kennen müssen.
+    // Zeitpunkt des nächsten Auffrisch-Taktgebers (A-166: bis A-166 der
+    // nächste Bevölkerungsschritt). 0 heißt "noch nicht eingeplant" und wird
+    // beim ersten Vorspulen gesetzt -- neuerPlanet kennt die Spielzeit nicht
+    // und soll sie auch nicht kennen müssen.
     naechstesWachstum: 0,
     bauQueue: null, // { gebaeudeId, zielLevel, startZeit, fertigZeit } -- der aktuell laufende Bau
     // Wartende Bauaufträge dahinter: [{ gebaeudeId, zielLevel, dauerSek }].
@@ -200,6 +228,14 @@ export function neuerPlanet({ id, systemId, orbit, name, typ, groesse = 150, sta
     werftQueue: null, // { schiffId, anzahl, fertigZeit } -- eigene Schleife neben dem Bau
     // Wartende Schiffsaufträge dahinter, gleiches Muster: [{ schiffId, anzahl, dauerSek }].
     werftWarteschlange: [],
+    // A-204: Abwehrstellungen stehen am Planeten, nicht in einer Flotte --
+    // dieselbe Bestand-Rolle wie `schiffe` (Stückzahl, sammelt sich an).
+    abwehr: typ === "aussenposten" ? {} : startAbwehr(),
+    // DRITTE Bauschleife neben bau/werft, exakt dasselbe Muster (Konzept
+    // 9.2: „Stückzahl wie Schiffe" -- der Werft-WEG, nicht die
+    // Flottenzugehörigkeit): { abwehrId, anzahl, fertigZeit }.
+    abwehrQueue: null,
+    abwehrWarteschlange: [],
   };
 }
 
@@ -936,6 +972,12 @@ export const PUFFER_MINDESTDAUER_MS = 1000;
 // Gebäude, aber derselbe Rechenweg -- siehe produktionsAufloesung.
 export const BEVOELKERUNG_ANLAGE = "__bevoelkerung";
 
+// A-204: dieselbe Rolle wie BEVOELKERUNG_ANLAGE, aber OHNE die dortige
+// Ausnahme von der Stromdrosselung -- eine Abwehrstellung hängt sehr wohl am
+// Stromnetz, sie ist nur keine BUILDINGS-Anlage mit Stufen (siehe ABWEHR in
+// data.js).
+export const ABWEHR_ANLAGE = "__abwehrstellung";
+
 export function pufferReichweiteMs(vorrat, defizitProStunde) {
   if (defizitProStunde <= 0) return Infinity;
   if (vorrat <= 0) return 0;
@@ -1322,7 +1364,8 @@ export function vorratsanteil(planet) {
 }
 
 // Die Jahresrate fürs WACHSTUM (nicht fürs Schrumpfen -- das bleibt bei
-// `basisRateJahr` ohne Bonus, siehe bevoelkerungSchritt in simulation.js).
+// `basisRateJahr` ohne Bonus, siehe die Bevölkerungsbuchung am Ende von
+// planetRatenAnwenden in simulation.js, A-166).
 // Dieselbe Funktion für Simulation UND Anzeige (planetUebersicht unten), sonst
 // driftet eine von beiden lautlos auseinander (A-112-Fehlerklasse).
 export function bevoelkerungsWachstumsrate(planet) {
@@ -1394,6 +1437,19 @@ export function rohRaten(state, planet) {
   // und zwar mit dem Faktor des POSTENS, nicht dem der Bevölkerung.
   const abgaben = handelsAbgaben(planet, planet.gebaeude.handelsposten || 0);
   if (abgaben > 0) produktion.credits = (produktion.credits || 0) + abgaben;
+
+  // A-204: Abwehrstellungen sind KEINE BUILDINGS-Anlage (siehe ABWEHR in
+  // data.js -- Stückzahl statt Stufen, deshalb FLACH je Stück statt über
+  // rate()) -- ihr passiver Bedarf wird hier direkt addiert, wie bei der
+  // Bevölkerung oben. Muss identisch auch in produktionsAufloesung stehen
+  // (derselbe Grundsatz wie überall in dieser Funktion, siehe Kommentare
+  // daneben).
+  const abwehrStueck = (planet.abwehr && planet.abwehr.abwehrstellung) || 0;
+  if (abwehrStueck > 0) {
+    const passiv = ABWEHR.abwehrstellung.passiv;
+    verbrauch.energie = (verbrauch.energie || 0) + passiv.energie * abwehrStueck;
+    verbrauch.arbeitskraft = (verbrauch.arbeitskraft || 0) + passiv.arbeitskraft * abwehrStueck;
+  }
 
   for (const [id, def] of Object.entries(BUILDINGS)) {
     const level = planet.gebaeude[id] || 0;
@@ -1736,6 +1792,21 @@ export function produktionsAufloesung(state, planet) {
   // essen, deshalb bekommt sie unten den Faktor 1 statt der Energieeffizienz.
   if (menschen.nahrung > 0) {
     anlagen.push({ id: BEVOELKERUNG_ANLAGE, prod: {}, verb: { nahrung: menschen.nahrung } });
+  }
+
+  // A-204: Abwehrstellungen SIND am Stromnetz (anders als die Bevölkerung
+  // oben) -- ihr passiver Bedarf ist ein eigener Posten mit eigener
+  // Priorität (Vorgabe: normal, wie jede Anlage ohne gesetzte Stufe), aber
+  // keine BUILDINGS-Anlage. Beide Werte sind FLUSS_RESSOURCEN, deshalb nur
+  // `fluss`, kein `verb` (das trägt nur Lagerwaren, siehe die Schleife oben).
+  const abwehrStueckAnlage = (planet.abwehr && planet.abwehr.abwehrstellung) || 0;
+  if (abwehrStueckAnlage > 0) {
+    const passiv = ABWEHR.abwehrstellung.passiv;
+    const abwehrFluss = {
+      energie: passiv.energie * abwehrStueckAnlage,
+      arbeitskraft: passiv.arbeitskraft * abwehrStueckAnlage,
+    };
+    anlagen.push({ id: ABWEHR_ANLAGE, prod: {}, verb: {}, fluss: abwehrFluss, energie: abwehrFluss.energie });
   }
 
   // Energiemangel drosselt eine Anlage komplett -- also auch ihren Zugriff auf
@@ -2370,11 +2441,15 @@ export function planetUebersicht(state, planet) {
 
   // --- 4a. Bevölkerung (vor dem Lager: der Wohnraum braucht ihre Rate) -----
   //
-  // Das Wachstum ist ein SCHRITT alle `schrittMs`, keine Rate -- hier wird es
-  // in eine Stundenrate umgerechnet, damit es neben den anderen Zahlen steht.
-  // Die drei Fälle sind dieselben wie in bevoelkerungSchritt (simulation.js),
-  // und das ist Absicht: eine Anzeige, die anders rechnet als die Simulation,
-  // ist eine Lüge mit Nachkommastellen.
+  // A-166: Die Bevölkerung wird in der Simulation seither STETIG gebucht
+  // (planetRatenAnwenden in simulation.js, über die tatsächlich verstrichene
+  // Spanne) statt in festen `schrittMs`-Sprüngen. Diese Anzeige rechnet
+  // bewusst WEITER mit der alten, schrittbasierten Näherung -- nicht anfassen
+  // (A-166) -- sie ist ohnehin nur eine Stundenrate zur Übersicht, keine
+  // Buchung: `bevoelkerungsSchrittFaktor(rJahr) × (Stunde/schrittMs)` ist
+  // dieselbe Jahresrate, nur auf "je Stunde" umgerechnet, damit sie neben den
+  // anderen Zahlen steht. Die drei Fälle (schrumpft/wächst/ruht) folgen
+  // derselben Logik wie die Buchung selbst.
   const versorgt = (raten.drosselung.nahrung === undefined ? 1 : raten.drosselung.nahrung) >= 1;
   // Stundenrate ist eine MOMENTAUFNAHME (Rate zum aktuellen Bestand), keine
   // exakte Vorhersage: proportionales Wachstum beschleunigt mit dem Bestand,
@@ -2511,6 +2586,22 @@ export function planetUebersicht(state, planet) {
     arbeitskraft.produktion > 0 ? arbeitskraft.verbrauch / arbeitskraft.produktion : 1;
   arbeitskraft.diebstahlAnteil = arbeitskraftDiebstahlAnteil(arbeitskraft.quote);
 
+  // --- 4c. Verteidigung (A-204) --------------------------------------------
+  //
+  // Konzept 9.4, wörtlich: „Viele kleine Kosten sind schwerer zu sehen als
+  // eine große. Die Verteidigungs-Anlagengruppe braucht eine Stelle, an der
+  // ihre Summe steht." Genau das ist diese Gruppe -- Bau steht schon im
+  // Warteschlangen-Kopf (kein zweiter Ort nötig, das ist eine einmalige
+  // Zahl), hier zählen die LAUFENDEN Kosten (Strom passiv, Arbeitskraft) in
+  // EINER Summe je Planet, unabhängig davon, wie viele einzelne Stellungen
+  // stehen.
+  const abwehrStueckzahl = (planet && planet.abwehr && planet.abwehr.abwehrstellung) || 0;
+  const verteidigung = {
+    stueckzahl: abwehrStueckzahl,
+    energieVerbrauch: abwehrStueckzahl * ABWEHR.abwehrstellung.passiv.energie,
+    arbeitskraftVerbrauch: abwehrStueckzahl * ABWEHR.abwehrstellung.passiv.arbeitskraft,
+  };
+
   // --- 4b. Anstehende Freischalt-Schwellen --------------------------------
   //
   // ANSTEHEND heißt: noch nicht erfüllt. Eine erfüllte Schwelle ist keine
@@ -2546,7 +2637,7 @@ export function planetUebersicht(state, planet) {
     }
   }
 
-  return { aussenposten, standort, lager, fluesse, energie, arbeitskraft, bevoelkerung, schwellen };
+  return { aussenposten, standort, lager, fluesse, energie, arbeitskraft, verteidigung, bevoelkerung, schwellen };
 }
 
 
@@ -2620,6 +2711,32 @@ export function hatLabor(state, fraktionId = SPIELER_FRAKTION) {
 
 export function schiffeFrei(planet, schiffId) {
   return (planet.schiffe && planet.schiffe[schiffId]) || 0;
+}
+
+// A-204: derselbe defensive Zugriff wie schiffeFrei -- ein alter Spielstand
+// ohne `abwehr`-Feld liefert 0, keine Sonderbehandlung nötig.
+export function abwehrBestand(planet, abwehrId) {
+  return (planet.abwehr && planet.abwehr[abwehrId]) || 0;
+}
+
+// A-204, Mechanismus Punkt 3: der AKTIVE Strombedarf existiert und ist
+// geprüft, wird aber diese Runde NIRGENDS aufgerufen -- es gibt noch kein
+// Gefecht, das ihn auslösen könnte. V1 (A-207) ruft sie, sobald es eines
+// gibt. FLACH je Stück, linear -- derselbe Grundsatz wie bei `passiv`
+// (siehe Kommentar an ABWEHR in data.js): Stückzahl, keine Stufen.
+export function abwehrAktivBedarf(planet, abwehrId = "abwehrstellung") {
+  const stueck = abwehrBestand(planet, abwehrId);
+  if (stueck <= 0) return 0;
+  return ABWEHR[abwehrId].aktiv.energie * stueck;
+}
+
+// A-204, Definition von fertig Punkt 4: n Stück verlieren verringert den
+// Bestand um n, nie unter 0. Reine Funktion, kein `state` nötig -- das
+// Gefecht selbst (wer wie viele Stücke verliert) entscheidet V1.
+export function abwehrVerlust(planet, abwehrId, anzahl) {
+  if (!planet.abwehr) planet.abwehr = {};
+  const bestand = planet.abwehr[abwehrId] || 0;
+  planet.abwehr[abwehrId] = Math.max(0, bestand - anzahl);
 }
 
 export function handelVerfuegbar(planet) {
@@ -3218,6 +3335,16 @@ export function schiffKosten(planet, schiffId, anzahl = 1) {
   return skalieren(SCHIFFE[schiffId].kosten, anzahl * startKostenFaktor(planet));
 }
 
+// A-204: `bauKostenFaktor` (Traglast, LINEAR), nicht `startKostenFaktor`
+// (Raketengleichung) -- eine Abwehrstellung fliegt nie, sie „muss ihre
+// Energieversorgung nicht mitschleppen, sondern stützt sich auf den
+// Planeten" (Konzept 9.2). Linear in `anzahl`, exakt wie `schiffKosten`:
+// die zwölfte Stellung kostet so viel wie die erste (siehe Kommentar an
+// `ABWEHR` in data.js).
+export function abwehrstellungKosten(planet, abwehrId, anzahl = 1) {
+  return skalieren(ABWEHR[abwehrId].kosten, anzahl * bauKostenFaktor(planet));
+}
+
 // Höchste Stückzahl, die der BESTAND jetzt sofort trägt (R-2/A-100). Die
 // Kosten wachsen linear mit der Stückzahl (`startKostenFaktor` hängt nur am
 // Planeten, nicht an `anzahl`) -- deshalb reicht Teilen statt Suchen: je
@@ -3256,6 +3383,8 @@ export function auftragKosten(planet, eintrag) {
   if (!eintrag) return {};
   if (eintrag.gebaeudeId) return gebaeudeKosten(planet, BUILDINGS[eintrag.gebaeudeId], eintrag.zielLevel);
   if (eintrag.schiffId) return schiffKosten(planet, eintrag.schiffId, eintrag.anzahl || 1);
+  // A-204: dritte Bauform, dasselbe „ein Eintrag sagt selbst, was er ist".
+  if (eintrag.abwehrId) return abwehrstellungKosten(planet, eintrag.abwehrId, eintrag.anzahl || 1);
   return {};
 }
 

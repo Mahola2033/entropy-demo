@@ -7,15 +7,16 @@ import {
   meldungenNummerieren,
   momenteNachziehen,
   pauseNachziehen,
+  abwehrNachziehen,
   speicherbarerVersatz,
   spielDatum,
   vollerFossilVorrat,
-} from "./state.js";
-import { piratenWeltStart, botWeltStart, piratenNamenNachziehen } from "./simulation.js";
-import { notausgangLoeschen } from "./aufholen.js";
-import { DEMO_SAAT, VERSION } from "./data.js";
-import { t } from "./sprache.js";
-import { startschwierigkeit } from "./schwierigkeit.js";
+} from "./state.js?v=0.9.1";
+import { piratenWeltStart, botWeltStart, piratenNamenNachziehen } from "./simulation.js?v=0.9.1";
+import { notausgangLoeschen } from "./aufholen.js?v=0.9.1";
+import { DEMO_SAAT, VERSION } from "./data.js?v=0.9.1";
+import { t } from "./sprache.js?v=0.9.1";
+import { startschwierigkeit } from "./schwierigkeit.js?v=0.9.1";
 
 const STORAGE_KEY = "entropy-save";
 
@@ -165,7 +166,11 @@ export function sicherungLesen() {
 // LEBENDEN FOSSIL_VORRAT_BASIS -- genau das war der Fehler, den A-196 behebt.
 const MASSSTAB_SPRUNG_A164 = 2500; // 125.000 / 50
 const MENSCHEN_FAKTOR_A164 = 24;
-const MIGRATIONEN = {
+// A-198: exportiert, damit veroeffentlichen.mjs die ECHTE Kette liest, statt
+// sie nachzubauen (derselbe Fehlertyp, den A-196 gerade behoben hat) -- der
+// Vorflug prüft damit, ob ein SAVE_VERSION-Sprung migrierbar ist, ohne die
+// Tabelle ein zweites Mal zu pflegen.
+export const MIGRATIONEN = {
   31: (stand) => ({ ...stand, version: 32 }),
   32: (stand) => ({
     ...stand,
@@ -282,6 +287,9 @@ export function laden() {
     // nachträglich (A-060). Muss VOR dem ersten Takt laufen -- der würde sie
     // sonst sofort schreiben.
     momenteNachziehen(state);
+    // A-204: Abwehrstellungen sind neu -- ein Stand von vor dieser Runde
+    // trägt weder `abwehr` noch die beiden neuen Warteschlangen-Felder.
+    abwehrNachziehen(state);
     return state;
   } catch (e) {
     altenStandSichern(raw, "unlesbar");
