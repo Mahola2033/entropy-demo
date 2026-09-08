@@ -49,17 +49,17 @@ import {
   FOSSIL_VORRAT_BASIS,
   ARBEITSKRAFT_LEERLAUF,
   DROSSELUNG,
-} from "./data.js?v=0.9.1";
-import { stromFuer, waehle } from "./zufall.js?v=0.9.1";
-import { systemGenerieren } from "./welt.js?v=0.9.1";
+} from "./data.js?v=0.9.6";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.6";
+import { systemGenerieren } from "./welt.js?v=0.9.6";
 // A-082: eigener Zufallsstrom für den Heimatweltnamen. Die Kennung ist eine
 // beliebige feste Zahl -- wichtig ist nur, dass sie keiner Systemkennung in
 // die Quere kommt und sich nie wieder ändert (sonst hieße jede bestehende
 // Partie beim nächsten Laden anders).
 const HEIMATWELT_NAMEN_KENNUNG = 900001;
-import { galaxiePlanen, entfernung, schluesselImSystem } from "./galaxie.js?v=0.9.1";
-import { skalieren } from "./ressourcen.js?v=0.9.1";
-import { t } from "./sprache.js?v=0.9.1";
+import { galaxiePlanen, entfernung, schluesselImSystem } from "./galaxie.js?v=0.9.6";
+import { skalieren } from "./ressourcen.js?v=0.9.6";
+import { t } from "./sprache.js?v=0.9.6";
 
 // v0.28: Sterntypen verschieben die Orbitzonen -- dieselbe Saat erzeugt jetzt
 // andere Planeten. Ein alter Spielstand trüge Fortschritt zu Orbits, in denen
@@ -1438,17 +1438,17 @@ export function rohRaten(state, planet) {
   const abgaben = handelsAbgaben(planet, planet.gebaeude.handelsposten || 0);
   if (abgaben > 0) produktion.credits = (produktion.credits || 0) + abgaben;
 
-  // A-204: Abwehrstellungen sind KEINE BUILDINGS-Anlage (siehe ABWEHR in
-  // data.js -- Stückzahl statt Stufen, deshalb FLACH je Stück statt über
-  // rate()) -- ihr passiver Bedarf wird hier direkt addiert, wie bei der
-  // Bevölkerung oben. Muss identisch auch in produktionsAufloesung stehen
-  // (derselbe Grundsatz wie überall in dieser Funktion, siehe Kommentare
-  // daneben).
-  const abwehrStueck = (planet.abwehr && planet.abwehr.abwehrstellung) || 0;
-  if (abwehrStueck > 0) {
-    const passiv = ABWEHR.abwehrstellung.passiv;
-    verbrauch.energie = (verbrauch.energie || 0) + passiv.energie * abwehrStueck;
-    verbrauch.arbeitskraft = (verbrauch.arbeitskraft || 0) + passiv.arbeitskraft * abwehrStueck;
+  // A-204/A-205: Verteidigungs-Bauarten (ABWEHR-Katalog) sind KEINE
+  // BUILDINGS-Anlage (Stückzahl statt Stufen, deshalb FLACH je Stück statt
+  // über rate()) -- ihr passiver Bedarf wird hier direkt addiert, wie bei
+  // der Bevölkerung oben. `abwehrPassivSumme` ist DIE Summenstelle über
+  // alle Arten (A-204: abwehrstellung, A-205: ortung) -- muss identisch auch
+  // in produktionsAufloesung stehen (derselbe Grundsatz wie überall in
+  // dieser Funktion, siehe Kommentare daneben).
+  const abwehrSumme = abwehrPassivSumme(planet);
+  if (abwehrSumme.stueckzahl > 0) {
+    verbrauch.energie = (verbrauch.energie || 0) + abwehrSumme.energie;
+    verbrauch.arbeitskraft = (verbrauch.arbeitskraft || 0) + abwehrSumme.arbeitskraft;
   }
 
   for (const [id, def] of Object.entries(BUILDINGS)) {
@@ -1794,18 +1794,17 @@ export function produktionsAufloesung(state, planet) {
     anlagen.push({ id: BEVOELKERUNG_ANLAGE, prod: {}, verb: { nahrung: menschen.nahrung } });
   }
 
-  // A-204: Abwehrstellungen SIND am Stromnetz (anders als die Bevölkerung
-  // oben) -- ihr passiver Bedarf ist ein eigener Posten mit eigener
-  // Priorität (Vorgabe: normal, wie jede Anlage ohne gesetzte Stufe), aber
-  // keine BUILDINGS-Anlage. Beide Werte sind FLUSS_RESSOURCEN, deshalb nur
-  // `fluss`, kein `verb` (das trägt nur Lagerwaren, siehe die Schleife oben).
-  const abwehrStueckAnlage = (planet.abwehr && planet.abwehr.abwehrstellung) || 0;
-  if (abwehrStueckAnlage > 0) {
-    const passiv = ABWEHR.abwehrstellung.passiv;
-    const abwehrFluss = {
-      energie: passiv.energie * abwehrStueckAnlage,
-      arbeitskraft: passiv.arbeitskraft * abwehrStueckAnlage,
-    };
+  // A-204/A-205: Verteidigungs-Bauarten SIND am Stromnetz (anders als die
+  // Bevölkerung oben) -- ihr passiver Bedarf ist EIN gemeinsamer Posten mit
+  // eigener Priorität (Vorgabe: normal, wie jede Anlage ohne gesetzte
+  // Stufe), aber keine BUILDINGS-Anlage. Beide Werte sind FLUSS_RESSOURCEN,
+  // deshalb nur `fluss`, kein `verb` (das trägt nur Lagerwaren, siehe die
+  // Schleife oben). `abwehrPassivSumme` summiert über ALLE Arten (A-204:
+  // abwehrstellung, A-205: ortung) -- EIN Posten, keine zweite Anlage
+  // daneben (Konzept 9.4: „eine Stelle, an der die Summe steht").
+  const abwehrSummeAnlage = abwehrPassivSumme(planet);
+  if (abwehrSummeAnlage.stueckzahl > 0) {
+    const abwehrFluss = { energie: abwehrSummeAnlage.energie, arbeitskraft: abwehrSummeAnlage.arbeitskraft };
     anlagen.push({ id: ABWEHR_ANLAGE, prod: {}, verb: {}, fluss: abwehrFluss, energie: abwehrFluss.energie });
   }
 
@@ -2586,7 +2585,7 @@ export function planetUebersicht(state, planet) {
     arbeitskraft.produktion > 0 ? arbeitskraft.verbrauch / arbeitskraft.produktion : 1;
   arbeitskraft.diebstahlAnteil = arbeitskraftDiebstahlAnteil(arbeitskraft.quote);
 
-  // --- 4c. Verteidigung (A-204) --------------------------------------------
+  // --- 4c. Verteidigung (A-204, A-205) --------------------------------------
   //
   // Konzept 9.4, wörtlich: „Viele kleine Kosten sind schwerer zu sehen als
   // eine große. Die Verteidigungs-Anlagengruppe braucht eine Stelle, an der
@@ -2594,12 +2593,13 @@ export function planetUebersicht(state, planet) {
   // Warteschlangen-Kopf (kein zweiter Ort nötig, das ist eine einmalige
   // Zahl), hier zählen die LAUFENDEN Kosten (Strom passiv, Arbeitskraft) in
   // EINER Summe je Planet, unabhängig davon, wie viele einzelne Stellungen
-  // stehen.
-  const abwehrStueckzahl = (planet && planet.abwehr && planet.abwehr.abwehrstellung) || 0;
+  // stehen UND wie viele verschiedene Arten (A-205 reiht Ortung hier ein,
+  // über `abwehrPassivSumme` -- nicht eine zweite Summe daneben).
+  const abwehrGesamt = abwehrPassivSumme(planet);
   const verteidigung = {
-    stueckzahl: abwehrStueckzahl,
-    energieVerbrauch: abwehrStueckzahl * ABWEHR.abwehrstellung.passiv.energie,
-    arbeitskraftVerbrauch: abwehrStueckzahl * ABWEHR.abwehrstellung.passiv.arbeitskraft,
+    stueckzahl: abwehrGesamt.stueckzahl,
+    energieVerbrauch: abwehrGesamt.energie,
+    arbeitskraftVerbrauch: abwehrGesamt.arbeitskraft,
   };
 
   // --- 4b. Anstehende Freischalt-Schwellen --------------------------------
@@ -2719,6 +2719,40 @@ export function abwehrBestand(planet, abwehrId) {
   return (planet.abwehr && planet.abwehr[abwehrId]) || 0;
 }
 
+// A-205, DoD 6: DIE Summenstelle für den passiven Bedarf ALLER
+// Verteidigungs-Bauarten (der ganze ABWEHR-Katalog) an einem Planeten --
+// A-204 hatte sie noch für „abwehrstellung" allein hingeschrieben (an drei
+// Stellen: hier, `rohRaten`, `produktionsAufloesung`); diese Runde macht
+// daraus eine echte Schleife, damit eine dritte Bauart (A-206) nicht wieder
+// eine Kopie braucht. Ortung hat kein `aktiv` (sie kämpft nie mit) --
+// deshalb wird hier nur `passiv` gelesen, das jede ABWEHR-Art trägt.
+export function abwehrPassivSumme(planet) {
+  let stueckzahl = 0;
+  let energie = 0;
+  let arbeitskraft = 0;
+  if (planet && planet.abwehr) {
+    for (const id of Object.keys(ABWEHR)) {
+      const stueck = planet.abwehr[id] || 0;
+      if (stueck <= 0) continue;
+      stueckzahl += stueck;
+      energie += stueck * ABWEHR[id].passiv.energie;
+      arbeitskraft += stueck * ABWEHR[id].passiv.arbeitskraft;
+    }
+  }
+  return { stueckzahl, energie, arbeitskraft };
+}
+
+// A-205: wie viele Ortungsstationen eine Fraktion INSGESAMT hat -- ein
+// Sensor-Netz über alle eigenen Welten, keine Frage der Nähe zur
+// überfallenen Flotte (dieselbe Vereinfachung wie bei jeder anderen
+// imperiumsweiten Summe in diesem Spiel, z. B. `hatLabor`). Physikalisch
+// trägt das: die Vorwarnung kommt aus der Auswertung von Abwärmesignaturen
+// im ganzen Herrschaftsgebiet, nicht von einer einzelnen Antenne am Ort des
+// Überfalls.
+export function ortungGesamtbestand(state, fraktionId = SPIELER_FRAKTION) {
+  return planetenVon(state, fraktionId).reduce((summe, p) => summe + abwehrBestand(p, "ortung"), 0);
+}
+
 // A-204, Mechanismus Punkt 3: der AKTIVE Strombedarf existiert und ist
 // geprüft, wird aber diese Runde NIRGENDS aufgerufen -- es gibt noch kein
 // Gefecht, das ihn auslösen könnte. V1 (A-207) ruft sie, sobald es eines
@@ -2737,6 +2771,27 @@ export function abwehrVerlust(planet, abwehrId, anzahl) {
   if (!planet.abwehr) planet.abwehr = {};
   const bestand = planet.abwehr[abwehrId] || 0;
   planet.abwehr[abwehrId] = Math.max(0, bestand - anzahl);
+}
+
+// A-206: wie viel EINER Ressource der Bunker deckt -- ABGELEITET aus
+// Stückzahl × Kapazität je Stück, KEIN gespeichertes Feld (Lehre aus
+// A-147/A-171: ein fehlendes Feld darf hier nichts kaputtmachen, ein alter
+// Spielstand ohne `abwehr.bunker` liefert über `abwehrBestand` schon 0).
+// Die Kapazität ist Lagervolumen -- dieselbe Einheit wie `lagerkapazitaet()`
+// und dieselbe Umrechnung über `lagerverbrauchVon` wie beim normalen
+// Lagerpool, damit eine Tonne Antimaterie hier genauso viel wiegt wie dort.
+// Absichtlich UNABHÄNGIG von anderen Ressourcen: der Bunker prüft "wie viel
+// von DIESER Ressource passt hinein", nicht eine Aufteilung zwischen
+// mehreren Ressourcen gleichzeitig -- diese Zuteilung ist Sache der
+// Raubmechanik (V1), die diese Funktion erst aufruft.
+export function bunkerGeschuetzterAnteil(planet, resId) {
+  const stueck = abwehrBestand(planet, "bunker");
+  if (stueck <= 0) return 0;
+  const gewicht = lagerverbrauchVon(resId);
+  if (gewicht <= 0) return Infinity; // gewichtslose Ressourcen sind auch im normalen Lagerpool unbegrenzt
+  const kapazitaetInRessource = (stueck * ABWEHR.bunker.kapazitaetProStueck) / gewicht;
+  const bestand = (planet.ressourcen && planet.ressourcen[resId]) || 0;
+  return Math.min(bestand, kapazitaetInRessource);
 }
 
 export function handelVerfuegbar(planet) {

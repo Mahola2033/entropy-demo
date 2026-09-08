@@ -11,12 +11,30 @@
 // Absichtlich Positioniertes ist ausgenommen: Tooltips, Menüs und Overlays
 // (`position: absolute/fixed`) sollen überlappen. Geprüft werden nur
 // Elemente im normalen Fluss (`static`/`relative`).
+//
+// A-207, Teil 2 (weiter unten im Modul): der Katalog-Abgleich braucht kein
+// echtes Layout, nur DOM-Struktur -- er läuft deshalb bewusst HIER und nicht
+// in kachelwaechter-zustaende.js, damit er in Node (tests/kacheln.mjs) UND
+// im Browser (window.__entropy.kachelWaechter) derselbe Code bleibt
+// (Bekannte Falle 3 des Auftrags).
+
+import { BUILDINGS, RESEARCH, SCHIFFE, ABWEHR } from "./data.js?v=0.9.6";
 
 // Welche Kachel-/Kartenfamilien geprüft werden. `.res-kachel` ist die
 // Ressourcenleiste (A-157s Fall, in JEDEM Bereich sichtbar, A-076).
 // `.gebaeude-item` ist die zweite große Kachelfamilie (Anlagen & Sektoren,
 // A-146) mit derselben Grid-/Flex-Bauweise. Weitere Familien: hier ergänzen.
 export const KACHEL_SELECTOR = ".res-kachel, .gebaeude-item";
+
+// Bereiche, die mindestens eine der geprüften Kachel-Familien zeigen (A-207).
+// `.gebaeude-item` entsteht an drei Stellen in ui.js: renderGebaeude
+// (Bereich "planet"), renderForschung ("forschung"), renderWerft/renderAbwehr
+// (beide "werft"). Ein Bereich, der nie aktiv war, hat dort nie gerendert --
+// das war die eigentliche Lücke, nicht nur die fehlende Abwehr-Kachel
+// (gemessen: ohne diese Liste sieht der Wächter ausschließlich "planet",
+// 34 statt 57 Kacheln im Zustand "spät"). `bereichFuerWaechterSetzen` in
+// ui.js ist der einzige Weg, sie von außen zu wechseln.
+export const KACHEL_BEREICHE = ["planet", "forschung", "werft"];
 
 // Ein Pixel Toleranz, nicht mehr (bekannte Falle im Auftrag): ein Element,
 // das exakt an der Kachelkante endet (Grid-Kacheln mit `gap`), ist kein
@@ -156,4 +174,60 @@ export function kachelnBilanz(root = document) {
     gruen: gesamt === 0,
     einzelheiten: r,
   };
+}
+
+// --- Katalog-Abgleich (A-207, Teil 2) ---------------------------------
+//
+// Der eigentliche Anlass dieser Runde: A-204s Abwehrstellung kam in keinem
+// Wächter-Zustand vor, und der Wächter meldete trotzdem "grün" -- er kannte
+// nur die Kachelzahl, nie, WELCHE Arten das Spiel überhaupt hat. Dieser Teil
+// schließt genau die Lücke, und zwar allgemein: für jede künftige Bau-Art,
+// nicht nur für die eine, die diesen Auftrag ausgelöst hat.
+
+// Alle Kachel-Arten, die das Spiel kennt -- ein Katalog aus den vier
+// Bau-Katalogen. IDs sind projektweit eindeutig (gemessen 08.09.: 47 Stück,
+// keine Kollision zwischen den vier Quellen).
+export const BAU_KATALOG = { ...BUILDINGS, ...RESEARCH, ...SCHIFFE, ...ABWEHR };
+
+// Woran eine `.gebaeude-item`-Kachel ihre Katalog-ID trägt -- historisch drei
+// verschiedene Stellen: renderGebaeude und renderForschung teilen sich
+// dieselbe Gerüstfunktion (kachelGeruest in ui.js, `data-gebaeude` bzw.
+// `data-forschung`, je nach `opts.attribut`), renderWerft nutzt
+// `data-schiff`, renderAbwehr `data-abwehr`. Ein Attribut, keine
+// ID-Konvention -- absichtlich robust gegen genau diese Uneinheitlichkeit
+// statt sie erst zu begradigen.
+const ID_ATTRIBUTE = ["gebaeude", "forschung", "schiff", "abwehr"];
+
+function kachelArt(kachel) {
+  for (const attribut of ID_ATTRIBUTE) {
+    const knopf = kachel.querySelector(`[data-${attribut}]`);
+    if (knopf) return knopf.dataset[attribut];
+  }
+  return null;
+}
+
+// Sammelt die Katalog-IDs aller Bau-Kacheln im aktuellen DOM. `.res-kachel`
+// bleibt außen vor -- die Ressourcenleiste hat keinen wachsenden Katalog wie
+// Gebäude/Forschung/Schiffe/Abwehr, gegen den man sie abgleichen könnte.
+export function kachelArtenGerendert(root = document) {
+  const arten = new Set();
+  for (const kachel of root.querySelectorAll(".gebaeude-item")) {
+    const art = kachelArt(kachel);
+    if (art) arten.add(art);
+  }
+  return arten;
+}
+
+// Der Abgleich selbst: `gerendert` (Vereinigung über alle geprüften
+// Zustände/Bereiche) gegen `katalog` (Standardwert BAU_KATALOG, als Parameter
+// austauschbar -- der Testfall aus DoD 3 braucht einen künstlich erweiterten
+// Katalog, ohne das Spiel selbst zu verändern).
+//
+// Bewusst KEIN Fehlschlag (Auftrag, Mechanismus Punkt 2): eine Art kann aus
+// gutem Grund in keinem der drei Zustände vorkommen (Voraussetzungen nicht
+// erfüllt). Sichtbar muss es sein, nicht tödlich -- der Aufruf entscheidet,
+// was er mit `fehlend` macht.
+export function kachelKatalogAbgleich(gerendert, katalog = BAU_KATALOG) {
+  const fehlend = Object.keys(katalog).filter((id) => !gerendert.has(id));
+  return { geprueft: Object.keys(katalog).length, fehlend };
 }

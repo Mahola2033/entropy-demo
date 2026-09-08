@@ -9,8 +9,8 @@
 // (A-158-Auftrag) -- deshalb drei feste Stände statt "was zufällig im
 // localStorage lag".
 
-import { neuesSpiel } from "./state.js?v=0.9.1";
-import { BUILDINGS, SCHIFFE } from "./data.js?v=0.9.1";
+import { neuesSpiel } from "./state.js?v=0.9.6";
+import { BUILDINGS, SCHIFFE } from "./data.js?v=0.9.6";
 
 // früh -- frischer Start, nichts gebaut. Der unveränderte Weltstart selbst.
 export function kwZustandFrueh(saat) {
@@ -62,6 +62,11 @@ export function kwZustandSpaet(saat) {
     fertigZeit: state.letzterTick + 1_800_000,
   };
   heimat.werftWarteschlange = [{ schiffId: "kriegsschiff", anzahl: 5, dauerSek: 1200 }];
+
+  // A-207: gebaute Abwehrstellung (A-204), damit die Kachel ihre lange
+  // Bereitschaftszeile ("Bereitschaft: 4.500.000 MW · 2.500.000 AK") trägt --
+  // genau die Zeile, die bei 1097×520 als Erste abgeschnitten würde.
+  heimat.abwehr.abwehrstellung = 12;
 
   state.forschungsQueue = {
     forschungId: "energietechnik",

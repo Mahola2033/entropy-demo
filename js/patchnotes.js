@@ -28,6 +28,51 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.9.6",
+    de: [
+      "Nur intern: die springende Nahrungsbilanz ist jetzt nachgestellt und gemessen — die Reparatur ist es noch nicht, weil sie gegen zwei andere, bewusst gebaute Zusicherungen läuft.",
+    ],
+    en: [
+      "Internal only: the jumping food balance is now reproduced and measured — the fix isn't, because it runs against two other, deliberately built assurances.",
+    ],
+  },
+  {
+    version: "0.9.5",
+    de: [
+      "Piraten überfallen jetzt auch Welten, nicht mehr nur Flotten. Ein Raubzug kündigt sich an wie ein Angriff auf eine Flotte – du siehst ihn kommen, mit Ortung auch, wie stark er ist. Er nimmt Bestände, keine Gebäude, und nur, was sich verkaufen lässt (Elektronik, Nahrung und Bevölkerung sind kein Raubgut). Eine Bande füllt ihren Laderaum gierig nach Wert: teure Fracht zuerst. Jetzt zahlt sich aus, was die Verteidigungsanlagen der letzten Runden versprochen haben – eine Ortungsstation verlängert die Vorwarnung, eine Abwehrstellung verkürzt den Raubzug (wenn sie mit Strom versorgt ist), und ein Bunker hält einen Teil der Beute außer Reichweite. Alle drei können dabei Schaden nehmen. Es trifft auch die KI-Reiche, nicht nur dich.",
+    ],
+    en: [
+      "Pirates now raid worlds, not just fleets. A raid announces itself the same way an attack on a fleet does – you see it coming, and with a sensor station you also see how strong it is. It takes stockpiles, not buildings, and only what can be sold (electronics, food, and population aren't loot). A band fills its cargo hold greedily by value: expensive cargo first. What the defense installations of the last few rounds promised now pays off – a sensor station extends the warning, a defense installation shortens the raid (if it's powered), and a bunker keeps part of the loot out of reach. All three can take damage in the process. It hits the AI empires too, not just you.",
+    ],
+  },
+  {
+    version: "0.9.4",
+    de: [
+      "Neu: der Bunker — gehärteter Lagerraum, den du in Stückzahl über die Werft baust. Sein Inhalt wird bei einem Überfall nicht mitgenommen. Anders als bei einer normalen Lagerhalle steckt in ihm deutlich mehr Bauaufwand je Einheit Kapazität — sicherer Lagerraum oder mehr Lagerraum, bei gleichem Budget nie beides. Damit ist die dritte und letzte Verteidigungsanlage da. Wie die Abwehrstellung schützt er heute noch gegen nichts: Piraten überfallen bisher nur Flotten, keine Welten.",
+    ],
+    en: [
+      "New: the bunker — hardened storage you build in numbers through the shipyard. Its contents aren't taken in a raid. Unlike an ordinary storage hall, it costs noticeably more to build per unit of capacity — safe storage or more storage, never both on the same budget. That completes the third and final defense installation. Like the defense installation, it doesn't defend against anything yet: pirates only raid fleets so far, not worlds.",
+    ],
+  },
+  {
+    version: "0.9.3",
+    de: [
+      "Neu: Ortungsstationen — sie verlängern die Vorwarnung vor einem Piratenüberfall und zeigen, wie stark der Angreifer ist. Genau wie die Abwehrstellung baust du sie in Stückzahl über die Werft. Anders als die Abwehrstellung wirkt sie schon heute: Piraten überfallen Flotten seit Langem, und die Vorwarnung war bisher immer gleich lang. Sie kämpft nicht und verhindert nichts — sie kauft nur Zeit, um Bestände wegzuräumen, die Flotte umzustellen oder die Abwehr scharf zu machen. Der Zugewinn ist gedeckelt: mehr als sechs Stationen bringen keine zusätzliche Zeit mehr.",
+    ],
+    en: [
+      "New: sensor stations — they extend the warning before a pirate raid and show how strong the attacker is. Like the defense installation, you build them in numbers through the shipyard. Unlike the defense installation, it works today already: pirates have been raiding fleets for a while, and the warning has always been the same length until now. It doesn't fight and prevents nothing — it only buys time to move cargo out of reach, rearrange your fleet, or arm your defenses. The gain is capped: more than six stations add no further time.",
+    ],
+  },
+  {
+    version: "0.9.2",
+    de: [
+      "Nur intern: Der Kachel-Wächter (unser Prüfwerkzeug gegen abgeschnittene oder sich überlappende Kacheln) kannte bisher nur den Standard-Bereich der Oberfläche — Werft und Forschung hat er nie geprüft, und die neue Abwehrstellung dadurch auch nicht. Er meldete trotzdem „grün”. Er sieht jetzt alle Bereiche und gleicht zusätzlich ab, welche Bau-Art er wirklich geprüft hat. Für Spieler ändert sich dadurch nichts.",
+    ],
+    en: [
+      "Internal only: our tile guard (the tool that checks for cut-off or overlapping tiles) only ever checked the default screen area — it never looked at the shipyard or research screens, and so it never checked the new defense installation either, while still reporting green. It now visits every area and additionally cross-checks which build kind it actually verified. Nothing changes for players.",
+    ],
+  },
+  {
     version: "0.9.1",
     de: [
       "Neu: Abwehrstellungen — bodengestützte Verteidigung, die du in Stückzahl baust, wie eine Flotte, nur ohne Flug. Sie kostet im Frieden wenig Strom und dauerhaft etwas Arbeitskraft, im Ernstfall deutlich mehr. Ehrlich gesagt: Sie verteidigt heute noch gegen gar nichts — die Bedrohung, gegen die sie gebaut ist, kommt erst im nächsten Stand. Der Grund: Wer sich nicht wehren kann, soll auch nicht angegriffen werden — die Wahl, vorzusorgen, muss zuerst da sein. Selbst die Supernova kennt einen Konter; diese Bedrohung wird keine Ausnahme.",

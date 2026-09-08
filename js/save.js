@@ -11,12 +11,12 @@ import {
   speicherbarerVersatz,
   spielDatum,
   vollerFossilVorrat,
-} from "./state.js?v=0.9.1";
-import { piratenWeltStart, botWeltStart, piratenNamenNachziehen } from "./simulation.js?v=0.9.1";
-import { notausgangLoeschen } from "./aufholen.js?v=0.9.1";
-import { DEMO_SAAT, VERSION } from "./data.js?v=0.9.1";
-import { t } from "./sprache.js?v=0.9.1";
-import { startschwierigkeit } from "./schwierigkeit.js?v=0.9.1";
+} from "./state.js?v=0.9.6";
+import { piratenWeltStart, botWeltStart, piratenNamenNachziehen } from "./simulation.js?v=0.9.6";
+import { notausgangLoeschen } from "./aufholen.js?v=0.9.6";
+import { DEMO_SAAT, VERSION } from "./data.js?v=0.9.6";
+import { t } from "./sprache.js?v=0.9.6";
+import { startschwierigkeit } from "./schwierigkeit.js?v=0.9.6";
 
 const STORAGE_KEY = "entropy-save";
 

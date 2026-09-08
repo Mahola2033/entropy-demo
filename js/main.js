@@ -1,8 +1,8 @@
 // Einstiegspunkt: Spielstand laden, Offline-Zeit nachrechnen, Render-/Tick-Loop starten.
 
-import { laden, speichern } from "./save.js?v=0.9.1";
-import { zeitfaktorAnwenden } from "./state.js?v=0.9.1";
-import { vorspulenBisJetzt } from "./simulation.js?v=0.9.1";
+import { laden, speichern } from "./save.js?v=0.9.6";
+import { zeitfaktorAnwenden } from "./state.js?v=0.9.6";
+import { vorspulenBisJetzt } from "./simulation.js?v=0.9.6";
 import {
   aufholen,
   aufholenLaeuft,
@@ -13,7 +13,7 @@ import {
   zeitsprungVerwerfen,
   notausgangLoeschen,
   NOTAUSGANG_ESKALATION,
-} from "./aufholen.js?v=0.9.1";
+} from "./aufholen.js?v=0.9.6";
 import {
   render,
   renderProfilStarten,
@@ -22,12 +22,13 @@ import {
   hotkeysEinrichten,
   notausgangTafel,
   fensterHinweisPruefen,
-} from "./ui.js?v=0.9.1";
-import { testmodusEinrichten } from "./testmodus.js?v=0.9.1";
-import { spracheLaden, t } from "./sprache.js?v=0.9.1";
-import { phase, stockungenBeobachten, stockungsBericht } from "./stockung.js?v=0.9.1";
-import { KACHELWAECHTER_ZUSTAENDE } from "./kachelwaechter-zustaende.js?v=0.9.1";
-import { kachelnBilanz } from "./kachelwaechter.js?v=0.9.1";
+  bereichFuerWaechterSetzen,
+} from "./ui.js?v=0.9.6";
+import { testmodusEinrichten } from "./testmodus.js?v=0.9.6";
+import { spracheLaden, t } from "./sprache.js?v=0.9.6";
+import { phase, stockungenBeobachten, stockungsBericht } from "./stockung.js?v=0.9.6";
+import { KACHELWAECHTER_ZUSTAENDE } from "./kachelwaechter-zustaende.js?v=0.9.6";
+import { kachelnBilanz, KACHEL_BEREICHE, kachelArtenGerendert, kachelKatalogAbgleich } from "./kachelwaechter.js?v=0.9.6";
 
 const root = document;
 // Sprache VOR dem ersten Rendern festlegen -- sonst blitzt einmal die falsche
@@ -188,6 +189,43 @@ function kachelWaechterZustandSetzen(name, saat) {
   return t('Zustand "{name}" gesetzt und gerendert.', { name });
 }
 
+// A-207: `pruefen()` sah bisher NUR den gerade aktiven Bereich -- Standard
+// ist "planet", also blieben Werft (Schiffe, Abwehrstellungen) und Forschung
+// grundsätzlich ungeprüft, egal welchen Zustand `zustand()` gerade gesetzt
+// hatte. Das war die eigentliche Lücke hinter A-204s Abwehrstellung, nicht
+// nur eine fehlende Kachel. Jetzt steuert `pruefen()` selbst jeden Bereich
+// aus KACHEL_BEREICHE an und summiert die drei geometrischen Prüfungen
+// darüber -- plus den Katalog-Abgleich (js/kachelwaechter.js), der meldet,
+// welche Bau-Art dabei in KEINEM Bereich vorkam (Befund, kein Fehlschlag).
+function kachelWaechterPruefen() {
+  let kachelAnzahl = 0;
+  let uebergriffe = 0;
+  let kastenueberlaeufe = 0;
+  let stilleKuerzungen = 0;
+  const einzelheiten = {};
+  const gerendert = new Set();
+  for (const bereich of KACHEL_BEREICHE) {
+    bereichFuerWaechterSetzen(bereich);
+    render(state, root);
+    const r = kachelnBilanz(root);
+    einzelheiten[bereich] = r;
+    kachelAnzahl += r.kachelAnzahl;
+    uebergriffe += r.uebergriffe;
+    kastenueberlaeufe += r.kastenueberlaeufe;
+    stilleKuerzungen += r.stilleKuerzungen;
+    for (const art of kachelArtenGerendert(root)) gerendert.add(art);
+  }
+  return {
+    kachelAnzahl,
+    uebergriffe,
+    kastenueberlaeufe,
+    stilleKuerzungen,
+    gruen: uebergriffe + kastenueberlaeufe + stilleKuerzungen === 0,
+    katalogAbgleich: kachelKatalogAbgleich(gerendert),
+    einzelheiten,
+  };
+}
+
 // Für schnelles Debuggen in der Konsole erreichbar machen.
 //
 // `profilStarten`/`profilLesen` schlüsseln die Renderkosten je Bereich auf
@@ -202,6 +240,6 @@ window.__entropy = {
   stockungen: stockungsBericht,
   kachelWaechter: {
     zustand: kachelWaechterZustandSetzen,
-    pruefen: () => kachelnBilanz(root),
+    pruefen: kachelWaechterPruefen,
   },
 };

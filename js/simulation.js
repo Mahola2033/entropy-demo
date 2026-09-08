@@ -47,7 +47,7 @@ import {
   bauzeitFuerLevel,
   forschungsAufwand,
   voraussetzungenText,
-} from "./data.js?v=0.9.1";
+} from "./data.js?v=0.9.6";
 import {
   effektiveRaten,
   bevoelkerungsWachstumsrate,
@@ -61,6 +61,9 @@ import {
   schiffKosten,
   abwehrstellungKosten,
   abwehrBestand,
+  abwehrAktivBedarf,
+  abwehrVerlust,
+  ortungGesamtbestand,
   speicherKapazitaet,
   aufnahmeGrenzeFuer,
   lagerFrei,
@@ -101,7 +104,7 @@ import {
   beziehungAendern,
   beziehungZu,
   arbeitskraftDiebstahlAnteil,
-} from "./state.js?v=0.9.1";
+} from "./state.js?v=0.9.6";
 import {
   ortVonPlanet,
   ortVonSystem,
@@ -121,9 +124,9 @@ import {
   schiffeGesamt,
   schiffeStaerke,
   schiffeText,
-} from "./flotten.js?v=0.9.1";
-import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.1";
-import { stromFuer, waehle } from "./zufall.js?v=0.9.1";
+} from "./flotten.js?v=0.9.6";
+import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.6";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.6";
 import {
   reichenAus,
   fehlende,
@@ -134,8 +137,8 @@ import {
   buendelText,
   formatZahl as fmt,
   name as resName,
-} from "./ressourcen.js?v=0.9.1";
-import { t } from "./sprache.js?v=0.9.1";
+} from "./ressourcen.js?v=0.9.6";
+import { t } from "./sprache.js?v=0.9.6";
 
 // Kurzform: Ressourcen in ein Planetenlager einlagern, begrenzt durch den
 // gemeinsamen Pool und etwaige Annahmeregeln. Gibt zurück, was nicht
@@ -156,7 +159,7 @@ function insLager(state, planet, buendel) {
     (resId) => aufnahmeGrenzeFuer(planet, resId)
   );
 }
-import { systemName, entfernung } from "./galaxie.js?v=0.9.1";
+import { systemName, entfernung } from "./galaxie.js?v=0.9.6";
 
 const MS_PRO_STUNDE = 1000 * 60 * 60;
 
@@ -716,6 +719,11 @@ function ereignisAuswahlLinear(state) {
     if (flotte.gefecht) {
       pruefe(flotte.gefecht.naechsteRundeZeit, "gefecht", flotte);
     }
+    // A-208: derselbe Mechanismus wie "gefecht", eigenes Feld -- ein
+    // Raubzug läuft NEBEN einem Gefecht, nicht hindurch.
+    if (flotte.raubzug) {
+      pruefe(flotte.raubzug.zeit, "raubzug", flotte);
+    }
     // A-094: Eine Route, die auf Beladung wartet, liegt still im Hafen -- sie
     // hat weder Abschnitt noch Gefecht und käme ohne diesen Zweig NIE wieder
     // an die Reihe. Der Takt ist grob (siehe ROUTE_WARTE_TAKT): gewartet wird
@@ -806,6 +814,15 @@ function ereignisBauen(state, zeit, art, entitaet) {
     }
     case "gefecht":
       return { zeit, ausfuehren: (t) => kampfRundeAusfuehren(state, entitaet, t), planeten: null };
+    // A-208: das Ziel steht schon fest (flotte.raubzug.zielPlanet) --
+    // derselbe Grund wie bei "ankunft", den betroffenen Planeten
+    // zurückzugeben: ressourcenVorruecken muss ihn vor der Auflösung auf die
+    // Ereigniszeit bringen, sonst rechnet der Raubzug gegen einen veralteten
+    // Bestand.
+    case "raubzug": {
+      const ziel = entitaet.raubzug ? planetById(state, entitaet.raubzug.zielPlanet) : null;
+      return { zeit, ausfuehren: (t) => raubzugAusfuehren(state, entitaet, t), planeten: ziel ? [ziel] : null };
+    }
     // Die wartende Route rührt genau ihren Ladehafen an -- sie versucht dort
     // nachzuladen und fährt ab, sobald es reicht.
     case "routewartet": {
@@ -1034,7 +1051,7 @@ function planPlanetRec(plan, planet) {
 function planFlotteRec(plan, flotte) {
   let rec = plan.flotten.get(flotte);
   if (!rec) {
-    rec = { seq: plan.seqFlotte++, ankunft: null, gefecht: null, routewartet: null };
+    rec = { seq: plan.seqFlotte++, ankunft: null, gefecht: null, raubzug: null, routewartet: null };
     plan.flotten.set(flotte, rec);
     plan.flottenZahl++;
   }
@@ -1149,6 +1166,8 @@ function planQuellenZeit(state, art, ent) {
       return ent.abschnitt ? ent.abschnitt.ankunftZeit : null;
     case "gefecht":
       return ent.gefecht ? ent.gefecht.naechsteRundeZeit : null;
+    case "raubzug":
+      return ent.raubzug ? ent.raubzug.zeit : null;
     case "routewartet":
       return ent.route && ent.route.aktiv && ent.route.wartetAb != null ? ent.route.wartetAb : null;
     case "transfer":
@@ -1241,6 +1260,10 @@ function planDirtyAbarbeiten(state, plan) {
       // und in Betrieb ist der Plan. Eine Route wartete damit für immer --
       // gefunden hat es der Test, der auf die ANKUNFT der Ladung misst.
       planQuelleSetzen(plan, rec, "routewartet", GR_FLOTTE, 2, "routewartet", flotte, planQuellenZeit(state, "routewartet", flotte));
+      // A-208, eigener Rang 3, unter den drei bestehenden -- keine der
+      // bisherigen Nummern verschiebt sich (dasselbe Muster wie A-204s
+      // eigener Rang an den Planeten-Quellen).
+      planQuelleSetzen(plan, rec, "raubzug", GR_FLOTTE, 3, "raubzug", flotte, planQuellenZeit(state, "raubzug", flotte));
     }
     plan.dirtyFlotten.clear();
   }
@@ -2132,6 +2155,10 @@ export function piratenNeugruendung(state, zeit) {
 // Das ist keine Sonderregel, sondern eine andere Bewertung derselben Ziele.
 // Und es ist der Grund, warum ein Tritiumfrachter im falschen System ein
 // gefährlicherer Ort ist als ein Erzfrachter: Piraten in Not suchen genau ihn.
+//
+// A-208: zweiter Kandidatentyp neben Flotten -- Planeten im selben System.
+// Rückgabe trägt jetzt `art` ("flotte" | "planet"), damit piratenBeutezug
+// weiß, welchen der beiden neuen Wege es gehen muss.
 function piratenZiel(state, fraktion, basis, flotte = null) {
   // Unter diesem Anteil zählt eine Gruppe als in Spritnot.
   const knapp =
@@ -2157,16 +2184,144 @@ function piratenZiel(state, fraktion, basis, flotte = null) {
     const wert = knapp ? sprit : fracht;
     if (fracht < PIRAT.mindestBeute && sprit < PIRAT.mindestBeute) continue;
     if (wert <= 0) continue;
-    if (!bestes || wert > bestes.wert) bestes = { flotte: fremd, fracht, wert };
+    if (!bestes || wert > bestes.wert) bestes = { art: "flotte", flotte: fremd, fracht, wert };
+  }
+
+  // A-208, Ausführungsentscheidung (Bekannte Falle des Auftrags: "muss in
+  // diesem Zweig sauber ausfallen oder ihr Deuterium als Sprit anbieten"):
+  // Welten fallen in Spritnot sauber AUS, statt ihr Deuterium anzubieten. Der
+  // ganze Mechanismus-Abschnitt für Welten (Punkte 1-6) erwähnt Sprit an
+  // keiner Stelle -- eine Landung, die einer Welt ihr Treibstofflager
+  // absaugt, wäre ein eigener, größerer Mechanismus (Bodentruppen statt
+  // Abfangen im Vorbeiflug), keine kleine Ergänzung. Begründung siehe
+  // Ergebnis-Abschnitt.
+  // A-208, Fund beim Bauen: OHNE diese Zeile lief eine junge Gruppe (fast
+  // nur Kriegsschiffe, noch kein Frachter -- siehe "BEUTE GEHT VOR
+  // BEWAFFNUNG" in piratenSchritt) in eine Endlosschleife: piratenZiel
+  // fand IMMER einen Planeten (anders als eine vorbeikommende Flotte ist
+  // er nie weg), piratenBeutezug lieferte true und piratenSchritt kehrte
+  // sofort zurück -- die Gruppe kam nie zum Frachterbau. Der Raubzug löste
+  // pflichtgemäß auf, nahm mangels Frachtraum aber buchstäblich nichts mit
+  // (`gierigFuellen` mit frachtraum=0), startete beim nächsten Takt densel-
+  // ben Raubzug erneut, für immer. Gemessen im Weltlauf: 527 von 746
+  // Flotten dauerhaft "im Raubzug", 0 abgeschlossene Überfälle nach 40
+  // simulierten Minuten, ein simulierter Tag brauchte über 60 Sekunden
+  // Realzeit. Mit dieser Zeile fällt die Wahl bei leerem Frachtraum auf
+  // die Flotte selbst zurück, und piratenSchritt kommt wie vorgesehen zum
+  // Frachterbau.
+  if (!knapp && frachtraumFrei(state, flotte) > 0) {
+    for (const planet of state.planeten) {
+      if (planet.typ === "aussenposten") continue; // kein Lager, siehe rohRaten
+      if (planet.systemId !== basis.systemId) continue;
+      const wem = fraktionVon(planet);
+      if (wem === fraktion.id) continue;
+      if (beziehungZu(state, fraktion.id, wem) > KAMPF.beutezugAb) continue;
+
+      const wert = weltBeuteWert(planet);
+      if (wert < PIRAT.mindestBeute) continue;
+      if (!bestes || wert > bestes.wert) bestes = { art: "planet", planet, wert };
+    }
   }
   return bestes;
 }
 
+// A-208: die Reihenfolge, in der eine Bande ihren Laderaum füllt -- Wert je
+// Volumen, teuerste Fracht zuerst (Auftrag, Mechanismus Punkt 2). Beide
+// Zahlen liegen schon im Spiel (MARKT_PREISE, lagerverbrauchVon); einmal
+// sortiert statt bei jedem Überfall neu. Nur Ressourcen mit Verkaufspreis
+// zählen -- was niemand kauft (Elektronik, Nahrung, Bevölkerung, Credits),
+// ist kein Raubgut (dieselbe Logik wie an piratenVerkaufen).
+export const RAUB_REIHENFOLGE = Object.keys(MARKT_PREISE).sort(
+  (a, b) => MARKT_PREISE[b].verkauf / lagerverbrauchVon(b) - MARKT_PREISE[a].verkauf / lagerverbrauchVon(a)
+);
+
+// Füllt `frachtraum` (Lagervolumen-Einheiten) GIERIG nach RAUB_REIHENFOLGE
+// aus `bestand` -- verändert `bestand` NICHT, der Aufrufer entscheidet, was
+// mit dem Ergebnis passiert. Dieselbe Funktion für zwei Zwecke: "was nimmt
+// der Räuber mit" (Punkt 2) UND "was schützt der Bunker" (Punkt 5,
+// bunkerSchutzVerteilen) -- beides ist derselbe Verteilungsschritt, nur mit
+// anderem Frachtraum und anderer Quelle.
+export function gierigFuellen(bestand, frachtraum) {
+  const genommen = {};
+  let frei = frachtraum;
+  for (const resId of RAUB_REIHENFOLGE) {
+    if (frei <= 0) break;
+    const vorhanden = bestand[resId] || 0;
+    if (vorhanden <= 0) continue;
+    const gewicht = lagerverbrauchVon(resId);
+    const menge = gewicht > 0 ? Math.min(vorhanden, frei / gewicht) : vorhanden;
+    if (menge <= 0) continue;
+    genommen[resId] = menge;
+    frei -= menge * gewicht;
+  }
+  return genommen;
+}
+
+// Wie viel lohnende Beute EINE Welt trägt -- Auftrag, Mechanismus Punkt 1:
+// "Der Wert einer Welt ist nicht ihre Tonnage, sondern ihre verkaufbare
+// Beute." Summe des Verkaufswerts über RAUB_REIHENFOLGE (also nur, was
+// überhaupt gehandelt wird).
+export function weltBeuteWert(planet) {
+  let wert = 0;
+  for (const resId of RAUB_REIHENFOLGE) {
+    wert += (planet.ressourcen[resId] || 0) * MARKT_PREISE[resId].verkauf;
+  }
+  return wert;
+}
+
+// A-208, Mechanismus Punkt 5 -- A-206s eigener Fund aufgelöst:
+// `bunkerGeschuetzterAnteil` (js/state.js) beantwortet EINE Ressource
+// unabhängig; würde der Raub sie je Ressource einzeln abfragen, schützte ein
+// Bunker der Kapazität X JEDE Ressource bis X -- ein Vielfaches seiner
+// echten Kapazität. Diese Funktion verteilt die Kapazität EINMAL, gemeinsam,
+// über alle Ressourcen (dieselbe Idee wie `lagerBelegung`: ein gemeinsamer
+// Pool statt vieler Einzeltöpfe) -- in derselben Reihenfolge wie der Räuber:
+// was er zuerst will, liegt zuerst im Bunker.
+export function bunkerSchutzVerteilen(planet) {
+  const stueck = abwehrBestand(planet, "bunker");
+  if (stueck <= 0) return {};
+  return gierigFuellen(planet.ressourcen || {}, stueck * ABWEHR.bunker.kapazitaetProStueck);
+}
+
+// A-205: die verlängerte Vorwarnung -- Basiszeit plus ein je Station fester,
+// GEDECKELTER Bonus (Mechanismus Punkt 3 des Auftrags: ohne Deckel wäre die
+// zwanzigste Station so viel wert wie die zweite). Reine Funktion der
+// Stückzahl, nicht des States -- deshalb leicht zu testen mit 0/1/vielen
+// Stationen und dem Deckel als drittem Fall.
+export function ortungVorwarnungMs(stationen) {
+  const bonus = Math.min(stationen * ABWEHR.ortung.vorwarnungBonusMs, ABWEHR.ortung.vorwarnungMaxBonusMs);
+  return PIRAT.vorwarnungMs + bonus;
+}
+
 function piratenBeutezug(state, fraktion, basis, flotte, zeit) {
+  // A-208, Fund beim Bauen: `piratenSchritt`s Wächter für diesen Aufruf
+  // (`!flotte.abschnitt && flotte.befehle.length === 0`) wird weder von
+  // einem laufenden Gefecht noch von einem laufenden Raubzug falsch --
+  // keines der beiden setzt `abschnitt`/`befehle`. Ohne diese Sperre würde
+  // piratenSchritt bei JEDEM 10-Minuten-Takt erneut ein Ziel wählen und
+  // einen frischen Raubzug/Gefecht ÜBER den laufenden schreiben. Bei Flotten
+  // blieb das lange unauffällig (ein Gefecht läuft meist in Sekunden durch,
+  // ein zweites Ziel ist oft gar nicht da) -- bei Planeten, die nicht
+  // wegfliegen, wählte dieselbe Bande denselben Nachbarplaneten JEDEN Takt
+  // neu, noch bevor die Vorwarnung (höchstens 180s) abgelaufen war: kein
+  // Raubzug löste je auf, der Weltlauf brach auf wenige simulierte Tage
+  // ein (gemessen: Tag 1 allein 62s, 0 abgeschlossene Überfälle).
+  if (flotte.gefecht || flotte.raubzug) return false;
   const kampfkraft = flotte.schiffe[PIRAT.schiffTyp] || 0;
   if (kampfkraft <= 0) return false;
   const ziel = piratenZiel(state, fraktion, basis, flotte);
   if (!ziel) return false;
+
+  // A-208: der Welten-Überfall ist ein eigener Zweig -- er läuft NEBEN
+  // flotte.gefecht, nicht hindurch (Auftrag, "Nicht anfassen": kein Gefecht,
+  // ein Raubzug. Keine Runden, keine HP, kein Rückzug).
+  if (ziel.art === "planet") return weltRaubzugStarten(state, fraktion, flotte, ziel.planet, kampfkraft, zeit);
+
+  // A-205: die Vorwarnung richtet sich nach dem Sensor-Netz der
+  // ÜBERFALLENEN Fraktion (ihre eigenen Welten, nicht die des Angreifers) --
+  // siehe ortungGesamtbestand.
+  const ortungStationen = ortungGesamtbestand(state, fraktionVon(ziel.flotte));
+  const vorwarnung = ortungVorwarnungMs(ortungStationen);
 
   flotte.gefecht = {
     zielFlotte: ziel.flotte.id,
@@ -2174,18 +2329,31 @@ function piratenBeutezug(state, fraktion, basis, flotte, zeit) {
     startHpAngreifer: schiffeStaerke(flotte.schiffe, flotte.schiffSchaden).hp,
     runde: 0,
     saat: kampfSaatZiehen(state),
-    naechsteRundeZeit: zeit + PIRAT.vorwarnungMs,
+    naechsteRundeZeit: zeit + vorwarnung,
   };
   planFlotteGeaendert(state, flotte);
 
   // Die Vorwarnung ist der Kern: der Überfallene erfährt es, BEVOR es losgeht.
+  // Mit Ortung sieht er zusätzlich, WIE STARK der Angreifer ist (Konzept §4:
+  // „zeigt Stärke und Ziel des Anflugs") -- ohne Ortung bleibt die Meldung
+  // unverändert (Auftrag, DoD 3: "ohne Ortung bleibt die Meldung, wie sie ist").
+  const text =
+    ortungStationen > 0
+      ? t("{angreifer} nimmt Kurs auf {flotte} ({staerke}× {schiffsart}) – Kontakt in {dauer} Sekunden.", {
+          angreifer: fraktion.name,
+          flotte: ziel.flotte.name,
+          staerke: kampfkraft,
+          schiffsart: t(SCHIFFE[PIRAT.schiffTyp].name),
+          dauer: Math.round(vorwarnung / 1000),
+        })
+      : t("{angreifer} nimmt Kurs auf {flotte} – Kontakt in {dauer} Sekunden.", {
+          angreifer: fraktion.name,
+          flotte: ziel.flotte.name,
+          dauer: Math.round(vorwarnung / 1000),
+        });
   meldungHinzufuegen(
     state,
-    t("{angreifer} nimmt Kurs auf {flotte} – Kontakt in {dauer} Sekunden.", {
-      angreifer: fraktion.name,
-      flotte: ziel.flotte.name,
-      dauer: Math.round(PIRAT.vorwarnungMs / 1000),
-    }),
+    text,
     null,
     // DIE Stelle: gemessen an einer Demo-Galaxie über 30 Echtzeitminuten
     // waren ALLE 30 Zeilen der Meldungsliste Überfälle fremder Piraten
@@ -2195,6 +2363,110 @@ function piratenBeutezug(state, fraktion, basis, flotte, zeit) {
     herkunftVon(ziel.flotte)
   );
   return true;
+}
+
+// A-208: startet einen Welt-Raubzug -- eigenes Feld (flotte.raubzug), eigener
+// Ereignistyp ("raubzug" in ereignisBauen/planQuellenZeit/planDirtyAbarbeiten),
+// damit die Kampfauflösung zwischen Flotten unangetastet bleibt. Vorwarnung
+// exakt wie beim Flottenüberfall (A-206s eigener Fund, Punkt 2 aufgelöst):
+// `fraktionVon(planet)` statt `fraktionVon(ziel.flotte)`, `ortungVorwarnungMs`
+// selbst bleibt unverändert.
+function weltRaubzugStarten(state, fraktion, flotte, planet, kampfkraft, zeit) {
+  const ortungStationen = ortungGesamtbestand(state, fraktionVon(planet));
+  const vorwarnung = ortungVorwarnungMs(ortungStationen);
+
+  flotte.raubzug = { zielPlanet: planet.id, zeit: zeit + vorwarnung };
+  planFlotteGeaendert(state, flotte);
+
+  // Dasselbe Muster wie beim Flottenüberfall: mit Ortung Stärke und
+  // Schiffsart, ohne Ortung die schlichte Zeile (Auftrag, Mechanismus
+  // Punkt 3: "Nicht neu erfinden -- daneben stellen").
+  const text =
+    ortungStationen > 0
+      ? t("{angreifer} nimmt Kurs auf {planet} ({staerke}× {schiffsart}) – Kontakt in {dauer} Sekunden.", {
+          angreifer: fraktion.name,
+          planet: planet.name,
+          staerke: kampfkraft,
+          schiffsart: t(SCHIFFE[PIRAT.schiffTyp].name),
+          dauer: Math.round(vorwarnung / 1000),
+        })
+      : t("{angreifer} nimmt Kurs auf {planet} – Kontakt in {dauer} Sekunden.", {
+          angreifer: fraktion.name,
+          planet: planet.name,
+          dauer: Math.round(vorwarnung / 1000),
+        });
+  meldungHinzufuegen(state, text, null, herkunftVon(planet));
+  return true;
+}
+
+// A-208: die eigentliche Auflösung -- EIN Schritt, kein Rundensystem (ein
+// Raubzug ist kein Gefecht, Auftrag §3). Reihenfolge: Abwehrstellung
+// bestimmt die Kürzung -> Bunker schützt einen Teil -> der Rest füllt den
+// Frachtraum der Bande -> Verluste an allen drei Abwehr-Arten (Konzept
+// §8.2). Läuft als eigenes Ereignis über flotte.raubzug -- kampfRundeAusfuehren
+// bleibt unberührt.
+function raubzugAusfuehren(state, flotte, zeit) {
+  const r = flotte.raubzug;
+  if (!r) return;
+  flotte.raubzug = null; // Selbstheilung im Ereignisplan (planSpitze) räumt die Quelle auf.
+
+  const planet = planetById(state, r.zielPlanet);
+  if (!planet) {
+    naechstenBefehlFortsetzen(state, flotte, zeit);
+    return;
+  }
+
+  // 4. Die Abwehrstellung feuert nur, soweit sie versorgt ist (Mechanismus
+  // Punkt 4). "Versorgt" heißt: der momentane Energieüberschuss des Netzes
+  // (Produktion minus laufender, bereits gedrosselter Verbrauch) deckt den
+  // aktiven Bedarf. Sie VERKÜRZT den Raubzug (weniger effektiver
+  // Frachtraum), sie verhindert ihn nicht -- gedeckelt, siehe PIRAT in
+  // js/data.js.
+  const bedarf = abwehrAktivBedarf(planet);
+  const raten = effektiveRaten(state, planet);
+  const ueberschuss = Math.max(0, (raten.produktion.energie || 0) - (raten.verbrauch.energie || 0));
+  const deckungsgrad = bedarf > 0 ? Math.min(1, ueberschuss / bedarf) : 1;
+  const stueckFeuernd = Math.floor(abwehrBestand(planet, "abwehrstellung") * deckungsgrad);
+  const kuerzung = Math.min(PIRAT.abwehrKuerzungMax, stueckFeuernd * PIRAT.abwehrKuerzungProStueck);
+
+  // 5. Der Bunker schützt einen Teil -- EINMAL vergeben (DoD 3 des
+  // Auftrags), nicht je Ressource einzeln (A-206s Fund, siehe
+  // bunkerSchutzVerteilen).
+  const geschuetzt = bunkerSchutzVerteilen(planet);
+  const raubbar = {};
+  for (const resId of RAUB_REIHENFOLGE) {
+    const rest = (planet.ressourcen[resId] || 0) - (geschuetzt[resId] || 0);
+    if (rest > 0) raubbar[resId] = rest;
+  }
+
+  // 2. Der Frachtraum der Bande begrenzt die Beute, verkürzt durch die
+  // Abwehr -- gierig nach Wert je Volumen (RAUB_REIHENFOLGE).
+  const frachtraum = frachtraumFrei(state, flotte) * (1 - kuerzung);
+  const genommen = gierigFuellen(raubbar, frachtraum);
+
+  if (Object.keys(genommen).length > 0) {
+    hinzufuegen(flotte.ladung, genommen);
+    abziehen(planet.ressourcen, genommen);
+    meldungHinzufuegen(
+      state,
+      t("{planet} wurde überfallen: {beute} verloren.", { planet: planet.name, beute: buendelText(genommen) }),
+      null,
+      herkunftVon(planet)
+    );
+  }
+
+  // Verluste NUR an Abwehranlagen (Konzept §8.2, Tobis Wortlaut: "3
+  // Verteidigungsanlagen sollten Kaputt gehen bei Angriff. Rest bleibt
+  // erstmal verschont.") -- alle drei Arten, nicht nur die feuernde.
+  // Produktionsanlagen und sonstige Bestände bleiben unberührt.
+  for (const abwehrId of Object.keys(ABWEHR)) {
+    const bestand = abwehrBestand(planet, abwehrId);
+    if (bestand <= 0) continue;
+    const verlust = Math.min(bestand, Math.max(1, Math.round(bestand * PIRAT.abwehrVerlustAnteil)));
+    abwehrVerlust(planet, abwehrId, verlust);
+  }
+
+  naechstenBefehlFortsetzen(state, flotte, zeit);
 }
 
 // --- Teilung (Etappe 2) -----------------------------------------------
@@ -3779,6 +4051,10 @@ export function flotteAufstellen(state, planet, name) {
     // Laufendes Gefecht (null = kein Kampf). Läuft über echte Zeit -- siehe
     // militaerStarten/kampfRundeAusfuehren -- statt in einem Tick durch.
     gefecht: null,
+    // A-208: laufender Welten-Raubzug (null = keiner). Eigenes Feld neben
+    // `gefecht` -- ein Raubzug ist kein Gefecht, siehe weltRaubzugStarten/
+    // raubzugAusfuehren.
+    raubzug: null,
   };
   state.flotten.push(flotte);
   // Für den Ereignisplan (A-035): den Rang in Erzeugungsreihenfolge sichern.

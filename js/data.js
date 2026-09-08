@@ -19,7 +19,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.9.1";
+export const VERSION = "0.9.6";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von uebernehmen.mjs beim Kopieren auf "spielkopie"
@@ -65,7 +65,7 @@ export const DEMO_SAAT = 20269933;
 // wird an den anzeigenden Stellen, nicht hier. Einzige Ausnahme ist
 // voraussetzungenText() weiter unten -- die einzige Funktion in dieser Datei,
 // die Anzeigetext zusammensetzt.
-import { t } from "./sprache.js?v=0.9.1";
+import { t } from "./sprache.js?v=0.9.6";
 
 // A-164 (31.08.2026): Von 50 auf 125.000 (×2.500) -- die Maßstabsrunde.
 // Vorher skalierte EIN MASSSTAB Material, Menschen und Arbeitskraft
@@ -755,8 +755,10 @@ export const SYMBOLE = {
   frachter: "🚚",
   kolonieschiff: "🏠",
   kriegsschiff: "⚔️",
-  // Verteidigung (A-204)
+  // Verteidigung (A-204, A-205, A-206)
   abwehrstellung: "🛡️",
+  ortung: "📶",
+  bunker: "🧱",
   // Oberfläche (A-102, Prinzip 9: alle Symbole liegen hier, nicht als
   // Literal im UI-Code) -- vorher sechsmal 🔒 und einmal 🔁 im Quelltext.
   gesperrt: "🔒",
@@ -1505,6 +1507,25 @@ export const PIRAT = {
   // Startausstattung einer frisch erweckten Gruppe: sie übernimmt die Flotte,
   // die im Gefahrenobjekt steht, und bekommt etwas Material dazu.
   startVorrat: { metall: 600, silizium: 200 },
+
+  // --- Weltraubzug (A-208) ----------------------------------------------
+  // Was die Abwehrstellung bewirkt: sie VERKÜRZT den Raubzug (weniger
+  // Frachtraum bleibt effektiv nutzbar), sie verhindert ihn nicht (Auftrag:
+  // "eine Welt, die ab Stückzahl N unangreifbar ist, ist ein Schalter").
+  // Je feuernde Stellung ein fester Abzug vom Frachtraum, GEDECKELT --
+  // dieselbe Sorge wie bei Ortungs Vorwarnungs-Deckel (A-205): ohne Grenze
+  // wäre die zwanzigste Stellung so viel wert wie die zweite. Bei 6
+  // feuernden Stellungen ist der Deckel erreicht (60 %) -- dieselbe
+  // Größenordnung wie Ortungs eigener "sechs Stück"-Deckel, kein Zufall,
+  // sondern dieselbe Design-Handschrift über alle drei Anlagen.
+  abwehrKuerzungProStueck: 0.1,
+  abwehrKuerzungMax: 0.6,
+  // Verluste treffen NUR Abwehranlagen (Tobis Wortlaut, Konzept §8.2: "3
+  // Verteidigungsanlagen sollten Kaputt gehen bei Angriff. Rest bleibt
+  // erstmal verschont."). Anteil je Anlagenart und Überfall, aufgerundet auf
+  // mindestens 1 Stück, wenn überhaupt welche stehen -- ein Überfall ohne
+  // jede Konsequenz für die Verteidigung wäre kein Preis.
+  abwehrVerlustAnteil: 0.1,
 
   // Wie weit eine Bande als "in der Nähe" gilt, wenn Arbeitskraft-Leerlauf
   // (A-155) Ressourcen stiehlt: dieselbe Bande bekommt sie als Beute gutge-
@@ -3067,6 +3088,84 @@ export const ABWEHR = {
     // feuernden Radarsystem) -- eine Design-Zahl für V1, hier nur geprüft,
     // nie ausgelöst.
     aktiv: { energie: 90_000_000 },
+  },
+  // A-205: dieselbe Stückzahl-Bauform wie abwehrstellung (Werft-Muster,
+  // Bestand statt Flotte) -- nichts davon wird hier neu erfunden, siehe
+  // js/simulation.js und die generischen abwehr*-Funktionen in js/state.js.
+  // Physikalisch dieselbe Grundlage wie PIRAT.vorwarnungMs: ein Schiff
+  // strahlt seine Abwärme gegen einen 3-Kelvin-Hintergrund ab, unabhängig
+  // von Tarnungsabsicht. Eine Ortungsstation ist eine größere, kältere
+  // Antenne gegen genau dieses Signal -- sie sieht weiter, nicht mehr.
+  ortung: {
+    id: "ortung",
+    name: "Ortungsstation",
+    beschreibung:
+      "Verlängert die Vorwarnung vor einem Angriff und zeigt Stärke und Ziel des Anflugs. Wirkt sofort, kämpft nicht und verhindert nichts -- ihr ganzer Nutzen ist Zeit.",
+    werftAb: 1,
+    // Deutlich unter Erkunder-Klasse (500/350/70) -- eine Antenne, die
+    // stehen bleibt, braucht keine Lebenserhaltung und keinen Antrieb.
+    // Höher als eine Einwegsonde (40/20/5): sie ist Dauerinfrastruktur,
+    // keine Wegwerf-Fracht. Elektronik-lastig, weil Sensorik ihr Kern ist.
+    kosten: { metall: 150, silizium: 100, elektronik: 30 },
+    bauzeitSek: 120,
+    // Bemessen wie abwehrstellung gegen die Jahresleistung der Startwelt
+    // (Konzept 9.4, Zahlen aus A-204s Nachtrag 05.09.: Energie 12.027 Mrd
+    // MW/Jahr, Arbeitskraft 6.574,5 Mrd AK/Jahr) -- aber ausdrücklich am
+    // UNTEREN Rand der "jeder Posten klein"-Vorgabe, nicht in der Mitte wie
+    // abwehrstellung: bei drei Stück (dieselbe Annahme wie dort) landen
+    // beide Werte bei ~0,3 % der Jahresleistung -- knapp ein Drittel von
+    // abwehrstellungs ~1 %. Herleitung und Gegenprobe im Ergebnis-Abschnitt.
+    passiv: { energie: 1_350_000, arbeitskraft: 750_000 },
+    // Kein `aktiv` -- eine Ortungsstation kämpft nie mit (Konzept: "sie
+    // verhindert nichts"), es gibt für sie keinen zweiten Stromzustand.
+    //
+    // Der Vorwarnungs-Bonus (Mechanismus Punkt 2/3 des Auftrags): je Stück
+    // eine feste Verlängerung von PIRAT.vorwarnungMs, gedeckelt statt
+    // linear unbegrenzt -- sonst wäre die zwanzigste Station so viel wert
+    // wie die zweite (dieselbe Sorge wie bei einer Anlage mit Stufen, hier
+    // bewusst vermieden). Der Deckel verdoppelt die Basis-Vorwarnung
+    // höchstens (90s Basis + höchstens 90s Bonus = 180s) -- sechs Stationen
+    // reichen, um ihn zu erreichen. Beide Zahlen sind ZEIT, tragen deshalb
+    // keinen MASSSTAB (wie PIRAT.vorwarnungMs selbst, siehe dort).
+    vorwarnungBonusMs: 15 * 1000,
+    vorwarnungMaxBonusMs: 90 * 1000,
+  },
+  // A-206: dieselbe Stückzahl-Bauform wie abwehrstellung/ortung -- und
+  // dieselbe Lehre wie bei beiden: nichts davon neu erfinden. Konzept 9.3,
+  // NICHT die ursprüngliche Fassung in §4 (die behauptete, ein Bunker
+  // "verbraucht Lagerkapazität für den geschützten Teil" -- das ergibt
+  // keinen Sinn: ein Bunker, der Vorräte schützt, IST Lagerraum, er stellt
+  // Kapazität bereit, er verbraucht keine). Was wirklich kostet: ein
+  // SCHLECHTERES Verhältnis von Bauaufwand zu Kapazität als das normale
+  // Lagernetz (Panzerung/Tiefe/Schleusen brauchen Volumen, das nichts
+  // lagert) -- gemessen im Ergebnis-Abschnitt.
+  bunker: {
+    id: "bunker",
+    name: "Bunker",
+    beschreibung:
+      "Gehärteter Lagerraum in Stückzahl. Sein Inhalt wird bei einem Überfall nicht mitgenommen -- verteidigt heute noch gegen nichts, die Bedrohung kommt erst später. Deutlich mehr Bau je Einheit Kapazität als das normale Lagernetz: sicherer Lagerraum oder mehr Lagerraum, nie beides.",
+    werftAb: 1,
+    // Dasselbe Material wie die Lagerhalle selbst (Metall/Silizium, KEIN
+    // Elektronik -- er ist Baumasse, keine Sensor-/Waffentechnik wie die
+    // beiden anderen Anlagen). Hergeleitet, nicht geschätzt: Kosten je
+    // Kapazitätseinheit rund das Fünffache dessen, was die Lagerhalle an
+    // der Startwelt (Stufe 15→16) kostet -- Messung im Ergebnis-Abschnitt.
+    kosten: { metall: 2_600_000_000, silizium: 1_000_000_000 },
+    bauzeitSek: 300,
+    // Bemessen wie abwehrstellung/ortung gegen die Jahresleistung der
+    // Startwelt (Konzept 9.4) -- bei drei Stück rund 1,3 % statt
+    // abwehrstellungs ~1 %: "der Bunker erbt [die Strombegründung des
+    // Lagernetzes aus A-167] -- und braucht EHER MEHR, weil dieselbe Menge
+    // Ware hinter mehr Masse sitzt" (Auftragstext).
+    passiv: { energie: 6_000_000, arbeitskraft: 3_250_000 },
+    // Kein `aktiv` -- ein Bunker kämpft nie mit, genau wie eine Ortungsstation.
+    //
+    // Lagervolumen je Stück, DIESELBE EINHEIT wie `lagerkapazitaet()`
+    // (js/data.js) -- linear mit der Stückzahl, kein `rate()`: die zwölfte
+    // Bunkereinheit schützt so viel wie die erste. ~3,5 % der Kapazität, die
+    // die Startwelt bei ihrer Lagerhalle-Stufe (15) insgesamt hat --
+    // "jeder Posten klein", nicht als Ersatz fürs Lagernetz gedacht.
+    kapazitaetProStueck: 50_000_000_000,
   },
 };
 

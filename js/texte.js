@@ -292,6 +292,15 @@ export const EN = {
   Abwehrstellung: "Defense Installation",
   "Bodengestützte Verteidigung in Stückzahl, nicht in Ausbaustufen -- wie eine Flotte, nur ohne Flug. Kostet im Frieden wenig (Bereitschaft: Kühlung, Zielrechner, Kondensatoren), im Gefecht viel. Verteidigt heute noch gegen nichts -- die Bedrohung kommt erst später.":
     "Ground-based defense built in numbers, not levels -- like a fleet, only it never flies. Costs little in peacetime (standby: cooling, targeting computer, capacitors), a lot in combat. Defends against nothing yet -- the threat comes later.",
+  // --- Ortung (A-205) --------------------------------------------------------
+  Ortungsstation: "Sensor Station",
+  "Verlängert die Vorwarnung vor einem Angriff und zeigt Stärke und Ziel des Anflugs. Wirkt sofort, kämpft nicht und verhindert nichts -- ihr ganzer Nutzen ist Zeit.":
+    "Extends the warning before an attack and shows the strength and target of the approach. Works immediately, never fights, and prevents nothing -- its whole value is time.",
+
+  // --- Bunker (A-206) ---------------------------------------------------------
+  Bunker: "Bunker",
+  "Gehärteter Lagerraum in Stückzahl. Sein Inhalt wird bei einem Überfall nicht mitgenommen -- verteidigt heute noch gegen nichts, die Bedrohung kommt erst später. Deutlich mehr Bau je Einheit Kapazität als das normale Lagernetz: sicherer Lagerraum oder mehr Lagerraum, nie beides.":
+    "Hardened storage built in numbers. Its contents aren't taken in a raid -- defends against nothing yet, the threat comes later. Costs noticeably more to build per unit of capacity than the ordinary storage network: safe storage or more storage, never both.",
   "{anzahl}× {abwehr} auf {planet} fertiggestellt.": "{anzahl}× {abwehr} completed at {planet}.",
   "Kein laufender Abwehrbau.": "No defense construction in progress.",
   "Im Bau: {anzahl}× {abwehr} ({dauer})": "Building: {anzahl}× {abwehr} ({dauer})",
@@ -322,9 +331,21 @@ export const EN = {
   // --- Piraten (v0.34-v0.37) ----------------------------------------------
   "{angreifer} nimmt Kurs auf {flotte} – Kontakt in {dauer} Sekunden.":
     "{angreifer} is closing on {flotte} – contact in {dauer} seconds.",
+  // A-205: dieselbe Meldung, angereichert um Stärke und Schiffsart -- nur
+  // sichtbar, wenn die überfallene Fraktion mindestens eine Ortungsstation hat.
+  "{angreifer} nimmt Kurs auf {flotte} ({staerke}× {schiffsart}) – Kontakt in {dauer} Sekunden.":
+    "{angreifer} is closing on {flotte} ({staerke}× {schiffsart}) – contact in {dauer} seconds.",
   "{flotte} wurde überfallen: {fracht} verloren.":
     "{flotte} was raided: lost {fracht}.",
   "{flotte}: verlorene Fracht": "{flotte}: lost cargo",
+
+  // --- Piraten überfallen Welten (A-208) --------------------------------------
+  "{angreifer} nimmt Kurs auf {planet} – Kontakt in {dauer} Sekunden.":
+    "{angreifer} is closing on {planet} – contact in {dauer} seconds.",
+  "{angreifer} nimmt Kurs auf {planet} ({staerke}× {schiffsart}) – Kontakt in {dauer} Sekunden.":
+    "{angreifer} is closing on {planet} ({staerke}× {schiffsart}) – contact in {dauer} seconds.",
+  "{planet} wurde überfallen: {beute} verloren.":
+    "{planet} was raided: lost {beute}.",
 
   // --- Arbeitskraft-Leerlauf (A-155) ---------------------------------------
   "{planet}: nur {quote} % Beschäftigung – Arbeitskraft-Leerlauf stiehlt Ressourcen und stärkt Piraten in der Nähe.":

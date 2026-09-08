@@ -46,7 +46,7 @@ import {
   ARBEITSKRAFT_LEERLAUF,
   RUECKBAU,
   erstattungsQuote,
-} from "./data.js?v=0.9.1";
+} from "./data.js?v=0.9.6";
 import {
   effektiveRaten,
   sichtbareRate,
@@ -128,7 +128,7 @@ import {
   fossilBereit,
   fossilReichweiteMs,
   fossilVerbrauchProStunde,
-} from "./state.js?v=0.9.1";
+} from "./state.js?v=0.9.6";
 import {
   bauStarten,
   forschungStarten,
@@ -199,7 +199,7 @@ import {
   routeStoppen,
   routeMindestbeladungSetzen,
   routeBeladungAnteil,
-} from "./simulation.js?v=0.9.1";
+} from "./simulation.js?v=0.9.6";
 import {
   flottePosition,
   flotteKapazitaet,
@@ -219,26 +219,26 @@ import {
   flotteSiedlerKapazitaet,
   flotteLadungAnteile,
   flotteTankAnteile,
-} from "./flotten.js?v=0.9.1";
-import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.1";
-import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.1";
-import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.1";
+} from "./flotten.js?v=0.9.6";
+import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.6";
+import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.6";
+import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.6";
 // Nur für den Neustart-Knopf im Abspann. Der Weg dorthin ist derselbe wie im
 // Testmodus (js/testmodus.js) -- ein zweiter Reset wäre eine zweite Wahrheit
 // darüber, was "neu anfangen" bedeutet.
-import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.1";
-import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.1";
-import { systemName, sternFuer } from "./galaxie.js?v=0.9.1";
+import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.6";
+import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.6";
+import { systemName, sternFuer } from "./galaxie.js?v=0.9.6";
 // Die beiden Karten. Sie holen sich von hier `listeAbgleichen` zurück -- ein
 // Ringtausch, der trägt, weil keine der beiden Dateien beim LADEN etwas aus
 // der anderen benutzt, sondern erst beim Zeichnen. Die Alternative wäre ein
 // zweiter Abgleich-Mechanismus in karte.js gewesen, und genau davor warnt
 // Prinzip 5.
-import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.1";
-import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.1";
-import { feedbackAdresse } from "./feedback.js?v=0.9.1";
-import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.1";
-import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.1";
+import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.6";
+import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.6";
+import { feedbackAdresse } from "./feedback.js?v=0.9.6";
+import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.6";
+import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.6";
 
 // UI-lokaler Regler-Zustand für die Flotten-Beladung/Tanken-Schieber --
 // bewusst NICHT Teil des Spielzustands. Nötig, weil render() auch von einem
@@ -2205,6 +2205,17 @@ export function fensterHinweisPruefen(state, root) {
 // Welcher Bereich gerade sichtbar ist. Bewusst UI-Zustand, nicht Spielstand:
 // gehört nicht in die Speicherdatei und nicht in die Simulation.
 let aktiverBereich = "planet";
+
+// A-207: Der Kachel-Wächter (tests/kacheln.mjs, window.__entropy.kachelWaechter)
+// sieht ohne dies NUR den Standard-Bereich "planet" -- Werft (Schiffe,
+// Abwehrstellungen) und Forschung rendern nie, egal welchen Welt-Zustand er
+// einsetzt. Das war die eigentliche Lücke, nicht nur die fehlende
+// Abwehr-Kachel (siehe Ergebnis-Abschnitt des Auftrags). Ausschließlich für
+// Werkzeuge -- ein echter Klick auf den Nav-Knopf bleibt der reguläre Weg für
+// Spieler.
+export function bereichFuerWaechterSetzen(name) {
+  aktiverBereich = name;
+}
 
 // Statusspalte startet OFFEN (A-059, Planungsentscheidung 18.08.).
 //
