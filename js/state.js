@@ -15,7 +15,6 @@ import {
   RESEARCH,
   RESSOURCEN,
   BEVOELKERUNG,
-  GELD,
   affinitaetVon,
   PLANETEN_KLASSEN,
   WASSER_STUFEN,
@@ -49,17 +48,17 @@ import {
   FOSSIL_VORRAT_BASIS,
   ARBEITSKRAFT_LEERLAUF,
   DROSSELUNG,
-} from "./data.js?v=0.9.9";
-import { stromFuer, waehle } from "./zufall.js?v=0.9.9";
-import { systemGenerieren } from "./welt.js?v=0.9.9";
+} from "./data.js?v=0.9.12";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.12";
+import { systemGenerieren } from "./welt.js?v=0.9.12";
 // A-082: eigener Zufallsstrom für den Heimatweltnamen. Die Kennung ist eine
 // beliebige feste Zahl -- wichtig ist nur, dass sie keiner Systemkennung in
 // die Quere kommt und sich nie wieder ändert (sonst hieße jede bestehende
 // Partie beim nächsten Laden anders).
 const HEIMATWELT_NAMEN_KENNUNG = 900001;
-import { galaxiePlanen, entfernung, schluesselImSystem } from "./galaxie.js?v=0.9.9";
-import { skalieren } from "./ressourcen.js?v=0.9.9";
-import { t } from "./sprache.js?v=0.9.9";
+import { galaxiePlanen, entfernung, schluesselImSystem } from "./galaxie.js?v=0.9.12";
+import { skalieren } from "./ressourcen.js?v=0.9.12";
+import { t } from "./sprache.js?v=0.9.12";
 
 // v0.28: Sterntypen verschieben die Orbitzonen -- dieselbe Saat erzeugt jetzt
 // andere Planeten. Ein alter Spielstand trüge Fortschritt zu Orbits, in denen
@@ -1343,7 +1342,6 @@ export function bevoelkerungsAnteile(planet) {
   return {
     arbeitskraft: menschen * BEVOELKERUNG.arbeitskraftProKopf,
     nahrung: menschen * BEVOELKERUNG.nahrungProKopf,
-    abgaben: menschen * GELD.abgabenProKopf,
   };
 }
 
@@ -1417,10 +1415,13 @@ export function rohRaten(state, planet) {
   // dieselbe `verkaufen`-Funktion wie ein Klick im Marktfenster.
   // A-224 (09.09.): Die Abgaben-Formel selbst (`handelsAbgaben`) ist mit
   // ihrem letzten Leser (`ausbauVorschau`) entfallen -- sie kreditierte
-  // dort weiter ein Plus, das die Wirtschaft nicht mehr zahlte. Der
-  // Bevölkerungsanteil `abgaben` (`bevoelkerungsAnteile`, `GELD.abgabenProKopf`)
-  // bleibt als Rechengrundlage stehen, hat aber aktuell keinen Leser mehr im
-  // Code -- Fund für die Planung, kein Entscheid dieser Runde.
+  // dort weiter ein Plus, das die Wirtschaft nicht mehr zahlte.
+  // A-226 (09.09.): Der Bevölkerungsanteil, den `bevoelkerungsAnteile` dafür
+  // trug, und seine Pro-Kopf-Konstante in `data.js` (`GELD`) sind mit ihr
+  // entfallen -- die Planung hat sie bewusst nicht als Basis für ein
+  // späteres Steuersystem stehen lassen (dieselbe Lehre wie oben: eine Zahl,
+  // die aussieht wie eine gültige Rechengrundlage, wird irgendwann wieder
+  // eine). Herleitung im Git-Verlauf (A-164, A-217, A-224).
 
   // A-204/A-205: Verteidigungs-Bauarten (ABWEHR-Katalog) sind KEINE
   // BUILDINGS-Anlage (Stückzahl statt Stufen, deshalb FLACH je Stück statt
@@ -1987,6 +1988,78 @@ export function sichtbareRate(lager, verderb, resId) {
   return (lager[resId] || 0) - (verderb[resId] || 0);
 }
 
+// A-213: Fensterlänge für die angezeigte Nahrungsbilanz. Der gemessene
+// Krisenfall (Ergebnis-Abschnitt des Auftrags) zeigt einen vollen Regime-
+// Wechsel (A -> B -> A) innerhalb von zwei bis drei Sekunden -- 30 Sekunden
+// geben dem großzügig Marge (Faktor 10+), ohne eine echte Änderung (neue
+// Farm, verlorener Planet) spürbar zu verzögern.
+export const NAHRUNGSBILANZ_FENSTER_MS = 30_000;
+
+// A-213: Die angezeigte Nahrungsbilanz misst eine BESTANDSÄNDERUNG über ein
+// zurückliegendes Zeitfenster -- keine instantane Rate, die einen einzelnen
+// Regime-Wechsel (produktionsAufloesung, Regime A/B) aufs Jahr hochrechnet
+// und dabei um Größenordnungen überzeichnet (gemessen: −5,7 Mio. t/Jahr in
+// einem einzelnen Takt, während die Welt selbst nur in einem winzigen
+// Zwei-Takt-Zyklus um ihren Ausgleichspunkt kräuselt). Eine MENGE über
+// verstrichene Zeit ist chunking-unabhängig (A-166): ein großer Sprung
+// liefert dieselbe Zahl wie viele kleine Schritte, weil beide denselben
+// Bestand hinterlassen -- ein Mittel über RATEN hinge dagegen daran, wie
+// groß die verarbeiteten Abschnitte zufällig waren.
+//
+// Nachgezogen wird der Messpunkt aus `planetVorruecken` (simulation.js),
+// direkt nach `planetRatenAnwenden` -- derselbe Platz wie
+// `fossilVorratNachziehen`/`reaktorBitNachziehen`, an einer bereits
+// event-genauen Ereignisgrenze (siehe deren Kommentare): ein Regime-Wechsel
+// überstreicht dort nie eine Spanne, sondern trifft immer einen eigenen
+// Aufruf.
+//
+// Das Vorzeichen wird dabei NIE gemittelt (A-112, Klaus' Fund: die Kachel
+// sagte „plus", während die Nahrung fiel): eine reine Bestandsdifferenz
+// zeigt exakt, ob der Bestand über das Fenster gestiegen oder gefallen ist
+// -- es gibt keinen separaten Rate-Mittelwert, der das verschleiern könnte.
+//
+// Der allererste Aufruf für einen Planeten legt nur den Bezugspunkt an, ohne
+// eine Rate zu behaupten: er kennt noch keine Spanne, über die er mitteln
+// könnte (`angezeigteRate` unten fällt bis dahin auf die instantane
+// `sichtbareRate` zurück, per ?? statt ||). Ein zu großzügiger erster
+// Bezugspunkt (etwa "Weltbeginn") würde umgekehrt einen einzelnen großen
+// Sprung über MEHRERE Fensterlängen zu einem einzigen, sehr breiten Mittel
+// verwaschen, während viele kleine Schritte längst mehrfach gerollt und nur
+// noch die JÜNGSTE Fensterlänge zeigen würden -- gemessen: genau das
+// vergrößerte die Abweichung zwischen beiden Wegen, statt sie zu verkleinern.
+export function nahrungsbilanzNachziehen(planet) {
+  if (!planet || !planet.ressourcen) return;
+  const jetzt = planet.letzterTick;
+  const bestand = planet.ressourcen.nahrung || 0;
+  const mp = planet.nahrungBilanzMesspunkt;
+  if (!mp) {
+    planet.nahrungBilanzMesspunkt = { zeitpunkt: jetzt, bestand, rate: null };
+    return;
+  }
+  const alter = jetzt - mp.zeitpunkt;
+  // Fenster noch nicht voll: der alte Bezugspunkt bleibt stehen, statt bei
+  // jedem Aufruf auf „jetzt" zu springen -- sonst würde `alter` bei dichten
+  // Aufrufen gegen 0 laufen und die Rate erst recht zum Rauschen machen.
+  if (alter < NAHRUNGSBILANZ_FENSTER_MS) return;
+  const proStunde = ((bestand - mp.bestand) / alter) * MS_PRO_STUNDE_STATE;
+  planet.nahrungBilanzMesspunkt = { zeitpunkt: jetzt, bestand, rate: proStunde };
+}
+
+// A-213: dieselbe Rolle wie `sichtbareRate`, aber für „nahrung" gefenstert
+// (siehe `nahrungsbilanzNachziehen`) statt instantan. EINE Stelle für JEDEN
+// Anzeige-Ort (Regelwerk B3) -- damit Ressourcenkachel, Imperiumsübersicht
+// und „Diese Welt in Zahlen" nie auseinanderlaufen. Jede andere Ressource
+// läuft unverändert durch `sichtbareRate` (Nicht anfassen:
+// `sichtbareRate`/`verderb` als Mechanismus bleiben, wie sie sind).
+export function angezeigteRate(planet, lager, verderb, resId) {
+  if (resId !== "nahrung") return sichtbareRate(lager, verderb, resId);
+  const mp = planet && planet.nahrungBilanzMesspunkt;
+  // A-171-Falle: fehlender/erster Messpunkt (neuer Planet, alter Spielstand
+  // ohne das Feld) heißt „noch nicht gemessen" -- Rückfall auf die
+  // instantane Rate, NICHT auf 0 (??, weil `rate` legitim 0 sein kann).
+  return mp?.rate ?? sichtbareRate(lager, verderb, resId);
+}
+
 export function effektiveRaten(state, planet) {
   return produktionsAufloesung(state, planet);
 }
@@ -2452,7 +2525,7 @@ export function planetUebersicht(state, planet) {
   // alle von hier, damit dieselbe Nettorate nicht drei zweite Rechenwege
   // bekommt (Regelwerk B3).
   const lagerAnzeige = {};
-  for (const resId of LAGER_RESSOURCEN) lagerAnzeige[resId] = sichtbareRate(raten.lager, raten.verderb, resId);
+  for (const resId of LAGER_RESSOURCEN) lagerAnzeige[resId] = angezeigteRate(planet, raten.lager, raten.verderb, resId);
   const speicher = [];
   for (const def of Object.values(RESSOURCEN)) {
     if (!def.speicher) continue;

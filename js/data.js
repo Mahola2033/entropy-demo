@@ -19,7 +19,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.9.9";
+export const VERSION = "0.9.12";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von uebernehmen.mjs beim Kopieren auf "spielkopie"
@@ -65,7 +65,7 @@ export const DEMO_SAAT = 20269933;
 // wird an den anzeigenden Stellen, nicht hier. Einzige Ausnahme ist
 // voraussetzungenText() weiter unten -- die einzige Funktion in dieser Datei,
 // die Anzeigetext zusammensetzt.
-import { t } from "./sprache.js?v=0.9.9";
+import { t } from "./sprache.js?v=0.9.12";
 
 // A-164 (31.08.2026): Von 50 auf 125.000 (×2.500) -- die Maßstabsrunde.
 // Vorher skalierte EIN MASSSTAB Material, Menschen und Arbeitskraft
@@ -1379,9 +1379,14 @@ export const BUILDINGS = {
     costFactor: 1.5,
     buildTimeDivisor: 1.8,
     // Keine EINNAHME hier -- die kommt seit A-217 ausschließlich aus echtem
-    // Handel (`handelspostenHandeln`, simulation.js), nicht aus einer
-    // Formel neben der Stufe. Hier steht nur, was der Betrieb fest kostet --
-    // die Senke des Geldkreislaufs (siehe GELD).
+    // Handel (`handelspostenHandeln`, simulation.js). Die Betriebskosten
+    // sind die Senke des Geldkreislaufs -- fest je Stufe, überlinear
+    // wachsend (siehe Baubeschreibung). A-164: sie tragen MASSSTAB (×2.500)
+    // wie jeder andere Materialverbrauch, nicht MENSCHEN_FAKTOR -- ursprünglich
+    // als Gegenrechnung zu einer bevölkerungsbemessenen Abgaben-Einnahme
+    // kalibriert, die seit A-217 nicht mehr kreditiert und seit A-226 als
+    // Formel ganz entfallen ist (Herleitung im Git-Verlauf: A-164, A-217,
+    // A-224, A-226).
     produktion: {},
     verbrauch: {
       energie: { basis: 5, faktor: 1.2 },
@@ -2300,49 +2305,6 @@ export function taugtAlsStartwelt({ klasse, zone, wasser, schwerkraft }) {
   }
   return true;
 }
-
-// --- Geldkreislauf ---------------------------------------------------------
-// Bis v0.5 entstanden Credits AUS DEM NICHTS: verkaufen() schrieb sie gut, und
-// niemand zahlte sie. In data.js stand dazu ehrlich, sie entstünden "NUR durch
-// Verkauf" -- das beschreibt die Quelle, rechtfertigt sie aber nicht.
-//
-// Seit v0.6 hat Geld eine Quelle UND eine Senke, wie jeder andere Fluss im
-// Spiel (Prinzip 0):
-//
-//   QUELLE: Abgaben. Ein Handelsposten rechnete die Wirtschaft seines
-//           Planeten mit der Galaxie ab -- und die Wirtschaft sind die
-//           MENSCHEN, nicht die Ausbaustufe.
-//           A-217 (09.09.): Diese Herleitung kreditierte die laufende
-//           Produktion seither nicht mehr -- Geld ohne Handel war Geld aus
-//           dem Nichts. Echtes Einkommen kommt seither nur noch aus
-//           `handelspostenHandeln` (simulation.js), einem echten Verkauf.
-//           A-224 (09.09.): Die Formel selbst (`handelsAbgaben` in
-//           `js/state.js`) ist mit ihrem letzten Leser (der Ausbau-Vorschau
-//           der Kachel) entfallen -- die zeigte sonst weiter ein Plus, das
-//           die Wirtschaft nicht mehr zahlte. `GELD.abgabenProKopf` unten
-//           bleibt als Rechengrundlage stehen, hat aber aktuell keinen Leser
-//           mehr im Code (Fund für die Planung, kein Entscheid dieser Runde).
-//   SENKE:  Betriebskosten desselben Postens, fest je Stufe. Daraus folgt eine
-//           Aussage, die vorher keine war: EIN HANDELSPOSTEN MUSS SICH ERST
-//           VERDIENEN. Unter rund 2,16 Mrd Einwohnern kostet er mehr, als er
-//           einbringt (A-164: Zahl seit MENSCHEN_FAKTOR neu gerechnet, das
-//           Verhältnis -- 72 % der Startbevölkerung -- ist unverändert).
-//
-// Beide Zahlen sind PRO KOPF und tragen deshalb KEINEN Maßstab -- die
-// Bevölkerung selbst ist bereits skaliert, genau wie bei nahrungProKopf.
-//
-// A-164, Bekannte Falle: Abgaben sind die QUELLE, Betriebskosten (SENKE,
-// verbrauch.credits oben) die Gegenseite -- und die SENKE trägt MASSSTAB
-// (×2.500, wie jeder andere Materialverbrauch), NICHT MENSCHEN_FAKTOR.
-// Ohne Gegenrechnung würde die QUELLE mit der vollen Bevölkerung (×2.500 ×
-// MENSCHEN_FAKTOR) wachsen -- ein Handelsposten würde 24× mehr einbringen,
-// als er kostet, gegen das Verhältnis, das vor dieser Runde galt. Deshalb
-// hier durch MENSCHEN_FAKTOR geteilt: Abgaben bleiben an der Bevölkerung
-// bemessen (Quelle ist die Wirtschaft der Menschen), wachsen aber im selben
-// Verhältnis zur Betriebskosten-Senke wie zuvor.
-export const GELD = {
-  abgabenProKopf: 0.05 / MENSCHEN_FAKTOR,
-};
 
 // --- Handelsbereitschaft (v0.67) -------------------------------------------
 // Tobis Vorgabe: **der Wille zu kaufen und zu verkaufen hängt an der

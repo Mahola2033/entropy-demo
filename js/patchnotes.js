@@ -28,6 +28,33 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.9.12",
+    de: [
+      "Nur intern: zwei tote Reste des alten Handelsposten-Abgabenmodells entfernt (ein Bevölkerungsanteil und eine Konstante ohne verbliebene Leser). Für den Spieler ändert sich nichts.",
+    ],
+    en: [
+      "Internal only: removed two dead remnants of the old trading-post levy model (a population share and a constant with no readers left). Nothing changes for players.",
+    ],
+  },
+  {
+    version: "0.9.11",
+    de: [
+      "Die Nahrungsbilanz-Anzeige stand nicht mehr still, wenn eine Welt genau an ihrer Kapazitätsgrenze hing: sie zeigte teils riesige Ausschläge zwischen einem Takt und dem nächsten, obwohl sich am Zustand der Welt kaum etwas änderte. Die Anzeige rechnet jetzt über ein kurzes Zeitfenster statt einen einzelnen Augenblick aufs Jahr hochzurechnen – sie bleibt ruhig, solange sich nichts wirklich ändert, und zeigt einen sinkenden Vorrat weiterhin sofort als Minus an.",
+    ],
+    en: [
+      "The food-balance display no longer sat still once a world was pinned right at its capacity limit: it could show huge swings from one moment to the next even though almost nothing about the world had actually changed. The display now measures over a short time window instead of extrapolating a single instant to a full year – it stays calm as long as nothing is really changing, and still shows a shrinking stockpile as a minus right away.",
+    ],
+  },
+  {
+    version: "0.9.10",
+    de: [
+      "Nur intern: ein Merkzettel für die Handelspartner-Suche kannte nur Takt und Planet, nicht das Spiel selbst — zwei Spiele, die zufällig zur selben Sekunde entstehen (Neustart, ein geladener Stand), konnten sich dadurch den Handelspartner der jeweils anderen Galaxie leihen. Der Merker kennt jetzt auch, zu welchem Spiel er gehört.",
+    ],
+    en: [
+      "Internal only: a memo cache for the trading-partner search only knew the tick and the planet, not the game itself — two games created in the same second (a restart, a loaded save) could end up borrowing each other's trading partner. The cache now also knows which game it belongs to.",
+    ],
+  },
+  {
     version: "0.9.9",
     de: [
       "Die Ausbau-Vorschau des Handelspostens zeigt jetzt nur noch seine Betriebskosten, kein Ertragsversprechen mehr – ein Handelsertrag hängt an Partner, Reichweite, Beziehung und fremden Credits und lässt sich nicht seriös vorab schätzen. Die Baubeschreibung sagte das bereits: ohne Handelspartner in Reichweite bringt er nichts ein.",

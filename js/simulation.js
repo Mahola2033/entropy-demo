@@ -47,7 +47,7 @@ import {
   bauzeitFuerLevel,
   forschungsAufwand,
   voraussetzungenText,
-} from "./data.js?v=0.9.9";
+} from "./data.js?v=0.9.12";
 import {
   effektiveRaten,
   bevoelkerungsWachstumsrate,
@@ -55,6 +55,7 @@ import {
   verarbeitungsReserveFuer,
   reaktorBitNachziehen,
   fossilVorratNachziehen,
+  nahrungsbilanzNachziehen,
   brennstoffReichweiteMs,
   affinitaetFaktor,
   gebaeudeKosten,
@@ -106,7 +107,7 @@ import {
   arbeitskraftDiebstahlAnteil,
   maxReichweite,
   handelsMindestFuer,
-} from "./state.js?v=0.9.9";
+} from "./state.js?v=0.9.12";
 import {
   ortVonPlanet,
   ortVonSystem,
@@ -126,9 +127,9 @@ import {
   schiffeGesamt,
   schiffeStaerke,
   schiffeText,
-} from "./flotten.js?v=0.9.9";
-import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.9";
-import { stromFuer, waehle } from "./zufall.js?v=0.9.9";
+} from "./flotten.js?v=0.9.12";
+import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.12";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.12";
 import {
   reichenAus,
   fehlende,
@@ -139,8 +140,8 @@ import {
   buendelText,
   formatZahl as fmt,
   name as resName,
-} from "./ressourcen.js?v=0.9.9";
-import { t } from "./sprache.js?v=0.9.9";
+} from "./ressourcen.js?v=0.9.12";
+import { t } from "./sprache.js?v=0.9.12";
 
 // Kurzform: Ressourcen in ein Planetenlager einlagern, begrenzt durch den
 // gemeinsamen Pool und etwaige Annahmeregeln. Gibt zurück, was nicht
@@ -161,7 +162,7 @@ function insLager(state, planet, buendel) {
     (resId) => aufnahmeGrenzeFuer(planet, resId)
   );
 }
-import { systemName, entfernung } from "./galaxie.js?v=0.9.9";
+import { systemName, entfernung } from "./galaxie.js?v=0.9.12";
 
 const MS_PRO_STUNDE = 1000 * 60 * 60;
 
@@ -298,6 +299,11 @@ function planetVorruecken(state, planet, bisZeitpunkt) {
     // fossile Vorrat zieht NUR hier nach, mit der bereits auf die nächste
     // Ereignisgrenze geschnittenen Spanne.
     fossilVorratNachziehen(planet, stunden);
+    // A-213: derselbe Platz, dritter Nachzieher -- der Nahrungsbilanz-
+    // Messpunkt (state.js) braucht `planet.letzterTick` (oben bereits auf
+    // `bisZeitpunkt` gestellt) und `planet.ressourcen.nahrung`, das
+    // `planetRatenAnwenden` gerade fertig fortgeschrieben hat.
+    nahrungsbilanzNachziehen(planet);
   }
 }
 
@@ -5985,15 +5991,24 @@ export function gruendungBefehlen(state, flotte, art, systemId, orbit) {
 // gekippte Beziehung, ein zerstörter Posten), passiert über ein Ereignis --
 // und ein Ereignis rückt `letzterTick` vor. Schlimmster Fall ist also eine
 // Antwort, die eine Sekunde alt ist; sichtbar ist das nicht.
-let partnerMerker = { tick: -1, planetId: -1, wert: null };
+//
+// A-225 (09.09.): `tick`+`planetId` allein sagen nicht, ZU WELCHEM SPIEL sie
+// gehören. `neuesSpiel` setzt `letzterTick` auf die Wanduhr und die
+// Heimatwelt trägt in jeder Galaxie dieselbe `id` (1) -- zwei `state`s
+// derselben Millisekunde (Reset, ein geladener Stand) hätten denselben
+// Schlüssel getroffen und die Antwort der JEWEILS ANDEREN Galaxie bekommen.
+// `state` deshalb als Identität mit im Schlüssel, kein Inhaltsvergleich (der
+// `state` selbst ändert sich laufend) -- der Merker hält weiterhin genau
+// einen Eintrag, er wächst nicht.
+let partnerMerker = { tick: -1, planetId: -1, state: null, wert: null };
 
 export function handelsPartner(state, planet) {
   if (!planet) return null;
-  if (partnerMerker.tick === state.letzterTick && partnerMerker.planetId === planet.id) {
+  if (partnerMerker.tick === state.letzterTick && partnerMerker.planetId === planet.id && partnerMerker.state === state) {
     return partnerMerker.wert;
   }
   const gefunden = handelsPartnerSuchen(state, planet);
-  partnerMerker = { tick: state.letzterTick, planetId: planet.id, wert: gefunden };
+  partnerMerker = { tick: state.letzterTick, planetId: planet.id, state, wert: gefunden };
   return gefunden;
 }
 

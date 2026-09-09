@@ -32,10 +32,10 @@
 // Eine geschlossene Ansicht darf keine Rechenzeit kosten -- eine Messung hat
 // der alten Galaxieansicht 4,5 ms pro Sekunde nachgewiesen, auch geschlossen.
 
-import { GALAXIE_REGELN, SPIELER_FRAKTION, TYP_SYMBOL } from "./data.js?v=0.9.9";
-import { systemPosition, systemName, sternFuer } from "./galaxie.js?v=0.9.9";
-import { flottePosition, schiffeText, flotteRestreichweite } from "./flotten.js?v=0.9.9";
-import { holeSystem, objektGesperrt } from "./systeme.js?v=0.9.9";
+import { GALAXIE_REGELN, SPIELER_FRAKTION, TYP_SYMBOL } from "./data.js?v=0.9.12";
+import { systemPosition, systemName, sternFuer } from "./galaxie.js?v=0.9.12";
+import { flottePosition, schiffeText, flotteRestreichweite } from "./flotten.js?v=0.9.12";
+import { holeSystem, objektGesperrt } from "./systeme.js?v=0.9.12";
 import {
   planetenVon,
   planetAn,
@@ -45,10 +45,10 @@ import {
   untersuchteOrbits,
   fraktionVon,
   fraktionById,
-} from "./state.js?v=0.9.9";
-import { stromFuer } from "./zufall.js?v=0.9.9";
-import { t, sprache } from "./sprache.js?v=0.9.9";
-import { listeAbgleichen, attributSetzen, textSetzen, fmtDauer } from "./ui.js?v=0.9.9";
+} from "./state.js?v=0.9.12";
+import { stromFuer } from "./zufall.js?v=0.9.12";
+import { t, sprache } from "./sprache.js?v=0.9.12";
+import { listeAbgleichen, attributSetzen, textSetzen, fmtDauer } from "./ui.js?v=0.9.12";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
