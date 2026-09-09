@@ -19,7 +19,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.9.6";
+export const VERSION = "0.9.9";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von uebernehmen.mjs beim Kopieren auf "spielkopie"
@@ -65,7 +65,7 @@ export const DEMO_SAAT = 20269933;
 // wird an den anzeigenden Stellen, nicht hier. Einzige Ausnahme ist
 // voraussetzungenText() weiter unten -- die einzige Funktion in dieser Datei,
 // die Anzeigetext zusammensetzt.
-import { t } from "./sprache.js?v=0.9.6";
+import { t } from "./sprache.js?v=0.9.9";
 
 // A-164 (31.08.2026): Von 50 auf 125.000 (×2.500) -- die Maßstabsrunde.
 // Vorher skalierte EIN MASSSTAB Material, Menschen und Arbeitskraft
@@ -1373,14 +1373,15 @@ export const BUILDINGS = {
     gruppe: "industrie",
     name: "Handelsposten",
     beschreibung:
-      "Handelt mit fremden Imperien in Reichweite und zieht Abgaben aus der eigenen Bevölkerung. Gekaufte Ware muss von einer Flotte abgeholt werden. Die Abgaben wachsen mit Bevölkerung und Stufe, die Betriebskosten überlinear mit der Stufe – zu jeder Weltgröße gibt es deshalb eine beste Stufe. Unter rund 2,16 Mrd Einwohnern trägt sich schon die erste nicht.",
+      "Handelt selbsttätig mit dem nächstgelegenen erreichbaren fremden Imperium: verkauft, was über der eingestellten Handels-Mindestmenge liegt, zu Marktpreisen – ohne Handelspartner in Reichweite bringt er nichts ein. Gekaufte Ware muss von einer Flotte abgeholt werden. Die Betriebskosten laufen unabhängig vom Handel weiter und wachsen überlinear mit der Stufe.",
     kategorie: "handel",
     baseCost: { metall: 250, silizium: 150 },
     costFactor: 1.5,
     buildTimeDivisor: 1.8,
-    // Die EINNAHME steht nicht hier, sondern in rohRaten: sie hängt an der
-    // Bevölkerung, nicht an der Stufe (siehe GELD). Hier steht nur, was der
-    // Betrieb fest kostet -- die Senke des Geldkreislaufs.
+    // Keine EINNAHME hier -- die kommt seit A-217 ausschließlich aus echtem
+    // Handel (`handelspostenHandeln`, simulation.js), nicht aus einer
+    // Formel neben der Stufe. Hier steht nur, was der Betrieb fest kostet --
+    // die Senke des Geldkreislaufs (siehe GELD).
     produktion: {},
     verbrauch: {
       energie: { basis: 5, faktor: 1.2 },
@@ -2308,10 +2309,19 @@ export function taugtAlsStartwelt({ klasse, zone, wasser, schwerkraft }) {
 // Seit v0.6 hat Geld eine Quelle UND eine Senke, wie jeder andere Fluss im
 // Spiel (Prinzip 0):
 //
-//   QUELLE: Abgaben. Ein Handelsposten rechnet die Wirtschaft seines Planeten
-//           mit der Galaxie ab -- und die Wirtschaft sind die MENSCHEN, nicht
-//           die Ausbaustufe. Er ist deshalb die einzige Anlage im Spiel, deren
-//           Ertrag an der Bevölkerung hängt.
+//   QUELLE: Abgaben. Ein Handelsposten rechnete die Wirtschaft seines
+//           Planeten mit der Galaxie ab -- und die Wirtschaft sind die
+//           MENSCHEN, nicht die Ausbaustufe.
+//           A-217 (09.09.): Diese Herleitung kreditierte die laufende
+//           Produktion seither nicht mehr -- Geld ohne Handel war Geld aus
+//           dem Nichts. Echtes Einkommen kommt seither nur noch aus
+//           `handelspostenHandeln` (simulation.js), einem echten Verkauf.
+//           A-224 (09.09.): Die Formel selbst (`handelsAbgaben` in
+//           `js/state.js`) ist mit ihrem letzten Leser (der Ausbau-Vorschau
+//           der Kachel) entfallen -- die zeigte sonst weiter ein Plus, das
+//           die Wirtschaft nicht mehr zahlte. `GELD.abgabenProKopf` unten
+//           bleibt als Rechengrundlage stehen, hat aber aktuell keinen Leser
+//           mehr im Code (Fund für die Planung, kein Entscheid dieser Runde).
 //   SENKE:  Betriebskosten desselben Postens, fest je Stufe. Daraus folgt eine
 //           Aussage, die vorher keine war: EIN HANDELSPOSTEN MUSS SICH ERST
 //           VERDIENEN. Unter rund 2,16 Mrd Einwohnern kostet er mehr, als er

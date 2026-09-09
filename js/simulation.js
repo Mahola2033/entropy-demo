@@ -47,7 +47,7 @@ import {
   bauzeitFuerLevel,
   forschungsAufwand,
   voraussetzungenText,
-} from "./data.js?v=0.9.6";
+} from "./data.js?v=0.9.9";
 import {
   effektiveRaten,
   bevoelkerungsWachstumsrate,
@@ -104,7 +104,9 @@ import {
   beziehungAendern,
   beziehungZu,
   arbeitskraftDiebstahlAnteil,
-} from "./state.js?v=0.9.6";
+  maxReichweite,
+  handelsMindestFuer,
+} from "./state.js?v=0.9.9";
 import {
   ortVonPlanet,
   ortVonSystem,
@@ -124,9 +126,9 @@ import {
   schiffeGesamt,
   schiffeStaerke,
   schiffeText,
-} from "./flotten.js?v=0.9.6";
-import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.6";
-import { stromFuer, waehle } from "./zufall.js?v=0.9.6";
+} from "./flotten.js?v=0.9.9";
+import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.9";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.9";
 import {
   reichenAus,
   fehlende,
@@ -137,8 +139,8 @@ import {
   buendelText,
   formatZahl as fmt,
   name as resName,
-} from "./ressourcen.js?v=0.9.6";
-import { t } from "./sprache.js?v=0.9.6";
+} from "./ressourcen.js?v=0.9.9";
+import { t } from "./sprache.js?v=0.9.9";
 
 // Kurzform: Ressourcen in ein Planetenlager einlagern, begrenzt durch den
 // gemeinsamen Pool und etwaige Annahmeregeln. Gibt zurück, was nicht
@@ -159,7 +161,7 @@ function insLager(state, planet, buendel) {
     (resId) => aufnahmeGrenzeFuer(planet, resId)
   );
 }
-import { systemName, entfernung } from "./galaxie.js?v=0.9.6";
+import { systemName, entfernung } from "./galaxie.js?v=0.9.9";
 
 const MS_PRO_STUNDE = 1000 * 60 * 60;
 
@@ -778,8 +780,20 @@ function ereignisBauen(state, zeit, art, entitaet) {
     // `naechstesWachstum` auf demselben Zeitpunkt stehen und würde jede
     // weitere Ereignissuche blockieren (dieselbe Falle wie ein Ereignis, das
     // sich nicht neu einplant, siehe Kommentar an EREIGNIS_DECKEL).
+    // A-217: derselbe Taktgeber trägt jetzt auch den Handelsposten -- GENAU
+    // EIN selbsttätiger Handelsversuch je Planet je Takt (siehe
+    // handelspostenHandeln). Kein eigenes Ereignis dafür: ein Planet ohne
+    // Wachstums-Taktgeber gäbe es nicht (siehe A-166 oben), also braucht auch
+    // der Handel keinen zweiten.
     case "wachstum":
-      return { zeit, ausfuehren: (t) => { entitaet.naechstesWachstum = t + BEVOELKERUNG.schrittMs; }, planeten: [entitaet] };
+      return {
+        zeit,
+        ausfuehren: (t) => {
+          entitaet.naechstesWachstum = t + BEVOELKERUNG.schrittMs;
+          handelspostenHandeln(state, entitaet, t);
+        },
+        planeten: [entitaet],
+      };
     case "forschung":
       return { zeit, ausfuehren: (t) => forschungAbschliessen(state, t), planeten: null };
     case "snBlitz":
@@ -3493,8 +3507,10 @@ function botSchritt(state, fraktion, zeit) {
 // verkaufen kann er unter denselben Regeln wie jeder andere.
 //
 // Für den Spieler ist das trotzdem der entscheidende Unterschied: die Kassen
-// der Nachbarn füllen sich nicht mehr nur aus ihren Abgaben, sondern aus
-// echtem Handel -- und wer Geld hat, kann dem Spieler auch etwas abkaufen.
+// der Nachbarn füllen sich aus echtem Handel -- seit A-217 aus genau zwei
+// Quellen, dieser hier (Überschuss ab vollem Lager) und `handelspostenHandeln`
+// (Überschuss über der Handels-Mindestmenge, jeden Takt), keine Abgaben mehr.
+// Wer Geld hat, kann dem Spieler auch etwas abkaufen.
 function botHandeln(state, welt) {
   if (!handelVerfuegbar(welt)) return;
   const frei = lagerFrei(state, welt);
@@ -5997,10 +6013,48 @@ function handelsPartnerSuchen(state, planet) {
   return bester;
 }
 
+// A-217, Prinzip 10a: eine Zahl statt eines Zustands. Derselbe Fund wie
+// A-050/A-065 -- "Kein Handelspartner in Reichweite" allein lässt einen
+// Spieler nicht ableiten, dass ihm Antriebstechnik fehlt. Sucht DESHALB
+// bewusst OHNE den Reichweitenfilter von handelsPartnerSuchen (der bleibt
+// unangetastet, siehe "Nicht anfassen"): nur um die Entfernung zu kennen,
+// gegen die maxReichweite gehalten wird. Läuft NICHT über den partnerMerker
+// -- er wird nur gefragt, wenn ein Handel schon gescheitert ist, nicht bei
+// jedem Marktbild, und lohnt die Cache-Komplexität dafür nicht.
+function naechsterFremderPosten(state, planet) {
+  let bester = null;
+  for (const fremd of state.planeten) {
+    if (fraktionVon(fremd) === fraktionVon(planet)) continue;
+    if (!handelVerfuegbar(fremd)) continue;
+    const art = fraktionArt(fraktionById(state, fraktionVon(fremd)) || {});
+    if (!art.nutzt || !art.nutzt.handel) continue;
+    const d = strecke(ortVonPlanet(state, planet), ortVonPlanet(state, fremd));
+    if (!bester || d < bester.entfernung) bester = { planet: fremd, entfernung: d };
+  }
+  return bester;
+}
+
+// Zusatz zur Meldung "kein Partner": Entfernung des nächsten fremden Postens
+// und die eigene Reichweite, wenn es irgendwo einen gibt, der nur zu weit weg
+// ist. Leerstring, wenn es GALAXIEWEIT gar keinen fremden Posten gibt -- dann
+// hilft keine Zahl. EINE Stelle für kurzen Sperrgrund (kannVerkaufen/
+// kannKaufen) und langen Hinweistext im Marktfenster (js/ui.js), damit beide
+// dieselbe Zahl zeigen.
+export function handelsReichweitenHinweis(state, planet) {
+  const naechster = naechsterFremderPosten(state, planet);
+  if (!naechster) return "";
+  return t(" Der nächste liegt {entfernung} entfernt, deine Reichweite reicht {reichweite}.", {
+    entfernung: Math.round(naechster.entfernung),
+    reichweite: Math.round(maxReichweite(state)),
+  });
+}
+
 function partnerPruefen(state, planet) {
   if (!handelVerfuegbar(planet)) return { ok: false, grund: t("Kein Handelsposten auf diesem Planeten.") };
   const partner = handelsPartner(state, planet);
-  if (!partner) return { ok: false, grund: t("Kein Handelspartner in Reichweite.") };
+  if (!partner) {
+    return { ok: false, grund: t("Kein Handelspartner in Reichweite.") + handelsReichweitenHinweis(state, planet) };
+  }
   return { ok: true, partner: partner.planet };
 }
 
@@ -6077,6 +6131,68 @@ export function verkaufen(state, planet, resId, menge) {
   planet.ressourcen.credits = (planet.ressourcen.credits || 0) + erloes;
   planetGeaendert(partner);
   return { ok: true, erloes, menge: wirklich };
+}
+
+// GEMESSEN, NACHTRÄGLICH (09.09.): Ein Aufruf je Planet je Wachstums-Takt
+// (BEVOELKERUNG.schrittMs, 5 Spielminuten) klingt billig, ist es aber nicht
+// -- jeder Aufruf mit Überschuss ruft `handelsPartner` mit einer FRISCHEN
+// `state.letzterTick`-Zahl auf (der Taktgeber jedes Planeten läuft
+// unabhängig), also praktisch immer ein Merker-Fehltreffer und eine volle
+// `handelsPartnerSuchen`-Galaxie-Suche (A-030). Gemessen an einer vollen
+// Galaxie (685 Planeten, 684 mit Posten, Saat 1): `vorspulenBisJetzt` für
+// EINEN Spieltag brauchte 172,3 s statt 58,8 s ohne diese Runde -- das
+// 2,9-Fache, exakt der Rechenzeitfehler, den der Merker verhindern sollte,
+// nur über einen neuen Aufrufer statt eine Umgehung.
+//
+// Derselbe Mechanismus wie bei `logistiknetzPruefen`/LOGISTIK_PRUEFTAKT_MS:
+// ein billiger Wächter, der die teure Suche auf einen GRÖBEREN, an der
+// SPIELZEIT hängenden Takt begrenzt (reproduzierbar, nicht an der Wanduhr).
+// Ein Handelsposten muss nicht alle 5 Spielminuten neu prüfen, ob sich sein
+// Partner geändert hat. GEMESSEN, drei Werte (derselbe Lauf):
+//   5 Spielminuten (kein Wächter): 172,3 s (+193 %)
+//   1 Spielstunde  (12×  seltener):  72,2 s ( +23 %)
+//   4 Spielstunden (48×  seltener):  65,8 s ( +12 %)
+// 4 Spielstunden gewählt: die Verzögerung ist gegen die Handelsmengen, um
+// die es hier geht, nicht wahrnehmbar, und der verbleibende Aufschlag ist
+// klein genug, um ihn zu tragen statt weiter zu verschärfen.
+export const HANDELSPOSTEN_TAKT_MS = 4 * 60 * 60 * 1000;
+
+// A-217: Der Posten handelt selbsttätig -- Tobis erste Variante (Sammel-
+// Feedback F6/F15), gewählt, weil die zweite ("nur noch Geld durch
+// tatsächliches Handeln") bei GEMESSEN null erreichbaren Partnern am
+// Rundenstart auf null Einnahmen hinausliefe. Dieselbe Funktion wie ein
+// Klick im Marktfenster -- kein Sonderpreis, kein zweiter Handelsweg.
+//
+// HÖCHSTENS EIN Handelsversuch je Planet je HANDELSPOSTEN_TAKT_MS (siehe
+// Begründung dort) -- aufgerufen wird die Funktion weiterhin aus jedem
+// Wachstums-Takt (ereignisBauen, Fall "wachstum"), der Wächter oben
+// entscheidet, ob wirklich gesucht wird. Das ist auch die Voraussetzung,
+// unter der der partnerMerker (A-030) hier gültig bleibt: diese Funktion
+// ruft `handelsPartner` ganz normal auf (Bekannte Falle in A-217) statt ihn
+// zu umgehen -- der Wächter oben ersetzt den Merker nicht, er sorgt nur
+// dafür, dass ihn tatsächlich so selten gefragt wird, wie die Auftrags-Falle
+// meinte.
+//
+// Verkauft, was über der eingestellten Handels-Mindestmenge (E2) liegt --
+// bei mehreren Waren die mit dem höchsten Erlös, wie botHandeln es für
+// Bot-Welten schon vorher tat. Gibt null zurück, wenn gar nichts zu
+// versuchen ist (kein Posten, Takt noch nicht fällig, oder kein Überschuss
+// über der Mindestmenge), sonst das Ergebnis von `verkaufen` -- auch im
+// Fehlerfall (kein Partner, Partner kann nicht zahlen/lagern), damit der
+// Grund erhalten bleibt.
+export function handelspostenHandeln(state, planet, zeit = state.letzterTick) {
+  if (!handelVerfuegbar(planet)) return null;
+  if (planet.naechsterHandelsversuch !== undefined && zeit < planet.naechsterHandelsversuch) return null;
+  planet.naechsterHandelsversuch = zeit + HANDELSPOSTEN_TAKT_MS;
+  let bester = null;
+  for (const resId of Object.keys(MARKT_PREISE)) {
+    const menge = Math.floor((planet.ressourcen[resId] || 0) - handelsMindestFuer(planet, resId));
+    if (menge <= 0) continue;
+    const wert = menge * MARKT_PREISE[resId].verkauf;
+    if (!bester || wert > bester.wert) bester = { resId, menge, wert };
+  }
+  if (!bester) return null;
+  return verkaufen(state, planet, bester.resId, bester.menge);
 }
 
 export function kannKaufen(state, planet, resId, menge) {

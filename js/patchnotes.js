@@ -28,6 +28,33 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.9.9",
+    de: [
+      "Die Ausbau-Vorschau des Handelspostens zeigt jetzt nur noch seine Betriebskosten, kein Ertragsversprechen mehr – ein Handelsertrag hängt an Partner, Reichweite, Beziehung und fremden Credits und lässt sich nicht seriös vorab schätzen. Die Baubeschreibung sagte das bereits: ohne Handelspartner in Reichweite bringt er nichts ein.",
+    ],
+    en: [
+      "The trading post's build-out preview now shows only its running costs, no more promised income – trading income depends on a partner, range, relationship, and the partner's own credits, and can't be honestly estimated in advance. The build description already said so: without a trading partner in range, it earns nothing.",
+    ],
+  },
+  {
+    version: "0.9.8",
+    de: [
+      "Nur intern: das Messwerkzeug `npm run zustand` verglich den Code nur gegen den zuletzt GEBAUTEN Stand auf der Platte in dist/ — nicht gegen das, was auf der Demo wirklich läuft. Ein gebauter, aber nie gepushter dist machte den gemeldeten Rückstand zu klein. Das Werkzeug nennt jetzt gebaut und veröffentlicht getrennt.",
+    ],
+    en: [
+      "Internal only: the `npm run zustand` measurement tool compared the code only against the last BUILT state on disk in dist/ — not against what's actually live on the demo. A build that was made but never pushed made the reported backlog look smaller than it was. The tool now reports built and published separately.",
+    ],
+  },
+  {
+    version: "0.9.7",
+    de: [
+      "Der Handelsposten handelt jetzt selbst: Er verkauft, was über deiner eingestellten Handels-Mindestmenge liegt, automatisch an den nächsten erreichbaren Handelspartner – ohne Handel bringt er kein Geld mehr aus dem Nichts. Fehlt ein Partner in Reichweite, nennt die Meldung jetzt Entfernung und benötigte Reichweite.",
+    ],
+    en: [
+      "The trading post now trades on its own: it automatically sells whatever exceeds your set trade minimum to the nearest reachable trading partner – without trade it no longer conjures money out of nowhere. If no partner is in range, the message now states the distance and the range you'd need.",
+    ],
+  },
+  {
     version: "0.9.6",
     de: [
       "Nur intern: die springende Nahrungsbilanz ist jetzt nachgestellt und gemessen — die Reparatur ist es noch nicht, weil sie gegen zwei andere, bewusst gebaute Zusicherungen läuft.",

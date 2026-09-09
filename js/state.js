@@ -49,17 +49,17 @@ import {
   FOSSIL_VORRAT_BASIS,
   ARBEITSKRAFT_LEERLAUF,
   DROSSELUNG,
-} from "./data.js?v=0.9.6";
-import { stromFuer, waehle } from "./zufall.js?v=0.9.6";
-import { systemGenerieren } from "./welt.js?v=0.9.6";
+} from "./data.js?v=0.9.9";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.9";
+import { systemGenerieren } from "./welt.js?v=0.9.9";
 // A-082: eigener Zufallsstrom für den Heimatweltnamen. Die Kennung ist eine
 // beliebige feste Zahl -- wichtig ist nur, dass sie keiner Systemkennung in
 // die Quere kommt und sich nie wieder ändert (sonst hieße jede bestehende
 // Partie beim nächsten Laden anders).
 const HEIMATWELT_NAMEN_KENNUNG = 900001;
-import { galaxiePlanen, entfernung, schluesselImSystem } from "./galaxie.js?v=0.9.6";
-import { skalieren } from "./ressourcen.js?v=0.9.6";
-import { t } from "./sprache.js?v=0.9.6";
+import { galaxiePlanen, entfernung, schluesselImSystem } from "./galaxie.js?v=0.9.9";
+import { skalieren } from "./ressourcen.js?v=0.9.9";
+import { t } from "./sprache.js?v=0.9.9";
 
 // v0.28: Sterntypen verschieben die Orbitzonen -- dieselbe Saat erzeugt jetzt
 // andere Planeten. Ein alter Spielstand trüge Fortschritt zu Orbits, in denen
@@ -1397,23 +1397,6 @@ export function arbeitskraftDiebstahlAnteil(quote) {
   return K.diebstahlBeiNull + anteil * (K.diebstahlBeiKritisch - K.diebstahlBeiNull);
 }
 
-// Was ein Handelsposten dieser Stufe auf diesem Planeten an Abgaben abrechnet.
-//
-// EINE Formel für drei Leser (A-075): die Rohraten, die Drosselungsrechnung
-// und die Ausbau-Vorschau der Kachel. Bis dahin stand sie zweimal im Modell
-// und GAR NICHT in der Vorschau -- deshalb zeigte die Kachel nur die
-// Betriebskosten und damit ein Minus vor den Credits, obwohl der Posten
-// welche einbringt.
-//
-// Warum die Stufe multipliziert: ein größerer Posten erfasst mehr von der
-// Wirtschaft seines Planeten. Die Betriebskosten wachsen dagegen überlinear
-// (1,2^Stufe) -- daraus folgt die beste Stufe je Weltgröße, und das ist die
-// Entscheidung, die dieses Gebäude interessant macht.
-export function handelsAbgaben(planet, stufe) {
-  if (!planet || stufe <= 0) return 0;
-  return bevoelkerungsAnteile(planet).abgaben * stufe;
-}
-
 export function rohRaten(state, planet) {
   const produktion = {};
   const verbrauch = {};
@@ -1427,16 +1410,17 @@ export function rohRaten(state, planet) {
   const menschen = bevoelkerungsAnteile(planet);
   produktion.arbeitskraft = menschen.arbeitskraft;
   verbrauch.nahrung = menschen.nahrung;
-  // Abgaben: die einzige Anlagen-Einnahme im Spiel, die an der BEVÖLKERUNG
-  // hängt statt an der Ausbaustufe. Ein Handelsposten baut kein Geld ab, er
-  // rechnet eine Wirtschaft ab -- und eine Wirtschaft sind Menschen. Steht
-  // deshalb hier und nicht als produktion-Eintrag in data.js, wo rate() nur
-  // die Stufe kennt. Die Gegenbuchung (Betriebskosten) steht dort.
-  //
-  // Das hier ist der ROHWERT. Gedrosselt wird er in produktionsAufloesung,
-  // und zwar mit dem Faktor des POSTENS, nicht dem der Bevölkerung.
-  const abgaben = handelsAbgaben(planet, planet.gebaeude.handelsposten || 0);
-  if (abgaben > 0) produktion.credits = (produktion.credits || 0) + abgaben;
+  // A-217 (09.09.): Abgaben kreditieren den Posten hier NICHT mehr -- Geld
+  // ohne Handel war Geld aus dem Nichts (Tobis Befund, Sammel-Feedback F6).
+  // Echtes Einkommen entsteht seither ausschließlich durch Handel:
+  // `handelspostenHandeln` in simulation.js, ein Verkauf je Takt über
+  // dieselbe `verkaufen`-Funktion wie ein Klick im Marktfenster.
+  // A-224 (09.09.): Die Abgaben-Formel selbst (`handelsAbgaben`) ist mit
+  // ihrem letzten Leser (`ausbauVorschau`) entfallen -- sie kreditierte
+  // dort weiter ein Plus, das die Wirtschaft nicht mehr zahlte. Der
+  // Bevölkerungsanteil `abgaben` (`bevoelkerungsAnteile`, `GELD.abgabenProKopf`)
+  // bleibt als Rechengrundlage stehen, hat aber aktuell keinen Leser mehr im
+  // Code -- Fund für die Planung, kein Entscheid dieser Runde.
 
   // A-204/A-205: Verteidigungs-Bauarten (ABWEHR-Katalog) sind KEINE
   // BUILDINGS-Anlage (Stückzahl statt Stufen, deshalb FLACH je Stück statt
@@ -1746,26 +1730,13 @@ export function produktionsAufloesung(state, planet) {
         prod[resId] = (prod[resId] || 0) + rate(spec, level) * an;
       }
     }
-    // Abgaben hängen an der BEVÖLKERUNG, gehören aber dem POSTEN -- er ist
-    // die Stelle, die abrechnet, und teilt deshalb seinen Drosselfaktor.
-    //
-    // Der erste Entwurf hängte sie an die Bevölkerung, und das war ein Leck:
-    // die Menschen laufen bewusst ungedrosselt (ein Blackout lässt niemanden
-    // weniger essen), die Betriebskosten des Postens aber nicht. Auf einer
-    // Welt mit 11 % Energieeffizienz kassierte er dadurch die vollen Abgaben
-    // bei fast keinen Kosten -- aus einer armen Welt wurde eine
-    // Gelddruckmaschine. Gefunden vom Test "ein kleiner Planet zahlt drauf".
-    // Die Abgaben wachsen MIT DER STUFE des Postens: ein größerer Posten
-    // erfasst mehr von der Wirtschaft seines Planeten. Ohne diesen Faktor
-    // wäre jeder Ausbau ein reiner Verlust -- die Betriebskosten steigen mit
-    // 1,2^Stufe, die Einnahme bliebe gleich. Gefunden beim Messen der Bots:
-    // sie bauten den Posten pflichtschuldig auf Stufe 3 aus und verbrannten
-    // damit 1.838 Credits pro Stunde, statt welche zu verdienen.
-    //
-    // Weil die Kosten überlinear und die Einnahmen linear wachsen, gibt es zu
-    // jeder Bevölkerung eine beste Stufe -- und die verschiebt sich, wenn die
-    // Welt wächst. Genau die Art Entscheidung, die Prinzip 12 verlangt.
-    if (id === "handelsposten" && handelsAbgaben(planet, level) > 0) prod.credits = handelsAbgaben(planet, level);
+    // A-217 (09.09.): Der Posten kreditiert hier NICHT mehr direkt -- die
+    // Gutschrift ist raus (siehe rohRaten oben für die Begründung). Die alte
+    // Herleitung, warum sie an der STUFE des Postens statt der Bevölkerung
+    // hing (Drosselfaktor, Gelddruck-Leck bei niedriger Energieeffizienz,
+    // gefunden vom Test "ein kleiner Planet zahlt drauf"), steht im Git-Log
+    // dieser Zeile. A-224 (09.09.): Die Formel (`handelsAbgaben`) selbst ist
+    // seither entfallen, siehe rohRaten oben.
     // Fluss-Bedarf je Anlage wird MITGEFÜHRT, nicht nur in der Summe: er wird
     // nach Prioritaet zugeteilt, und dafuer muss bekannt sein, wer wieviel
     // davon will. Seit v0.8 gilt das fuer Strom UND Arbeitskraft (vorher
@@ -2273,26 +2244,17 @@ export function ausbauVorschau(state, planet, def, ziel) {
     const mehr = zuwachs(spec);
     if (mehr > 0) brennstoff[resId] = Math.round(mehr);
   }
-  // A-075: Der Handelsposten ist die einzige Anlage, deren EINNAHME nicht in
-  // data.js steht -- sie hängt an der Bevölkerung und nicht an der Stufe. Die
-  // Vorschau las deshalb nur `def.verbrauch.credits` ab, also die halbe
-  // Wahrheit: ein Minus vor den Credits an einem Gebäude, das welche
-  // einbringt (Tobis Meldung 18.08.).
-  //
-  // Das Vorzeichen kommt jetzt aus dem WERT und nicht aus der Zeile, in der er
-  // zufällig steht: netto positiv -> Ertragszeile, netto negativ ->
-  // Kostenzeile. Dass beides vorkommt, IST das Design -- unter rund 36.000
-  // Einwohnern trägt sich schon die erste Stufe nicht.
-  if (planet && def.id === "handelsposten") {
-    const netto = Math.round(
-      handelsAbgaben(planet, ziel) -
-        handelsAbgaben(planet, basis) -
-        zuwachs(def.verbrauch && def.verbrauch.credits) * verbrauchsBonusFaktor(state, def, "credits", fraktion)
-    );
-    delete verbrauch.credits;
-    if (netto > 0) produktion.credits = netto;
-    else if (netto < 0) verbrauch.credits = -netto;
-  }
+  // A-075 (18.08.) rechnete hier ein Netto aus einer eigenen Abgabenformel
+  // (`handelsAbgaben`) gegen die Betriebskosten und zeigte bei hoher
+  // Bevölkerung eine Ertragszeile. A-217 (09.09.) hat der Wirtschaft diese
+  // Abgaben genommen -- die Vorschau versprach die Formel trotzdem weiter
+  // und zeigte live ein Plus, das nie geliefert wurde (A-224, 09.09.,
+  // gemessen: +177.552 cr/Jahr, 0 geliefert). Der Sonderfall ist deshalb
+  // entfallen: `credits` ist seither eine gewöhnliche Verbrauchsposition und
+  // läuft durch denselben Zweig wie jeder andere Verbrauch oben -- eine
+  // Schätzung des Handelsertrags wäre dasselbe Versprechen noch einmal, nur
+  // mit Nachkommastellen (er hängt an Partner, Reichweite, Beziehung und
+  // fremden Credits, nicht an dieser Kachel).
 
   const speicherRes = speicherRessourceVon(def.id);
   return {

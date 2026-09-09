@@ -202,8 +202,8 @@ export const EN = {
     "Turns silicon and a great deal of power into electronics. A semiconductor is not raw mass but purity: at most one atom in a billion may be foreign. Most of the material that goes in does not become components but waste – that loss is the price of refinement.",
   "Erzeugt Forschung, solange es Strom, Menschen und Laborbedarf hat. Ohne Labor forscht niemand – Erkenntnis entsteht nicht aus Vorräten, sondern aus laufender Arbeit.":
     "Produces research as long as it has power, people and lab supplies. Without a lab nobody researches – knowledge does not come from stockpiles but from work being done.",
-  "Handelt mit fremden Imperien in Reichweite und zieht Abgaben aus der eigenen Bevölkerung. Gekaufte Ware muss von einer Flotte abgeholt werden. Die Abgaben wachsen mit Bevölkerung und Stufe, die Betriebskosten überlinear mit der Stufe – zu jeder Weltgröße gibt es deshalb eine beste Stufe. Unter rund 2,16 Mrd Einwohnern trägt sich schon die erste nicht.":
-    "Trades with foreign empires in range and levies dues from its own population. Purchased goods must be collected by a fleet. Dues grow with population and level, running costs grow faster than linearly with level – so every world size has a best level. Below roughly 2.16 billion inhabitants even the first one does not pay for itself.",
+  "Handelt selbsttätig mit dem nächstgelegenen erreichbaren fremden Imperium: verkauft, was über der eingestellten Handels-Mindestmenge liegt, zu Marktpreisen – ohne Handelspartner in Reichweite bringt er nichts ein. Gekaufte Ware muss von einer Flotte abgeholt werden. Die Betriebskosten laufen unabhängig vom Handel weiter und wachsen überlinear mit der Stufe.":
+    "Trades automatically with the nearest reachable foreign empire: sells whatever exceeds the set trade minimum at market prices – without a trading partner in range it earns nothing. Purchased goods must be collected by a fleet. Running costs continue regardless of trade and grow faster than linearly with level.",
   "Erzeugt Nahrung. Ohne sie schrumpft die Bevölkerung, sobald der Vorrat aufgebraucht ist. Pflanzen setzen nur etwa ein Prozent des einfallenden Lichts in Biomasse um – Landwirtschaft braucht deshalb vor allem Fläche und Licht, nicht bessere Technik.":
     "Produces food. Without it the population shrinks once the stockpile runs out. Plants turn only about one percent of incoming light into biomass – so farming needs area and light above all, not better technology.",
   "Schafft Platz für mehr Bevölkerung. Ohne freien Wohnraum wächst niemand nach. Ein Mensch atmet rund 0,8 Kilogramm Sauerstoff am Tag – ein geschlossener Kreislauf muss ihn zurückgewinnen, sonst wäre jede Kolonie eine Dauerlieferung.":
@@ -542,6 +542,8 @@ export const EN = {
   "Verwirft diesen Spielstand und beginnt eine frische Galaxie.":
     "Discards this save and begins a fresh galaxy.",
   "Kein Handelspartner in Reichweite.": "No trading partner in range.",
+  " Der nächste liegt {entfernung} entfernt, deine Reichweite reicht {reichweite}.":
+    " The nearest one is {entfernung} away, your range reaches {reichweite}.",
   "{partner} verkauft dir nichts mehr.": "{partner} will no longer sell to you.",
   "{partner} kauft nichts mehr von dir – zu schlechte Beziehung, und gebraucht wird es dort auch nicht.":
     "{partner} no longer buys from you – relations are too poor, and they do not need it either.",
