@@ -33,6 +33,7 @@ import {
   voraussetzungenText,
   techStufe,
   rate,
+  verbrauchAb,
   ZEIT,
   GEBAEUDE_GRUPPEN,
   spieltage,
@@ -46,7 +47,7 @@ import {
   ARBEITSKRAFT_LEERLAUF,
   RUECKBAU,
   erstattungsQuote,
-} from "./data.js?v=0.9.12";
+} from "./data.js?v=0.9.16";
 import {
   effektiveRaten,
   angezeigteRate,
@@ -128,7 +129,7 @@ import {
   fossilBereit,
   fossilReichweiteMs,
   fossilVerbrauchProStunde,
-} from "./state.js?v=0.9.12";
+} from "./state.js?v=0.9.16";
 import {
   bauStarten,
   forschungStarten,
@@ -137,8 +138,8 @@ import {
   warteStartSekunden,
   kopfRestSekunden,
   bauWarteschlangeEntfernen,
-  warteschlangeVerschieben,
   warteschlangeUmordnen,
+  forschungsWarteschlangeUmordnen,
   bauAbbrechen,
   rueckbauen,
   kannForschen,
@@ -200,7 +201,7 @@ import {
   routeStoppen,
   routeMindestbeladungSetzen,
   routeBeladungAnteil,
-} from "./simulation.js?v=0.9.12";
+} from "./simulation.js?v=0.9.16";
 import {
   flottePosition,
   flotteKapazitaet,
@@ -220,26 +221,26 @@ import {
   flotteSiedlerKapazitaet,
   flotteLadungAnteile,
   flotteTankAnteile,
-} from "./flotten.js?v=0.9.12";
-import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.12";
-import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.12";
-import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.12";
+} from "./flotten.js?v=0.9.16";
+import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.16";
+import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.16";
+import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.16";
 // Nur für den Neustart-Knopf im Abspann. Der Weg dorthin ist derselbe wie im
 // Testmodus (js/testmodus.js) -- ein zweiter Reset wäre eine zweite Wahrheit
 // darüber, was "neu anfangen" bedeutet.
-import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.12";
-import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.12";
-import { systemName, sternFuer } from "./galaxie.js?v=0.9.12";
+import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.16";
+import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.16";
+import { systemName, sternFuer } from "./galaxie.js?v=0.9.16";
 // Die beiden Karten. Sie holen sich von hier `listeAbgleichen` zurück -- ein
 // Ringtausch, der trägt, weil keine der beiden Dateien beim LADEN etwas aus
 // der anderen benutzt, sondern erst beim Zeichnen. Die Alternative wäre ein
 // zweiter Abgleich-Mechanismus in karte.js gewesen, und genau davor warnt
 // Prinzip 5.
-import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.12";
-import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.12";
-import { feedbackAdresse } from "./feedback.js?v=0.9.12";
-import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.12";
-import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.12";
+import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.16";
+import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.16";
+import { feedbackAdresse } from "./feedback.js?v=0.9.16";
+import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.16";
+import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.16";
 
 // UI-lokaler Regler-Zustand für die Flotten-Beladung/Tanken-Schieber --
 // bewusst NICHT Teil des Spielzustands. Nötig, weil render() auch von einem
@@ -1815,7 +1816,6 @@ function renderRessourcen(state, root, planet) {
     // gibt -- dieselbe Sorte Lüge wie das frühere "gedrosselt auf 100 %".
     const gedeckt = flussSpeicherDeckung(planet, resId, prod, braucht) > 0;
     const knapp = braucht > 0 && prod < braucht && !gedeckt;
-    const auslastung = prod > 0 ? braucht / prod : braucht > 0 ? 1 : 0;
     const frei = Math.max(0, prod - braucht);
     const speicherDaten = flussSpeicherZeile(planet, resId, fluss[resId] || 0);
     const brennstoffDaten = resId === "energie" ? brennstoffZeilen(planet) : null;
@@ -1834,6 +1834,22 @@ function renderRessourcen(state, root, planet) {
     const istForschungsFluss = resId === "forschung";
     const lauf = istForschungsFluss ? state.forschungsQueue : null;
     const laufAufwand = lauf ? lauf.aufwand ?? forschungsAufwand(RESEARCH[lauf.forschungId], lauf.zielLevel) : 0;
+    // A-212 (Tobis F11, "the bar in the research doesn't do anything"):
+    // `auslastung` speiste den Balken bis hierher IMMER aus braucht/prod --
+    // und braucht ist fuer Forschung nach der Begruendung direkt darueber
+    // IMMER null. Der Balken stand deshalb permanent auf 0%, ganz gleich wie
+    // weit ein Projekt schon war (gemessen: 19,5 % Fortschritt laut Zahl,
+    // 0,0% laut Balken). Kein Regler, der nichts tut, sondern ein Balken, der
+    // die falsche Rechnung zeigt -- dieselbe Zahl wie am Fortschrittsbalken
+    // der einzelnen Forschungskachel (anteilVon(fortschritt, aufwand),
+    // Prinzip 5: keine zweite Rechnung fuer dieselbe Frage).
+    const auslastung = istForschungsFluss
+      ? anteilVon(lauf ? lauf.fortschritt || 0 : 0, laufAufwand)
+      : prod > 0
+        ? braucht / prod
+        : braucht > 0
+          ? 1
+          : 0;
     const wertText = istForschungsFluss
       ? lauf
         ? t("{stand} / {ziel} {einheit}", {
@@ -1871,11 +1887,13 @@ function renderRessourcen(state, root, planet) {
               anteil: Math.round(effizienz * 100),
             })
           : istForschungsFluss
-            ? t("{braucht} von {da} verbraucht · {frei} frei", {
-                braucht: forschungsRateText(braucht),
-                da: forschungsRateText(prod),
-                frei: forschungsRateText(frei),
-              })
+            ? lauf
+              ? t("{fortschritt} von {ziel} FE erforscht · {frei} frei", {
+                  fortschritt: fmt(Math.floor(lauf.fortschritt || 0)),
+                  ziel: fmt(laufAufwand),
+                  frei: forschungsRateText(frei),
+                })
+              : t("Kein Projekt gewählt · {frei} frei", { frei: forschungsRateText(frei) })
             : t("{braucht} {einheit} von {da} {einheit} verbraucht · {frei} {einheit} frei", {
                 braucht: fmt(braucht),
                 einheit: einheit(resId),
@@ -2993,7 +3011,13 @@ function renderStatus(state, root, planet, jetzt) {
       const fluss = forschungsFluss(state);
       const aufwand = eintrag.aufwand ?? forschungsAufwand(RESEARCH[eintrag.forschungId], eintrag.zielLevel);
       return fluss > 0 ? (aufwand / fluss) * 3600 : Infinity;
-    }
+    },
+    null, // kostenFn: Forschung kostet seit v0.6 kein Material (siehe oben)
+    true, // verschiebbar
+    // A-211: die Forschungs-Warteschlange ist die einzige der drei, in der
+    // ein Eintrag von einem ANDEREN Eintrag DERSELBEN Schlange abhängen kann
+    // -- deshalb hier die prüfende Variante statt der rohen Operation.
+    (von, nach) => forschungsWarteschlangeUmordnen(state, von, nach)
   );
   wsGriffAktualisieren("forschung", state.forschungsWarteschlange.length);
 
@@ -3077,13 +3101,22 @@ function renderStatus(state, root, planet, jetzt) {
 // `verschiebbar` (A-080): darf diese Schlange umsortiert werden? Alle drei
 // dürfen es -- der Schalter steht trotzdem hier, weil die Zeile sonst Knöpfe
 // bekäme, die je nach Aufrufer ins Leere zeigen.
-function renderWarteschlange(state, root, containerId, warteschlange, labelFn, entfernen, kontext = "", dauerFn = null, kostenFn = null, verschiebbar = true) {
+// `umordnenFn` (A-211): wie umsortiert wird, wenn es außer Tauschen noch
+// etwas zu prüfen gibt. Vorgabe ist die rohe warteschlangeUmordnen-Operation
+// (Bau und Werft brauchen nichts anderes) -- die Forschung reicht
+// forschungsWarteschlangeUmordnen durch, die eine Voraussetzungs-Kette gegen
+// sich selbst prüft, bevor sie das Umsortieren stehen lässt.
+function renderWarteschlange(state, root, containerId, warteschlange, labelFn, entfernen, kontext = "", dauerFn = null, kostenFn = null, verschiebbar = true, umordnenFn = null) {
   const dauerVon = dauerFn || ((eintrag) => eintrag.dauerSek || 0);
   // A-080: Die Schieber greifen auf die Liste zu, die BEIM KLICK gilt. Sie
   // liegt im Spielstand und wird von `renderWarteschlange` bei jedem
   // Bildaufbau frisch hereingereicht -- eingefangen wäre sie nach einem
   // Planetenwechsel die Liste der alten Welt (die Lehre aus A-091).
   const warteschlangeJetzt = () => warteschlange;
+  // Vorgabe: dieselbe rohe Operation wie bisher (warteschlangeUmordnen direkt
+  // auf der aktuellen Liste) -- warteschlangeVerschieben tut nichts anderes
+  // als denselben Aufruf mit index+richtung, siehe deren eigene Definition.
+  const umordnen = umordnenFn || ((von, nach) => warteschlangeUmordnen(warteschlangeJetzt(), von, nach));
   const el = root.querySelector(containerId);
   if (!el) return;
 
@@ -3193,7 +3226,8 @@ function renderWarteschlange(state, root, containerId, warteschlange, labelFn, e
         runter.textContent = "▼";
         attributSetzen(runter, "title", t("Einen Platz nach hinten."));
         const schieben = (richtung) => {
-          warteschlangeVerschieben(warteschlangeJetzt(), Number(li.dataset.position), richtung);
+          const von = Number(li.dataset.position);
+          umordnen(von, von + richtung);
           render(state, root);
         };
         hoch.addEventListener("click", () => schieben(-1));
@@ -3238,7 +3272,7 @@ function renderWarteschlange(state, root, containerId, warteschlange, labelFn, e
           const von = Number(ereignis.dataTransfer ? ereignis.dataTransfer.getData("text/plain") : NaN);
           const nach = Number(li.dataset.position);
           if (!Number.isInteger(von) || !Number.isInteger(nach)) return;
-          warteschlangeUmordnen(warteschlangeJetzt(), von, nach);
+          umordnen(von, nach);
           render(state, root);
         });
         return li;
@@ -4600,12 +4634,37 @@ function renderForschung(state, root, planet) {
           res: knapp.map((r) => t(RESSOURCEN[r].name)).join(", "),
         })
       : "";
+    // A-212 (Tobis F8, wörtlich: "Should research not cost ressources? It
+    // doesn't say so in the research tab"): GEMESSEN stimmt das nur zur
+    // Hälfte. Eine einzelne Technologie kostet kein Material -- ihre
+    // "Kosten"-Zeile an der Kachel ist Aufwand in FE, keine Ressource
+    // (RESEARCH.baseCost/costFactor sind seit v0.6 nur noch ein GEWICHT für
+    // diese Rechnung, siehe forschungsAufwand in data.js, keine Zahlung
+    // mehr). Was WIRKLICH Material kostet, ist das LABOR selbst: es zieht
+    // laufend Silizium (ab Stufe 3 zusätzlich Elektronik, A-061) -- nur
+    // während wirklich geforscht wird (`nurBeiForschung`). Diese Zeile stand
+    // bisher nirgends auf der Forschungsseite, nur an der Forschungslabor-
+    // Kachel im Gebäude-Bereich -- dieselbe Fehlerklasse wie bei Klaus'
+    // Sonden (Auskunft existiert, aber nicht dort, wo entschieden wird).
+    const laborDef = BUILDINGS.forschungslabor;
+    const materialKosten = {};
+    for (const p of planetenVon(state)) {
+      const laborLevel = (p.gebaeude && p.gebaeude.forschungslabor) || 0;
+      if (laborLevel <= 0) continue;
+      for (const resId of laborDef.nurBeiForschung || []) {
+        if (!verbrauchAb(laborDef, resId, laborLevel)) continue;
+        materialKosten[resId] = (materialKosten[resId] || 0) + rate(laborDef.verbrauch[resId], laborLevel);
+      }
+    }
+    const materialText = Object.keys(materialKosten).length
+      ? t(" · kostet {mehr}, solange ein Projekt läuft", { mehr: ratenBuendelText(materialKosten) })
+      : "";
     info.textContent = !labore
       ? t("kein Labor – niemand forscht")
       : fluss > 0
         ? (labore === 1
             ? t("1 Labor · {fluss}", { fluss: forschungsRateText(fluss) })
-            : t("{labore} Labore · {fluss}", { labore, fluss: forschungsRateText(fluss) })) + grund
+            : t("{labore} Labore · {fluss}", { labore, fluss: forschungsRateText(fluss) })) + grund + materialText
         : knapp.length
           ? t("{labore} Labor/Labore stehen still – es fehlt {res}", {
               labore,

@@ -48,17 +48,17 @@ import {
   FOSSIL_VORRAT_BASIS,
   ARBEITSKRAFT_LEERLAUF,
   DROSSELUNG,
-} from "./data.js?v=0.9.12";
-import { stromFuer, waehle } from "./zufall.js?v=0.9.12";
-import { systemGenerieren } from "./welt.js?v=0.9.12";
+} from "./data.js?v=0.9.16";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.16";
+import { systemGenerieren } from "./welt.js?v=0.9.16";
 // A-082: eigener Zufallsstrom für den Heimatweltnamen. Die Kennung ist eine
 // beliebige feste Zahl -- wichtig ist nur, dass sie keiner Systemkennung in
 // die Quere kommt und sich nie wieder ändert (sonst hieße jede bestehende
 // Partie beim nächsten Laden anders).
 const HEIMATWELT_NAMEN_KENNUNG = 900001;
-import { galaxiePlanen, entfernung, schluesselImSystem } from "./galaxie.js?v=0.9.12";
-import { skalieren } from "./ressourcen.js?v=0.9.12";
-import { t } from "./sprache.js?v=0.9.12";
+import { galaxiePlanen, entfernung, schluesselImSystem } from "./galaxie.js?v=0.9.16";
+import { skalieren } from "./ressourcen.js?v=0.9.16";
+import { t } from "./sprache.js?v=0.9.16";
 
 // v0.28: Sterntypen verschieben die Orbitzonen -- dieselbe Saat erzeugt jetzt
 // andere Planeten. Ein alter Spielstand trüge Fortschritt zu Orbits, in denen
@@ -3395,6 +3395,39 @@ export function naechstesForschungLevel(state, forschungId, fraktionId = SPIELER
     if (eintrag.forschungId === forschungId) level++;
   }
   return level + 1;
+}
+
+// A-211 (Tobis Feedback F9): Ob eine Voraussetzung erfüllt ist, entscheidet
+// ab jetzt nicht mehr nur der GEBAUTE/ERFORSCHTE Stand, sondern der Stand
+// INKLUSIVE Warteschlange -- wer eine Voraussetzung schon eingereiht hat,
+// darf das Ergebnis mit einreihen, statt erst warten zu müssen, bis sie
+// fertig ist. EINE Funktion für alle drei Warteschlangen (Prinzip 5, Vorbild
+// warteschlangeUmordnen und die Erstattungsfunktion abbruchErstatten aus
+// A-183): kannBauen prüft damit eine Forschung gegen die Forschungs-
+// Warteschlange, kannForschen eine andere Forschung gegen dieselbe
+// Warteschlange, und kannSchiffBauen/kannAbwehrBauen die Werft-Stufe gegen
+// die Bau-Warteschlange des Planeten -- nur `kopf`/`warteschlange`/`passtZu`
+// wechseln zwischen den Aufrufern, die Frage bleibt dieselbe.
+//
+// Zählt bewusst NICHT die Länge der Warteschlange, sondern nur Einträge, auf
+// die `passtZu` zutrifft -- eine Forschungs-Warteschlange voller ANDERER
+// Technologien erfüllt gar nichts (Mechanismus Punkt 2 des Auftrags: die
+// Reihenfolge zählt, nicht der bloße Inhalt der Liste).
+//
+// Die REIHENFOLGE kommt beim Einreihen geschenkt: ein bereits wartender
+// Eintrag steht immer VOR dem neuen, der erst danach angehängt wird --
+// deshalb reicht hier "kommt überhaupt vor". Erst UMSORTIEREN kann das
+// aufbrechen (Mechanismus Punkt 3, die eigentliche Falle) -- dafür sorgt
+// nicht diese Funktion, sondern forschungsWarteschlangeUmordnen weiter unten
+// in simulation.js, die dieselbe Zählweise auf die ganze Reihenfolge einer
+// Forschungs-Warteschlange anwendet.
+export function stufeEingereihtErfuellt(stand, kopf, warteschlange, passtZu, benoetigteStufe) {
+  let stufe = stand || 0;
+  if (kopf && passtZu(kopf)) stufe++;
+  for (const eintrag of warteschlange) {
+    if (passtZu(eintrag)) stufe++;
+  }
+  return stufe >= benoetigteStufe;
 }
 
 // --- Schwerkraft ------------------------------------------------------

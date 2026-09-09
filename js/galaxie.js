@@ -18,9 +18,9 @@ import {
   schluesselHaeufigkeit,
   STERN_TYPEN,
   HEIMAT_STERN,
-} from "./data.js?v=0.9.12";
-import { stromFuer, mischen, gewichtetWaehlen } from "./zufall.js?v=0.9.12";
-import { t } from "./sprache.js?v=0.9.12";
+} from "./data.js?v=0.9.16";
+import { stromFuer, mischen, gewichtetWaehlen } from "./zufall.js?v=0.9.16";
+import { t } from "./sprache.js?v=0.9.16";
 
 // Position eines Systems in der Galaxie-Ebene. Rein aus der Saat abgeleitet.
 export function systemPosition(seed, systemId) {

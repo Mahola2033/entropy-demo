@@ -2,8 +2,8 @@
 // Ein "Bündel" ist schlicht { ressourcenId: betrag, ... }.
 // Alles hier arbeitet über beliebige Ressourcen -- nichts ist fest verdrahtet.
 
-import { RESSOURCEN } from "./data.js?v=0.9.12";
-import { t, gebietsschema } from "./sprache.js?v=0.9.12";
+import { RESSOURCEN } from "./data.js?v=0.9.16";
+import { t, gebietsschema } from "./sprache.js?v=0.9.16";
 
 export function reichenAus(bestand, kosten) {
   return Object.entries(kosten).every(([resId, betrag]) => (bestand[resId] || 0) >= betrag);

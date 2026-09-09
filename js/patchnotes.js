@@ -28,6 +28,44 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.9.16",
+    de: [
+      "Die Forschungsseite sagt jetzt, was Forschung wirklich kostet: Silizium (und ab Laborstufe 3 zusätzlich Elektronik) – gezogen von den Laboren selbst, solange ein Projekt läuft, nicht von der einzelnen Technologie. Die einzelne Technologie kostet weiterhin nur Aufwand und Zeit, wie gehabt.",
+      "Der Balken an der Forschungs-Kachel oben in der Leiste zeigte bisher immer 0 % an, egal wie weit ein Projekt schon war. Er zeigt jetzt den echten Fortschritt.",
+    ],
+    en: [
+      "The research page now says what research actually costs: silicon (plus electronics from lab level 3 on) – drawn by the labs themselves while a project is running, not by the individual technology. A single technology still only costs effort and time, as before.",
+      "The bar on the research tile at the top of the bar always showed 0%, no matter how far a project had progressed. It now shows real progress.",
+    ],
+  },
+  {
+    version: "0.9.15",
+    de: [
+      "Wer eine Voraussetzung einreiht, darf jetzt direkt danach das einreihen, was sie braucht – ohne zu warten, bis sie fertig ist. Das gilt für alle drei Warteschlangen: eine Forschung nach der Technologie, die sie voraussetzt, ein Gebäude nach der Forschung, die es freischaltet, und ein Schiff oder eine Abwehrstellung nach dem nötigen Werft-Ausbau. Umsortieren, das eine Voraussetzung hinter das schieben würde, was sie braucht, wird jetzt verhindert.",
+    ],
+    en: [
+      "Queuing a prerequisite now lets you queue whatever needs it right after – no more waiting for it to finish first. This applies to all three queues: a technology after the tech it requires, a building after the research that unlocks it, and a ship or defense structure after the required shipyard upgrade. Reordering that would push a prerequisite behind whatever needs it is now prevented.",
+    ],
+  },
+  {
+    version: "0.9.14",
+    de: [
+      "Nur intern: gemessen, ob der Welten-Überfall der Piraten (A-208) in einer laufenden Galaxie über dreißig Tage funktioniert, ob er die Banden stärker wachsen lässt, und ob sich Bot-Imperien dagegen verteidigen. Für den Spieler ändert sich nichts.",
+    ],
+    en: [
+      "Internal only: measured over thirty days whether pirates raiding worlds (A-208) actually works in a running galaxy, whether it makes bands grow faster, and whether bot empires defend against it. Nothing changes for players.",
+    ],
+  },
+  {
+    version: "0.9.13",
+    de: [
+      "Nur intern: gemessen, ob zwei gleich aufgesetzte Testwelten wirklich gleich laufen. Für den Spieler ändert sich nichts.",
+    ],
+    en: [
+      "Internal only: measured whether two identically set-up test worlds really run the same way. Nothing changes for players.",
+    ],
+  },
+  {
     version: "0.9.12",
     de: [
       "Nur intern: zwei tote Reste des alten Handelsposten-Abgabenmodells entfernt (ein Bevölkerungsanteil und eine Konstante ohne verbliebene Leser). Für den Spieler ändert sich nichts.",

@@ -600,6 +600,8 @@ export const EN = {
   "Benötigt {kosten}.": "Requires {kosten}.",
   "Benötigt {kosten} auf {planet}.": "Requires {kosten} on {planet}.",
   "Benötigt {voraussetzungen}.": "Requires {voraussetzungen}.",
+  "Das würde eine Voraussetzung hinter die Forschung schieben, die sie braucht.":
+    "That would push a prerequisite behind the research that needs it.",
   "Warteschlange voll ({max}/{max}).": "Queue full ({max}/{max}).",
   "Braucht {noetig} Bevölkerung (aktuell {aktuell}).": "Requires {noetig} population (currently {aktuell}).",
   "{res} gibt es hier nicht.": "There is no {res} here.",
@@ -890,7 +892,16 @@ export const EN = {
     "{labore} labs, but no power or people – nothing is progressing",
   "Aufwand: {aufwand} FE · bei {fluss} aus allen Laboren: {dauer}":
     "Effort: {aufwand} RU · at {fluss} from all labs: {dauer}",
-  "{braucht} von {da} verbraucht · {frei} frei": "{braucht} of {da} consumed · {frei} free",
+  // A-212 (F11): der alte Text rechnete braucht/prod -- fuer Forschung immer
+  // 0, weil sie keine Verbraucher hat (siehe der Kommentar an der Stelle, die
+  // diesen Text erzeugt). Ersetzt durch den echten Stand des laufenden
+  // Projekts.
+  "{fortschritt} von {ziel} FE erforscht · {frei} frei": "{fortschritt} of {ziel} RU researched · {frei} free",
+  "Kein Projekt gewählt · {frei} frei": "No project selected · {frei} free",
+  // A-212 (F8): der reale Materialpreis der Forschung -- das LABOR zieht ihn,
+  // nicht die einzelne Technologie (A-061), und nur während wirklich
+  // geforscht wird.
+  " · kostet {mehr}, solange ein Projekt läuft": " · costs {mehr} while a project is running",
   // Forschungs-eigene Einheit-Kurzform (FE/Jahr), siehe forschungsRateText in
   // js/ui.js -- getrennt von mitEinheit()/einheit(), weil die die Einheit nie
   // übersetzen (FUND aus A-142: "FE" blieb in Englisch unübersetzt stehen).

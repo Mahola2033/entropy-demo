@@ -18,7 +18,7 @@
 // im Browser (window.__entropy.kachelWaechter) derselbe Code bleibt
 // (Bekannte Falle 3 des Auftrags).
 
-import { BUILDINGS, RESEARCH, SCHIFFE, ABWEHR } from "./data.js?v=0.9.12";
+import { BUILDINGS, RESEARCH, SCHIFFE, ABWEHR } from "./data.js?v=0.9.16";
 
 // Welche Kachel-/Kartenfamilien geprüft werden. `.res-kachel` ist die
 // Ressourcenleiste (A-157s Fall, in JEDEM Bereich sichtbar, A-076).

@@ -47,7 +47,7 @@ import {
   bauzeitFuerLevel,
   forschungsAufwand,
   voraussetzungenText,
-} from "./data.js?v=0.9.12";
+} from "./data.js?v=0.9.16";
 import {
   effektiveRaten,
   bevoelkerungsWachstumsrate,
@@ -74,7 +74,6 @@ import {
   spielzeitJetzt,
   meldungHinzufuegen,
   forschungVerfuegbar,
-  forschungVoraussetzungenErfuellt,
   forschungsQueueVon,
   forschungsWarteschlangeVon,
   forschungVon,
@@ -86,6 +85,7 @@ import {
   neuerPlanet,
   naechstesGebaeudeLevel,
   naechstesForschungLevel,
+  stufeEingereihtErfuellt,
   werftTempo,
   forschungsFluss,
   hatLabor,
@@ -107,7 +107,7 @@ import {
   arbeitskraftDiebstahlAnteil,
   maxReichweite,
   handelsMindestFuer,
-} from "./state.js?v=0.9.12";
+} from "./state.js?v=0.9.16";
 import {
   ortVonPlanet,
   ortVonSystem,
@@ -127,9 +127,9 @@ import {
   schiffeGesamt,
   schiffeStaerke,
   schiffeText,
-} from "./flotten.js?v=0.9.12";
-import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.12";
-import { stromFuer, waehle } from "./zufall.js?v=0.9.12";
+} from "./flotten.js?v=0.9.16";
+import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.16";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.16";
 import {
   reichenAus,
   fehlende,
@@ -140,8 +140,8 @@ import {
   buendelText,
   formatZahl as fmt,
   name as resName,
-} from "./ressourcen.js?v=0.9.12";
-import { t } from "./sprache.js?v=0.9.12";
+} from "./ressourcen.js?v=0.9.16";
+import { t } from "./sprache.js?v=0.9.16";
 
 // Kurzform: Ressourcen in ein Planetenlager einlagern, begrenzt durch den
 // gemeinsamen Pool und etwaige Annahmeregeln. Gibt zurück, was nicht
@@ -162,7 +162,7 @@ function insLager(state, planet, buendel) {
     (resId) => aufnahmeGrenzeFuer(planet, resId)
   );
 }
-import { systemName, entfernung } from "./galaxie.js?v=0.9.12";
+import { systemName, entfernung } from "./galaxie.js?v=0.9.16";
 
 const MS_PRO_STUNDE = 1000 * 60 * 60;
 
@@ -2229,7 +2229,12 @@ function piratenZiel(state, fraktion, basis, flotte = null) {
   // Realzeit. Mit dieser Zeile fällt die Wahl bei leerem Frachtraum auf
   // die Flotte selbst zurück, und piratenSchritt kommt wie vorgesehen zum
   // Frachterbau.
-  if (!knapp && frachtraumFrei(state, flotte) > 0) {
+  // A-209: `state.weltUeberfallAus` ist derselbe Werkzeug-Schalter wie
+  // `wachstumGesperrt` -- nie von neuesSpiel/production code gesetzt, nur
+  // vom Vergleichslauf in tests/weltlauf.mjs, um "mit" gegen "ohne
+  // Welten-Überfall" zu messen (Auftrag, Frage 2). Ändert nichts an der
+  // A-208-Regel selbst, nur ob dieser Zweig überhaupt läuft.
+  if (!knapp && frachtraumFrei(state, flotte) > 0 && !state.weltUeberfallAus) {
     for (const planet of state.planeten) {
       if (planet.typ === "aussenposten") continue; // kein Lager, siehe rohRaten
       if (planet.systemId !== basis.systemId) continue;
@@ -2473,6 +2478,19 @@ function raubzugAusfuehren(state, flotte, zeit) {
       null,
       herkunftVon(planet)
     );
+    // A-209: Messzähler für tests/weltlauf.mjs -- die Meldungsliste ist auf
+    // 30 Einträge gedeckelt (A-083) und damit über einen Dreißig-Tage-Lauf
+    // nicht auswertbar. `state.messung` bleibt in JEDEM echten Spielstand
+    // undefiniert (nie von neuesSpiel/production code gesetzt, dasselbe
+    // Muster wie `wachstumGesperrt`) -- nur ein Werkzeug, das es ausdrücklich
+    // anlegt, zahlt hier ein.
+    if (state.messung) {
+      state.messung.ueberfaelle++;
+      let wert = 0;
+      for (const [resId, menge] of Object.entries(genommen)) wert += menge * MARKT_PREISE[resId].verkauf;
+      state.messung.beuteWert += wert;
+      state.messung.fraktionen.add(fraktionVon(planet));
+    }
   }
 
   // Verluste NUR an Abwehranlagen (Konzept §8.2, Tobis Wortlaut: "3
@@ -6332,10 +6350,25 @@ export function kannBauen(state, planet, gebaeudeId) {
   // generator). Dieselbe Form wie bei den Weltobjekten -- `benoetigt` mit
   // einer Forschung -- statt eines zweiten Mechanismus.
   if (def.benoetigt && def.benoetigt.forschung) {
-    if ((state.forschung[def.benoetigt.forschung] || 0) < 1) {
+    const techId = def.benoetigt.forschung;
+    // A-211: "erforscht" zählt jetzt auch, was schon in der Forschungs-
+    // Warteschlange steht (Tobis F9: Fusionstechnik einreihen und direkt
+    // danach das Kraftwerk soll beides annehmen). Bewusst weiter über
+    // state.forschung/state.forschungsQueue/state.forschungsWarteschlange
+    // direkt, nicht über fraktionVon(planet) -- genau wie vorher schon
+    // (dieser Zweig fragte nie nach der Fraktion des Planeten), und keine
+    // heute per BOT.ausbau erreichbare Anlage trägt ein benoetigt.forschung.
+    const erfuellt = stufeEingereihtErfuellt(
+      state.forschung[techId] || 0,
+      state.forschungsQueue,
+      state.forschungsWarteschlange,
+      (eintrag) => eintrag.forschungId === techId,
+      1
+    );
+    if (!erfuellt) {
       return {
         ok: false,
-        grund: t("{tech} noch nicht erforscht.", { tech: t(RESEARCH[def.benoetigt.forschung].name) }),
+        grund: t("{tech} noch nicht erforscht.", { tech: t(RESEARCH[techId].name) }),
       };
     }
   }
@@ -6599,6 +6632,49 @@ export function warteschlangeVerschieben(warteschlange, index, richtung) {
   return warteschlangeUmordnen(warteschlange, index, index + richtung);
 }
 
+// A-211, die eigentliche Falle des Auftrags (Mechanismus Punkt 3): Umsortieren
+// kann eine Voraussetzung HINTER ihren Nutzer schieben. Das kann NUR der
+// Forschung passieren -- ein Gebäude hängt an einer Forschung, ein Schiff an
+// einer Werft-Stufe, beide liegen in einer FREMDEN Warteschlange und werden
+// von deren eigenem Umsortieren nicht berührt. Nur RESEARCH.voraussetzungen
+// verweist auf eine ANDERE Forschung, die in DERSELBEN Warteschlange stehen
+// kann (z.B. resonanzzerlegung nach tiefenbohrung).
+//
+// Simuliert die Kette (Kopf + Warteschlange, in dieser Reihenfolge) einmal
+// von vorn nach hinten durch und prüft jeden Eintrag gegen das, was VOR ihm
+// "steht" -- dieselbe Zählweise wie stufeEingereihtErfuellt, nur über die
+// ganze Reihenfolge statt über einen einzelnen neuen Eintrag. `stand` ist
+// eine Kopie: diese Funktion schreibt nie am echten Forschungsstand.
+function forschungsWarteschlangeGueltig(state, fraktionId) {
+  const stand = { ...forschungVon(state, fraktionId) };
+  const kopf = forschungsQueueVon(state, fraktionId);
+  const kette = kopf ? [kopf, ...forschungsWarteschlangeVon(state, fraktionId)] : forschungsWarteschlangeVon(state, fraktionId);
+  for (const eintrag of kette) {
+    for (const [vorId, noetigeStufe] of Object.entries(RESEARCH[eintrag.forschungId].voraussetzungen || {})) {
+      if ((stand[vorId] || 0) < noetigeStufe) return false;
+    }
+    stand[eintrag.forschungId] = (stand[eintrag.forschungId] || 0) + 1;
+  }
+  return true;
+}
+
+// Dieselbe Umsortier-Operation wie warteschlangeUmordnen (die bleibt
+// unangetastet, Nicht-anfassen) -- nur für die Forschungs-Warteschlange mit
+// einer Nachprüfung. Würde das Umsortieren eine Voraussetzung hinter ihren
+// Nutzer schieben, wird es NICHT ausgeführt: dieselbe "nicht einreihbar"-
+// Linie wie beim Einreihen selbst (Empfehlung der Planung), statt einer
+// Warteschlange, die still an einer ungültigen Reihenfolge hängen bleibt.
+export function forschungsWarteschlangeUmordnen(state, von, nach, fraktionId = SPIELER_FRAKTION) {
+  const warteschlange = forschungsWarteschlangeVon(state, fraktionId);
+  const ergebnis = warteschlangeUmordnen(warteschlange, von, nach);
+  if (!ergebnis.ok) return ergebnis;
+  if (!forschungsWarteschlangeGueltig(state, fraktionId)) {
+    warteschlangeUmordnen(warteschlange, nach, von); // zurück -- dieselbe Operation, umgekehrt angewandt
+    return { ok: false, grund: t("Das würde eine Voraussetzung hinter die Forschung schieben, die sie braucht.") };
+  }
+  return ergebnis;
+}
+
 // ERSTATTET WIRD NUR, WAS BEZAHLT WURDE (A-012). Ein wartender Auftrag hat
 // nie gezahlt -- ihn zu erstatten waere eine Gelddruckmaschine: einreihen,
 // abbrechen, kassieren. Gemeinsam fuer bauAbbrechen/werftAbbrechen (A-183,
@@ -6685,7 +6761,20 @@ export function kannForschen(state, planet, forschungId) {
   if (!forschungVerfuegbar(state, forschungId)) {
     return { ok: false, grund: t("Diese Technologie ist noch unbekannt.") };
   }
-  if (!forschungVoraussetzungenErfuellt(state, forschungId, fraktionId)) {
+  // A-211: dieselbe Lockerung wie bei kannBauen, hier für Forschung gegen
+  // Forschung -- wer tiefenbohrung einreiht, darf direkt danach
+  // resonanzzerlegung einreihen, auch wenn tiefenbohrung noch läuft. Bewusst
+  // NICHT über forschungVoraussetzungenErfuellt (die bleibt unverändert für
+  // die Baumanzeige, die nach dem TATSÄCHLICHEN Stand fragt) -- diese Prüfung
+  // hier ist ausschließlich das Einreihen-Tor.
+  const kopf = forschungsQueueVon(state, fraktionId);
+  const warteschlange = forschungsWarteschlangeVon(state, fraktionId);
+  const forschungsStand = forschungVon(state, fraktionId);
+  const voraussetzungenOffen = Object.entries(RESEARCH[forschungId].voraussetzungen || {}).some(
+    ([vorId, stufe]) =>
+      !stufeEingereihtErfuellt(forschungsStand[vorId] || 0, kopf, warteschlange, (e) => e.forschungId === vorId, stufe)
+  );
+  if (voraussetzungenOffen) {
     return { ok: false, grund: t("Benötigt {voraussetzungen}.", { voraussetzungen: voraussetzungenText(forschungId) }) };
   }
   const laenge = (forschungsQueueVon(state, fraktionId) ? 1 : 0) + forschungsWarteschlangeVon(state, fraktionId).length;
@@ -6790,7 +6879,12 @@ export function kannSchiffBauen(state, planet, schiffId, anzahl = 1) {
   // man spaeter mehr Geld hat.
   const noetigeStufe = SCHIFFE[schiffId].werftAb || 1;
   const stufe = planet.gebaeude.werft || 0;
-  if (stufe < noetigeStufe) {
+  // A-211: dieselbe Lockerung ein drittes Mal -- eine bereits eingereihte
+  // Werft-Ausbaustufe (planet.bauQueue/bauWarteschlange, dieselbe Warte-
+  // schlange wie jedes andere Gebäude) zählt schon, bevor sie fertig ist.
+  // "aktuell" in der Meldung bleibt die GEBAUTE Stufe -- die ist es, die
+  // wirklich steht.
+  if (!stufeEingereihtErfuellt(stufe, planet.bauQueue, planet.bauWarteschlange, (e) => e.gebaeudeId === "werft", noetigeStufe)) {
     return {
       ok: false,
       grund: t("Braucht Werft Stufe {noetig} (aktuell {aktuell}).", { noetig: noetigeStufe, aktuell: stufe }),
@@ -6901,7 +6995,9 @@ export function kannAbwehrBauen(state, planet, abwehrId, anzahl = 1) {
   // klein" ändert sich nicht dadurch, dass man später mehr hat).
   const noetigeStufe = ABWEHR[abwehrId].werftAb || 1;
   const stufe = planet.gebaeude.werft || 0;
-  if (stufe < noetigeStufe) {
+  // A-211: dieselbe Lockerung wie bei kannSchiffBauen (dieselbe Werft-Stufe,
+  // derselbe Bau-Warteschlangen-Zähler).
+  if (!stufeEingereihtErfuellt(stufe, planet.bauQueue, planet.bauWarteschlange, (e) => e.gebaeudeId === "werft", noetigeStufe)) {
     return {
       ok: false,
       grund: t("Braucht Werft Stufe {noetig} (aktuell {aktuell}).", { noetig: noetigeStufe, aktuell: stufe }),

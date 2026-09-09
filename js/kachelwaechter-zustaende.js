@@ -9,8 +9,8 @@
 // (A-158-Auftrag) -- deshalb drei feste Stände statt "was zufällig im
 // localStorage lag".
 
-import { neuesSpiel } from "./state.js?v=0.9.12";
-import { BUILDINGS, SCHIFFE } from "./data.js?v=0.9.12";
+import { neuesSpiel } from "./state.js?v=0.9.16";
+import { BUILDINGS, SCHIFFE } from "./data.js?v=0.9.16";
 
 // früh -- frischer Start, nichts gebaut. Der unveränderte Weltstart selbst.
 export function kwZustandFrueh(saat) {
@@ -80,8 +80,36 @@ export function kwZustandSpaet(saat) {
   return state;
 }
 
+// abgeschlossen -- B-12 (BEOBACHTUNG.md, Auslöser 1 aus A-207): die drei
+// Zustände oben zeigen Forschung immer nur LAUFEND (`forschungsQueue`), nie
+// FERTIG (`state.forschung`) -- vier Kachelarten blieben deshalb über alle
+// Zustände und Bereiche hinweg ungeprüft: `sondentechnik`, `bergungstechnik`,
+// `tiefenbohrung`, `resonanzzerlegung`. Dieser Zustand setzt sie samt ihrer
+// Voraussetzungen als GEBAUT (nicht eingereiht) -- die beiden `schluessel`-
+// Techs (tiefenbohrung, resonanzzerlegung) prüfen die Häkchen-Darstellung
+// (`fertig`, kein Kosten/Dauer mehr), die beiden gestuften eine mehrstellige
+// Stufe. resonanzzerlegung trägt außerdem den längsten Namen im Katalog
+// (A-212-Auftrag) -- genau die Kachel, die am ehesten überläuft.
+export function kwZustandAbgeschlossen(saat) {
+  const state = neuesSpiel(saat);
+  state.forschung.energietechnik = 3;
+  state.forschung.foerdertechnik = 3;
+  state.forschung.sondentechnik = 4;
+  state.forschung.bergungstechnik = 6;
+  state.forschung.tiefenbohrung = 1;
+  state.forschung.resonanzzerlegung = 1;
+  // Alle vier sind nurDurchEntdeckung -- sichtbar (und damit überhaupt
+  // renderbar) sind sie erst, wenn sie als freigeschaltet gelten
+  // (forschungVerfuegbar prüft genau dieses Feld, nicht state.forschung).
+  for (const id of ["sondentechnik", "bergungstechnik", "tiefenbohrung", "resonanzzerlegung"]) {
+    state.forschungFreigeschaltet[id] = true;
+  }
+  return state;
+}
+
 export const KACHELWAECHTER_ZUSTAENDE = {
   frueh: kwZustandFrueh,
   mitte: kwZustandMitte,
   spaet: kwZustandSpaet,
+  abgeschlossen: kwZustandAbgeschlossen,
 };
