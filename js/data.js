@@ -19,7 +19,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.9.16";
+export const VERSION = "0.9.26";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von uebernehmen.mjs beim Kopieren auf "spielkopie"
@@ -65,7 +65,7 @@ export const DEMO_SAAT = 20269933;
 // wird an den anzeigenden Stellen, nicht hier. Einzige Ausnahme ist
 // voraussetzungenText() weiter unten -- die einzige Funktion in dieser Datei,
 // die Anzeigetext zusammensetzt.
-import { t } from "./sprache.js?v=0.9.16";
+import { t } from "./sprache.js?v=0.9.26";
 
 // A-164 (31.08.2026): Von 50 auf 125.000 (×2.500) -- die Maßstabsrunde.
 // Vorher skalierte EIN MASSSTAB Material, Menschen und Arbeitskraft
@@ -212,7 +212,7 @@ export function unterlichtSekundenProEinheit() {
 // Kohlenstoffbrennens gibt ein Fenster von einigen hundert Jahren.
 //
 // Danach zwei Wirkungen mit sehr verschiedenen Zeitskalen:
-//   DER BLITZ   trifft mit dem Licht. Er tötet nicht direkt (Wohnmodule sind
+//   DER BLITZ   trifft mit dem Licht. Er tötet nicht direkt (Wohnsektoren sind
 //               versiegelt), aber er zerlegt die Ozonschicht -- und damit die
 //               Landwirtschaft, das Einzige auf der Oberfläche, das Licht
 //               braucht.
@@ -303,10 +303,9 @@ export function rateProJahr(proStunde) {
 // symbol: Emoji für die Ressourcenleiste, reine Kosmetik, hier in einer
 // Zeile austauschbar (gleiche Idee wie die Objektsymbole in ui.js).
 export const RESSOURCEN = {
-  metall: { id: "metall", name: "Metall", symbol: "🔩", farbe: "#8fa3bf", einheit: "t", art: "lager", start: 500, lagerverbrauch: 1, gebaeude: "metallmine" },
-  silizium: { id: "silizium", name: "Silizium", symbol: "💠", farbe: "#7dd3fc", einheit: "t", art: "lager", start: 300, lagerverbrauch: 1, gebaeude: "siliziummine" },
-  // Treibstoff. Name ist reine Kosmetik und hier in einer Zeile änderbar.
-  // DIE ID HEISST WEITER `tritium`, DER NAME NICHT MEHR -- und das ist Absicht.
+  metall: { id: "metall", name: "Metall", symbol: "🔩", farbe: "#8fa3bf", einheit: "t", art: "lager", start: 500, lagerverbrauch: 1, gebaeude: "metallfoerderung" },
+  silizium: { id: "silizium", name: "Silizium", symbol: "💠", farbe: "#7dd3fc", einheit: "t", art: "lager", start: 300, lagerverbrauch: 1, gebaeude: "siliziumfoerderung" },
+  // Treibstoff.
   //
   // Lore-Korrektur, beschlossen seit v0.30 (LORE-PHYSIK.md Abschnitt 1):
   // Tritium hat eine Halbwertszeit von 12,3 Jahren und kommt natürlich
@@ -315,22 +314,25 @@ export const RESSOURCEN = {
   // ist. Der Extraktor war deshalb das einzige Gebäude, dessen Lore-Text nie
   // geschrieben wurde; jetzt trägt er sie.
   //
-  // Umbenannt wurde NUR, was der Spieler sieht. Die ID `tritium` steckt in
-  // jedem Spielstand -- sie zu ändern bricht laufende Partien und ist damit
-  // Save-Kategorie 3. Der Umzug kommt im Sammel-Sprung, nicht einzeln (A-007).
+  // BIS A-222 (10.09.2026) HIESS DIE ID WEITER `tritium`, DER NAME NICHT MEHR
+  // -- eine Umbenennung der ID war Save-Kategorie 3 und wartete auf eine
+  // eigene Migration (A-007). Seit A-222 (Migration 35 -> 36) sind ID UND
+  // Name deckungsgleich `deuterium`/„Deuterium" -- der Fall, an dem der
+  // Unterschied zwischen ID und Anzeigename monatelang Verwirrung stiftete,
+  // ist damit Geschichte.
   // A-174 (Tobis Wortlaut 31.08.: "Startvorrat Deuterium sollte auf null"):
   // die 600 t waren ein Überbleibsel aus der Zeit, in der das Kraftwerk
   // (Zug eins) Deuterium brannte und ohne Vorrat sofort ohne Brennstoff
-  // dagestanden hätte. Seit A-149 hängt das Kraftwerk hinter fusionstechnik
+  // dagestanden hätte. Seit A-149 hängt die Fusionsanlage hinter fusionstechnik
   // -- zu Spielbeginn verbraucht nichts mehr Deuterium. Dieselbe Regel wie
   // beim Energiespeicher (siehe startRessourcen, js/state.js): der Bestand
   // beginnt bei null, eine geladene Batterie zum Start wäre ein Geschenk.
-  tritium: { id: "tritium", name: "Deuterium", symbol: "⚛️", farbe: "#6ee7a8", einheit: "t", art: "lager", start: 0, lagerverbrauch: 1.5, gebaeude: "tritiumextraktor" },
-  // Mittelseltenes Strategiematerial -- eigene Kategorie (siehe iridiummine),
+  deuterium: { id: "deuterium", name: "Deuterium", symbol: "⚛️", farbe: "#6ee7a8", einheit: "t", art: "lager", start: 0, lagerverbrauch: 1.5, gebaeude: "deuteriumanlage" },
+  // Mittelseltenes Strategiematerial -- eigene Kategorie (siehe iridiumfoerderung),
   // damit Fördertechnik es NICHT automatisch mitboostet. Erzwingt echte
   // Spezialisierung statt "eine Forschung boostet alles". Dichtes Material,
   // braucht pro Einheit mehr Lagerplatz.
-  iridium: { id: "iridium", name: "Iridium", symbol: "💎", farbe: "#b39ddb", einheit: "t", art: "lager", start: 0, lagerverbrauch: 4, gebaeude: "iridiummine" },
+  iridium: { id: "iridium", name: "Iridium", symbol: "💎", farbe: "#b39ddb", einheit: "t", art: "lager", start: 0, lagerverbrauch: 4, gebaeude: "iridiumfoerderung" },
   // Brennstoff der Kernkraftanlage (A-148, zweiter Schritt der Energiekette).
   // Anders als Iridium (siderophil, ins Zentrum gesunken) ist Uran
   // lithophil -- es reichert sich MIT der Differenzierung der Kruste an
@@ -355,13 +357,37 @@ export const RESSOURCEN = {
   //
   // `lagerverbrauch: 2` -- veredelte Ware ist kompakt, aber nicht frei:
   // Baugruppen sind empfindlich und brauchen Verpackung statt Schüttgutraum.
-  elektronik: { id: "elektronik", name: "Elektronik", symbol: "🔌", farbe: "#e07a5f", einheit: "t", art: "lager", start: 0, lagerverbrauch: 2, gebaeude: "fertigung" },
+  //
+  // `bestandteile` (A-231): Masse JE TONNE PRODUKT, die im Produkt steckt --
+  // NICHT der Rezept-Eingang der Fertigung (3,0 t Silizium/t, oben). Von den
+  // 3 t geht 1 t ins Produkt, 2 t sind beim Fertigen bereits Abfall (siehe
+  // "90 t Silizium werden zu 30 t Elektronik" oben). Wer den Rezept-Eingang
+  // zurückgäbe, gäbe mehr Masse zurück, als in der Ware steckt.
+  elektronik: {
+    id: "elektronik", name: "Elektronik", symbol: "🔌", farbe: "#e07a5f", einheit: "t",
+    art: "lager", start: 0, lagerverbrauch: 2, gebaeude: "fertigung",
+    bestandteile: { silizium: 1 },
+  },
   // Seltenes Endgame-Material. Braucht Iridium als Baukosten für die
   // Gewinnungsanlage -- die erste echte Ressourcenkette im Spiel. Extremer
   // Lagerverbrauch pro Einheit (Containment) -- das hält die Mengen klein,
   // ohne dass die Produktionsrate winzig sein muss.
-  antimaterie: { id: "antimaterie", name: "Antimaterie", symbol: "🌀", farbe: "#f472b6", einheit: "kg", art: "lager", start: 0, lagerverbrauch: 25, gebaeude: "antimateriekollektor" },
-  // Entstehen NUR durch Verkauf am Handelsposten (siehe MARKT_PREISE) --
+  //
+  // `bestandteile` (A-232): 60 Energie je Kilogramm -- das Rezept des
+  // Kollektors rückwärts gelesen (verbrauch.energie 900 : produktion.antimaterie
+  // 15 = 60, level-unabhängig). Iridium steht ABSICHTLICH NICHT hier: es wird
+  // von der ANLAGE verbraucht (Einschluss, Verarbeitung), steckt nicht in der
+  // Antimaterie selbst. Was drin steckt, ist Energie -- sie zurückzuholen
+  // heißt, die Masse zu annihilieren, nicht sie zu zerlegen. Deshalb ist
+  // `energie` (ein Fluss, `art: "fluss"`) hier die einzige Sorte Bestandteil
+  // mit Zielressource ohne Masse -- der Invariantentest aus A-231 nimmt das
+  // ausdrücklich als benannte Ausnahme, nicht als Aufweichung.
+  antimaterie: {
+    id: "antimaterie", name: "Antimaterie", symbol: "🌀", farbe: "#f472b6", einheit: "kg",
+    art: "lager", start: 0, lagerverbrauch: 25, gebaeude: "antimateriekollektor",
+    bestandteile: { energie: 60 },
+  },
+  // Entstehen NUR durch Verkauf am Handelssektor (siehe MARKT_PREISE) --
   // bewusst kein zweiter Quellenweg, sonst wird Handel zum neuen Grind-Loop.
   // lagerverbrauch 0: Geld braucht kein physisches Lager.
   credits: { id: "credits", name: "Credits", symbol: "🪙", farbe: "#e0c069", einheit: "cr", art: "lager", start: 0, lagerverbrauch: 0 },
@@ -383,7 +409,7 @@ export const RESSOURCEN = {
   // arbeitet weiter. Ein exponentieller Zerfall ist dafür die ehrliche Form:
   // es verdirbt ein ANTEIL des Vorrats, nicht eine feste Menge -- ein großes
   // Lager verliert absolut mehr als ein kleines und erreicht dabei nie null.
-  nahrung: { id: "nahrung", name: "Nahrung", symbol: "🌾", farbe: "#9ccc65", einheit: "t", art: "lager", start: 2000, lagerverbrauch: 1, gebaeude: "farm", verderb: 0.2 },
+  nahrung: { id: "nahrung", name: "Nahrung", symbol: "🌾", farbe: "#9ccc65", einheit: "t", art: "lager", start: 2000, lagerverbrauch: 1, gebaeude: "agrarsektor", verderb: 0.2 },
   // Bevölkerung ist ein Bestand wie jede Lagerressource -- dadurch lässt sie
   // sich mit Flotten transportieren (Siedler), ohne dass es dafür einen
   // Sonderweg braucht. ZWEI Abweichungen, beide bewusst:
@@ -396,8 +422,8 @@ export const RESSOURCEN = {
   // mit einem Eintrag in MARKT_PREISE.
   bevoelkerung: {
     id: "bevoelkerung", name: "Bevölkerung", symbol: "👥", farbe: "#f0b429", einheit: "",
-    art: "lager", start: 1000, lagerverbrauch: 0, gebaeude: "wohnmodul",
-    speicher: { gebaeude: "wohnmodul", basis: 1000, faktor: 1.6 },
+    art: "lager", start: 1000, lagerverbrauch: 0, gebaeude: "wohnsektor",
+    speicher: { gebaeude: "wohnsektor", basis: 1000, faktor: 1.6 },
   },
   // Arbeitskraft ist ein Fluss wie Energie: nicht lagerbar, Mangel drosselt
   // anteilig. Sie entsteht NICHT aus einem Gebäude, sondern aus der
@@ -411,11 +437,11 @@ export const RESSOURCEN = {
   // "MW" und wäre physikalisch falsch.
   //
   // `abLevel: 1` heißt: ohne gebauten Speicher gibt es keine Kapazität. Beim
-  // Wohnmodul ist das anders (Stufe 0 trägt die Startbevölkerung) -- deshalb
+  // Wohnsektor ist das anders (Stufe 0 trägt die Startbevölkerung) -- deshalb
   // steht es hier ausdrücklich und ist nicht die Vorgabe.
   energie: {
     id: "energie", name: "Energie", symbol: "⚡", farbe: "#e0a94f", einheit: "MW",
-    art: "fluss", gebaeude: "kraftwerk",
+    art: "fluss", gebaeude: "fusionsanlage",
     speicher: { gebaeude: "energiespeicher", basis: 200, faktor: 1.6, abLevel: 1, einheit: "MWh" },
   },
   // Forschung ist ein Fluss wie Arbeitskraft -- mit einem Unterschied: sie ist
@@ -437,7 +463,7 @@ export const RESSOURCEN = {
   // entsteht, und müssen roh bleiben -- sonst rechnet sich das im Kreis.
   forschung: {
     id: "forschung", name: "Forschung", symbol: "🔬", farbe: "#4dd0e1", einheit: "FE",
-    art: "fluss", ausAnlagen: true, gebaeude: "forschungslabor",
+    art: "fluss", ausAnlagen: true, gebaeude: "forschungssektor",
   },
 };
 
@@ -660,20 +686,20 @@ export const START = {
   // in die Migration -- ein alter Spielstand behält seine Stufen, nur neue
   // Welten starten so. Herleitung: AUFTRAEGE/ENTWURF-MASSSTAB.md §1-2.
   //
-  // Wohnmodul bleibt bewusst bei 0 -- seine Basiskapazität IST schon die
+  // Wohnsektor bleibt bewusst bei 0 -- seine Basiskapazität IST schon die
   // neue Startbevölkerung (RESSOURCEN.bevoelkerung.speicher.basis) und
   // skaliert mit ihr. Stufe 24 wäre hier ein Fehler gewesen: der Ausbau auf
   // 25 hätte 22 Echtzeitstunden gekostet statt 24 Minuten wie bei der
   // Förderung (gemessen, ENTWURF-MASSSTAB.md §2.2). Alles, was hier nicht
-  // steht (Iridium, Antimaterie, Werft, Schirm, Forschungslabor über
+  // steht (Iridium, Antimaterie, Werft, Schirm, Forschungssektor über
   // Stufe 5), bleibt bei null.
   startstufenHeimatwelt: {
-    farm: 19,
-    metallmine: 19,
-    siliziummine: 19,
-    tritiumextraktor: 12, // Deuteriumanlage
+    agrarsektor: 19,
+    metallfoerderung: 19,
+    siliziumfoerderung: 19,
+    deuteriumanlage: 12, // Deuteriumanlage
     uranmine: 12, // Uranförderung
-    lagerhalle: 15, // "Lagernetz" im Auftrag -- das Gebäude für Lagerkapazität
+    lagernetz: 15, // "Lagernetz" im Auftrag -- das Gebäude für Lagerkapazität
     fossilanlage: 17,
     kernkraftanlage: 16,
   },
@@ -689,14 +715,14 @@ export const START = {
 // DAS IST DIE SCHRANKE GEGEN DAS PERPETUUM MOBILE, und sie ist eine Zahl mit
 // Beweis dahinter -- hergeleitet im A-063-Ergebnis:
 //
-// Die Anreicherung spiegelt die BEIDEN Kurven des Kraftwerks. Ihre Ausbeute
-// ist dessen Brennstoffkurve, ihr Strombedarf dessen Energiekurve mal
+// Die Anreicherung spiegelt die BEIDEN Kurven der Fusionsanlage. Ihre Ausbeute
+// ist deren Brennstoffkurve, ihr Strombedarf deren Energiekurve mal
 // VERLUST. Daraus folgt: Ein Extraktor der Stufe N liefert genau so viel
-// Deuterium, wie ein Kraftwerk der Stufe N verbrennt -- und kostet dabei das
-// VERLUST-fache dessen, was dieses Kraftwerk liefert.
+// Deuterium, wie eine Fusionsanlage der Stufe N verbrennt -- und kostet dabei das
+// VERLUST-fache dessen, was diese Fusionsanlage liefert.
 //
 // Der Kreis Strom -> Deuterium -> Strom kann sich nur schließen, wenn die
-// Ausbeute den Reaktor trägt, also bei Extraktorstufe >= Kraftwerksstufe.
+// Ausbeute den Reaktor trägt, also bei Extraktorstufe >= Fusionsanlagenstufe.
 // Dort ist der Strombedarf mindestens VERLUST-fach. Der Kreis verliert also
 // bei JEDER Stufenkombination, solange VERLUST größer ist als der
 // Energie-Forschungsbonus (Energietechnik 8 %/Stufe plus Fusionstechnik
@@ -708,27 +734,27 @@ export const ANREICHERUNG_VERLUST = 5;
 
 export const SYMBOLE = {
   // Gebäude
-  metallmine: "🔩",
-  siliziummine: "💠",
+  metallfoerderung: "🔩",
+  siliziumfoerderung: "💠",
   fossilanlage: "🛢️",
-  kraftwerk: "⚡",
+  fusionsanlage: "⚡",
   // Dasselbe Symbol wie fusionstechnik (Forschung) -- beide Nuklear-Themen,
   // keine Kollision: verschiedene Kategorien, dasselbe Muster wie
-  // forschungslabor/forschungsschiff (beide 🔬).
+  // forschungssektor/forschungsschiff (beide 🔬).
   kernkraftanlage: "☢️",
-  solarfeld: "☀️",
+  solaranlagen: "☀️",
   energiespeicher: "🔋",
-  lagerhalle: "📦",
-  tritiumextraktor: "⚛️",
+  lagernetz: "📦",
+  deuteriumanlage: "⚛️",
   werft: "🏗️",
-  iridiummine: "💎",
+  iridiumfoerderung: "💎",
   uranmine: "🟡",
   antimateriekollektor: "🌀",
-  forschungslabor: "🔬",
-  handelsposten: "🏪",
-  farm: "🌾",
+  forschungssektor: "🔬",
+  handelssektor: "🏪",
+  agrarsektor: "🌾",
   hydrokultur: "🌱",
-  wohnmodul: "🏘️",
+  wohnsektor: "🏘️",
   // Forschung
   foerdertechnik: "⛏️",
   energietechnik: "🔌",
@@ -809,9 +835,9 @@ export const GEBAEUDE_GRUPPEN = [
 // Referenzgröße statt eine gegriffene Zahl: 1 t SKE (Tonne Steinkohleeinheit,
 // die genormte Energiewirtschafts-Einheit) = 29,3076 GJ = 8,141 MWh
 // Primärenergie. Ein Dampfkraftwerk (Rankine-Prozess, Carnot-begrenzt wie am
-// Kraftwerk-Kommentar erklärt) erreicht rund 35 % Wirkungsgrad. Macht
+// Fusionsanlage-Kommentar erklärt) erreicht rund 35 % Wirkungsgrad. Macht
 //   1 MWh_el kostet 1 / (8,141 MWh/t × 0,35) ≈ 0,351 t Kohle.
-// Der Faktor bleibt über alle Stufen KONSTANT -- anders als beim Kraftwerk
+// Der Faktor bleibt über alle Stufen KONSTANT -- anders als bei der Fusionsanlage
 // oder der Kernkraftanlage gibt es hier keinen Effizienzgewinn mit der
 // Stufe: Verbrennung hängt an der Carnot-Grenze, nicht an der Baugröße. Der
 // Verbrauch wächst deshalb exakt mit der Produktion (1,15^Stufe), nicht mit
@@ -861,10 +887,10 @@ export function fossilVorratBasisFuerStufe(stufe) {
 export const FOSSIL_VORRAT_BASIS = fossilVorratBasisFuerStufe(START.startstufenHeimatwelt.fossilanlage);
 
 export const BUILDINGS = {
-  metallmine: {
-    id: "metallmine",
+  metallfoerderung: {
+    id: "metallfoerderung",
     gruppe: "foerderung",
-    name: "Metallmine",
+    name: "Metallförderung",
     beschreibung:
       "Fördert Metall aus der Kruste. Sternnahe Welten sind metallreicher, weil ihnen die leichten Stoffe früh weggekocht wurden – Merkur besteht zu einem auffällig großen Teil aus Eisen.",
     kategorie: "mine",
@@ -874,10 +900,10 @@ export const BUILDINGS = {
     produktion: { metall: { basis: 150, faktor: 1.2 } },
     verbrauch: { energie: { basis: 10, faktor: 1.2 }, arbeitskraft: { basis: 15, faktor: 1.15 } },
   },
-  siliziummine: {
-    id: "siliziummine",
+  siliziumfoerderung: {
+    id: "siliziumfoerderung",
     gruppe: "foerderung",
-    name: "Siliziummine",
+    name: "Siliziumförderung",
     beschreibung:
       "Baut Silizium für Bauteile und Elektronik ab. Sauerstoff und Silizium sind die beiden häufigsten Elemente jeder Gesteinskruste – neun Zehntel davon sind Silikate.",
     kategorie: "mine",
@@ -932,23 +958,23 @@ export const BUILDINGS = {
     produktion: { energie: { basis: 70, faktor: 1.18 } },
     verbrauch: { arbeitskraft: { basis: 20, faktor: 1.15 } },
     // Brennstoff aus dem BESTAND (A-055, Weg B) -- exakt derselbe Weg wie
-    // beim Kraftwerk, siehe dessen Kommentar für die Begründung (Kreis-
+    // bei der Fusionsanlage, siehe dessen Kommentar für die Begründung (Kreis-
     // Schutz, Hysterese über planet.brennstoffAus/BRENNSTOFF_ANLAUF_MS --
     // seit dieser Anlage EIN Bit je Gebäude, nicht mehr eines je Planet,
     // siehe reaktorBitNachziehen in js/state.js).
     //
     // Brennstoff-Faktor 1,12 gegen Energie-Faktor 1,18 -- dieselbe Richtung
-    // wie beim Kraftwerk (bessere Reaktoren je Stufe: höhere Anreicherung,
+    // wie bei der Fusionsanlage (bessere Reaktoren je Stufe: höhere Anreicherung,
     // engere Neutronenökonomie), schwächer ausgeprägt als dort (1,1 gegen
     // 1,2). Kernspaltung hat mehr Stellschrauben für Effizienzgewinne als
     // ein reiner Dampfprozess (Fossilanlage, KONSTANTER Faktor), aber
     // weniger Spielraum als eine sich verbessernde Fusionsgeometrie.
     brennstoff: { uran: { basis: 1, faktor: 1.12 } },
   },
-  kraftwerk: {
-    id: "kraftwerk",
+  fusionsanlage: {
+    id: "fusionsanlage",
     gruppe: "energie",
-    name: "Kraftwerk",
+    name: "Fusionsanlage",
     beschreibung:
       "Fusionsreaktor. Die Reaktion setzt schnelle Neutronen frei – ungeladen, also nur schwer abzuschirmen und nur als Wärme erntbar. Deshalb steckt in jedem Kraftwerk ein Dampfkreislauf, so altmodisch das klingt. Verbrennt Deuterium aus dem Lager – ohne Brennstoff zündet die Fusion nicht.",
     kategorie: "energie",
@@ -958,7 +984,7 @@ export const BUILDINGS = {
     // A-149: dritter und letzter Schritt der Energiekette. Das Tor gilt
     // fürs BAUEN, wie beim Schirm (magnetschild, grep "benoetigt forschung
     // magnetosphaerentechnik") -- kannBauen prüft es bei jedem neuen
-    // Bauauftrag, ein bereits gebautes Kraftwerk verliert dadurch nichts
+    // Bauauftrag, eine bereits gebaute Fusionsanlage verliert dadurch nichts
     // (produktionsAufloesung fragt `benoetigt` nie ab, nur der Ausbau-Weg).
     // fusionstechnik existiert bereits (voraussetzungen: energietechnik 3)
     // und gab bisher nur einen Boost -- jetzt zusätzlich das Schalt-Ereignis,
@@ -975,7 +1001,7 @@ export const BUILDINGS = {
     //
     // Der Faktor ist BEWUSST kleiner als der der Energie (1,1 gegen 1,2):
     // höhere Stufen verbrennen je Megawatt weniger -- bessere Reaktoren.
-    // GEMESSEN, nicht gewählt: mit 1,2 fraß ein Stufe-15-Kraftwerk 1.387 t je
+    // GEMESSEN, nicht gewählt: mit 1,2 fraß eine Stufe-15-Fusionsanlage 1.387 t je
     // Echtzeitstunde, mehr als jede realistische Förderung -- Bots sparten
     // die Betankung ihres Kolonieschiffs nie zusammen, die Expansion stand
     // galaxieweit.
@@ -991,15 +1017,15 @@ export const BUILDINGS = {
     // A-008/A-055 auf ("ohne Brennstoffverbrauch hat Solar keine Nische").
     // Der neue Wert ist eine Design-Entscheidung mit Zahlen und wird nicht
     // hier gefaellt, siehe AUFTRAEGE/SOLL-IST.md.
-    brennstoff: { tritium: { basis: 3, faktor: 1.1 } },
+    brennstoff: { deuterium: { basis: 3, faktor: 1.1 } },
   },
   // Die zweite Energiewahl (A-055): billig, brennstofffrei -- und die
   // Teilchenflut zerstört ungeschirmte Felder. Der bequeme Pfad ist der,
   // den die Supernova tötet; das ist der Sinn dieser Wahl, keine Nebenwirkung.
-  solarfeld: {
-    id: "solarfeld",
+  solaranlagen: {
+    id: "solaranlagen",
     gruppe: "energie",
-    name: "Solarfeld",
+    name: "Solaranlagen",
     beschreibung:
       "Photovoltaik in Feldern. Halbleiter ernten Licht direkt, ohne Brennstoff und ohne Dampfkreislauf – aber ihr Kristallgitter ist empfindlich: schnelle geladene Teilchen schlagen Atome von ihren Plätzen, und genau daraus besteht eine Teilchenflut. Sternnahe Orbits liefern mehr, weil die Bestrahlungsstärke mit dem Abstandsquadrat fällt.",
     kategorie: "energie",
@@ -1037,10 +1063,10 @@ export const BUILDINGS = {
     produktion: {},
     verbrauch: { energie: { basis: 4, faktor: 1.2 }, arbeitskraft: { basis: 6, faktor: 1.15 } },
   },
-  lagerhalle: {
-    id: "lagerhalle",
+  lagernetz: {
+    id: "lagernetz",
     gruppe: "versorgung",
-    name: "Lagerhalle",
+    name: "Lagernetz",
     beschreibung: "Erhöht die Lagerkapazität aller lagerbaren Ressourcen.",
     kategorie: "lager",
     baseCost: { metall: 100, silizium: 40 },
@@ -1055,35 +1081,35 @@ export const BUILDINGS = {
     // durchlässt.
     //
     // Wert im Mittelfeld der Versorgungsbauten (Auftragsvorgabe: teurer als
-    // das Forschungslabor, günstiger als die Farm) -- der Auftrag nannte
+    // der Forschungssektor, günstiger als die Farm) -- der Auftrag nannte
     // "400", das war VOR A-164s Maßstabsrunde formuliert. Der einfache /50-
-    // Umrechnungspfad (wie bei Wohnmodul 450->9, Forschungslabor 300->6,
-    // Agrarkuppel 600->12) ergäbe 8 -- GEMESSEN aber zu groß: die Lagerhalle
+    // Umrechnungspfad (wie bei Wohnsektor 450->9, Forschungssektor 300->6,
+    // Agrarsektor 600->12) ergäbe 8 -- GEMESSEN aber zu groß: das Lagernetz
     // startet bei Stufe 15 (Startwelt UND Testvorgabe, `TEST_LAGERSTUFE`),
     // nicht bei Stufe 1 wie die Vergleichsbauten in den meisten Testaufbauten.
     // Der Stufenfaktor potenziert das: 8 an Stufe 15 zieht 231 Mio MW --
-    // mehr als ein Kraftwerk Stufe 5 liefert (52 Mio MW) und brach 9 Tests,
-    // deren Energiebilanz auf "Lagerhalle kostet nichts" kalibriert war
+    // mehr als eine Fusionsanlage Stufe 5 liefert (52 Mio MW) und brach 9 Tests,
+    // deren Energiebilanz auf "Lagernetz kostet nichts" kalibriert war
     // (`npm test`, gemessen). Gesenkt auf 1 -- an Stufe 1 (Neubau) bleibt
-    // die Rangfolge (Labor 6 < Lagerhalle X < Agrarkuppel 12) zwar nicht
+    // die Rangfolge (Labor 6 < Lagernetz X < Agrarsektor 12) zwar nicht
     // mehr exakt gewahrt, aber an der tatsächlich relevanten Stufe 15 zieht
-    // die Lagerhalle damit 28,9 Mio MW -- gut ein Fünftel eines Stufe-1-
-    // Kraftwerks (12 Mio MW) und spürbar, ohne die Startwelt zusätzlich in
+    // das Lagernetz damit 28,9 Mio MW -- gut ein Fünftel einer Stufe-1-
+    // Fusionsanlage (12 Mio MW) und spürbar, ohne die Startwelt zusätzlich in
     // eine Unterdeckung zu drücken, die sie (siehe Ergebnis) ohnehin schon
     // unabhängig von dieser Runde hat.
     verbrauch: { energie: { basis: 1, faktor: 1.2 }, arbeitskraft: { basis: 5, faktor: 1.1 } },
   },
-  tritiumextraktor: {
-    id: "tritiumextraktor",
+  deuteriumanlage: {
+    id: "deuteriumanlage",
     gruppe: "foerderung",
-    name: "Deuterium-Extraktor",
+    name: "Deuteriumanlage",
     beschreibung:
       "Gewinnt Deuterium aus Wasser – der Treibstoff, ohne den keine Flotte fliegt. Schwerer Wasserstoff ist stabil und steckt überall dort, wo Wasser ist: in jedem sechstausendsten Wasserstoffkern, in Eis, in Ozeanen, in feuchtem Gestein.",
     kategorie: "mine",
     baseCost: { metall: 90, silizium: 60 },
     costFactor: 1.45,
     buildTimeDivisor: 2.5,
-    produktion: { tritium: { basis: 75, faktor: 1.2 } },
+    produktion: { deuterium: { basis: 75, faktor: 1.2 } },
     verbrauch: { energie: { basis: 14, faktor: 1.2 }, arbeitskraft: { basis: 18, faktor: 1.15 } },
     // ZWEITER BETRIEBSMODUS statt eines zweiten Gebäudes (A-071, Prinzip 5):
     // Anreicherung trennt Deuterium aus Wasser, statt es zu fördern -- sie
@@ -1091,7 +1117,7 @@ export const BUILDINGS = {
     // freigeschaltet durch die Anreicherungstechnik.
     //
     // DIE ZAHLEN SIND KEINE WAHL, sondern eine Bindung: die Ausbeute ist die
-    // Brennstoffkurve des Kraftwerks (basis 3, faktor 1,1 -- Wort für Wort
+    // Brennstoffkurve der Fusionsanlage (basis 3, faktor 1,1 -- Wort für Wort
     // dieselbe wie dort), der Strombedarf dessen Energiekurve mal
     // ANREICHERUNG_VERLUST (80 x 5 = 400, faktor 1,2). Warum das die einzige
     // stufenunabhängig sichere Form ist, steht an ANREICHERUNG_VERLUST; ein
@@ -1106,7 +1132,7 @@ export const BUILDINGS = {
     // Reichtum des Bodens.
     anreicherung: {
       forschung: "anreicherungstechnik",
-      produktion: { tritium: { basis: 3, faktor: 1.1 } },
+      produktion: { deuterium: { basis: 3, faktor: 1.1 } },
       verbrauch: { energie: { basis: 80 * ANREICHERUNG_VERLUST, faktor: 1.2 } },
     },
   },
@@ -1117,7 +1143,7 @@ export const BUILDINGS = {
     beschreibung: "Ermöglicht den Schiffbau. Höhere Stufen bauen schneller.",
     kategorie: "werft",
     // Erste Bevölkerungsschwelle: eine Werft braucht Belegschaft, nicht nur
-    // Baumaterial. Macht das Wohnmodul sofort bedeutsam und hält den
+    // Baumaterial. Macht den Wohnsektor sofort bedeutsam und hält den
     // Meilenstein "erstes eigenes Schiff" da, wo er hingehört.
     bevoelkerungAb: 1200,
     baseCost: { metall: 400, silizium: 200, elektronik: 60 },
@@ -1126,10 +1152,10 @@ export const BUILDINGS = {
     produktion: {},
     verbrauch: { energie: { basis: 8, faktor: 1.2 }, arbeitskraft: { basis: 30, faktor: 1.15 } },
   },
-  iridiummine: {
-    id: "iridiummine",
+  iridiumfoerderung: {
+    id: "iridiumfoerderung",
     gruppe: "foerderung",
-    name: "Iridiummine",
+    name: "Iridiumförderung",
     beschreibung:
       "Fördert Iridium. In der Kruste ist es fast nicht vorhanden: Iridium bindet an Eisen und ist bei der Entstehung des Planeten mit ihm in den Kern gesunken. In Asteroiden liegt es hundertfach dichter – die Iridiumschicht am Ende der Kreidezeit stammt von einem.",
     kategorie: "iridium",
@@ -1140,7 +1166,7 @@ export const BUILDINGS = {
     verbrauch: { energie: { basis: 16, faktor: 1.2 }, arbeitskraft: { basis: 22, faktor: 1.15 } },
   },
   // Uranförderung (A-148, zweiter Schritt der Energiekette). Nach dem Muster
-  // der Iridiummine -- eigene Fördermenge, eigene Affinität je Planet
+  // der Iridiumförderung -- eigene Fördermenge, eigene Affinität je Planet
   // (PLANETEN_KLASSEN.geologie.uran), sonst dieselbe Struktur.
   uranmine: {
     id: "uranmine",
@@ -1158,7 +1184,7 @@ export const BUILDINGS = {
   antimateriekollektor: {
     id: "antimateriekollektor",
     gruppe: "industrie",
-    name: "Antimateriefabrik",
+    name: "Antimateriekollektor",
     beschreibung: "Erzeugt Antimaterie aus Energie. Der Wirkungsgrad ist miserabel und bleibt es – Antimaterie ist kein Brennstoff, sondern der dichteste Speicher, den die Physik kennt: 9 × 10¹⁶ Joule je Kilogramm umgesetzter Masse, das Zehnmillionenfache von chemischem Sprengstoff.",
     kategorie: "antimaterie",
     baseCost: { metall: 500, silizium: 400, iridium: 200 },
@@ -1218,10 +1244,10 @@ export const BUILDINGS = {
       arbeitskraft: { basis: 20, faktor: 1.15 },
     },
   },
-  forschungslabor: {
-    id: "forschungslabor",
+  forschungssektor: {
+    id: "forschungssektor",
     gruppe: "industrie",
-    name: "Forschungslabor",
+    name: "Forschungssektor",
     beschreibung:
       "Erzeugt Forschung, solange es Strom, Menschen und Laborbedarf hat. Ohne Labor forscht niemand – Erkenntnis entsteht nicht aus Vorräten, sondern aus laufender Arbeit.",
     kategorie: "labor",
@@ -1267,15 +1293,15 @@ export const BUILDINGS = {
     verbrauchAbLevel: { elektronik: 3 },
     nurBeiForschung: ["silizium", "elektronik"],
   },
-  farm: {
-    id: "farm",
+  agrarsektor: {
+    id: "agrarsektor",
     gruppe: "versorgung",
-    name: "Agrarkuppel",
+    name: "Agrarsektor",
     beschreibung:
       "Erzeugt Nahrung. Ohne sie schrumpft die Bevölkerung, sobald der Vorrat aufgebraucht ist. Pflanzen setzen nur etwa ein Prozent des einfallenden Lichts in Biomasse um – Landwirtschaft braucht deshalb vor allem Fläche und Licht, nicht bessere Technik.",
     // Das Einzige auf der Oberfläche, das Licht braucht -- und damit das
     // Einzige, das eine zerstörte Ozonschicht wirklich trifft. Die Menschen
-    // sitzen in versiegelten Wohnmodulen, die Ernte nicht.
+    // sitzen in versiegelten Wohnsektoren, die Ernte nicht.
     brauchtSonnenlicht: true,
     kategorie: "nahrung",
     baseCost: { metall: 80, silizium: 50 },
@@ -1290,7 +1316,7 @@ export const BUILDINGS = {
   // Blitz konkurrieren Essen und Schirm damit um dieselbe Steckdose -- die
   // Stromprioritäten werden zur Krisenentscheidung. Bewusst KEIN
   // brauchtSonnenlicht-Flag: sie fragt den Ozon-Pfad schlicht nicht ab.
-  // Gleiche Nahrungsleistung wie die Agrarkuppel (sonst rechnet niemand um),
+  // Gleiche Nahrungsleistung wie der Agrarsektor (sonst rechnet niemand um),
   // aber gut das Achtfache an Energie -- Photosynthese nutzt ~1 % des
   // Lichts, und Kunstlicht muss die volle Beleuchtung aus der Steckdose
   // zahlen.
@@ -1304,14 +1330,14 @@ export const BUILDINGS = {
     baseCost: { metall: 120, silizium: 90 },
     costFactor: 1.4,
     buildTimeDivisor: 2.5,
-    // × NAHRUNG_KORREKTUR (A-164), siehe Agrarkuppel oben.
+    // × NAHRUNG_KORREKTUR (A-164), siehe Agrarsektor oben.
     produktion: { nahrung: { basis: 120 * NAHRUNG_KORREKTUR, faktor: 1.2 } },
     verbrauch: { energie: { basis: 100, faktor: 1.2 }, arbeitskraft: { basis: 14, faktor: 1.15 } },
   },
-  wohnmodul: {
-    id: "wohnmodul",
+  wohnsektor: {
+    id: "wohnsektor",
     gruppe: "versorgung",
-    name: "Wohnmodul",
+    name: "Wohnsektor",
     beschreibung:
       "Schafft Platz für mehr Bevölkerung. Ohne freien Wohnraum wächst niemand nach. Ein Mensch atmet rund 0,8 Kilogramm Sauerstoff am Tag – ein geschlossener Kreislauf muss ihn zurückgewinnen, sonst wäre jede Kolonie eine Dauerlieferung.",
     kategorie: "wohnen",
@@ -1332,7 +1358,7 @@ export const BUILDINGS = {
   // hält sein Feld verlustfrei, Strom kostet nur die Kühlung -- aber bei
   // planetarem Maßstab landet die in derselben Größenordnung.
   //
-  // 1 TW sind hier 1.000.000 MW: rund ein Kraftwerk auf Stufe 15 und das
+  // 1 TW sind hier 1.000.000 MW: rund eine Fusionsanlage auf Stufe 15 und das
   // Zweihundertfache dessen, was eine junge Kolonie sonst zieht. Er dominiert
   // den Energiehaushalt einer Welt vollständig -- und genau deshalb ist die
   // Stromzuteilung aus v0.69 die Mechanik, an der der Schluss hängt.
@@ -1368,10 +1394,10 @@ export const BUILDINGS = {
     },
   },
 
-  handelsposten: {
-    id: "handelsposten",
+  handelssektor: {
+    id: "handelssektor",
     gruppe: "industrie",
-    name: "Handelsposten",
+    name: "Handelssektor",
     beschreibung:
       "Handelt selbsttätig mit dem nächstgelegenen erreichbaren fremden Imperium: verkauft, was über der eingestellten Handels-Mindestmenge liegt, zu Marktpreisen – ohne Handelspartner in Reichweite bringt er nichts ein. Gekaufte Ware muss von einer Flotte abgeholt werden. Die Betriebskosten laufen unabhängig vom Handel weiter und wachsen überlinear mit der Stufe.",
     kategorie: "handel",
@@ -1379,7 +1405,7 @@ export const BUILDINGS = {
     costFactor: 1.5,
     buildTimeDivisor: 1.8,
     // Keine EINNAHME hier -- die kommt seit A-217 ausschließlich aus echtem
-    // Handel (`handelspostenHandeln`, simulation.js). Die Betriebskosten
+    // Handel (`handelssektorHandeln`, simulation.js). Die Betriebskosten
     // sind die Senke des Geldkreislaufs -- fest je Stufe, überlinear
     // wachsend (siehe Baubeschreibung). A-164: sie tragen MASSSTAB (×2.500)
     // wie jeder andere Materialverbrauch, nicht MENSCHEN_FAKTOR -- ursprünglich
@@ -1408,7 +1434,7 @@ export const BUILDINGS = {
 // Fraktion kann und was nicht, steht ausschließlich hier.
 //
 // Dass das billig ist, verdankt sich Prinzip 7 (Null-Zustand): ein Planet ohne
-// Bevölkerung, ohne Kraftwerk und ohne Forschung rechnet seit v0.19 sauber
+// Bevölkerung, ohne Fusionsanlage und ohne Forschung rechnet seit v0.19 sauber
 // durch. Eine Piratenfraktion ist genau das -- der Spieler mit ausgeschalteten
 // Teilsystemen.
 //
@@ -1430,7 +1456,7 @@ export const FRAKTIONS_ARTEN = {
     // Keine Bevölkerung, keine Energiewirtschaft, keine Forschung: eine
     // Piratengruppe hält eine Basis und eine Flotte, mehr nicht.
     // handel: true seit v0.67 -- NICHT weil Piraten Kaufleute wären, sondern
-    // weil sie sonst gar nicht an Treibstoff kommen: Tritium steht in keiner
+    // weil sie sonst gar nicht an Treibstoff kommen: Deuterium steht in keiner
     // Vorkommenstabelle und in keinem Wrack, es entsteht ausschliesslich im
     // Extraktor. Ohne Marktzugang leben sie von dem vollen Tank, den der
     // Weltstart ihnen schenkt -- gemessen: 68 Mio am Tag 0, 1 Mio am Tag 20,
@@ -1616,20 +1642,20 @@ export const BOT = {
   // stand ganz hinten und wurde deshalb nie gemeldet, solange eine der drei
   // Bedingungen davor zutraf -- und "Bevölkerung auf Anschlag" trifft auf
   // einer wachsenden Welt fast immer zu. Gemessen mit `ENTROPY_SAAT=7`: der
-  // Bot stand nach zehn Tagen unverändert bei `metallmine1 siliziummine2
-  // kraftwerk1 farm1 wohnmodul1`, mit 735 Metall, während seine Minen
+  // Bot stand nach zehn Tagen unverändert bei `metallfoerderung1 siliziumfoerderung2
+  // fusionsanlage1 agrarsektor1 wohnsektor1`, mit 735 Metall, während seine Minen
   // ununterbrochen in ein volles Lager förderten. Kein Hunger, kein
   // Strommangel, keine fehlende Arbeitskraft -- nur eine volle Halle.
   //
   // Wohnraum steht bewusst ganz hinten: er ist der einzige Engpass, der
   // nichts vernichtet. Die Welt wächst nur nicht weiter.
   engpaesse: [
-    { gebaeude: "lagerhalle", wenn: "lager" },
+    { gebaeude: "lagernetz", wenn: "lager" },
     // VOR dem Energie-Engpass (A-055): geht der Brennstoff zur Neige, ist
-    // ein weiteres Kraftwerk genau die falsche Antwort -- es stünde genauso
+    // eine weitere Fusionsanlage genau die falsche Antwort -- sie stünde genauso
     // dunkel da. Erst Nachschub sichern, dann Kapazität.
-    { gebaeude: "tritiumextraktor", wenn: "brennstoff" },
-    // A-149: kraftwerk -> solarfeld, NICHT fossilanlage. Das Kraftwerk hängt
+    { gebaeude: "deuteriumanlage", wenn: "brennstoff" },
+    // A-149: fusionsanlage -> solaranlagen, NICHT fossilanlage. Die Fusionsanlage hängt
     // jetzt an fusionstechnik -- ein Bot ohne diese Forschung (praktisch
     // jeder junge Bot) hätte sonst NIE eine Antwort auf einen Energie-
     // Engpass gefunden (kannBauen scheitert, botEngpass meldet denselben
@@ -1646,7 +1672,7 @@ export const BOT = {
     // DANN NIE WIEDER. `engpaesse` feuert bei jedem neuen Engpass erneut auf
     // dasselbe tote Gebäude -- ein Dauerausfall, gemessen mit
     // ENTROPY_SAAT=8: "Energie dauerhaft unterdeckt: 0 % nach 12 h und 0 %
-    // nach 24 h". Das Solarfeld hat dieses Problem strukturell nicht: kein
+    // nach 24 h". Die Solaranlagen haben dieses Problem strukturell nicht: kein
     // Brennstoff, kein Vorrat, der ausgehen könnte -- die einzige Grenze ist
     // die Teilchenflut, Jahrhunderte nach dem Zeithorizont, in dem ein
     // junger Bot überhaupt steht. Ein Bot braucht eine Quelle, die er nicht
@@ -1656,11 +1682,11 @@ export const BOT = {
     // Engpaesse trägt nur EIN Gebäude je Bedingung (siehe Kommentar oben);
     // ein zweiter Eintrag für kernkraftanlage bleibt aus demselben Grund wie
     // vorher draußen -- eine echte Design-Entscheidung, nicht Teil dieser
-    // Runde. kraftwerk selbst bleibt aus der Liste draußen, seine ehemalige
-    // Rolle übernimmt das Solarfeld.
-    { gebaeude: "solarfeld", wenn: "energie" },
-    { gebaeude: "farm", wenn: "nahrung" },
-    { gebaeude: "wohnmodul", wenn: "wohnraum" },
+    // Runde. fusionsanlage selbst bleibt aus der Liste draußen, ihre ehemalige
+    // Rolle übernehmen die Solaranlagen.
+    { gebaeude: "solaranlagen", wenn: "energie" },
+    { gebaeude: "agrarsektor", wenn: "nahrung" },
+    { gebaeude: "wohnsektor", wenn: "wohnraum" },
   ],
 
   // Ab wann ein Engpass gemeldet wird -- ANTEILE, keine Mengen, sie tragen
@@ -1682,16 +1708,16 @@ export const BOT = {
   },
   // A-148: uranmine ans Ende gehängt, NICHT eingeschoben -- die Reihenfolge
   // vor ihr bleibt sonst exakt wie vorher (dieselbe Zusicherung wie bei
-  // A-134 Punkt 1 fuer forschungslabor). Bots foerdern damit Uran als Teil
+  // A-134 Punkt 1 fuer forschungssektor). Bots foerdern damit Uran als Teil
   // ihres normalen Ausbaus.
   //
-  // A-149: "kraftwerk" an SEINER Stelle (nicht verschoben) durch "solarfeld"
+  // A-149: "fusionsanlage" an SEINER Stelle (nicht verschoben) durch "solaranlagen"
   // ersetzt, NICHT durch "fossilanlage" -- siehe die ausführliche Messung am
   // Kommentar von `engpaesse` oben. Dieselbe Falle träfe hier sogar härter:
   // `ausbau` ist die DAUERHAFTE Rotation, ein Bot würde eine erschöpfte
   // Fossilanlage immer weiter ausbauen (jede Stufe kostet mehr, bringt aber
   // dauerhaft null), statt je zu erkennen, dass der Vorrat für IMMER leer
-  // ist. Ein Bot, der "kraftwerk" hier stehen ließe, würde in jedem Takt
+  // ist. Ein Bot, der "fusionsanlage" hier stehen ließe, würde in jedem Takt
   // versuchen, es zu bauen, an der Forschungssperre scheitern (kannBauen)
   // und zum naechsten Listeneintrag weiterziehen -- funktional harmlos, aber
   // ein Bau-Versuch, der nie gelingt, ist trotzdem der falsche Ausbau-
@@ -1699,7 +1725,7 @@ export const BOT = {
   // demselben Grund wie oben draußen: ihre Aufnahme wäre eine Design-
   // Entscheidung (wann lohnt sich die teurere Grundlast?), keine reine
   // Ersetzung.
-  ausbau: ["metallmine", "siliziummine", "solarfeld", "farm", "wohnmodul", "handelsposten", "uranmine"],
+  ausbau: ["metallfoerderung", "siliziumfoerderung", "solaranlagen", "agrarsektor", "wohnsektor", "handelssektor", "uranmine"],
 
   // A-137, zweiter Anlauf: steht ein Sparziel (siehe unten, `kolonie`), bleibt
   // dieser ANTEIL des AKTUELLEN Bestands je benötigter Ressource unangetastet
@@ -1733,17 +1759,17 @@ export const BOT = {
   // Vorrang VOR den Engpässen.
   //
   // Der Grund steht in einer Messung vom 2026-08-16: ein Imperium hatte nach
-  // 24 h `kraftwerk1 farm1 wohnmodul1` und keine einzige Mine. Es hatte seinen
+  // 24 h `fusionsanlage1 agrarsektor1 wohnsektor1` und keine einzige Mine. Es hatte seinen
   // Startvorrat vollständig in Engpassbehebung gesteckt -- lauter für sich
   // richtige Entscheidungen -- und stand dann mit 2.752 Metall ohne Förderung
   // da. Aus dieser Lage führt kein Weg zurück: ohne Mine kein Metall, ohne
   // Metall keine Mine. Ein Spieler gerät da nie hinein, weil er weiß, dass
   // Einnahmen vor Komfort kommen. Genau das steht jetzt hier.
   nachschub: [
-    { resId: "metall", gebaeude: "metallmine" },
-    { resId: "silizium", gebaeude: "siliziummine" },
-    // Der DEUTERIUM-EXTRAKTOR steht auch nach A-055 NICHT hier, obwohl das
-    // Kraftwerk jetzt Brennstoff verbrennt: die Nachschubliste baut, was
+    { resId: "metall", gebaeude: "metallfoerderung" },
+    { resId: "silizium", gebaeude: "siliziumfoerderung" },
+    // Die DEUTERIUMANLAGE steht auch nach A-055 NICHT hier, obwohl die
+    // Fusionsanlage jetzt Brennstoff verbrennt: die Nachschubliste baut, was
     // FEHLT, noch vor der ersten Mine -- der Startvorrat trägt aber tagelang.
     // Brennstoff ist deshalb ein ENGPASS (siehe engpaesse: greift, wenn die
     // Reichweite unter die Schwelle fällt), keine Grundausstattung.
@@ -1755,8 +1781,8 @@ export const BOT = {
     // GEMESSEN, weil es beim ersten Versuch genau schiefging: mit einem
     // Eintrag hier baute der Bot als drittes Gebäude eine Fertigung, steckte
     // seinen Startvorrat hinein und stand nach zwanzig Tagen bei
-    // `metallmine1 siliziummine1 lagerhalle1 fertigung1 handelsposten1` --
-    // ohne Kraftwerk, ohne Farm, ohne Wohnmodul, mit **null Einwohnern**.
+    // `metallfoerderung1 siliziumfoerderung1 lagernetz1 fertigung1 handelssektor1` --
+    // ohne Fusionsanlage, ohne Farm, ohne Wohnsektor, mit **null Einwohnern**.
     // Die Fertigung lief nie, weil sie Strom und Leute braucht, die es nicht
     // gab. Dieselbe Sackgassen-Falle wie 2026-08-16, nur mit anderem Gebäude.
     //
@@ -1791,11 +1817,11 @@ export const BOT = {
     // ist skaliert). Der erste Anlauf gab 20.000 mit, und die Mission wurde
     // schlicht abgelehnt. Deshalb tankt der Bot zusätzlich anteilig vom
     // Vorrat -- siehe botKolonisieren.
-    tritium: 4000,
+    deuterium: 4000,
     // Anteil des Heimatvorrats, den eine Kolonisierungsmission höchstens
     // mitnimmt. Sie ist eine große Investition, soll die Welt aber nicht
     // trockenlegen.
-    tritiumAnteil: 0.5,
+    deuteriumAnteil: 0.5,
     // A-132: Der Bot lädt sein Kolonieschiff jetzt selbst mit Material, so
     // wie der Spieler es manuell tut (KOLONIE.startvorrat ist entfallen) --
     // sonst gründet er Welten, die nie anlaufen. Menge: dieselbe, die der
@@ -2071,7 +2097,7 @@ export const PLANETEN_KLASSEN = {
   miniNeptun: {
     id: "miniNeptun", name: "Mini-Neptun", masse: [2, 10], schwerkraft: 1.6,
     oberflaeche: false, atmosphaere: true,
-    geologie: {}, gas: { tritium: 1.5 },
+    geologie: {}, gas: { deuterium: 1.5 },
   },
   // Uranus und Neptun. Eigene Klasse, nicht "kleiner Gasriese": ihr Inneres
   // besteht überwiegend aus Wasser, Ammoniak und Methan statt aus Wasserstoff.
@@ -2080,12 +2106,12 @@ export const PLANETEN_KLASSEN = {
   eisriese: {
     id: "eisriese", name: "Eisriese", masse: [10, 20], schwerkraft: 1.4,
     oberflaeche: false, atmosphaere: true,
-    geologie: {}, gas: { tritium: 2.0 },
+    geologie: {}, gas: { deuterium: 2.0 },
   },
   gasriese: {
     id: "gasriese", name: "Gasriese", masse: [50, 400], schwerkraft: 2.5,
     oberflaeche: false, atmosphaere: true,
-    geologie: {}, gas: { tritium: 2.2 },
+    geologie: {}, gas: { deuterium: 2.2 },
   },
 };
 
@@ -2135,7 +2161,7 @@ export function schwerkraftAus(masse, radius) {
 //
 // Daraus folgt die Spielregel von selbst: das Vorkommen ist NICHT erschöpfbar,
 // sondern wächst nach -- langsam. Man kann es nicht leerbaggern, nur zu oft
-// besuchen. Damit ist es das genaue Gegenstück zur Antimateriefabrik, die
+// besuchen. Damit ist es das genaue Gegenstück zum Antimateriekollektor, der
 // Energie im Übermaß braucht, aber überall stehen kann.
 //
 // Je stärker das Magnetfeld, desto mehr sammelt sich: Gasriese > Eisriese >
@@ -2197,7 +2223,7 @@ export function affinitaetVon({ klasse, zone, wasser }) {
   // Flüchtige Stoffe aus Eis -- nur auf Welten mit Oberfläche, bei Riesen
   // steht der Wert schon in `gas`.
   if (def.oberflaeche) {
-    out.tritium = Math.round(wasserFaktor * (ZONE_EIS[zone] || 0.5) * 100) / 100;
+    out.deuterium = Math.round(wasserFaktor * (ZONE_EIS[zone] || 0.5) * 100) / 100;
   }
 
   // Nahrung braucht dreierlei: einen Boden, eine haltbare Atmosphäre und
@@ -2230,7 +2256,7 @@ export const AFFINITAET_GUT = 1.4;
 // Imperium? Zwei Bedingungen, beide gemessen statt gesetzt.
 //
 // ERSTENS NAHRUNG. Alles andere lässt sich ausgleichen: wenig Metall heißt
-// langsamer bauen, kein Tritium heißt Treibstoff kaufen -- Umwege, die man
+// langsamer bauen, kein Deuterium heißt Treibstoff kaufen -- Umwege, die man
 // spielen kann. Eine Nahrungs-Null ist kein Umweg: die Bevölkerung schrumpft,
 // mit ihr die Arbeitskraft, und ohne Arbeitskraft steht die ganze Welt. Das
 // ist kein schwieriger Start, sondern gar keiner. Gemessen können rund zwei
@@ -2240,7 +2266,7 @@ export const AFFINITAET_GUT = 1.4;
 // Messung gezeigt hat, nicht die Überlegung. Korrelation der Weltmerkmale mit
 // dem Fortschritt der ersten zwei Stunden (tests/pacing.mjs über zwölf Welten):
 //
-//     Schwerkraft  -0,88      Tritium  -0,24
+//     Schwerkraft  -0,88      Deuterium  -0,24
 //     Metall/Silizium -0,66   Nahrung  -0,01
 //
 // Die Schwerkraft treibt fast allein; Metall und Silizium korrelieren nur mit,
@@ -2330,14 +2356,28 @@ export const HANDEL = {
 // Verkaufspreis < Kaufpreis (Spanne), sonst wäre Handel eine Gelddruckmaschine.
 // Credits selbst sind nicht handelbar. Reine Zahlen -- Balancing-Stellschraube.
 export const MARKT_PREISE = {
+  // Unter Metall ans untere Ende der Skala (A-230): der Agrarsektor braucht
+  // je Tonne 0,0260 Energie und 0,0107 Arbeitskraft -- gemessen das
+  // Billigste im ganzen Katalog, rund 2,6x guenstiger als Metall
+  // (0,0667 / 0,0248). Bewusst niedrig, damit Nahrung als Handelsware
+  // uninteressant bleibt -- ihr Wert liegt im Essen, nicht im Verkauf.
+  nahrung: { verkauf: 0.5, kauf: 0.8 },
   metall: { verkauf: 1.0, kauf: 1.6 },
   silizium: { verkauf: 1.4, kauf: 2.2 },
-  tritium: { verkauf: 1.8, kauf: 2.8 },
+  deuterium: { verkauf: 1.8, kauf: 2.8 },
   // Zwischen Deuterium und Iridium eingeordnet: real ist Uran in der
   // Erdkruste rund 500× häufiger als Iridium (eines der seltensten Elemente
   // überhaupt), aber seltener als die Grundstoffe -- eine eigene Mine
   // braucht es trotzdem.
   uran: { verkauf: 2.2, kauf: 3.4 },
+  // Eine Tonne Elektronik verbraucht 3,0 t Silizium (A-230, 11,25 Mio ->
+  // 3,75 Mio je Takt) = 4,2 cr Materialwert. Aufschlag x1,2 fuer Energie
+  // und Veredelung -> 5,04, gerundet 5,0. Der Aufschlag ist bewusst klein:
+  // Elektronik zu fertigen, um sie zu verkaufen, ist damit kein Geschaeft
+  // (3 t Silizium kosten als Ware 4,2 cr -- selbst herstellen bleibt
+  // billiger als kaufen bei 7,5). Vor Iridium eingeordnet -- die Tabelle
+  // steht aufsteigend nach Verkaufspreis, und 5,0 liegt unter dessen 6.
+  elektronik: { verkauf: 5.0, kauf: 7.5 },
   iridium: { verkauf: 6, kauf: 9 },
   antimaterie: { verkauf: 40, kauf: 60 },
 };
@@ -2371,7 +2411,7 @@ export function verbrauchAb(def, resId, level) {
 // Preises (A-061). Die Ressourcen, für die das gilt, stehen am Gebäude.
 // FALLE FUER SPAETER: gefragt wird die Forschung des SPIELERS, weil es keine
 // andere gibt -- `state.forschungsQueue` ist global. Heute stimmt das, weil
-// Bots keine Labore bauen (im ganzen simulation.js kommt `forschungslabor`
+// Bots keine Labore bauen (im ganzen simulation.js kommt `forschungssektor`
 // nicht vor, nachgesehen bei A-061). Sobald sie forschen, haengt ein
 // Bot-Labor am Projekt des Spielers -- dann braucht diese Zeile die Fraktion
 // des Planeten, nicht den globalen Zustand.
@@ -2428,7 +2468,7 @@ export const RESEARCH = {
     id: "energietechnik",
     name: "Energietechnik",
     beschreibung:
-      "Verbessert den Wirkungsgrad deiner Kraftwerke um 8% pro Stufe. Eine Wärmekraftmaschine kann prinzipiell nie alle Wärme in Strom wandeln: die Grenze ist 1 minus dem Verhältnis von kalter zu heißer Temperatur. Fortschritt heißt hier, heißer zu werden.",
+      "Verbessert den Wirkungsgrad deiner Fusionsanlagen um 8% pro Stufe. Eine Wärmekraftmaschine kann prinzipiell nie alle Wärme in Strom wandeln: die Grenze ist 1 minus dem Verhältnis von kalter zu heißer Temperatur. Fortschritt heißt hier, heißer zu werden.",
     baseCost: { metall: 150, silizium: 150 },
     costFactor: 1.8,
     buildTimeDivisor: 1.5,
@@ -2521,7 +2561,7 @@ export const RESEARCH = {
   lagerlogistik: {
     id: "lagerlogistik",
     name: "Lagerlogistik",
-    beschreibung: "Erhöht die Kapazität aller Lagerhallen um 6% pro Stufe.",
+    beschreibung: "Erhöht die Kapazität aller Lagernetze um 6% pro Stufe.",
     baseCost: { metall: 200, silizium: 120 },
     costFactor: 1.5,
     buildTimeDivisor: 1.6,
@@ -2532,13 +2572,13 @@ export const RESEARCH = {
     id: "fusionstechnik",
     name: "Fusionstechnik",
     // A-149: seit dieser Runde schaltet die erste Stufe zusätzlich das
-    // Kraftwerk frei (BUILDINGS.kraftwerk.benoetigt) -- vorher gab die
+    // Fusionsanlage frei (BUILDINGS.fusionsanlage.benoetigt) -- vorher gab die
     // Forschung nur den Boost. Erst am Ende genannt, wie die
     // Erstklärungs-Konvention es für Feature-Text hält: die eigentliche
     // Wirkung (was erforschen ERMÖGLICHT) vor der Verbesserung (was es an
     // Bestehendem verstärkt).
     beschreibung:
-      "Zweite Stufe der Energiegewinnung. Verbessert Kraftwerke um weitere 10% pro Stufe. Fusion gewinnt Energie nur, solange die Kerne leichter sind als Eisen – dort sind sie am festesten gebunden. Jenseits davon kostet Verschmelzen Energie, statt welche zu liefern. Schaltet das Kraftwerk frei.",
+      "Zweite Stufe der Energiegewinnung. Verbessert Fusionsanlagen um weitere 10% pro Stufe. Fusion gewinnt Energie nur, solange die Kerne leichter sind als Eisen – dort sind sie am festesten gebunden. Jenseits davon kostet Verschmelzen Energie, statt welche zu liefern. Schaltet die Fusionsanlage frei.",
     baseCost: { metall: 500, silizium: 400 },
     costFactor: 1.7,
     buildTimeDivisor: 1.4,
@@ -2548,7 +2588,7 @@ export const RESEARCH = {
   iridiumverarbeitung: {
     id: "iridiumverarbeitung",
     name: "Iridiumverarbeitung",
-    beschreibung: "Verbessert die Ausbeute deiner Iridiumminen um 7% pro Stufe.",
+    beschreibung: "Verbessert die Ausbeute deiner Iridiumförderungen um 7% pro Stufe.",
     baseCost: { metall: 300, silizium: 250 },
     costFactor: 1.8,
     buildTimeDivisor: 1.5,
@@ -2618,7 +2658,7 @@ export const RESEARCH = {
   // Sie hält die Supernova NICHT auf -- das kann nichts. Sie hält die Welten
   // durch das Jahrtausend danach: die kosmische Teilchenflut ist GELADEN und
   // lässt sich magnetisch ablenken, der Gammablitz nicht (der braucht Masse,
-  // und dafür sind die Wohnmodule da).
+  // und dafür sind die Wohnsektoren da).
   //
   // Reales Vorbild: die NASA hat einen Magnetschild am L1-Punkt durchgerechnet,
   // um dem Mars eine haltbare Atmosphäre zu geben.
@@ -2629,7 +2669,7 @@ export const RESEARCH = {
     id: "magnetosphaerentechnik",
     name: "Magnetosphärentechnik",
     beschreibung:
-      "Erlaubt den Bau planetarer Magnetfeldgeneratoren. Sie halten keinen Gammablitz auf – der braucht Masse, dafür sind die Wohnmodule da. Sie lenken die geladene Teilchenflut ab, die einer Supernova jahrtausendelang folgt, und halten damit die Atmosphäre. Vorbild ist ein real durchgerechneter Magnetschild am L1-Punkt des Mars.",
+      "Erlaubt den Bau planetarer Magnetfeldgeneratoren. Sie halten keinen Gammablitz auf – der braucht Masse, dafür sind die Wohnsektoren da. Sie lenken die geladene Teilchenflut ab, die einer Supernova jahrtausendelang folgt, und halten damit die Atmosphäre. Vorbild ist ein real durchgerechneter Magnetschild am L1-Punkt des Mars.",
     baseCost: { metall: 6000, silizium: 5000, iridium: 1200 },
     costFactor: 1,
     buildTimeDivisor: 0.35,
@@ -2665,7 +2705,7 @@ export const RESEARCH = {
     id: "anreicherungstechnik",
     name: "Anreicherungstechnik",
     beschreibung:
-      "Schaltet am Deuterium-Extraktor einen zweiten Betriebsmodus frei: Anreicherung trennt schweren Wasserstoff aus Wasser, statt ihn zu fördern – bezahlt wird mit Strom. Deuterium steckt in jedem Wasser, aber nur in jedem sechstausendvierhundertsten Wasserstoffkern; die beiden Sorten unterscheiden sich chemisch fast nicht, und genau deshalb ist die Trennung Arbeit. Sie erzeugt nichts, sie sortiert – und wie jede Sortierung kostet sie mehr, als der Unterschied wert ist. Wieviel mehr, entscheidet in diesem Spiel die Spielbarkeit und nicht die Physik: wirklich liefert eine Tonne Deuterium in der Fusion um Größenordnungen mehr Energie, als ihre Abtrennung kostet.",
+      "Schaltet an der Deuteriumanlage einen zweiten Betriebsmodus frei: Anreicherung trennt schweren Wasserstoff aus Wasser, statt ihn zu fördern – bezahlt wird mit Strom. Deuterium steckt in jedem Wasser, aber nur in jedem sechstausendvierhundertsten Wasserstoffkern; die beiden Sorten unterscheiden sich chemisch fast nicht, und genau deshalb ist die Trennung Arbeit. Sie erzeugt nichts, sie sortiert – und wie jede Sortierung kostet sie mehr, als der Unterschied wert ist. Wieviel mehr, entscheidet in diesem Spiel die Spielbarkeit und nicht die Physik: wirklich liefert eine Tonne Deuterium in der Fusion um Größenordnungen mehr Energie, als ihre Abtrennung kostet.",
     baseCost: { metall: 550, silizium: 450 },
     costFactor: 1,
     buildTimeDivisor: 1.4,
@@ -2936,7 +2976,7 @@ export const SCHIFFE = {
     // bleibt dieselbe:
     //
     // Die Zahl steht zwischen zwei Grenzen, beide gemessen:
-    //  - NACH OBEN durch den Wohnraum der neuen Welt. Ein Wohnmodul der Stufe
+    //  - NACH OBEN durch den Wohnraum der neuen Welt. Ein Wohnsektor der Stufe
     //    0 fasst 3 Mrd Menschen (RESSOURCEN.bevoelkerung.speicher.basis, seit
     //    A-164) -- mehr Siedler als das wären beim ersten Atemzug schon
     //    obdachlos.
@@ -2947,7 +2987,7 @@ export const SCHIFFE = {
     //
     // 800 × MASSSTAB × MENSCHEN_FAKTOR = 2,4 Mrd (A-164, vorher 800 ×
     // MASSSTAB = 40.000): vier Fünftel des neuen Wohnraums (die Kolonie
-    // braucht sofort ein zweites Wohnmodul) und rund ein Zehntel der
+    // braucht sofort einen zweiten Wohnsektor) und rund ein Zehntel der
     // Heimatwelt -- dasselbe Verhältnis wie vorher, weil beide Seiten
     // denselben MENSCHEN_FAKTOR tragen. Zum Vergleich: eine abtrünnige
     // Fraktion nimmt 400 mit (PIRAT.gruendung.bevoelkerung) -- ein
@@ -3117,10 +3157,10 @@ export const ABWEHR = {
     beschreibung:
       "Gehärteter Lagerraum in Stückzahl. Sein Inhalt wird bei einem Überfall nicht mitgenommen -- verteidigt heute noch gegen nichts, die Bedrohung kommt erst später. Deutlich mehr Bau je Einheit Kapazität als das normale Lagernetz: sicherer Lagerraum oder mehr Lagerraum, nie beides.",
     werftAb: 1,
-    // Dasselbe Material wie die Lagerhalle selbst (Metall/Silizium, KEIN
+    // Dasselbe Material wie das Lagernetz selbst (Metall/Silizium, KEIN
     // Elektronik -- er ist Baumasse, keine Sensor-/Waffentechnik wie die
     // beiden anderen Anlagen). Hergeleitet, nicht geschätzt: Kosten je
-    // Kapazitätseinheit rund das Fünffache dessen, was die Lagerhalle an
+    // Kapazitätseinheit rund das Fünffache dessen, was das Lagernetz an
     // der Startwelt (Stufe 15→16) kostet -- Messung im Ergebnis-Abschnitt.
     kosten: { metall: 2_600_000_000, silizium: 1_000_000_000 },
     bauzeitSek: 300,
@@ -3135,7 +3175,7 @@ export const ABWEHR = {
     // Lagervolumen je Stück, DIESELBE EINHEIT wie `lagerkapazitaet()`
     // (js/data.js) -- linear mit der Stückzahl, kein `rate()`: die zwölfte
     // Bunkereinheit schützt so viel wie die erste. ~3,5 % der Kapazität, die
-    // die Startwelt bei ihrer Lagerhalle-Stufe (15) insgesamt hat --
+    // die Startwelt bei ihrer Lagernetz-Stufe (15) insgesamt hat --
     // "jeder Posten klein", nicht als Ersatz fürs Lagernetz gedacht.
     kapazitaetProStueck: 50_000_000_000,
   },
@@ -3335,7 +3375,7 @@ const skaliereRaten = (spezifikation) => {
 //
 // Diese Falle hat neunmal zugeschlagen (`tank`, `siedler`, Piratenmengen,
 // Gründungsschwellen, Forschungsaufwand …), zuletzt an `brennstoff` aus
-// A-055. Ein Kraftwerk der Stufe 15 verbrannte dadurch 188 statt 9.400 t je
+// A-055. Eine Fusionsanlage der Stufe 15 verbrannte dadurch 188 statt 9.400 t je
 // Echtzeitstunde, und eine Tonne Deuterium war im Reaktor bis zum
 // Vierzigtausendfachen dessen wert, was ihre Förderung kostete -- gemessen im
 // A-063-Ergebnis, an dem die Deuterium-Anreicherung deshalb gescheitert ist.
@@ -3456,9 +3496,9 @@ export const REST_BAGATELLE_SKALIERT = Math.round(REST_BAGATELLE * MASSSTAB);
 BOT.startKasse = Math.round(BOT.startKasse * MASSSTAB);
 // abBevoelkerung ist ein MENSCH (die Kolonisierungsschwelle des Bots), kein
 // Material -- MASSSTAB × MENSCHEN_FAKTOR wie jede andere Menschenzahl
-// (A-164). tritium/startmaterial bleiben Material und damit reines MASSSTAB.
+// (A-164). deuterium/startmaterial bleiben Material und damit reines MASSSTAB.
 BOT.kolonie.abBevoelkerung = Math.round(BOT.kolonie.abBevoelkerung * MASSSTAB * MENSCHEN_FAKTOR);
-BOT.kolonie.tritium = Math.round(BOT.kolonie.tritium * MASSSTAB);
+BOT.kolonie.deuterium = Math.round(BOT.kolonie.deuterium * MASSSTAB);
 skaliereBuendel(BOT.kolonie.startmaterial);
 // bevoelkerung/abBevoelkerung sind MENSCHEN (die Piraten-Absplitterung), kein
 // Material -- MASSSTAB × MENSCHEN_FAKTOR wie jede andere Menschenzahl
@@ -3480,3 +3520,47 @@ LOGISTIKNETZ.maxDurchsatzProTransfer = Math.round(LOGISTIKNETZ.maxDurchsatzProTr
 export function mengeSkaliert(n) {
   return Math.round(n * MASSSTAB);
 }
+
+// --- Endliche Vorkommen (A-236) --------------------------------------------
+// Ein Vorkommen ist keine gespeicherte Größe, sondern eine Referenzmenge je
+// Rohstoff (hier) mal die planetare Affinität (vollesVorkommen, state.js) --
+// dasselbe Muster wie FOSSIL_VORRAT_BASIS/vollerFossilVorrat oben. Anders als
+// dort ist KEINE zweite Fassung der Produktionsformel nötig: an DIESER Stelle
+// der Datei ist BUILDINGS längst MASSSTAB-skaliert (siehe "--- Maßstab ---"
+// oben), die Referenzmenge liest also die echte, gültige Kurve, statt sie
+// (wie FOSSIL es aus Reihenfolge-Zwang muss) ein zweites Mal abzuschreiben.
+//
+// Betroffen sind die fünf Förderanlagen (gruppe "foerderung"). Eine sechste
+// käme automatisch dazu, ohne dass hier etwas geändert werden müsste.
+export const VORKOMMEN_GEBAEUDE = Object.values(BUILDINGS).filter((def) => def.gruppe === "foerderung");
+
+// R-42 (Tobi, 01.09.): 100 Spieljahre an der Startstufe der Heimatwelt, bei
+// Affinität 1,00 -- dieselbe Bezugsgröße, die FOSSIL.vorratJahre für den
+// fossilen Vorrat schon liefert (A-196).
+//
+// Iridiumförderung fehlt in START.startstufenHeimatwelt -- sie bleibt auf der
+// Heimatwelt absichtlich bei Stufe 0 (siehe der Kommentar an dieser Tabelle:
+// "Iridium ... bleibt bei null"). Ohne Rückfall wäre ihre Referenzmenge 0 und
+// jede Iridiumförderung stünde sofort bei x = Infinity, Ergiebigkeit 0 statt
+// nie-0. Der Rückfall ist Stufe 1, die erste tatsächlich gebaute -- kein
+// Design-Entscheid dieser Runde, sondern eine Lücke im Auftrag, die nur eine
+// der fünf Anlagen betrifft. Siehe A-236-Ergebnis.
+export const VORKOMMEN_BASIS = {};
+for (const def of VORKOMMEN_GEBAEUDE) {
+  const stufe = START.startstufenHeimatwelt[def.id] || 1;
+  for (const [resId, spec] of Object.entries(def.produktion)) {
+    const proStunde = rate(spec, stufe);
+    VORKOMMEN_BASIS[resId] = proStunde * (jahreInMs(FOSSIL.vorratJahre) / (3600 * 1000));
+  }
+}
+
+// Die fünf Ressourcen-IDs, aus VORKOMMEN_BASIS gespeist statt von Hand
+// aufgezählt -- EINE Liste, kein zweiter Auszug derselben fünf Namen.
+export const VORKOMMEN_RESSOURCEN = Object.keys(VORKOMMEN_BASIS);
+
+// Ab welcher Ergiebigkeit gemeldet wird (Anzeigefrage, keine Mechanik --
+// Auftrag A-236, Abschnitt 5: "Die Schwelle wählt die Umsetzung"). 25 % ist
+// x = 3 auf der Kurve (1/(1+x)), derselbe Punkt, den die Definition von
+// fertig als Testfall ohnehin schon führt -- kein zusätzlich gegriffener
+// Wert, sondern ein bereits geprüfter.
+export const VORKOMMEN_MELDESCHWELLE = 0.25;

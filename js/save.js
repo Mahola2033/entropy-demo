@@ -11,12 +11,12 @@ import {
   speicherbarerVersatz,
   spielDatum,
   vollerFossilVorrat,
-} from "./state.js?v=0.9.16";
-import { piratenWeltStart, botWeltStart, piratenNamenNachziehen } from "./simulation.js?v=0.9.16";
-import { notausgangLoeschen } from "./aufholen.js?v=0.9.16";
-import { DEMO_SAAT, VERSION } from "./data.js?v=0.9.16";
-import { t } from "./sprache.js?v=0.9.16";
-import { startschwierigkeit } from "./schwierigkeit.js?v=0.9.16";
+} from "./state.js?v=0.9.26";
+import { piratenWeltStart, botWeltStart, piratenNamenNachziehen } from "./simulation.js?v=0.9.26";
+import { notausgangLoeschen } from "./aufholen.js?v=0.9.26";
+import { DEMO_SAAT, VERSION } from "./data.js?v=0.9.26";
+import { t } from "./sprache.js?v=0.9.26";
+import { startschwierigkeit } from "./schwierigkeit.js?v=0.9.26";
 
 const STORAGE_KEY = "entropy-save";
 
@@ -164,8 +164,68 @@ export function sicherungLesen() {
 // A164-Sprung-Handschrift der Migration darüber: die Vorratsherleitung ist
 // keine Konstante aus einem historischen Moment, sondern folgt bewusst der
 // LEBENDEN FOSSIL_VORRAT_BASIS -- genau das war der Fehler, den A-196 behebt.
+// 34 -> 35 (A-221, 09.09.2026, Modellwechsel Etappe 1): `planet.gebaeude[id]`
+// wird von einer Ganzzahl-Stufe zu einer stetigen Fließkomma-Größe. Dieser
+// Schritt rechnet dabei NICHTS um -- eine Stufe 12 wird zahlenmäßig die
+// Größe 12 (JSON/JS unterscheiden 12 und 12,0 ohnehin nicht). Trotzdem ein
+// echtes Kettenglied und kein übersprungener Schritt: derselbe Vertrag wie
+// beim 31->32-Platzhalter oben -- wer das FORMAT ändert, hebt die Version,
+// auch wenn die Umrechnung die Identität ist, sonst kann ein späteres Glied
+// (Etappe 2 des Modellwechsels) nicht mehr unterscheiden, welche Form es vor
+// sich hat.
+// 35 -> 36 (A-222, 10.09.2026): zwölf interne Namen, die seit Monaten von
+// ihrem Anzeigenamen abwichen (SAMMEL-SPRUNG.md Punkt 1), werden zu echten
+// IDs -- elf Gebäude plus die Ressource `tritium` (im Spiel „Deuterium",
+// A-007). Reine Umbenennung, KEIN Umrechnen: jeder Wert bleibt exakt, was er
+// war, nur unter einem neuen Schlüssel oder Zeichenkettenwert.
 const MASSSTAB_SPRUNG_A164 = 2500; // 125.000 / 50
 const MENSCHEN_FAKTOR_A164 = 24;
+// A-222: die beiden Umbenennungslisten, getrennt nach dem, WAS sie
+// schlüsseln -- ein Gebäudename ist nie an derselben Stelle wie ein
+// Ressourcenname zu erwarten, aber beide brauchen dieselbe Umbenennung an
+// mehreren, strukturell unterschiedlichen Orten (siehe die Migration unten).
+const GEBAEUDE_UMBENENNUNG_A222 = {
+  kraftwerk: "fusionsanlage",
+  solarfeld: "solaranlagen",
+  tritiumextraktor: "deuteriumanlage",
+  lagerhalle: "lagernetz",
+  farm: "agrarsektor",
+  handelsposten: "handelssektor",
+  forschungslabor: "forschungssektor",
+  wohnmodul: "wohnsektor",
+  metallmine: "metallfoerderung",
+  siliziummine: "siliziumfoerderung",
+  iridiummine: "iridiumfoerderung",
+};
+const RESSOURCEN_UMBENENNUNG_A222 = { tritium: "deuterium" };
+
+// Benennt die SCHLÜSSEL eines flachen Objekts nach `umbenennung` um, Werte
+// bleiben unberührt. Gibt dasselbe Objekt zurück (keine Kopie), wenn keine
+// betroffene Schlüssel drin steckt -- die allermeisten Aufrufe hier treffen
+// auf ein Objekt, das gar keinen der zwölf Namen trägt (z.B. ein Lager ohne
+// je gesetzte Lagerregel), und sollen dafür nicht jedes Mal neu allozieren.
+function schluesselUmbenennen(objekt, umbenennung) {
+  if (!objekt) return objekt;
+  let geaendert = false;
+  for (const key of Object.keys(objekt)) {
+    if (umbenennung[key]) {
+      geaendert = true;
+      break;
+    }
+  }
+  if (!geaendert) return objekt;
+  const neu = {};
+  for (const [key, wert] of Object.entries(objekt)) {
+    neu[umbenennung[key] || key] = wert;
+  }
+  return neu;
+}
+
+// Dieselbe Umbenennung, aber für einen einzelnen Zeichenketten-WERT (z.B.
+// `bauQueue.gebaeudeId`), nicht für Objektschlüssel.
+function wertUmbenennen(wert, umbenennung) {
+  return wert != null && umbenennung[wert] ? umbenennung[wert] : wert;
+}
 // A-198: exportiert, damit veroeffentlichen.mjs die ECHTE Kette liest, statt
 // sie nachzubauen (derselbe Fehlertyp, den A-196 gerade behoben hat) -- der
 // Vorflug prüft damit, ob ein SAVE_VERSION-Sprung migrierbar ist, ohne die
@@ -193,6 +253,94 @@ export const MIGRATIONEN = {
       fossilVorrat: vollerFossilVorrat(planet),
     })),
   }),
+  // A-221: reiner Nummernsprung, wie 31 -> 32 -- siehe Kommentar oben.
+  34: (stand) => ({ ...stand, version: 35 }),
+  // A-222: siehe Kommentar an GEBAEUDE_UMBENENNUNG_A222/RESSOURCEN_UMBENENNUNG_A222
+  // oben. Jede Stelle, an der einer der zwölf alten Namen als Objektschlüssel
+  // ODER als Zeichenkettenwert auftauchen kann -- gefunden über eine
+  // Feldsuche quer durch state.js/simulation.js, nicht aus dem Auftragstext
+  // abgeschrieben (der nennt neun der hier migrierten Stellen, drei fehlen
+  // ihm: `brennstoffAus`, `anreicherung`, `stromPrioritaet` sind ebenfalls
+  // gebäudeschlüsselte Objekte, und `restErtrag` an einem Orbit sowie
+  // `logistikTransfers[].resId` sind ressourcenschlüsselte Werte, die die
+  // Auftragsliste nicht führt -- siehe Ergebnis).
+  35: (stand) => {
+    const planeten = (stand.planeten || []).map((planet) => {
+      const neu = {
+        ...planet,
+        gebaeude: schluesselUmbenennen(planet.gebaeude, GEBAEUDE_UMBENENNUNG_A222),
+        ressourcen: schluesselUmbenennen(planet.ressourcen, RESSOURCEN_UMBENENNUNG_A222),
+      };
+      // Vier weitere gebäudeschlüsselte Objekte, alle optional/nachträglich
+      // angelegt (`|| {}`-Muster) -- ein alter Stand hat sie oft gar nicht.
+      if (planet.brennstoffAus) neu.brennstoffAus = schluesselUmbenennen(planet.brennstoffAus, GEBAEUDE_UMBENENNUNG_A222);
+      if (planet.anreicherung) neu.anreicherung = schluesselUmbenennen(planet.anreicherung, GEBAEUDE_UMBENENNUNG_A222);
+      if (planet.stromPrioritaet) neu.stromPrioritaet = schluesselUmbenennen(planet.stromPrioritaet, GEBAEUDE_UMBENENNUNG_A222);
+      // Fünf weitere ressourcenschlüsselte Objekte, gleiches Muster.
+      if (planet.marktlager) neu.marktlager = schluesselUmbenennen(planet.marktlager, RESSOURCEN_UMBENENNUNG_A222);
+      if (planet.lagerRegeln) neu.lagerRegeln = schluesselUmbenennen(planet.lagerRegeln, RESSOURCEN_UMBENENNUNG_A222);
+      if (planet.logistikMindestbestand)
+        neu.logistikMindestbestand = schluesselUmbenennen(planet.logistikMindestbestand, RESSOURCEN_UMBENENNUNG_A222);
+      if (planet.verarbeitungsReserve)
+        neu.verarbeitungsReserve = schluesselUmbenennen(planet.verarbeitungsReserve, RESSOURCEN_UMBENENNUNG_A222);
+      if (planet.maxBestand) neu.maxBestand = schluesselUmbenennen(planet.maxBestand, RESSOURCEN_UMBENENNUNG_A222);
+      if (planet.handelsMindest) neu.handelsMindest = schluesselUmbenennen(planet.handelsMindest, RESSOURCEN_UMBENENNUNG_A222);
+      // Die Bau-Warteschlange trägt die Gebäude-ID als WERT (`gebaeudeId`),
+      // nicht als Schlüssel -- Werft-/Forschungs-/Abwehr-Warteschlangen
+      // tragen `schiffId`/`forschungId`/`abwehrId` aus je einem eigenen
+      // Katalog und sind von den zwölf Namen nicht betroffen (geprüft).
+      if (planet.bauQueue) {
+        neu.bauQueue = { ...planet.bauQueue, gebaeudeId: wertUmbenennen(planet.bauQueue.gebaeudeId, GEBAEUDE_UMBENENNUNG_A222) };
+      }
+      if (planet.bauWarteschlange) {
+        neu.bauWarteschlange = planet.bauWarteschlange.map((eintrag) => ({
+          ...eintrag,
+          gebaeudeId: wertUmbenennen(eintrag.gebaeudeId, GEBAEUDE_UMBENENNUNG_A222),
+        }));
+      }
+      return neu;
+    });
+
+    // Frachtladung: ressourcenschlüsselt, an der FLOTTE, nicht am Planeten.
+    const flotten = (stand.flotten || []).map((flotte) =>
+      flotte.ladung ? { ...flotte, ladung: schluesselUmbenennen(flotte.ladung, RESSOURCEN_UMBENENNUNG_A222) } : flotte
+    );
+
+    // Logistiknetz-Transfers, die GERADE UNTERWEGS sind: `resId` ist auch
+    // hier ein WERT, kein Schlüssel (siehe Kommentar an bauQueue oben).
+    const logistikTransfers = (stand.logistikTransfers || []).map((transfer) =>
+      transfer.resId && RESSOURCEN_UMBENENNUNG_A222[transfer.resId]
+        ? { ...transfer, resId: RESSOURCEN_UMBENENNUNG_A222[transfer.resId] }
+        : transfer
+    );
+
+    // Liegengebliebener Bergungsertrag an einem Orbit (`restErtrag`,
+    // ressourcenschlüsselt) -- verschachtelt in systemZustand[systemId][orbit].
+    // ORBIT_ZUSTAND_FELDER (js/systeme.js) lässt `restErtrag` ausdrücklich als
+    // einziges verschachteltes Feld durch; alle anderen Felder dort sind
+    // flach und von den zwölf Namen nicht betroffen (geprüft: `fraktionId`,
+    // `verteidigerSchiffe` u.ä. tragen keine der zwölf IDs).
+    let systemZustand = stand.systemZustand;
+    if (systemZustand) {
+      systemZustand = {};
+      for (const [systemId, orbits] of Object.entries(stand.systemZustand)) {
+        const neueOrbits = {};
+        for (const [orbit, zustand] of Object.entries(orbits)) {
+          neueOrbits[orbit] =
+            zustand && zustand.restErtrag
+              ? { ...zustand, restErtrag: schluesselUmbenennen(zustand.restErtrag, RESSOURCEN_UMBENENNUNG_A222) }
+              : zustand;
+        }
+        systemZustand[systemId] = neueOrbits;
+      }
+    }
+
+    // `state.forschung`/`fraktion.forschung` und alle drei anderen
+    // Warteschlangen (Werft, Forschung, Abwehr) schlüsseln nach EIGENEN
+    // Katalogen (RESEARCH/SCHIFFE/ABWEHR) -- keiner der zwölf Namen kommt
+    // dort vor (geprüft), deshalb bleiben sie unangetastet.
+    return { ...stand, version: 36, planeten, flotten, logistikTransfers, systemZustand };
+  },
 };
 
 // Schickt einen Stand Schritt für Schritt durch eine Migrationstabelle, bis

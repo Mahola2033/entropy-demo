@@ -46,19 +46,21 @@ import {
   bevoelkerungsSchrittFaktor,
   FOSSIL,
   FOSSIL_VORRAT_BASIS,
+  VORKOMMEN_BASIS,
+  VORKOMMEN_RESSOURCEN,
   ARBEITSKRAFT_LEERLAUF,
   DROSSELUNG,
-} from "./data.js?v=0.9.16";
-import { stromFuer, waehle } from "./zufall.js?v=0.9.16";
-import { systemGenerieren } from "./welt.js?v=0.9.16";
+} from "./data.js?v=0.9.26";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.26";
+import { systemGenerieren } from "./welt.js?v=0.9.26";
 // A-082: eigener Zufallsstrom für den Heimatweltnamen. Die Kennung ist eine
 // beliebige feste Zahl -- wichtig ist nur, dass sie keiner Systemkennung in
 // die Quere kommt und sich nie wieder ändert (sonst hieße jede bestehende
 // Partie beim nächsten Laden anders).
 const HEIMATWELT_NAMEN_KENNUNG = 900001;
-import { galaxiePlanen, entfernung, schluesselImSystem } from "./galaxie.js?v=0.9.16";
-import { skalieren } from "./ressourcen.js?v=0.9.16";
-import { t } from "./sprache.js?v=0.9.16";
+import { galaxiePlanen, entfernung, schluesselImSystem } from "./galaxie.js?v=0.9.26";
+import { skalieren } from "./ressourcen.js?v=0.9.26";
+import { t } from "./sprache.js?v=0.9.26";
 
 // v0.28: Sterntypen verschieben die Orbitzonen -- dieselbe Saat erzeugt jetzt
 // andere Planeten. Ein alter Spielstand trüge Fortschritt zu Orbits, in denen
@@ -87,7 +89,18 @@ import { t } from "./sprache.js?v=0.9.16";
 // praktisch überall bei 0. Jeder Planet bekommt seinen fossilVorrat deshalb
 // VOLL aufgefüllt, nicht anteilig (ein Anteil von 0 wäre wieder 0). Siehe
 // js/save.js MIGRATIONEN[33].
-export const SAVE_VERSION = 34;
+// 34 -> 35 (A-221, 09.09.2026, Modellwechsel Etappe 1): `planet.gebaeude[id]`
+// ist ab jetzt eine stetige Fließkomma-Größe statt einer Ganzzahl-Stufe. Der
+// Schritt selbst rechnet nichts um (12 bleibt 12) -- reiner Formatsprung wie
+// 31 -> 32, siehe js/save.js MIGRATIONEN[34]. Wachstumsmodell, Kosten und
+// Bauzeiten bleiben unverändert; das ist Etappe zwei.
+// 35 -> 36 (A-222, 10.09.2026): elf Gebäude-IDs und die Ressource `tritium`
+// (Anzeige „Deuterium", A-007) bekommen ihren endgültigen, mit dem
+// Anzeigenamen deckungsgleichen internen Namen (SAMMEL-SPRUNG.md Punkt 1).
+// Reine Umbenennung an jeder Stelle, die einen der zwölf alten Namen als
+// Schlüssel oder Wert trägt -- siehe js/save.js MIGRATIONEN[35] für die
+// vollständige Liste der Stellen.
+export const SAVE_VERSION = 36;
 
 function startRessourcen(voll) {
   const res = {};
@@ -830,8 +843,8 @@ export function kategorieBonus(state, kategorie, fraktionId = SPIELER_FRAKTION) 
 //
 // AUSGENOMMEN: die Kategorie `energie` selbst. Energietechnik verbessert den
 // Wirkungsgrad des Reaktors -- mehr Strom aus DEMSELBEN Brennstoff, ein
-// Mehrverbrauch wäre die Aussage auf den Kopf gestellt. Kraftwerk und
-// Solarfeld behalten deshalb ALLE ihre Verbrauchsposten unverändert,
+// Mehrverbrauch wäre die Aussage auf den Kopf gestellt. Fusionsanlage und
+// Solaranlagen behalten deshalb ALLE ihre Verbrauchsposten unverändert,
 // Brennstoff eingeschlossen.
 //
 // EINE Stelle für alle Aufrufer (rohRaten, produktionsAufloesung samt seiner
@@ -985,7 +998,7 @@ export function pufferReichweiteMs(vorrat, defizitProStunde) {
 
 // --- Brennstoff aus dem Bestand (A-055, Weg B) -----------------------------
 //
-// Ein Gebäude mit `brennstoff` in data.js (das Kraftwerk) verbrennt eine
+// Ein Gebäude mit `brennstoff` in data.js (die Fusionsanlage) verbrennt eine
 // GELAGERTE Ressource -- aber ausdrücklich NICHT über die Ratenrechnung, die
 // das Modell verbietet (Energie hinge an Deuterium, Deuterium über den
 // Extraktor an Energie: der Kreis, an dem A-008 gescheitert ist). Stattdessen:
@@ -1010,7 +1023,7 @@ export function pufferReichweiteMs(vorrat, defizitProStunde) {
 //     wie viele kleine Schritte.
 export const BRENNSTOFF_ANLAUF_MS = 10 * 60 * 1000;
 
-// Einmal beim Laden eingesammelt: die Gebäude mit Brennstoff (Kraftwerk UND
+// Einmal beim Laden eingesammelt: die Gebäude mit Brennstoff (Fusionsanlage UND
 // seit A-148 die Kernkraftanlage). Die Prüfung läuft je Planet und je
 // Ereignis -- ein Object.entries über alle Gebäude wäre dort reine
 // Allokationslast.
@@ -1024,7 +1037,7 @@ const BRENNSTOFF_GEBAEUDE = Object.entries(BUILDINGS)
 // Seit A-147 zwei Brennstoff-Arten hinter einem Tor: `def.brennstoff`
 // (Lager-Ressource, s.o.) UND `def.fossil` (planetgebundener Vorrat, siehe
 // fossilBereit unten). Für jedes bestehende Gebäude ohne `def.fossil` ist
-// dieser Zusatz ein No-Op -- das Kraftwerk bleibt unangetastet.
+// dieser Zusatz ein No-Op -- die Fusionsanlage bleibt unangetastet.
 export function brennstoffBereit(planet, def, level) {
   if (level <= 0) return true;
   if (!fossilBereit(planet, def, level)) return false;
@@ -1070,7 +1083,7 @@ export function brennstoffReichweiteMs(planet) {
 
 // Schwester von brennstoffReichweiteMs (A-188, B-8/A-168): dieselbe Rechnung,
 // aber für EINE Anlage statt das Minimum über alle. Seit A-168 bekommt jede
-// gebaute Brennstoffanlage ihre eigene Zeile -- stehen Kraftwerk UND
+// gebaute Brennstoffanlage ihre eigene Zeile -- stehen Fusionsanlage UND
 // Kernkraftanlage zugleich, zeigten beide bis hierher dieselbe planetweite
 // Zahl, obwohl sie verschiedene Ressourcen (Deuterium/Uran) verbrennen: die
 // Anlage mit dem reichlicheren Brennstoff behauptete die Knappheit der
@@ -1121,15 +1134,15 @@ export function brennstoffProStunde(planet) {
 // Messwerkzeuge unsichtbarer Spielverlauf.
 //
 // A-148: Seit die Kernkraftanlage ein ZWEITES `def.brennstoff`-Gebäude ist
-// (neben dem Kraftwerk), kann ein Planet zwei davon gleichzeitig tragen.
+// (neben der Fusionsanlage), kann ein Planet zwei davon gleichzeitig tragen.
 // `planet.reaktorAus` war EIN Bit für den ganzen Planeten -- bis hierhin
 // unschädlich, weil es nie mehr als eine brennende Anlage gab. Mit zweien
 // hätte das gemeinsame Bit die Anlaufzeit der einen Anlage von der
 // Brennstofflage der ANDEREN abhängig gemacht (wer zuletzt in der Schleife
 // dran ist, gewinnt) -- exakt das Flackern, das die Hysterese verhindern
 // soll, nur zwischen zwei Anlagen statt am Leerstand einer einzigen. Das Bit
-// ist deshalb jetzt JE GEBÄUDE (`planet.brennstoffAus[gebaeudeId]`), das
-// Kraftwerk verhält sich dabei unverändert -- ein Planet mit nur einer
+// ist deshalb jetzt JE GEBÄUDE (`planet.brennstoffAus[gebaeudeId]`), die
+// Fusionsanlage verhält sich dabei unverändert -- ein Planet mit nur einer
 // brennenden Anlage sieht exakt dasselbe Bit wie vorher, nur eine Ebene
 // tiefer verschachtelt.
 export function reaktorBitNachziehen(planet) {
@@ -1170,15 +1183,15 @@ export function reaktorBitNachziehen(planet) {
 // Eintrag, kein Lager, kein Markt, keine Route -- ein einziges Feld am
 // Planeten (`planet.fossilVorrat`, Tonnen), weil es ihn nur einmal gibt und
 // er nicht handelbar sein soll (Tobi, 23.08., zu Gas als Lager-Ressource:
-// "Aber in dem Fall erstmal nicht"). Dasselbe Grundprinzip wie beim
-// Kraftwerk (A-055, Weg B): binäres Tor, Abzug beim Fortschreiben, NIE in
+// "Aber in dem Fall erstmal nicht"). Dasselbe Grundprinzip wie bei der
+// Fusionsanlage (A-055, Weg B): binäres Tor, Abzug beim Fortschreiben, NIE in
 // der Ratenrechnung -- sonst derselbe Fluss-Kreis (Energie hinge an
 // Fossilvorrat, der an nichts weiter hängt, also unkritisch, aber die
 // Ratenrechnung darf trotzdem nicht von einem sich ändernden Bestand lesen).
 //
 // OHNE Hysterese, anders als beim Reaktor: der Vorrat wächst nie nach (nichts
 // fördert ihn), ein einmal erloschenes Feld springt also nie wieder an --
-// den Flacker-Fall, den der Zündspeicher beim Kraftwerk dämpft, gibt es hier
+// den Flacker-Fall, den der Zündspeicher bei der Fusionsanlage dämpft, gibt es hier
 // strukturell nicht.
 const FOSSIL_GEBAEUDE = Object.entries(BUILDINGS)
   .filter(([, def]) => def.fossil)
@@ -1272,6 +1285,77 @@ export function fossilVorratNachziehen(planet, stunden) {
     // Auf null einrasten wie in planetRatenAnwenden -- kein negativer Krümel,
     // der eine weitere Mini-Reichweite vorgaukelt.
     planet.fossilVorrat = neu < 1e-6 ? 0 : neu;
+  }
+}
+
+// --- Endliche Vorkommen (A-236) --------------------------------------------
+// Dieselbe Bauform wie der fossile Vorrat direkt oberhalb: eine Referenzmenge
+// (VORKOMMEN_BASIS, data.js) mal die planetare Affinität, NICHT gespeichert.
+// Gespeichert wird nur die kumulierte Fördermenge (`planet.gefoerdert`) --
+// ein Bestand, kein Mitgift-Feld (A-171, "Bestand oder Mitgift?"), deshalb
+// KEINE Migration: ein fehlendes Feld heißt "noch nichts gefördert".
+//
+// `affinitaetFaktor` ist bewusst dieselbe Funktion, die rohRaten/
+// produktionsAufloesung schon für die tatsächliche Förderung benutzen --
+// Vorkommen und Ausbeute können damit nie an zwei verschiedenen Zahlen für
+// dieselbe Welt hängen.
+export function vollesVorkommen(planet, resId) {
+  return (VORKOMMEN_BASIS[resId] || 0) * affinitaetFaktor(planet, resId);
+}
+
+// A-171-Falle in Reinform: `??`, nicht `||`. Ein fehlendes Feld heißt "noch
+// nichts gefördert" (Vorgabe: der volle Vorrat ist unberührt), eine
+// gespeicherte 0 bleibt 0 (in diesem Fall ohnehin der Startwert, aber die
+// Unterscheidung ist dieselbe wie beim fossilen Vorrat und muss es bleiben,
+// falls hier je etwas anderes als 0 die Vorgabe würde).
+export function gefoerdertVon(planet, resId) {
+  return (planet.gefoerdert && planet.gefoerdert[resId]) ?? 0;
+}
+
+// Die Ergiebigkeit: 1/(1+x), x = gefoerdert / vollesVorkommen. Faellt
+// asymptotisch, wird nie 0 und nie negativ (Definition von fertig 1).
+// MULTIPLIZIERT die Foerderrate der Anlage -- sie darf NIE in die Ratenformel
+// selbst einrechnen (bekannte Falle: kollidiert mit Etappe II des
+// Modellwechsels, die die Rate selbst noch umbauen wird).
+//
+// `voll <= 0` (keine Affinität für diese Ressource hier, z.B. Deuterium auf
+// einer trockenen Welt) liefert 1 statt einer Division durch 0: die
+// tatsächliche Förderrate ist über affinitaetFaktor an derselben Stelle
+// ohnehin schon 0, die Ergiebigkeit darf dabei nicht NaN werden.
+//
+// `planet.foerderungGesperrt`: TEST-ONLY-Feld, nie von Produktionscode
+// gesetzt -- dieselbe Rolle wie `wachstumGesperrt` (simulation.js/A-166):
+// ein paar ältere Tests (ketten.test.js, zeit.test.js) prüfen eine ANDERE
+// Rate exakt über mehrere Stunden und brauchen die Ergiebigkeit als
+// Störgröße abgeschaltet, ohne Vorkommen oder Affinität mit anzufassen.
+export function foerderErgiebigkeit(planet, resId) {
+  if (planet.foerderungGesperrt) return 1;
+  const voll = vollesVorkommen(planet, resId);
+  if (voll <= 0) return 1;
+  const x = gefoerdertVon(planet, resId) / voll;
+  return 1 / (1 + x);
+}
+
+// Schreibt die kumulierte Fördermenge fort -- aufgerufen aus
+// planetRatenAnwenden (simulation.js) mit der dort schon gedrosselten
+// Produktionsrate (Regime C: ein volles Lager fördert real auch nicht
+// weiter, siehe produktionsAufloesung), an derselben Ereignisgrenze wie
+// fossilVorratNachziehen.
+export function gefoerdertHinzufuegen(planet, resId, menge) {
+  if (!(menge > 0)) return;
+  if (!planet.gefoerdert) planet.gefoerdert = {};
+  planet.gefoerdert[resId] = gefoerdertVon(planet, resId) + menge;
+}
+
+// Der Aufrufer aus planetRatenAnwenden: `produktion` ist dort bereits
+// berechnet (effektiveRaten/produktionsAufloesung) und trägt schon jede
+// Drosselung -- EIN zweiter Leser derselben Zahl, keine zweite Fassung der
+// Formel. Nur die fünf endlichen Vorkommen nehmen teil (VORKOMMEN_RESSOURCEN,
+// data.js); jede andere Ressource in `produktion` wird ignoriert.
+export function gefoerdertNachziehen(planet, produktion, stunden) {
+  for (const resId of VORKOMMEN_RESSOURCEN) {
+    const proStunde = produktion[resId] || 0;
+    if (proStunde > 0) gefoerdertHinzufuegen(planet, resId, proStunde * stunden);
   }
 }
 
@@ -1411,7 +1495,7 @@ export function rohRaten(state, planet) {
   // A-217 (09.09.): Abgaben kreditieren den Posten hier NICHT mehr -- Geld
   // ohne Handel war Geld aus dem Nichts (Tobis Befund, Sammel-Feedback F6).
   // Echtes Einkommen entsteht seither ausschließlich durch Handel:
-  // `handelspostenHandeln` in simulation.js, ein Verkauf je Takt über
+  // `handelssektorHandeln` in simulation.js, ein Verkauf je Takt über
   // dieselbe `verkaufen`-Funktion wie ein Klick im Marktfenster.
   // A-224 (09.09.): Die Abgaben-Formel selbst (`handelsAbgaben`) ist mit
   // ihrem letzten Leser (`ausbauVorschau`) entfallen -- sie kreditierte
@@ -1443,13 +1527,18 @@ export function rohRaten(state, planet) {
     // Das Brennstoff-Tor (A-055): ein erloschener Reaktor liefert nichts und
     // zieht nichts -- auch keine Arbeitskraft, die Belegschaft steht nicht in
     // einer kalten Halle. Binär, damit kein Kreis entsteht (siehe
-    // brennstoffBereit). Das Solarfeld skaliert mit seiner Orbit-Zone.
+    // brennstoffBereit). Die Solaranlagen skalieren mit ihrer Orbit-Zone.
     const an = brennstoffBereit(planet, def, level) ? 1 : 0;
     const lage = def.sonnenlage ? solarLageFaktor(planet) : 1;
 
     for (const [resId, spec] of Object.entries(def.produktion || {})) {
+      // A-236: die Ergiebigkeit MULTIPLIZIERT die Rate, wie affinitaetFaktor
+      // daneben -- sie betrifft ausschließlich die fünf Förderanlagen
+      // (gruppe "foerderung"), nicht die Anreicherung (siehe unten, die zahlt
+      // mit Strom statt mit Vorkommen) und keine andere Produktion.
+      const ergiebigkeit = def.gruppe === "foerderung" ? foerderErgiebigkeit(planet, resId) : 1;
       produktion[resId] =
-        (produktion[resId] || 0) + rate(spec, level) * bonus * affinitaetFaktor(planet, resId) * an * lage;
+        (produktion[resId] || 0) + rate(spec, level) * bonus * affinitaetFaktor(planet, resId) * ergiebigkeit * an * lage;
     }
     // Der zweite Betriebsmodus (A-071). OHNE `bonus` und OHNE `affinitaet`:
     // beide würden die Perpetuum-mobile-Schranke aufweichen, weil die
@@ -1544,10 +1633,18 @@ export function anreicherungSetzen(planet, gebaeudeId, an) {
 // Läuft der Modus gerade wirklich? Schalter UND Forschung. Die Forschung ist
 // ein SCHLÜSSEL (A-013): sie wirkt bei Abschluss, nicht anteilig -- deshalb
 // steht hier ein Vergleich gegen 1 und kein Fortschrittsanteil.
+//
+// A-228: über dieselbe Naht wie kannBauen jetzt -- fraktionVon(planet) und
+// forschungVon (A-133), statt state.forschung direkt (das prüfte immer den
+// SPIELER, unabhängig davon, wessen Planet gerade gefragt wird). Der
+// defensive `state && state.forschung`-Schutz bleibt erhalten, weil
+// forschungVon selbst für die Spieler-Fraktion `state.forschung`
+// ungeprüft zurückgibt.
 export function anreicherungLaeuft(state, planet, gebaeudeId, def) {
   if (!def || !def.anreicherung) return false;
+  if (!state || !state.forschung) return false;
   const noetig = def.anreicherung.forschung;
-  if (((state && state.forschung && state.forschung[noetig]) || 0) < 1) return false;
+  if ((forschungVon(state, fraktionVon(planet))[noetig] || 0) < 1) return false;
   return anreicherungAn(planet, gebaeudeId);
 }
 
@@ -1703,7 +1800,11 @@ export function produktionsAufloesung(state, planet) {
     const lage = def.sonnenlage ? solarLageFaktor(planet) : 1;
     for (const [resId, spec] of Object.entries(def.produktion || {})) {
       if (!LAGER_RESSOURCEN.includes(resId)) continue;
-      prod[resId] = rate(spec, level) * bonus * affinitaetFaktor(planet, resId) * lichtFaktor * an * lage;
+      // A-236: dieselbe Ergiebigkeit wie in rohRaten -- sonst weicht die
+      // Kettenauflösung von der Rohrate ab (die teuerste Fehlerklasse des
+      // Projekts, siehe die Kommentare an dieser Schleife).
+      const ergiebigkeit = def.gruppe === "foerderung" ? foerderErgiebigkeit(planet, resId) : 1;
+      prod[resId] = rate(spec, level) * bonus * affinitaetFaktor(planet, resId) * ergiebigkeit * lichtFaktor * an * lage;
     }
     for (const [resId, spec] of Object.entries(def.verbrauch || {})) {
       if (!LAGER_RESSOURCEN.includes(resId)) continue;
@@ -2181,7 +2282,7 @@ export function lagerverbrauchVon(resId) {
 }
 
 export function lagerKapazitaetGesamt(state, planet) {
-  const basis = lagerkapazitaet(planet && planet.gebaeude ? planet.gebaeude.lagerhalle || 0 : 0);
+  const basis = lagerkapazitaet(planet && planet.gebaeude ? planet.gebaeude.lagernetz || 0 : 0);
   return Math.round(basis * kategorieBonus(state, "lager", fraktionVon(planet)));
 }
 
@@ -2201,7 +2302,7 @@ export function lagerFrei(state, planet) {
 // Wie lange reicht der Platz noch? (A-051)
 //
 // Die Antwort auf das A-023-Zurück: die Belegung im Frühspiel plateaut, eine
-// Lagerhalle ist eine OFFLINE-Entscheidung -- und das ist in Ordnung. Was
+// Lagerausbau ist eine OFFLINE-Entscheidung -- und das ist in Ordnung. Was
 // fehlte, war nur, dass das Spiel es SAGT.
 //
 // Gerechnet wird in Lagervolumen je Stunde, nicht in Tonnen: eine Tonne
@@ -2241,7 +2342,7 @@ export function speicherKapazitaetFuerLevel(resId, level) {
   const def = RESSOURCEN[resId];
   if (!def || !def.speicher) return Infinity;
   // Ohne `abLevel` trägt schon Stufe 0 die Basiskapazität -- das ist beim
-  // Wohnmodul gewollt (die Startbevölkerung muss irgendwo wohnen). Beim
+  // Wohnsektor gewollt (die Startbevölkerung muss irgendwo wohnen). Beim
   // Energiespeicher wäre es falsch: ohne gebauten Speicher gibt es keinen.
   if (def.speicher.abLevel && level < def.speicher.abLevel) return 0;
   return Math.round(def.speicher.basis * Math.pow(def.speicher.faktor, Math.max(0, level)));
@@ -2255,7 +2356,7 @@ export function speicherKapazitaet(planet, resId) {
 }
 
 // Welche Ressource bekommt ihre Kapazität aus diesem Gebäude? Für die Anzeige:
-// ein Wohnmodul produziert nichts und sähe sonst nutzlos aus.
+// ein Wohnsektor produziert nichts und sähe sonst nutzlos aus.
 export function speicherRessourceVon(gebaeudeId) {
   for (const def of Object.values(RESSOURCEN)) {
     if (def.speicher && def.speicher.gebaeude === gebaeudeId) return def.id;
@@ -2271,7 +2372,7 @@ export function speicherRessourceVon(gebaeudeId) {
 // steht dabei noch auf 0. Kosten und Bauzeit rechneten immer mit `ziel`; die
 // Zuwachs-Zeilen der Kachel nahmen die heutige Stufe als Basis -- und zeigten
 // damit den Sprung von 0 auf 2 statt von 1 auf 2. Gemessen an einem
-// Kraftwerk: „+11.520 MW · −1.322 AK" im Bau gegen „+6.720 MW · −747 AK"
+// Fusionsanlage: „+11.520 MW · −1.322 AK" im Bau gegen „+6.720 MW · −747 AK"
 // danach, bei identischen Kosten und identischer Dauer.
 //
 // Die Rechnung steht hier und nicht in der Oberfläche, weil sie eine Aussage
@@ -2290,7 +2391,7 @@ export function ausbauVorschau(state, planet, def, ziel) {
   for (const [resId, spec] of Object.entries(def.produktion || {})) {
     if (resId === "energie") continue; // steht separat als ⚡
     // Planetare Affinität gehört zwingend hinein: auf einer Vulkanwelt bringt
-    // dieselbe Iridiummine fast das Doppelte.
+    // dieselbe Iridiumförderung fast das Doppelte.
     const affin = planet ? affinitaetFaktor(planet, resId) : 1;
     const mehr = zuwachs(spec) * bonus * affin;
     if (mehr > 0) produktion[resId] = Math.round(mehr);
@@ -2304,7 +2405,7 @@ export function ausbauVorschau(state, planet, def, ziel) {
     const mehr = zuwachs(spec) * verbrauchsBonusFaktor(state, def, resId, fraktion);
     if (mehr > 0) verbrauch[resId] = Math.round(mehr);
   }
-  // A-114: Der Brennstoff des Kraftwerks steht in `def.brennstoff`, einem
+  // A-114: Der Brennstoff der Fusionsanlage steht in `def.brennstoff`, einem
   // EIGENEN Block neben `verbrauch` (A-055, Weg B: der Abzug läuft beim
   // Fortschreiben der Planetenuhr, nicht in der Ratenrechnung -- sonst
   // entstünde ein Fluss-Kreis). Die Vorschau kannte diesen Block bisher nicht
@@ -2333,7 +2434,7 @@ export function ausbauVorschau(state, planet, def, ziel) {
   return {
     // Nettobilanz: was die Stufe erzeugt, minus was sie zieht. Der
     // Verbrauchsteil trägt seit A-116 denselben verbrauchsBonusFaktor wie die
-    // übrigen Verbrauchsposten (bei Kraftwerk/Solarfeld ist er 1, siehe dort).
+    // übrigen Verbrauchsposten (bei Fusionsanlage/Solaranlagen ist er 1, siehe dort).
     energie:
       zuwachs(def.produktion && def.produktion.energie) -
       zuwachs(def.verbrauch && def.verbrauch.energie) * verbrauchsBonusFaktor(state, def, "energie", fraktion),
@@ -2689,7 +2790,7 @@ export function werftTempo(planet) {
   return stufe <= 0 ? 0 : 1 + (stufe - 1) * 0.25;
 }
 
-// Forschungslabor beschleunigt, ist aber -- anders als die Werft -- kein
+// Forschungssektor beschleunigt, ist aber -- anders als die Werft -- kein
 // Zwang: ohne Labor bleibt es bei 1x, damit alte Spielstände nicht brechen.
 // Der Forschungsfluss EINES Planeten: was seine Labore gerade wirklich
 // erzeugen, inklusive aller Drosselungen.
@@ -2725,8 +2826,8 @@ export function laborbedarfKnapp(state, fraktionId = SPIELER_FRAKTION) {
   if (!state.forschungsQueue) return [];
   const knapp = new Set();
   for (const planet of planetenVon(state, fraktionId)) {
-    const def = BUILDINGS.forschungslabor;
-    const level = (planet.gebaeude && planet.gebaeude.forschungslabor) || 0;
+    const def = BUILDINGS.forschungssektor;
+    const level = (planet.gebaeude && planet.gebaeude.forschungssektor) || 0;
     if (level <= 0) continue;
     const aufloesung = produktionsAufloesung(state, planet);
     for (const resId of def.nurBeiForschung || []) {
@@ -2741,7 +2842,7 @@ export function laborbedarfKnapp(state, fraktionId = SPIELER_FRAKTION) {
 // ein leeres Imperium darf nicht ewig auf einen Fortschritt warten, der nie
 // kommt (Prinzip 10a -- Blockiertes erklärt sich selbst).
 export function hatLabor(state, fraktionId = SPIELER_FRAKTION) {
-  return planetenVon(state, fraktionId).some((p) => (p.gebaeude && p.gebaeude.forschungslabor) > 0);
+  return planetenVon(state, fraktionId).some((p) => (p.gebaeude && p.gebaeude.forschungssektor) > 0);
 }
 
 export function schiffeFrei(planet, schiffId) {
@@ -2830,7 +2931,7 @@ export function bunkerGeschuetzterAnteil(planet, resId) {
 }
 
 export function handelVerfuegbar(planet) {
-  return !!planet && planet.typ !== "aussenposten" && (planet.gebaeude.handelsposten || 0) >= 1;
+  return !!planet && planet.typ !== "aussenposten" && (planet.gebaeude.handelssektor || 0) >= 1;
 }
 
 // Wiederkehrende Flottenrouten sind ein Fortschrittsziel, kein Standard --

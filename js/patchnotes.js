@@ -28,6 +28,96 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.9.26",
+    de: [
+      "Nur intern: Der Roadmap-Ausblick im Development-Bereich versprach drei Dinge, die längst gebaut oder gestrichen waren (Verteidigung für Planeten, endliche Vorkommen, eine Handy-Oberfläche) und nannte für die endlichen Vorkommen fälschlich einen Spielstand-Reset. Auf den aktuellen Stand gezogen. Für den Spieler ändert sich am Spiel selbst nichts.",
+    ],
+    en: [
+      "Internal only: the roadmap preview in the Development section promised three things that were already built or dropped (defences for planets, finite deposits, a phone-friendly interface) and wrongly warned of a save reset for finite deposits. Brought up to date. Nothing changes in the game itself for players.",
+    ],
+  },
+  {
+    version: "0.9.25",
+    de: [
+      "Vorkommen sind jetzt endlich: Metall-, Silizium-, Deuterium-, Uran- und Iridiumförderung werden mit der Zeit ärmer – die Ergiebigkeit steht jetzt als Prozentzahl an der jeweiligen Kachel. Ein Bergwerk wird dabei nie leer, nur teurer: Recycling, Bergung liegengebliebener Ladung und ein Umzug auf eine frische Welt gleichen den Rückgang aus.",
+    ],
+    en: [
+      "Deposits are now finite: metal, silicon, deuterium, uranium, and iridium extraction grow less rich over time – yield now shows as a percentage on each facility's tile. A mine never runs dry, only leaner: recycling, salvaging drifting cargo, and relocating to a fresh world all offset the decline.",
+    ],
+  },
+  {
+    version: "0.9.24",
+    de: [
+      "Zwölf Anlagen heißen jetzt so, wie sie gemeint waren: Metallförderung, Siliziumförderung, Iridiumförderung, Fusionsanlage, Solaranlagen, Lagernetz, Deuteriumanlage, Forschungssektor, Agrarsektor, Wohnsektor, Handelssektor und Antimateriekollektor. Nichts an ihrer Funktion ändert sich – nur der Name, den du siehst, passt jetzt zu dem, was das Spiel intern schon lange so nennt.",
+    ],
+    en: [
+      "Twelve facilities now go by the names they were always meant to have: Metal Extraction, Silicon Extraction, Iridium Extraction, Fusion Plant, Solar Arrays, Storage Network, Deuterium Plant, Research Sector, Agricultural Sector, Residential Sector, Trade Sector, and Antimatter Collector. Nothing about how they work changes – only the name you see, now matching what the game has long called them internally.",
+    ],
+  },
+  {
+    version: "0.9.23",
+    de: [
+      "Antimaterie lässt sich jetzt entladen: Im Lager-Bereich gibt ein neuer Knopf deinen ganzen Vorrat als Energie in den Speicher zurück (35 % ohne Forschung, bis 80 % mit Rückbautechnik) – kein Material, denn in Antimaterie steckt Energie, kein Rohstoff. Was über die Speicherkapazität hinausgeht, verfällt, und ohne gebauten Energiespeicher lässt sich gar nicht erst entladen.",
+    ],
+    en: [
+      "Antimatter can now be discharged: a new button in the Storage section returns your entire stock as energy into the store (35% without research, up to 80% with Deconstruction Technology) – no material, since what's stored in antimatter is energy, not raw matter. Anything past the store's capacity is lost, and discharging is blocked entirely without a built energy store.",
+    ],
+  },
+  {
+    version: "0.9.22",
+    de: [
+      "Elektronik lässt sich jetzt zerlegen: Im Lager-Bereich gibt ein neuer Knopf einen Teil des verbauten Siliziums zurück (35 % ohne Forschung, bis 80 % mit Rückbautechnik) – derselbe Mechanismus wie beim Schiffs-Recycling. Praktisch, um ein volles Lager zu räumen, ohne die Ware wegzuwerfen.",
+    ],
+    en: [
+      "Electronics can now be broken down: a new button in the Storage section returns some of the silicon that went into it (35% without research, up to 80% with Deconstruction Technology) – the same mechanism as ship recycling. Handy for clearing a full warehouse instead of just discarding the goods.",
+    ],
+  },
+  {
+    version: "0.9.21",
+    de: [
+      "Elektronik und Nahrung sind jetzt Marktware wie alles andere im Lager – am Handelsposten kaufst und verkaufst du sie genau wie Metall oder Iridium. Elektronik selbst zu fertigen bleibt dabei günstiger als sie zu kaufen.",
+    ],
+    en: [
+      "Electronics and food are now tradeable like everything else in storage – buy and sell them at the trading post just like metal or iridium. Manufacturing electronics yourself stays cheaper than buying it.",
+    ],
+  },
+  {
+    version: "0.9.20",
+    de: [
+      "Piraten wählen ihr Ziel jetzt nach Verkaufswert, nicht nach Gewicht – egal ob sie zwischen zwei Flotten oder einer Flotte und einer Welt entscheiden. Eine Flotte voller billiger Massenware ist jetzt seltener das Ziel als eine mit wenig, aber teurer Fracht.",
+    ],
+    en: [
+      "Pirates now pick their target by resale value, not by weight – whether they're choosing between two fleets or a fleet and a world. A fleet full of cheap bulk cargo is now less often the target than one carrying less, but pricier freight.",
+    ],
+  },
+  {
+    version: "0.9.19",
+    de: [
+      "Dein Spielstand wechselt heute noch einmal unbemerkt sein internes Format – diesmal betrifft es, wie er Anlagen und Deuterium intern benennt. Nichts geht dabei verloren, und du siehst keinen Unterschied.",
+    ],
+    en: [
+      "Your save file quietly switches its internal format once more today – this time it is about how it names facilities and deuterium internally. Nothing is lost, and you won't notice any difference.",
+    ],
+  },
+  {
+    version: "0.9.18",
+    de: [
+      "Dein Spielstand wechselt heute unbemerkt das interne Format, in dem er die Größe deiner Anlagen speichert – das ist die Grundlage für kommende Ausbauten. Nichts geht dabei verloren, und du siehst keinen Unterschied.",
+    ],
+    en: [
+      "Your save file quietly switches the internal format it uses to store the size of your facilities today – groundwork for upcoming expansions. Nothing is lost, and you won't notice any difference.",
+    ],
+  },
+  {
+    version: "0.9.17",
+    de: [
+      "Nur intern: der Forschungs-Check beim Bauen (und beim zweiten Betriebsmodus des Extraktors) fragte bisher immer die Forschung des Spielers, unabhängig davon, wessen Planet gerade gebaut hat. Heute ohne Wirkung, weil noch kein Bot-Gebäude eine Forschungsvoraussetzung trägt – behoben, bevor der Techbaum-Ausbau das ändert. Für den Spieler ändert sich nichts.",
+    ],
+    en: [
+      "Internal only: the research check when building (and for the extractor's second operating mode) always asked the player's own research, regardless of whose planet was actually building. No effect today, since no bot building carries a research prerequisite yet – fixed before the tech tree expansion changes that. Nothing changes for players.",
+    ],
+  },
+  {
     version: "0.9.16",
     de: [
       "Die Forschungsseite sagt jetzt, was Forschung wirklich kostet: Silizium (und ab Laborstufe 3 zusätzlich Elektronik) – gezogen von den Laboren selbst, solange ein Projekt läuft, nicht von der einzelnen Technologie. Die einzelne Technologie kostet weiterhin nur Aufwand und Zeit, wie gehabt.",
@@ -1949,11 +2039,8 @@ export const ROADMAP_PUNKTE = [
     de: "Später",
     en: "Later",
     punkte: [
-      { de: "Endliche Vorkommen — ⚠ dieser Schritt setzt Spielstände einmalig zurück", en: "Finite deposits — ⚠ this step resets saves once" },
       { de: "Lesbare Systemnamen statt Nummern", en: "Readable system names instead of numbers" },
-      { de: "Verteidigung für Planeten", en: "Defences for planets" },
-      { de: "Feineres Wirtschafts-Management (Produktions-Deckel, Prioritäten-Fenster)", en: "Finer economic management (production caps, priority panel)" },
-      { de: "Oberfläche fürs Handy", en: "A phone-friendly interface" },
+      { de: "Ein Prioritäten-Fenster: Strom und Arbeitskraft von Hand verteilen", en: "A priority panel: assign power and workforce by hand" },
     ],
   },
 ];

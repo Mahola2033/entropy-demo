@@ -2185,6 +2185,23 @@ body {
   font-style: italic;
 }
 
+/* Zerlegen (A-231) -- eigene, volle Zeile unter den drei Stellschrauben,
+   NUR bei Waren mit `bestandteile` sichtbar (heute: Elektronik). Das
+   .bedienzeile-Raster hat keine vierte Spalte mehr frei (die drei
+   Stellschrauben belegen schon alle sechs); eine eigene, spannende Zeile
+   statt eine vierte Feldgruppe in eine bereits volle Spalte zu quetschen. */
+.lager-zerlegen {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--abstand-4);
+  margin-top: var(--abstand-3);
+  padding-top: var(--abstand-3);
+  border-top: 1px solid var(--border);
+}
+
 .flotte-zeile {
   display: flex;
   align-items: center;

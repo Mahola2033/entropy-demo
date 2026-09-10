@@ -39,6 +39,8 @@ import {
   jahreInMs,
   bevoelkerungsFaktorUeberMs,
   ARBEITSKRAFT_LEERLAUF,
+  VORKOMMEN_RESSOURCEN,
+  VORKOMMEN_MELDESCHWELLE,
 
   taugtAlsStartwelt,
   REICHWEITE,
@@ -47,7 +49,7 @@ import {
   bauzeitFuerLevel,
   forschungsAufwand,
   voraussetzungenText,
-} from "./data.js?v=0.9.16";
+} from "./data.js?v=0.9.26";
 import {
   effektiveRaten,
   bevoelkerungsWachstumsrate,
@@ -56,6 +58,8 @@ import {
   reaktorBitNachziehen,
   fossilVorratNachziehen,
   nahrungsbilanzNachziehen,
+  gefoerdertNachziehen,
+  foerderErgiebigkeit,
   brennstoffReichweiteMs,
   affinitaetFaktor,
   gebaeudeKosten,
@@ -107,7 +111,7 @@ import {
   arbeitskraftDiebstahlAnteil,
   maxReichweite,
   handelsMindestFuer,
-} from "./state.js?v=0.9.16";
+} from "./state.js?v=0.9.26";
 import {
   ortVonPlanet,
   ortVonSystem,
@@ -127,9 +131,9 @@ import {
   schiffeGesamt,
   schiffeStaerke,
   schiffeText,
-} from "./flotten.js?v=0.9.16";
-import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.16";
-import { stromFuer, waehle } from "./zufall.js?v=0.9.16";
+} from "./flotten.js?v=0.9.26";
+import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.26";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.26";
 import {
   reichenAus,
   fehlende,
@@ -140,8 +144,8 @@ import {
   buendelText,
   formatZahl as fmt,
   name as resName,
-} from "./ressourcen.js?v=0.9.16";
-import { t } from "./sprache.js?v=0.9.16";
+} from "./ressourcen.js?v=0.9.26";
+import { t } from "./sprache.js?v=0.9.26";
 
 // Kurzform: Ressourcen in ein Planetenlager einlagern, begrenzt durch den
 // gemeinsamen Pool und etwaige Annahmeregeln. Gibt zurück, was nicht
@@ -162,7 +166,7 @@ function insLager(state, planet, buendel) {
     (resId) => aufnahmeGrenzeFuer(planet, resId)
   );
 }
-import { systemName, entfernung } from "./galaxie.js?v=0.9.16";
+import { systemName, entfernung } from "./galaxie.js?v=0.9.26";
 
 const MS_PRO_STUNDE = 1000 * 60 * 60;
 
@@ -367,6 +371,32 @@ function piratenNaechsteBande(state, systemId) {
 function planetRatenAnwenden(state, planet, stunden) {
   {
     const { lager, fluss, produktion, verbrauch, drosselung, effizienz } = effektiveRaten(state, planet);
+
+    // A-236: die kumulierte Fördermenge zieht mit derselben, hier schon
+    // fertig gedrosselten Rate nach wie das Lager unten -- kein zweiter
+    // Leser einer zweiten Formel. Sitzt HIER statt wie fossilVorratNachziehen
+    // in planetVorruecken, weil `produktion` dort nicht zur Hand ist (sie
+    // hängt an kategorieBonus/Zuteilung, nicht ableitbar ohne `state`).
+    gefoerdertNachziehen(planet, produktion, stunden);
+    // Dieselbe Schwelle wie andere Warnungen (A-083 gruppiert die Zeile):
+    // kein Vorrat wird je 0, aber unter der Schwelle lohnt sich Recycling,
+    // Bergung oder ein Umzug spürbar -- die Meldung nennt den Hebel.
+    for (const resId of VORKOMMEN_RESSOURCEN) {
+      const gebaeudeId = RESSOURCEN[resId].gebaeude;
+      if (!((planet.gebaeude && planet.gebaeude[gebaeudeId]) > 0)) continue;
+      const ergiebigkeit = foerderErgiebigkeit(planet, resId);
+      if (ergiebigkeit >= VORKOMMEN_MELDESCHWELLE) continue;
+      meldungHinzufuegen(
+        state,
+        t("{planet}: {ressource}-Vorkommen bei {prozent} % Ergiebigkeit – das Bergwerk wird nicht leer, nur ärmer. Recycling, Bergung oder ein Umzug gleichen das aus.", {
+          planet: planet.name,
+          ressource: t(RESSOURCEN[resId].name),
+          prozent: Math.round(ergiebigkeit * 100),
+        }),
+        `ergiebigkeit-${planet.id}-${resId}`,
+        herkunftVon(planet)
+      );
+    }
 
     // A-155 (Arbeitskraft-Leerlauf): dieselbe Beschäftigungsquote wie die
     // Kachel (state.js, planetUebersicht), aus denselben Rohwerten. Über die
@@ -786,9 +816,9 @@ function ereignisBauen(state, zeit, art, entitaet) {
     // `naechstesWachstum` auf demselben Zeitpunkt stehen und würde jede
     // weitere Ereignissuche blockieren (dieselbe Falle wie ein Ereignis, das
     // sich nicht neu einplant, siehe Kommentar an EREIGNIS_DECKEL).
-    // A-217: derselbe Taktgeber trägt jetzt auch den Handelsposten -- GENAU
+    // A-217: derselbe Taktgeber trägt jetzt auch den Handelssektor -- GENAU
     // EIN selbsttätiger Handelsversuch je Planet je Takt (siehe
-    // handelspostenHandeln). Kein eigenes Ereignis dafür: ein Planet ohne
+    // handelssektorHandeln). Kein eigenes Ereignis dafür: ein Planet ohne
     // Wachstums-Taktgeber gäbe es nicht (siehe A-166 oben), also braucht auch
     // der Handel keinen zweiten.
     case "wachstum":
@@ -796,7 +826,7 @@ function ereignisBauen(state, zeit, art, entitaet) {
         zeit,
         ausfuehren: (t) => {
           entitaet.naechstesWachstum = t + BEVOELKERUNG.schrittMs;
-          handelspostenHandeln(state, entitaet, t);
+          handelssektorHandeln(state, entitaet, t);
         },
         planeten: [entitaet],
       };
@@ -1845,14 +1875,14 @@ function piratenErwecken(state, systemId, objekt, zeit) {
   // Begruendung "Piraten tanken nicht bei uns" -- ein Perpetuum mobile
   // (Prinzip 0 und 13), das bis v0.63 nur nie sichtbar war. Sichtbar wurde
   // es, als umziehende Gruppen unterwegs starben: flotteLeerAufloesen kippt
-  // den Resttreibstoff als Tritium in die Welt, und das waren je Flotte 2,25
+  // den Resttreibstoff als Deuterium in die Welt, und das waren je Flotte 2,25
   // Billiarden. Piraten tanken jetzt aus ihrer Beute wie alle anderen.
   flotte.treibstoff = flotteTankKapazitaet(state, flotte);
 
   const fraktion = state.fraktionen[id];
-  // Ein Schmugglerdock. Ohne Handelsposten greift handelVerfuegbar nicht und
+  // Ein Schmugglerdock. Ohne Handelssektor greift handelVerfuegbar nicht und
   // die Gruppe kaeme trotz handel:true nie an Treibstoff (v0.67).
-  basis.gebaeude.handelsposten = 1;
+  basis.gebaeude.handelssektor = 1;
   fraktion.basisPlanet = basis.id;
   fraktion.flotteId = flotte.id;
   fraktion.naechsterSchritt = zeit + PIRAT.taktMs;
@@ -1929,9 +1959,9 @@ function piratenSchritt(state, fraktion, zeit) {
   // vorher.
   if (!flotte.abschnitt && flotte.befehle.length === 0) {
     const platz = Math.max(0, flotteTankKapazitaet(state, flotte) - (flotte.treibstoff || 0));
-    const nimm = Math.min(platz, Math.floor(basis.ressourcen.tritium || 0));
+    const nimm = Math.min(platz, Math.floor(basis.ressourcen.deuterium || 0));
     if (nimm > 0) {
-      basis.ressourcen.tritium -= nimm;
+      basis.ressourcen.deuterium -= nimm;
       flotte.treibstoff += nimm;
       planetGeaendert(basis);
     }
@@ -1940,7 +1970,7 @@ function piratenSchritt(state, fraktion, zeit) {
   // HANDELN, wenn der Sprit knapp wird (v0.67).
   //
   // Das ist die einzige Treibstoffquelle, die Piraten überhaupt haben können:
-  // Tritium steht in keiner Vorkommenstabelle und in keinem Wrack, es
+  // Deuterium steht in keiner Vorkommenstabelle und in keinem Wrack, es
   // entsteht ausschließlich im Extraktor. Sie verkaufen also Beute und kaufen
   // Sprit -- über denselben Markt und dieselbe Beziehungsschwelle wie jeder
   // andere. Wer zu viel geraubt hat, bekommt nichts mehr und strandet. Das
@@ -2170,10 +2200,10 @@ export function piratenNeugruendung(state, zeit) {
 //
 // SPRITNOT ÄNDERT DAS ZIEL (v0.65, Tobis Vorgabe). Wer fast leer ist, greift
 // nicht mehr nach der dicksten Fracht, sondern nach dem, was ihn wieder
-// fliegen lässt: Tritium an Bord -- ob im Tank oder in der Ladung.
+// fliegen lässt: Deuterium an Bord -- ob im Tank oder in der Ladung.
 //
 // Das ist keine Sonderregel, sondern eine andere Bewertung derselben Ziele.
-// Und es ist der Grund, warum ein Tritiumfrachter im falschen System ein
+// Und es ist der Grund, warum ein Deuteriumfrachter im falschen System ein
 // gefährlicherer Ort ist als ein Erzfrachter: Piraten in Not suchen genau ihn.
 //
 // A-208: zweiter Kandidatentyp neben Flotten -- Planeten im selben System.
@@ -2198,10 +2228,12 @@ function piratenZiel(state, fraktion, basis, flotte = null) {
     if (beziehungZu(state, fraktion.id, wem) > KAMPF.beutezugAb) continue;
 
     const fracht = ladungGesamt(fremd);
-    const sprit = Math.floor(fremd.treibstoff || 0) + Math.floor(fremd.ladung?.tritium || 0);
-    // In Not zählt der Sprit, sonst die Fracht. Ein Ziel muss aber immer
-    // irgendetwas hergeben, sonst lohnt der Überfall nicht.
-    const wert = knapp ? sprit : fracht;
+    const sprit = Math.floor(fremd.treibstoff || 0) + Math.floor(fremd.ladung?.deuterium || 0);
+    // In Not zählt der Sprit, sonst der VERKAUFSWERT der Ladung -- nicht ihre
+    // rohe Tonnage (A-229). `fracht` bleibt daneben stehen: sie entscheidet
+    // weiterhin das Mindestbeute-Gate direkt darunter (roh genug, dass sich
+    // ein Überfall überhaupt lohnt) und ist von diesem Auftrag nicht berührt.
+    const wert = knapp ? sprit : verkaufswertVon(fremd.ladung);
     if (fracht < PIRAT.mindestBeute && sprit < PIRAT.mindestBeute) continue;
     if (wert <= 0) continue;
     if (!bestes || wert > bestes.wert) bestes = { art: "flotte", flotte: fremd, fracht, wert };
@@ -2282,16 +2314,35 @@ export function gierigFuellen(bestand, frachtraum) {
   return genommen;
 }
 
-// Wie viel lohnende Beute EINE Welt trägt -- Auftrag, Mechanismus Punkt 1:
-// "Der Wert einer Welt ist nicht ihre Tonnage, sondern ihre verkaufbare
-// Beute." Summe des Verkaufswerts über RAUB_REIHENFOLGE (also nur, was
-// überhaupt gehandelt wird).
-export function weltBeuteWert(planet) {
+// A-229 (B-13): Flotte und Welt wurden bisher in ZWEI Einheiten gegeneinander
+// gewogen -- eine Flotte nach roher Tonnage (`ladungGesamt`), eine Welt nach
+// Verkaufswert (`weltBeuteWert`). Solange alle Marktpreise nah bei 1 lagen,
+// maß das praktisch dasselbe; A-230 (alle Ressourcen kaufbar) sprengt dieses
+// Band nach beiden Seiten. EINE Funktion für beide Seiten, damit sie beim
+// nächsten Preis-Umbau nicht wieder auseinanderlaufen -- Bündel ist
+// wahlweise `planet.ressourcen` oder `flotte.ladung`, beide sind flache
+// { resId: menge }-Objekte. Waren ohne Marktpreis (vor A-230 noch
+// Elektronik und Nahrung, seither nur noch Bevölkerung und Credits) zählen
+// mit 0 -- `|| 0` statt über RAUB_REIHENFOLGE zu iterieren, damit die
+// Funktion nicht von einer vollständigen Preistabelle abhängt (dieselbe
+// Falle, die schon beim Zusammenstellen der Beute lauert, siehe
+// gierigFuellen).
+function verkaufswertVon(bestand) {
   let wert = 0;
-  for (const resId of RAUB_REIHENFOLGE) {
-    wert += (planet.ressourcen[resId] || 0) * MARKT_PREISE[resId].verkauf;
+  for (const [resId, menge] of Object.entries(bestand || {})) {
+    wert += menge * (MARKT_PREISE[resId]?.verkauf || 0);
   }
   return wert;
+}
+
+// Wie viel lohnende Beute EINE Welt trägt -- Auftrag A-208, Mechanismus
+// Punkt 1: "Der Wert einer Welt ist nicht ihre Tonnage, sondern ihre
+// verkaufbare Beute." Seit A-229 dieselbe Funktion wie die Flottenseite in
+// piratenZiel (siehe verkaufswertVon oben) -- vorher zwei gleich aussehende
+// Schleifen, die beim nächsten Preis-Umbau wieder hätten auseinanderlaufen
+// können.
+export function weltBeuteWert(planet) {
+  return verkaufswertVon(planet.ressourcen);
 }
 
 // A-208, Mechanismus Punkt 5 -- A-206s eigener Fund aufgelöst:
@@ -2628,7 +2679,7 @@ function piratenNiederlassung(state, flotte, befehl, zeit) {
   state.planeten.push(basis);
   planPlanetNeu(state, basis);
 
-  basis.gebaeude.handelsposten = 1;
+  basis.gebaeude.handelssektor = 1;
   fraktion.basisPlanet = basis.id;
   flotte.heimatPlanet = basis.id;
   flotte.dockPlanet = basis.id;
@@ -2705,8 +2756,13 @@ function piratenHandeln(state, fraktion, basis, flotte) {
   // ist das der normale Ausgang und kein Fehler.
   //
   // A-148: uran steht hier wie iridium (Beute, kein eigener Bedarf) --
-  // anders als tritium, das die Flotte selbst als Treibstoff braucht.
-  for (const resId of ["metall", "silizium", "iridium", "uran", "antimaterie"]) {
+  // anders als deuterium, das die Flotte selbst als Treibstoff braucht.
+  // A-230: generisch aus MARKT_PREISE statt Handkopie -- eine neue Ware
+  // (wie Elektronik) wird ab jetzt automatisch mitverkauft, ohne dass diese
+  // Stelle nachgezogen werden muss. Nahrung bleibt ausdrücklich ausgenommen,
+  // s.o.
+  for (const resId of Object.keys(MARKT_PREISE)) {
+    if (resId === "nahrung") continue;
     const menge = Math.floor(basis.ressourcen[resId] || 0);
     if (menge > 0) verkaufen(state, basis, resId, menge);
   }
@@ -2714,19 +2770,19 @@ function piratenHandeln(state, fraktion, basis, flotte) {
   // Und tanken, so weit die Kasse reicht.
   const platz = Math.max(0, tankKap - (flotte.treibstoff || 0));
   if (platz <= 0) return;
-  const preis = MARKT_PREISE.tritium ? MARKT_PREISE.tritium.kauf : 0;
+  const preis = MARKT_PREISE.deuterium ? MARKT_PREISE.deuterium.kauf : 0;
   if (preis <= 0) return;
   const bezahlbar = Math.floor((basis.ressourcen.credits || 0) / preis);
   const menge = Math.min(platz, bezahlbar);
   if (menge <= 0) return;
-  if (!kaufen(state, basis, "tritium", menge).ok) return;
+  if (!kaufen(state, basis, "deuterium", menge).ok) return;
 
   // Gekauftes liegt am Markt, bis eine Flotte es staut -- dieselbe Reibung
   // wie beim Spieler. Die Flotte liegt hier am eigenen Dock, also staut sie
   // sofort und pumpt es in die Tanks.
-  const gekauft = Math.floor(basis.marktlager.tritium || 0);
+  const gekauft = Math.floor(basis.marktlager.deuterium || 0);
   if (gekauft <= 0) return;
-  basis.marktlager.tritium -= gekauft;
+  basis.marktlager.deuterium -= gekauft;
   flotte.treibstoff = Math.min(tankKap, (flotte.treibstoff || 0) + gekauft);
   planetGeaendert(basis);
 }
@@ -2794,7 +2850,7 @@ function beuteVonFlotte(state, angreifer, opfer, zeit) {
   //
   // Das war die fehlende Hälfte eines Kreislaufs, der schon zur anderen
   // Hälfte existierte: flotteLeerAufloesen legt den Resttreibstoff einer
-  // vernichteten Flotte längst als Tritium an den Kampfort. Bisher blieb er
+  // vernichteten Flotte längst als Deuterium an den Kampfort. Bisher blieb er
   // dort liegen, statt in den Tank zu wandern, der ihn braucht.
   //
   // Damit finanziert sich Piraterie aus genau dem, was sie tut (Prinzip 0:
@@ -2809,7 +2865,7 @@ function beuteVonFlotte(state, angreifer, opfer, zeit) {
       state,
       t("{flotte}: {menge} aus den Tanks abgezapft.", {
         flotte: opfer.name,
-        menge: buendelText({ tritium: abgezapft }),
+        menge: buendelText({ deuterium: abgezapft }),
       }),
       null,
       herkunftVon(opfer)
@@ -2908,7 +2964,7 @@ export function botWeltStart(state, zeit = state.letzterTick) {
       schwerkraft: heimat.daten.schwerkraft || 1,
       groesse: heimat.daten.groesse || 150,
     });
-    // Jede fremde Heimatwelt startet MIT Handelsposten und einer Kasse.
+    // Jede fremde Heimatwelt startet MIT Handelssektor und einer Kasse.
     //
     // Das ist keine Bequemlichkeit, sondern Prinzip 1: die Welt existiert,
     // bevor jemand hinsieht. Seit der Markt einen echten Gegenüber braucht
@@ -2917,7 +2973,7 @@ export function botWeltStart(state, zeit = state.letzterTick) {
     // NIEMANDEN: die Ausbauliste der Bots kennt den Posten erst seit v0.6,
     // und bis ein Bot ihn baut, vergehen Spieljahre. Der Markt wäre nicht
     // repariert, sondern abgeschaltet gewesen.
-    welt.gebaeude.handelsposten = BOT.startHandelsposten;
+    welt.gebaeude.handelssektor = BOT.startHandelsposten;
     welt.ressourcen.credits = BOT.startKasse;
     welt.letzterTick = zeit;
     state.planeten.push(welt);
@@ -2949,7 +3005,7 @@ const ENGPASS_PRUEFUNGEN = {
   // Welten ohne Deuterium-Affinität ist ein Extraktor keine Antwort; dort
   // bleibt nur Handel oder der Speicher (dieselbe Regel wie beim Nachschub).
   brennstoff: (state, planet) => {
-    if (affinitaetFaktor(planet, "tritium") <= 0) return false;
+    if (affinitaetFaktor(planet, "deuterium") <= 0) return false;
     return brennstoffReichweiteMs(planet) < BOT.engpassSchwellen.brennstoffStunden * 60 * 60 * 1000;
   },
 
@@ -2957,7 +3013,7 @@ const ENGPASS_PRUEFUNGEN = {
     (lage.lager.nahrung || 0) < 0 ||
     (lage.drosselung.nahrung !== undefined && lage.drosselung.nahrung < 1),
 
-  // Wohnraum VOR dem Anschlag: ein Wohnmodul ist erst nach seiner Bauzeit da,
+  // Wohnraum VOR dem Anschlag: ein Wohnsektor ist erst nach seiner Bauzeit da,
   // und bis dahin wächst niemand mehr nach.
   wohnraum: (state, planet) => {
     const kapazitaet = speicherKapazitaet(planet, "bevoelkerung");
@@ -2997,9 +3053,9 @@ function botEngpass(state, planet) {
 // Geprüft wird, ob das Gebäude STEHT -- ausdrücklich nicht, ob es gerade
 // fördert. Der erste Anlauf fragte nach der effektiven Produktionsrate, und
 // die ist bei Energiemangel null, obwohl die Mine längst da ist. Der Bot las
-// das als "kein Nachschub", baute eine weitere Mine statt des fehlenden
-// Kraftwerks, und weil ohne Strom weiter nichts förderte, wiederholte er das:
-// nach 24 h vier Metallminen, kein Kraftwerk, Produktion null. Aus einer
+// das als "kein Nachschub", baute eine weitere Mine statt der fehlenden
+// Fusionsanlage, und weil ohne Strom weiter nichts förderte, wiederholte er das:
+// nach 24 h vier Metallförderungen, keine Fusionsanlage, Produktion null. Aus einer
 // Regel gegen die Sackgasse war die perfekte Sackgasse geworden.
 //
 // Auf Welten, die eine Ressource gar nicht hergeben (Affinität 0), gilt sie
@@ -3081,7 +3137,7 @@ function botKolonieZiel(state, fraktion, welt) {
 // Steht dieses Gebäude schon -- oder wird es gerade gebaut? Die zweite Hälfte
 // ist der wichtige Teil: `bauStarten` REIHT EIN, wenn die Bauschleife belegt
 // ist. Wer nur die fertige Stufe prüft, bestellt denselben Bau in jedem Takt
-// erneut. Gemessen hat das den Bots eine Bauschleife voller Tritiumextraktoren
+// erneut. Gemessen hat das den Bots eine Bauschleife voller Deuteriumanlagen
 // und Werften beschert (Stufe 4 bzw. 3), während das Kolonieschiff, auf das
 // alles wartete, nie an die Reihe kam.
 // Steht dieser Bau schon an -- laufend oder in der Warteschlange?
@@ -3094,14 +3150,14 @@ function botKolonieZiel(state, fraktion, welt) {
 // dort nur: habe ich das gerade schon bestellt?
 //
 // GEMESSEN (Bot-Runde 31.08., 20 Tage, testSpiel):
-//   nach  1 Tag   Warteschlange 9: solarfeld 8x, metallmine 1x
-//   nach 20 Tagen Warteschlange 9: lagerhalle 5x, farm 3x, wohnmodul 1x
+//   nach  1 Tag   Warteschlange 9: solaranlagen 8x, metallfoerderung 1x
+//   nach 20 Tagen Warteschlange 9: lagernetz 5x, agrarsektor 3x, wohnsektor 1x
 //
-// Der Engpass "Energie" besteht weiter, solange das Solarfeld nicht FERTIG
-// ist -- also bestellte der Bot in jedem Takt (alle 5 Minuten) ein weiteres.
+// Der Engpass "Energie" besteht weiter, solange die Solaranlagen nicht FERTIG
+// sind -- also bestellte der Bot in jedem Takt (alle 5 Minuten) ein weiteres.
 // Acht der zehn Plaetze fuer ein Gebaeude, das er einmal braucht. Danach war
 // die Warteschlange dauerhaft voll und `kannBauen` antwortete auf ALLES mit
-// "Warteschlange voll (10/10)": kein Wohnmodul, keine Farm, kein Labor, keine
+// "Warteschlange voll (10/10)": kein Wohnsektor, keine Farm, kein Labor, keine
 // Fertigung. Der Bot sass nach 20 Tagen auf 1,78 Billionen Metall und konnte
 // nichts damit anfangen.
 //
@@ -3156,26 +3212,26 @@ export function botKolonisieren(state, fraktion, welt, zeit, sparzielGesperrt = 
   // neu gesetzt").
   let sparzielVersucht = sparzielGesperrt;
 
-  // 1. TREIBSTOFF. Ohne Tritium fliegt nichts, und ein Imperium, das nur Minen
-  // und Wohnmodule baut, hat nie welches. Gemessen: die Flotte stand fertig
+  // 1. TREIBSTOFF. Ohne Deuterium fliegt nichts, und ein Imperium, das nur Minen
+  // und Wohnsektoren baut, hat nie welches. Gemessen: die Flotte stand fertig
   // beladen im Hafen und die Mission wurde abgelehnt -- 151.706 nötig, 30.000
-  // da. Der Extraktor steht bewusst HIER und nicht in BOT.nachschub: Tritium
+  // da. Der Extraktor steht bewusst HIER und nicht in BOT.nachschub: Deuterium
   // ist kein Baustoff, sondern die Voraussetzung fürs Wegkommen. In der
   // Nachschubliste würde er vor der ersten Mine gebaut.
   //
-  // Auf Welten ohne Tritium-Affinität schlägt bauStarten fehl, und die
+  // Auf Welten ohne Deuterium-Affinität schlägt bauStarten fehl, und die
   // Expansion unterbleibt. Das ist die ehrliche Antwort, solange es keinen
   // Handel gibt -- nicht jede Welt ist ein Sprungbrett.
-  if (!botHatOderBaut(welt, "tritiumextraktor")) {
-    const versuch = bauStarten(state, welt, "tritiumextraktor", zeit, true);
-    sparzielVersucht = botSparzielAusVersuch(fraktion, welt, "tritiumextraktor", versuch, sparzielVersucht);
+  if (!botHatOderBaut(welt, "deuteriumanlage")) {
+    const versuch = bauStarten(state, welt, "deuteriumanlage", zeit, true);
+    sparzielVersucht = botSparzielAusVersuch(fraktion, welt, "deuteriumanlage", versuch, sparzielVersucht);
     if (versuch.ok) return true;
   }
 
   // 2. FERTIGUNG -- seit A-009 kostet die Werft Elektronik, und Elektronik
   // gibt es nur hier. Sie steht aus demselben Grund an dieser Stelle wie der
   // Extraktor darüber und ausdrücklich NICHT in BOT.nachschub: dort hätte sie
-  // Vorrang vor Kraftwerk, Farm und Wohnmodul, und der Bot baute sich eine
+  // Vorrang vor Fusionsanlage, Farm und Wohnsektor, und der Bot baute sich eine
   // Fabrik ohne Strom und ohne Belegschaft (gemessen, siehe BOT.nachschub).
   if (!botHatOderBaut(welt, "fertigung")) {
     const versuch = bauStarten(state, welt, "fertigung", zeit, true);
@@ -3200,7 +3256,7 @@ export function botKolonisieren(state, fraktion, welt, zeit, sparzielGesperrt = 
 
   // Alles bestellt, aber noch nicht fertig: warten, nicht nachbestellen.
   if (
-    (welt.gebaeude.tritiumextraktor || 0) <= 0 ||
+    (welt.gebaeude.deuteriumanlage || 0) <= 0 ||
     (welt.gebaeude.fertigung || 0) <= 0 ||
     (welt.gebaeude.werft || 0) < werftNoetig
   ) {
@@ -3240,7 +3296,7 @@ export function botKolonisieren(state, fraktion, welt, zeit, sparzielGesperrt = 
   // REIHENFOLGE VOR DEM TANKEN, nicht danach: seit `kapazitaet > 0` (A-132)
   // darf ungenutzter Frachtraum als Blasentank dienen (`flotteTankKapazitaet`
   // in flotten.js) -- käme das Material NACH dem Tanken, hätte ein gieriger
-  // Tankwunsch (bis zu `BOT.kolonie.tritium`) den Frachtraum längst mit
+  // Tankwunsch (bis zu `BOT.kolonie.deuterium`) den Frachtraum längst mit
   // Treibstoff gefüllt, und für die 22.500 t Startmaterial wäre nichts mehr
   // frei. Das Material ist die feste, kleine Reservierung; der Tank nimmt
   // sich danach, was übrig bleibt -- wie bisher, nur mit etwas weniger davon.
@@ -3256,7 +3312,7 @@ export function botKolonisieren(state, fraktion, welt, zeit, sparzielGesperrt = 
   // Untergrenze plus Anteil vom Vorrat: der Bedarf wächst mit der Strecke, und
   // eine abgelehnte Mission kostet einen ganzen Takt. Lieber einmal ordentlich
   // betanken als dreimal zu knapp.
-  const wunsch = Math.max(regeln.tritium, Math.floor((welt.ressourcen.tritium || 0) * regeln.tritiumAnteil));
+  const wunsch = Math.max(regeln.deuterium, Math.floor((welt.ressourcen.deuterium || 0) * regeln.deuteriumAnteil));
   if (flotte.treibstoff < wunsch) {
     tanken(state, flotte, wunsch - flotte.treibstoff);
   }
@@ -3337,7 +3393,7 @@ function botForschungSchritt(state, fraktion, welt, zeit) {
 // Nettorate ist fuer das Ziel gleichgueltig):
 //   1. Nettorate <= 0 -- es wird nie mehr davon (A-135, Elektronik-Fall).
 //   2. Kosten > Lagerkapazitaet dieses Planeten fuer die Ressource -- selbst
-//      ein volles Lager reicht nie (A-135 Befund 3, Lagerhallen-Fall:
+//      ein volles Lager reicht nie (A-135 Befund 3, Lagernetz-Fall:
 //      Silizium-Kosten ueber der Kapazitaet, Nettorate blieb aber positiv,
 //      weil sie VOR der Lagerkappung gerechnet wird).
 // Ressourcen mit eigenem Speicher (z.B. ueber ein Gebaeude) nehmen dessen
@@ -3483,7 +3539,7 @@ function botSchritt(state, fraktion, zeit) {
   // Labor nie erreichte.
   //
   // Sie steht hier und ausdruecklich NICHT in BOT.nachschub -- dort haette
-  // sie Vorrang vor Strom, Farm und Wohnmodul, und der Bot baute sich eine
+  // sie Vorrang vor Strom, Farm und Wohnsektor, und der Bot baute sich eine
   // Fabrik ohne Strom und ohne Belegschaft (die Messung dazu steht am
   // Kommentar von BOT.nachschub). An dieser Stelle laeuft die
   // Grundversorgung bereits ueber die Engpass-Antwort darueber.
@@ -3491,13 +3547,13 @@ function botSchritt(state, fraktion, zeit) {
     if (bauStarten(state, welt, "fertigung", zeit, true).ok) return;
   }
 
-  if (!botHatOderBaut(welt, "forschungslabor")) {
-    if (bauStarten(state, welt, "forschungslabor", zeit, true).ok) return;
+  if (!botHatOderBaut(welt, "forschungssektor")) {
+    if (bauStarten(state, welt, "forschungssektor", zeit, true).ok) return;
   }
 
   // ZUR ROTATION, gemessen und BEWUSST NICHT geaendert (Bot-Runde 31.08.):
   // `BOT.ausbau` nimmt immer den ERSTEN baubaren Eintrag, und die ersten
-  // beiden sind Metall- und Siliziummine -- die sind praktisch immer baubar.
+  // beiden sind Metall- und Siliziumförderung -- die sind praktisch immer baubar.
   // Es lag nahe, hier nach erreichter Stufe zu sortieren, damit "Rotation"
   // auch rotiert. GEMESSEN bringt das exakt null: die Energiedeckung blieb
   // auf 59 % / 56 %, Ziffer fuer Ziffer dieselbe. Der Grund steht eine Zeile
@@ -3532,7 +3588,7 @@ function botSchritt(state, fraktion, zeit) {
 //
 // Für den Spieler ist das trotzdem der entscheidende Unterschied: die Kassen
 // der Nachbarn füllen sich aus echtem Handel -- seit A-217 aus genau zwei
-// Quellen, dieser hier (Überschuss ab vollem Lager) und `handelspostenHandeln`
+// Quellen, dieser hier (Überschuss ab vollem Lager) und `handelssektorHandeln`
 // (Überschuss über der Handels-Mindestmenge, jeden Takt), keine Abgaben mehr.
 // Wer Geld hat, kann dem Spieler auch etwas abkaufen.
 function botHandeln(state, welt) {
@@ -3793,7 +3849,7 @@ function forschungAbschliessen(state, zeit) {
 
 // --- Supernova (v0.71) ----------------------------------------------------
 // Der Blitz. Er tötet niemanden direkt: die Menschen sitzen in versiegelten
-// Wohnmodulen mit geschlossenem Sauerstoffkreislauf, und ein Planet
+// Wohnsektoren mit geschlossenem Sauerstoffkreislauf, und ein Planet
 // beschattet obendrein seine eigene Nachtseite. Was er zerlegt, ist die
 // OZONSCHICHT -- und damit das Einzige auf der Oberfläche, das Licht braucht:
 // die Landwirtschaft.
@@ -3904,7 +3960,7 @@ function supernovaFlut(state, zeit) {
   // eine leergezogene Kolonie kann Felder tragen. Sie verfallen nach
   // Prinzip 13a zu Bergungsgut am eigenen Orbit, nicht ins Nichts.
   for (const planet of state.planeten) {
-    const stufe = planet.gebaeude ? planet.gebaeude.solarfeld || 0 : 0;
+    const stufe = planet.gebaeude ? planet.gebaeude.solaranlagen || 0 : 0;
     if (stufe <= 0) continue;
     const schildStufe = planet.gebaeude.magnetschild || 0;
     const haelt =
@@ -3912,11 +3968,11 @@ function supernovaFlut(state, zeit) {
     if (haelt) continue;
     const schrott = {};
     for (let l = 1; l <= stufe; l++) {
-      for (const [resId, betrag] of Object.entries(gebaeudeKosten(planet, BUILDINGS.solarfeld, l))) {
+      for (const [resId, betrag] of Object.entries(gebaeudeKosten(planet, BUILDINGS.solaranlagen, l))) {
         schrott[resId] = (schrott[resId] || 0) + Math.floor(betrag * SCHROTT_ANTEIL);
       }
     }
-    planet.gebaeude.solarfeld = 0;
+    planet.gebaeude.solaranlagen = 0;
     planetGeaendert(planet);
     if (Object.values(schrott).some((menge) => menge > 0)) {
       zurueckgelassen(
@@ -4137,7 +4193,7 @@ export function tanken(state, flotte, menge) {
   const planet = check.planet;
 
   if (menge > 0) {
-    const verfuegbar = Math.floor(planet.ressourcen.tritium || 0);
+    const verfuegbar = Math.floor(planet.ressourcen.deuterium || 0);
     // Der Tank ist seit v0.64 endlich. Vorher war die einzige Grenze das
     // PLANETENLAGER -- deshalb rechnete auch der Regler in der Oberfläche in
     // Prozent davon, was Tobis Meldung war: "Tritium-Regler orientiert sich
@@ -4146,22 +4202,22 @@ export function tanken(state, flotte, menge) {
     if (platz <= 0) return { ok: false, grund: t("Der Tank ist voll.") };
     const nimm = Math.min(menge, verfuegbar, platz);
     if (nimm <= 0) return { ok: false, grund: t("Kein Deuterium vorhanden.") };
-    planet.ressourcen.tritium -= nimm;
+    planet.ressourcen.deuterium -= nimm;
     flotte.treibstoff += nimm;
   } else {
     const gib = Math.min(-menge, flotte.treibstoff);
     if (gib <= 0) return { ok: false, grund: t("Kein Deuterium an Bord.") };
     flotte.treibstoff -= gib;
-    const { genommen } = insLager(state, planet, { tritium: gib });
+    const { genommen } = insLager(state, planet, { deuterium: gib });
     // Was nicht ins Lager passte, bleibt an Bord statt zu verschwinden.
-    flotte.treibstoff += gib - (genommen.tritium || 0);
+    flotte.treibstoff += gib - (genommen.deuterium || 0);
   }
   return { ok: true };
 }
 
 // A-132: Kolonisten laden/zurückgeben -- exakt dasselbe Muster wie `tanken`
 // (eigener Raum, nicht Teil der Fracht), nur mit `bevoelkerung` statt
-// `tritium` und `flotteSiedlerKapazitaet` statt `flotteTankKapazitaet`.
+// `deuterium` und `flotteSiedlerKapazitaet` statt `flotteTankKapazitaet`.
 // Positives `menge`: an Bord nehmen. Negatives: zurückgeben.
 //
 // BEWUSST KEINE Mindestbestand-Prüfung auf der Heimatwelt (anders als das
@@ -4187,7 +4243,7 @@ export function siedlerUmladen(state, flotte, menge) {
     if (gib <= 0) return { ok: false, grund: t("Keine Kolonisten an Bord.") };
     flotte.siedler -= gib;
     const { genommen } = insLager(state, planet, { bevoelkerung: gib });
-    // Was nicht ins Wohnmodul passte, bleibt an Bord statt zu verschwinden --
+    // Was nicht in den Wohnsektor passte, bleibt an Bord statt zu verschwinden --
     // dieselbe Regel wie bei Treibstoff und Fracht.
     flotte.siedler += gib - (genommen.bevoelkerung || 0);
   }
@@ -4274,6 +4330,116 @@ export function recyceln(state, flotte, typ) {
   return { ok: true };
 }
 
+// Trägt IRGENDEIN Bestandteil dieser Ware Masse? (A-231/A-232). Ein Fluss
+// (heute: Energie, in Antimaterie) hat keine -- der geht in einen Speicher,
+// nicht ins gemeinsame Warenlager, und braucht deshalb einen eigenen Weg
+// (entladen() unten). Ohne diese Unterscheidung würde zerlegen() Energie via
+// insLager() ins Warenlager buchen, ohne die Speicherkapazität zu
+// respektieren -- genau die Verwechslung, vor der A-232 warnt.
+export function hatNurMasseBestandteile(resId) {
+  const bestandteile = RESSOURCEN[resId]?.bestandteile;
+  if (!bestandteile) return false;
+  return Object.keys(bestandteile).every((teilId) => RESSOURCEN[teilId]?.art !== "fluss");
+}
+
+// Zusammengesetzte Waren in ihre Bestandteile zerlegen (A-231) -- derselbe
+// Mechanismus wie recyceln() oben, nur an einem Lagerbestand statt an
+// Schiffen: dieselbe Quote (RECYCLING/rueckbautechnik, 0,35 bis 0,80), sofort,
+// ohne Energiekosten, ohne Warteschlange. Generisch über
+// RESSOURCEN[resId].bestandteile -- kein Sonderfall für Elektronik, damit die
+// nächste zusammengesetzte Ware denselben Weg nimmt. NICHT für Waren mit
+// einem Fluss-Bestandteil (siehe hatNurMasseBestandteile).
+export function kannZerlegen(state, planet, resId, menge) {
+  if (!hatNurMasseBestandteile(resId)) return { ok: false, grund: t("Nicht zerlegbar.") };
+  if (menge <= 0) return { ok: false, grund: t("Menge muss positiv sein.") };
+  if ((planet.ressourcen[resId] || 0) < menge) return { ok: false, grund: t("Nicht genug vorhanden.") };
+  return { ok: true };
+}
+
+export function zerlegen(state, planet, resId, menge) {
+  const check = kannZerlegen(state, planet, resId, menge);
+  if (!check.ok) return check;
+  const rueckbauStufe = forschungVon(state, fraktionVon(planet)).rueckbautechnik || 0;
+  const quote = erstattungsQuote(RECYCLING, rueckbauStufe);
+  const ertrag = skalieren(RESSOURCEN[resId].bestandteile, menge * quote);
+
+  planet.ressourcen[resId] -= menge;
+  insLager(state, planet, ertrag);
+  meldungHinzufuegen(
+    state,
+    t("{planet}: {menge} {ware} zerlegt – {ertrag} zurückgewonnen.", {
+      planet: planet.name,
+      menge: fmt(menge),
+      ware: t(RESSOURCEN[resId].name),
+      ertrag: buendelText(ertrag),
+    }),
+    null, herkunftVon(planet)
+  );
+  return { ok: true };
+}
+
+// Antimaterie entladen (A-232) -- zweite Anwendung desselben Mechanismus wie
+// zerlegen() oben, aber ihr einziger Bestandteil ist ein FLUSS (Energie),
+// keine Masse: der Ertrag geht in den ENERGIESPEICHER, nicht ins Warenlager
+// und nicht in den laufenden Takt (sonst entstünde eine Leistungsspitze, die
+// im nächsten Takt schon wieder weg wäre, ohne dass der Spieler sie je
+// sieht). Dieselbe Quote wie überall (RECYCLING/rueckbautechnik). Kein
+// Iridium kommt zurück -- das Rezept des Kollektors bleibt unberührt,
+// `bestandteile` nennt ausschließlich Energie.
+export function kannEntladen(state, planet, menge) {
+  if (menge <= 0) return { ok: false, grund: t("Menge muss positiv sein.") };
+  if ((planet.ressourcen.antimaterie || 0) < menge) return { ok: false, grund: t("Nicht genug vorhanden.") };
+  // Strukturelle Voraussetzung wie der Handelssektor beim Markt
+  // (partnerPruefen/kannVerkaufen) -- kein bloßer Kapazitätsengpass: ohne
+  // JEDEN Speicher wäre jede entladene Antimaterie ein Totalverlust, ohne
+  // dass der Spieler das vor dem Klick erfährt. Deshalb Ablehnung statt
+  // stillem Totalverlust (Definition von fertig, Punkt 3).
+  if (!(speicherKapazitaet(planet, "energie") > 0)) {
+    return { ok: false, grund: t("Kein Energiespeicher gebaut.") };
+  }
+  return { ok: true };
+}
+
+export function entladen(state, planet, menge) {
+  const check = kannEntladen(state, planet, menge);
+  if (!check.ok) return check;
+  const rueckbauStufe = forschungVon(state, fraktionVon(planet)).rueckbautechnik || 0;
+  const quote = erstattungsQuote(RECYCLING, rueckbauStufe);
+  const ertragRoh = Math.round(menge * quote * RESSOURCEN.antimaterie.bestandteile.energie);
+
+  planet.ressourcen.antimaterie -= menge;
+  planetGeaendert(planet);
+
+  // Was über die Speicherkapazität hinausgeht, verfällt (dieselbe Regel wie
+  // jede Überproduktion bei vollem Lager) -- das ist hier der Preis UND die
+  // Entscheidung in einem: wer Antimaterie als Notreserve halten will,
+  // braucht vorher Speicher.
+  const kapazitaet = speicherKapazitaet(planet, "energie");
+  const bestandVorher = planet.ressourcen.energie || 0;
+  const platz = Math.max(0, kapazitaet - bestandVorher);
+  const geladen = Math.min(ertragRoh, platz);
+  const verfallen = ertragRoh - geladen;
+  planet.ressourcen.energie = bestandVorher + geladen;
+
+  meldungHinzufuegen(
+    state,
+    verfallen > 0
+      ? t("{planet}: {menge} Antimaterie entladen – {geladen} MWh gespeichert, {verfallen} MWh verfallen (Speicher voll).", {
+          planet: planet.name,
+          menge: fmt(menge),
+          geladen: fmt(geladen),
+          verfallen: fmt(verfallen),
+        })
+      : t("{planet}: {menge} Antimaterie entladen – {geladen} MWh gespeichert.", {
+          planet: planet.name,
+          menge: fmt(menge),
+          geladen: fmt(geladen),
+        }),
+    null, herkunftVon(planet)
+  );
+  return { ok: true, geladen, verfallen };
+}
+
 export function ladungAufnehmen(state, flotte, buendel) {
   const check = kannUmladen(state, flotte);
   if (!check.ok) return check;
@@ -4325,8 +4491,8 @@ export function flotteAufloesen(state, flotte) {
     if (anzahl > 0) planet.schiffe[id] = (planet.schiffe[id] || 0) + anzahl;
   }
   if (flotte.treibstoff > 0) {
-    const { genommen } = insLager(state, planet, { tritium: flotte.treibstoff });
-    const rest = flotte.treibstoff - (genommen.tritium || 0);
+    const { genommen } = insLager(state, planet, { deuterium: flotte.treibstoff });
+    const rest = flotte.treibstoff - (genommen.deuterium || 0);
     if (rest > 0.5) {
       meldungHinzufuegen(
         state,
@@ -4359,7 +4525,7 @@ export function flotteAufloesen(state, flotte) {
 // liegt es ja bereits am selben Ort.
 function flotteLeerAufloesen(state, flotte) {
   const reste = { ...flotte.ladung };
-  if (flotte.treibstoff > 0) reste.tritium = (reste.tritium || 0) + Math.floor(flotte.treibstoff);
+  if (flotte.treibstoff > 0) reste.deuterium = (reste.deuterium || 0) + Math.floor(flotte.treibstoff);
 
   const hafen = flotte.dockPlanet ? planetById(state, flotte.dockPlanet) : null;
   const etwasDa = Object.values(reste).some((m) => m > 0);
@@ -4941,10 +5107,10 @@ const ROUTE_TANK_PUFFER = mengeSkaliert(400);
 function routeTankenAusfuehren(state, flotte, planet) {
   const bedarf = Math.max(0, ROUTE_TANK_PUFFER - flotte.treibstoff);
   if (bedarf <= 0) return;
-  const verfuegbar = Math.floor(planet.ressourcen.tritium || 0);
+  const verfuegbar = Math.floor(planet.ressourcen.deuterium || 0);
   const nimm = Math.min(bedarf, verfuegbar);
   if (nimm <= 0) return;
-  planet.ressourcen.tritium -= nimm;
+  planet.ressourcen.deuterium -= nimm;
   flotte.treibstoff += nimm;
 }
 
@@ -5888,7 +6054,7 @@ export function kannMission(state, flotte, missionsart, systemId, orbit, rueckke
     const bedarf = treibstoffFuer(flotte, strecke(flotte.ort, ziel));
     const hafen = planetById(state, flotte.dockPlanet);
     const verfuegbar = Math.min(
-      (flotte.treibstoff || 0) + Math.floor((hafen && hafen.ressourcen.tritium) || 0),
+      (flotte.treibstoff || 0) + Math.floor((hafen && hafen.ressourcen.deuterium) || 0),
       flotteTankKapazitaet(state, flotte)
     );
     if (verfuegbar < bedarf) {
@@ -5986,7 +6152,7 @@ export function gruendungBefehlen(state, flotte, art, systemId, orbit) {
 // steht die Reichweitengrenze unten: gehandelt wird nur mit Nachbarn, die
 // eine Flotte auch erreichen könnte.
 
-// Mit wem handelt dieser Planet? Ein fremder Planet mit Handelsposten in
+// Mit wem handelt dieser Planet? Ein fremder Planet mit Handelssektor in
 // Reichweite -- der nächstgelegene gewinnt. Fraktionen ohne `handel` (Piraten)
 // scheiden über ihre Art aus, nicht über eine Sonderabfrage.
 // Merker für die Partnersuche -- KEINE Änderung am Ergebnis, nur daran, wie
@@ -6083,7 +6249,7 @@ export function handelsReichweitenHinweis(state, planet) {
 }
 
 function partnerPruefen(state, planet) {
-  if (!handelVerfuegbar(planet)) return { ok: false, grund: t("Kein Handelsposten auf diesem Planeten.") };
+  if (!handelVerfuegbar(planet)) return { ok: false, grund: t("Kein Handelssektor auf diesem Planeten.") };
   const partner = handelsPartner(state, planet);
   if (!partner) {
     return { ok: false, grund: t("Kein Handelspartner in Reichweite.") + handelsReichweitenHinweis(state, planet) };
@@ -6180,7 +6346,7 @@ export function verkaufen(state, planet, resId, menge) {
 // Derselbe Mechanismus wie bei `logistiknetzPruefen`/LOGISTIK_PRUEFTAKT_MS:
 // ein billiger Wächter, der die teure Suche auf einen GRÖBEREN, an der
 // SPIELZEIT hängenden Takt begrenzt (reproduzierbar, nicht an der Wanduhr).
-// Ein Handelsposten muss nicht alle 5 Spielminuten neu prüfen, ob sich sein
+// Ein Handelssektor muss nicht alle 5 Spielminuten neu prüfen, ob sich sein
 // Partner geändert hat. GEMESSEN, drei Werte (derselbe Lauf):
 //   5 Spielminuten (kein Wächter): 172,3 s (+193 %)
 //   1 Spielstunde  (12×  seltener):  72,2 s ( +23 %)
@@ -6213,7 +6379,7 @@ export const HANDELSPOSTEN_TAKT_MS = 4 * 60 * 60 * 1000;
 // über der Mindestmenge), sonst das Ergebnis von `verkaufen` -- auch im
 // Fehlerfall (kein Partner, Partner kann nicht zahlen/lagern), damit der
 // Grund erhalten bleibt.
-export function handelspostenHandeln(state, planet, zeit = state.letzterTick) {
+export function handelssektorHandeln(state, planet, zeit = state.letzterTick) {
   if (!handelVerfuegbar(planet)) return null;
   if (planet.naechsterHandelsversuch !== undefined && zeit < planet.naechsterHandelsversuch) return null;
   planet.naechsterHandelsversuch = zeit + HANDELSPOSTEN_TAKT_MS;
@@ -6351,17 +6517,20 @@ export function kannBauen(state, planet, gebaeudeId) {
   // einer Forschung -- statt eines zweiten Mechanismus.
   if (def.benoetigt && def.benoetigt.forschung) {
     const techId = def.benoetigt.forschung;
-    // A-211: "erforscht" zählt jetzt auch, was schon in der Forschungs-
-    // Warteschlange steht (Tobis F9: Fusionstechnik einreihen und direkt
-    // danach das Kraftwerk soll beides annehmen). Bewusst weiter über
-    // state.forschung/state.forschungsQueue/state.forschungsWarteschlange
-    // direkt, nicht über fraktionVon(planet) -- genau wie vorher schon
-    // (dieser Zweig fragte nie nach der Fraktion des Planeten), und keine
-    // heute per BOT.ausbau erreichbare Anlage trägt ein benoetigt.forschung.
+    // A-228: über dieselbe Naht gelesen wie kannForschen -- fraktionVon(planet)
+    // und forschungVon/forschungsQueueVon/forschungsWarteschlangeVon (A-133),
+    // statt state.forschung/state.forschungsQueue/state.forschungsWarteschlange
+    // direkt. Bis hierher fragte dieser Zweig nie nach der Fraktion des
+    // Planeten und prüfte deshalb immer den Forschungsstand des SPIELERS,
+    // auch für einen Bot-Planeten -- folgenlos, solange kein BOT.ausbau-
+    // Gebäude ein benoetigt.forschung trägt (A-211-Nebenbefund).
+    // "erforscht" zählt weiterhin auch, was schon in der Forschungs-
+    // Warteschlange DERSELBEN Fraktion steht (A-211, Tobis F9).
+    const fraktionId = fraktionVon(planet);
     const erfuellt = stufeEingereihtErfuellt(
-      state.forschung[techId] || 0,
-      state.forschungsQueue,
-      state.forschungsWarteschlange,
+      forschungVon(state, fraktionId)[techId] || 0,
+      forschungsQueueVon(state, fraktionId),
+      forschungsWarteschlangeVon(state, fraktionId),
       (eintrag) => eintrag.forschungId === techId,
       1
     );
@@ -6790,7 +6959,7 @@ export function kannForschen(state, planet, forschungId) {
   // tut -- ein Auftrag ohne Labor bliebe für immer bei null Prozent stehen,
   // und ein Knopf, der das zulässt, verstößt gegen Prinzip 10a.
   if (!hatLabor(state, fraktionId)) {
-    return { ok: false, grund: t("Kein Forschungslabor im Imperium – ohne Labor forscht niemand.") };
+    return { ok: false, grund: t("Kein Forschungssektor im Imperium – ohne Labor forscht niemand.") };
   }
   return { ok: true, level, aufwand: forschungsAufwand(def, level) };
 }

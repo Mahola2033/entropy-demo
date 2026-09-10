@@ -9,16 +9,16 @@
 // Ereignis in vorspulenBisJetzt läuft. Die Position wird nur bei Bedarf
 // interpoliert -- für die Anzeige und im Moment des Umleitens.
 
-import { SCHIFFE, FLOTTE, RESEARCH, SONDE, unterlichtSekundenProEinheit } from "./data.js?v=0.9.16";
-import { systemPosition, entfernung } from "./galaxie.js?v=0.9.16";
+import { SCHIFFE, FLOTTE, RESEARCH, SONDE, unterlichtSekundenProEinheit } from "./data.js?v=0.9.26";
+import { systemPosition, entfernung } from "./galaxie.js?v=0.9.26";
 // Zugriff dieser Datei auf state.js: Zugehörigkeit (fraktionVon/planetenVon)
 // und seit A-133 der Forschungsstand einer Fraktion (forschungVon). Beides
 // hier nachzubauen wäre dieselbe Grenze an zwei Stellen -- genau das Muster,
 // an dem das Produktionsmodell in v0.18 einmal auseinandergelaufen ist. Kein
 // Kreis: state.js kennt flotten.js nicht.
-import { planetenVon, fraktionVon, forschungVon } from "./state.js?v=0.9.16";
-import { SPIELER_FRAKTION } from "./data.js?v=0.9.16";
-import { t } from "./sprache.js?v=0.9.16";
+import { planetenVon, fraktionVon, forschungVon } from "./state.js?v=0.9.26";
+import { SPIELER_FRAKTION } from "./data.js?v=0.9.26";
+import { t } from "./sprache.js?v=0.9.26";
 
 // --- Position -------------------------------------------------------------
 // Ein Ort ist immer { x, y, systemId|null, orbit|null }.
@@ -193,7 +193,7 @@ export function flotteTankAnteile(state, flotte) {
   const menge = flotte.treibstoff || 0;
   if (menge <= 0) return [];
   const kap = flotteTankKapazitaet(state, flotte);
-  return [{ resId: "tritium", menge, anteil: kap > 0 ? menge / kap : 0 }];
+  return [{ resId: "deuterium", menge, anteil: kap > 0 ? menge / kap : 0 }];
 }
 
 // Was der Verband je Streckeneinheit verbrennt. Stand dreimal ausgeschrieben
@@ -318,7 +318,7 @@ export function logistikVerzoegerungMs(state, vonPlanet, zuPlanet) {
 // bei Radius 120 lag die Spielerwelt im Mittel gut hundert Einheiten weg und
 // der Bot schaffte seine Kolonie manchmal trotzdem (v0.5 maß "2 bis 4
 // Planeten nach zehn Tagen"). Bei Radius 300 verlangte dieselbe Prüfung
-// 479.547 Tritium für einen Flug von 3,4 Einheiten -- und kein Imperium
+// 479.547 Deuterium für einen Flug von 3,4 Einheiten -- und kein Imperium
 // kolonisierte je wieder. Der Fehler war die ganze Zeit da, die größere
 // Galaxie hat ihn nur von "manchmal" auf "immer" gedreht.
 //

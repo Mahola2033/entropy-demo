@@ -9,8 +9,8 @@
 // (A-158-Auftrag) -- deshalb drei feste Stände statt "was zufällig im
 // localStorage lag".
 
-import { neuesSpiel } from "./state.js?v=0.9.16";
-import { BUILDINGS, SCHIFFE } from "./data.js?v=0.9.16";
+import { neuesSpiel } from "./state.js?v=0.9.26";
+import { BUILDINGS, SCHIFFE } from "./data.js?v=0.9.26";
 
 // früh -- frischer Start, nichts gebaut. Der unveränderte Weltstart selbst.
 export function kwZustandFrueh(saat) {
@@ -27,8 +27,8 @@ export function kwZustandFrueh(saat) {
 export function kwZustandMitte(saat) {
   const state = neuesSpiel(saat);
   const heimat = state.planeten[0];
-  heimat.gebaeude.kraftwerk = 14;
-  heimat.gebaeude.lagerhalle = 11;
+  heimat.gebaeude.fusionsanlage = 14;
+  heimat.gebaeude.lagernetz = 11;
   heimat.gebaeude.energiespeicher = 0;
   return state;
 }
@@ -47,14 +47,14 @@ export function kwZustandSpaet(saat) {
   for (const resId of Object.keys(heimat.ressourcen)) heimat.ressourcen[resId] = 5_000_000_000;
 
   heimat.bauQueue = {
-    gebaeudeId: "metallmine",
+    gebaeudeId: "metallfoerderung",
     zielLevel: 26,
     startZeit: state.letzterTick,
     fertigZeit: state.letzterTick + 3_600_000,
   };
   heimat.bauWarteschlange = [
-    { gebaeudeId: "siliziummine", zielLevel: 26, dauerSek: 600 },
-    { gebaeudeId: "iridiummine", zielLevel: 26, dauerSek: 900 },
+    { gebaeudeId: "siliziumfoerderung", zielLevel: 26, dauerSek: 600 },
+    { gebaeudeId: "iridiumfoerderung", zielLevel: 26, dauerSek: 900 },
   ];
   heimat.werftQueue = {
     schiffId: Object.keys(SCHIFFE)[0],

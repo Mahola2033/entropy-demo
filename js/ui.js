@@ -46,8 +46,10 @@ import {
   ANREICHERUNG_VERLUST,
   ARBEITSKRAFT_LEERLAUF,
   RUECKBAU,
+  RECYCLING,
   erstattungsQuote,
-} from "./data.js?v=0.9.16";
+  VORKOMMEN_MELDESCHWELLE,
+} from "./data.js?v=0.9.26";
 import {
   effektiveRaten,
   angezeigteRate,
@@ -96,6 +98,7 @@ import {
   handelVerfuegbar,
   fraktionById,
   fraktionVon,
+  forschungVon,
   wirtschaftsPlaneten,
   planetenVon,
   flottenVon,
@@ -129,7 +132,8 @@ import {
   fossilBereit,
   fossilReichweiteMs,
   fossilVerbrauchProStunde,
-} from "./state.js?v=0.9.16";
+  foerderErgiebigkeit,
+} from "./state.js?v=0.9.26";
 import {
   bauStarten,
   forschungStarten,
@@ -192,6 +196,11 @@ import {
   reparieren,
   kannRecyceln,
   recyceln,
+  kannZerlegen,
+  zerlegen,
+  hatNurMasseBestandteile,
+  kannEntladen,
+  entladen,
   kannRouteBearbeiten,
   routeHaltHinzufuegen,
   routeHaltEntfernen,
@@ -201,7 +210,7 @@ import {
   routeStoppen,
   routeMindestbeladungSetzen,
   routeBeladungAnteil,
-} from "./simulation.js?v=0.9.16";
+} from "./simulation.js?v=0.9.26";
 import {
   flottePosition,
   flotteKapazitaet,
@@ -221,26 +230,26 @@ import {
   flotteSiedlerKapazitaet,
   flotteLadungAnteile,
   flotteTankAnteile,
-} from "./flotten.js?v=0.9.16";
-import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.16";
-import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.16";
-import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.16";
+} from "./flotten.js?v=0.9.26";
+import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.26";
+import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.26";
+import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.26";
 // Nur für den Neustart-Knopf im Abspann. Der Weg dorthin ist derselbe wie im
 // Testmodus (js/testmodus.js) -- ein zweiter Reset wäre eine zweite Wahrheit
 // darüber, was "neu anfangen" bedeutet.
-import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.16";
-import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.16";
-import { systemName, sternFuer } from "./galaxie.js?v=0.9.16";
+import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.26";
+import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.26";
+import { systemName, sternFuer } from "./galaxie.js?v=0.9.26";
 // Die beiden Karten. Sie holen sich von hier `listeAbgleichen` zurück -- ein
 // Ringtausch, der trägt, weil keine der beiden Dateien beim LADEN etwas aus
 // der anderen benutzt, sondern erst beim Zeichnen. Die Alternative wäre ein
 // zweiter Abgleich-Mechanismus in karte.js gewesen, und genau davor warnt
 // Prinzip 5.
-import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.16";
-import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.16";
-import { feedbackAdresse } from "./feedback.js?v=0.9.16";
-import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.16";
-import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.16";
+import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.26";
+import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.26";
+import { feedbackAdresse } from "./feedback.js?v=0.9.26";
+import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.26";
+import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.26";
 
 // UI-lokaler Regler-Zustand für die Flotten-Beladung/Tanken-Schieber --
 // bewusst NICHT Teil des Spielzustands. Nötig, weil render() auch von einem
@@ -1128,14 +1137,14 @@ function speicherEinheit(resId) {
 //
 // A-076: liefert WERTE, kein HTML. Die Zeile ist ein fester Knoten in der
 // Kachel und bekommt bloß frische Werte -- siehe renderRessourcen.
-function kraftwerkBrennstoffZeile(planet, stufe) {
-  if (!brennstoffBereit(planet, BUILDINGS.kraftwerk, stufe)) {
+function fusionsanlageBrennstoffZeile(planet, stufe) {
+  if (!brennstoffBereit(planet, BUILDINGS.fusionsanlage, stufe)) {
     const text = t("Kein Brennstoff – der Reaktor ist aus. Er zündet wieder, sobald Deuterium für {dauer} im Lager liegt.", {
       dauer: fmtDauer(BRENNSTOFF_ANLAUF_MS / 1000),
     });
     return { titel: text, text: `⚛️ ${t("Kein Brennstoff – Reaktor aus")}`, warnung: true };
   }
-  const reichweite = brennstoffReichweiteAnlageMs(planet, "kraftwerk");
+  const reichweite = brennstoffReichweiteAnlageMs(planet, "fusionsanlage");
   if (!Number.isFinite(reichweite)) return null;
   // DIE BEDINGUNG DIESER ZAHL (A-088, die A-050-Lehre: eine Zahl ohne ihre
   // Bedingung ist eine halbe Auskunft).
@@ -1153,12 +1162,12 @@ function kraftwerkBrennstoffZeile(planet, stufe) {
   // Zeile 245 px; jeder Zusatz bricht um und zieht die ganze Reihe der
   // Fluss-Kacheln von 84 auf 98 px -- und zwar mal so, mal nicht, je nachdem
   // wie lang die Zahl gerade ist (bei Stufe 8 passt sie wieder). Ein Umbruch,
-  // der beim Ausbauen des Kraftwerks kippt, ist ein Layout-Sprung.
+  // der beim Ausbauen der Fusionsanlage kippt, ist ein Layout-Sprung.
   const verbrauchText = Object.entries(brennstoffProStunde(planet))
     .map(([resId, proStunde]) => ratenText(resId, proStunde))
     .join(" · ");
   const titel = [
-    t("Deuterium im Lager geteilt durch den Verbrauch des Kraftwerks – Zufluss nicht eingerechnet."),
+    t("Deuterium im Lager geteilt durch den Verbrauch der Fusionsanlage – Zufluss nicht eingerechnet."),
     t(
       "Der Reaktor verbrennt bei jeder Last gleich viel: Stufe {stufe} zieht {rate}, ausgelastet wie im Leerlauf. Jede weitere Ausbaustufe zieht mehr – die Reichweite gilt für die jetzige Stufe.",
       { stufe, rate: verbrauchText }
@@ -1172,8 +1181,8 @@ function kraftwerkBrennstoffZeile(planet, stufe) {
   };
 }
 
-// A-148: dritte Anlage mit demselben Lager-Brennstoff-Mechanismus wie das
-// Kraftwerk (nur Uran statt Deuterium) -- deshalb dieselben Bausteine
+// A-148: dritte Anlage mit demselben Lager-Brennstoff-Mechanismus wie die
+// Fusionsanlage (nur Uran statt Deuterium) -- deshalb dieselben Bausteine
 // (brennstoffBereit/brennstoffReichweiteAnlageMs/brennstoffProStunde), nur mit
 // kernkraftanlage-eigenem Wortlaut. Absichtlich eine eigene Funktion statt
 // einer geteilten Abstraktion über den Stoffnamen: dieselbe Kollegen-Wahl
@@ -1208,7 +1217,7 @@ function kernkraftBrennstoffZeile(planet, stufe) {
 }
 
 // A-147: zweite Anlage mit demselben Zeilen-Slot. Kein zweites Format --
-// dieselbe "Brennstoff für {dauer}"-Form wie beim Kraftwerk (grep
+// dieselbe "Brennstoff für {dauer}"-Form wie bei der Fusionsanlage (grep
 // "Brennstoff für"), nur ohne Lager-Ressource: der Verbrauch ist keine
 // RESSOURCEN-Größe und läuft deshalb nicht über ratenText/mitEinheit,
 // sondern über einen eigenen "t/Jahr"-Text (dasselbe Vorgehen wie
@@ -1252,16 +1261,16 @@ function fossilBrennstoffZeile(planet, stufe) {
 // ein Kraftwerk hatte, sah nie den Zustand seiner anderen Anlagen (Tobis
 // Fund 31.08.: "ich sehe nirgendwo etwas zu Fossilen Brennstoffen", während
 // seine Fossilanlage längst stillstand). Seit A-168 bekommt JEDE gebaute
-// Anlage ihre eigene Zeile -- Reihenfolge unverändert Kraftwerk,
+// Anlage ihre eigene Zeile -- Reihenfolge unverändert Fusionsanlage,
 // Kernkraftanlage, Fossilanlage.
 //
 // A-188 (B-8, Fund aus A-168): DIE REICHWEITE-ZAHL kam bis hierher aus
 // brennstoffReichweiteMs, dem planetweiten MINIMUM über ALLE
-// Lager-Brennstoff-Gebäude (BRENNSTOFF_GEBAEUDE) -- standen Kraftwerk UND
+// Lager-Brennstoff-Gebäude (BRENNSTOFF_GEBAEUDE) -- standen Fusionsanlage UND
 // Kernkraftanlage gleichzeitig (erst seit A-149 selten, aber möglich),
 // zeigten beide Zeilen dieselbe Zahl, obwohl sie unterschiedliche Ressourcen
 // (Deuterium/Uran) verbrennen: die Anlage mit dem reichlicheren Brennstoff
-// behauptete die Knappheit der anderen. Kraftwerk- und Kernkraft-Zeile rufen
+// behauptete die Knappheit der anderen. Fusionsanlage- und Kernkraft-Zeile rufen
 // deshalb jetzt brennstoffReichweiteAnlageMs mit ihrer eigenen Gebäude-Id --
 // das planetweite Minimum bleibt für seine ANDEREN Aufrufer unverändert
 // (Bot-Engpass in js/simulation.js, Übersicht in js/state.js).
@@ -1270,13 +1279,13 @@ function fossilBrennstoffZeile(planet, stufe) {
 //
 // NICHT TEIL DIESER RUNDE, gefunden beim Bauen: brennstoffProStunde
 // (die "Verbrauch"-Zeile im selben Tooltip, s.u.) summiert weiterhin über
-// ALLE Brennstoffgebäude -- stehen Kraftwerk UND Kernkraftanlage zugleich,
+// ALLE Brennstoffgebäude -- stehen Fusionsanlage UND Kernkraftanlage zugleich,
 // nennt der Tooltip beider Zeilen Deuterium UND Uran, nicht nur den eigenen
 // Stoff. Kleinerer Fehler als die Reichweite-Zahl (die Rate an sich stimmt,
 // nur die zweite Ressource gehört nicht in DIESE Zeile) -- Fund für die
 // Planung, nicht Teil dieses Auftrags.
 function brennstoffZeilen(planet) {
-  const kraftwerkStufe = (planet.gebaeude && planet.gebaeude.kraftwerk) || 0;
+  const fusionsanlageStufe = (planet.gebaeude && planet.gebaeude.fusionsanlage) || 0;
   const kernkraftStufe = (planet.gebaeude && planet.gebaeude.kernkraftanlage) || 0;
   const fossilStufe = (planet.gebaeude && planet.gebaeude.fossilanlage) || 0;
 
@@ -1287,11 +1296,11 @@ function brennstoffZeilen(planet) {
   // rutschte hoch (der ~20-px-Versatz aus Tobis Bericht). Unverändert seit
   // A-142, jetzt nur der einzige Eintrag einer Liste statt der einzige
   // Rückgabewert einer Funktion.
-  if (kraftwerkStufe <= 0 && kernkraftStufe <= 0 && fossilStufe <= 0) {
+  if (fusionsanlageStufe <= 0 && kernkraftStufe <= 0 && fossilStufe <= 0) {
     return [
       {
         schluessel: "leer",
-        titel: t("Ohne Kraftwerk oder Fossilanlage gibt es keinen Brennstoffverbrauch zu zeigen."),
+        titel: t("Ohne Fusionsanlage oder Fossilanlage gibt es keinen Brennstoffverbrauch zu zeigen."),
         text: `⚡ ${t("Keine brennstoffgebundene Anlage gebaut")}`,
         warnung: false,
       },
@@ -1299,9 +1308,9 @@ function brennstoffZeilen(planet) {
   }
 
   const zeilen = [];
-  if (kraftwerkStufe > 0) {
-    const z = kraftwerkBrennstoffZeile(planet, kraftwerkStufe);
-    if (z) zeilen.push({ schluessel: "kraftwerk", ...z });
+  if (fusionsanlageStufe > 0) {
+    const z = fusionsanlageBrennstoffZeile(planet, fusionsanlageStufe);
+    if (z) zeilen.push({ schluessel: "fusionsanlage", ...z });
   }
   if (kernkraftStufe > 0) {
     const z = kernkraftBrennstoffZeile(planet, kernkraftStufe);
@@ -1912,7 +1921,7 @@ function renderRessourcen(state, root, planet) {
   }
 
   // A-051: „voll in ~5 h 40". Die Antwort auf das A-023-Zurück -- die Messung
-  // sagt, dass eine Lagerhalle eine Offline-Entscheidung ist, und das ist in
+  // sagt, dass der Lagerausbau eine Offline-Entscheidung ist, und das ist in
   // Ordnung; gefehlt hat nur, dass das Spiel es SAGT.
   //
   // Die Rechnung steht in `lagerVollInStunden` (state.js) und bekommt die
@@ -2381,9 +2390,9 @@ function renderSupernova(state, root, jetzt) {
 
   // Die Solar-Vorwarnung (A-055): wer Felder stehen hat, erfährt VOR der
   // Flut, dass sie ungeschirmt verloren sind -- nicht im Abspann.
-  const hatSolar = planetenVon(state).some((p) => (p.gebaeude && p.gebaeude.solarfeld) > 0);
+  const hatSolar = planetenVon(state).some((p) => (p.gebaeude && p.gebaeude.solaranlagen) > 0);
   const solarWarnung = hatSolar
-    ? "\n" + t("Achtung: Ungeschirmte Solarfelder überstehen die Teilchenflut nicht.")
+    ? "\n" + t("Achtung: Ungeschirmte Solaranlagen überstehen die Teilchenflut nicht.")
     : "";
   if (sn.phase === "vorwarnung") {
     textSetzen(marke, t(BEGRIFF_VORWARNZEIT.toUpperCase()));
@@ -3506,7 +3515,7 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
 
     // Was die nächste Stufe zusätzlich einbringt. Forschungsboni und die
     // planetare Affinität stecken schon in `ausbauVorschau` -- auf einer
-    // Vulkanwelt bringt dieselbe Iridiummine fast das Doppelte, und stünde
+    // Vulkanwelt bringt dieselbe Iridiumförderung fast das Doppelte, und stünde
     // hier der Rohwert, wäre die Zahl auf der Kachel schlicht falsch.
     const produktionsDelta = vorschau.produktion;
     const hatProduktion = Object.keys(produktionsDelta).length > 0;
@@ -3518,14 +3527,14 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
     const verbrauchsDelta = vorschau.verbrauch;
     const hatVerbrauch = Object.keys(verbrauchsDelta).length > 0;
 
-    // A-114: der Brennstoff (Kraftwerk) steht bei `ausbauVorschau` in einem
+    // A-114: der Brennstoff (Fusionsanlage) steht bei `ausbauVorschau` in einem
     // EIGENEN Block, getrennt von `verbrauch` (siehe dort, A-055). Ohne diese
     // Zeile verschwieg die Kachel die teuerste laufende Position des
     // Gebäudes -- sie zeigte Arbeitskraft und Energie, aber keinen Brennstoff.
     const brennstoffDelta = vorschau.brennstoff;
     const hatBrennstoff = Object.keys(brennstoffDelta).length > 0;
 
-    // Gebäude, die eine eigene Speicherkapazität stellen (Wohnmodul, später
+    // Gebäude, die eine eigene Speicherkapazität stellen (Wohnsektor, später
     // Batteriehalle), produzieren nichts -- ohne diese Zeile sähe ihre Kachel
     // aus, als brächte ein Ausbau gar nichts.
     const speicherRes = vorschau.speicherRes;
@@ -3565,6 +3574,24 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
           : t("Kein Brennstoff – der Reaktor ist aus. Er zündet wieder, sobald Deuterium für {dauer} im Lager liegt.", {
               dauer: fmtDauer(BRENNSTOFF_ANLAUF_MS / 1000),
             });
+
+    // A-236: die Ergiebigkeit der fünf Förderanlagen -- eine Zeile an der
+    // Kachel wie brennstoffAusText oben, nur als laufende Prozentzahl statt
+    // eines Aus/An. `def.gruppe === "foerderung"` deckt exakt die fünf ab
+    // (VORKOMMEN_GEBAEUDE, data.js); die Ressource kommt aus `def.produktion`
+    // selbst, keine zweite Zuordnungstabelle.
+    const foerderResId =
+      opts.defs === BUILDINGS && def.gruppe === "foerderung" ? Object.keys(def.produktion)[0] : null;
+    const foerderErgiebigkeitWert = foerderResId && level >= 1 ? foerderErgiebigkeit(planetFuerKachel, foerderResId) : 1;
+    const ergiebigkeitWarnung = foerderResId && level >= 1 && foerderErgiebigkeitWert < VORKOMMEN_MELDESCHWELLE;
+    const ergiebigkeitText =
+      foerderResId && level >= 1
+        ? `⛏️ ${t("Ergiebigkeit {prozent} %", { prozent: Math.round(foerderErgiebigkeitWert * 100) })}`
+        : "";
+    const ergiebigkeitTitel =
+      foerderResId && level >= 1
+        ? t("Das Vorkommen wird nie leer, nur ärmer – die Förderrate sinkt mit der geförderten Menge auf diesen Anteil. Recycling, Bergung und ein Umzug bleiben die Auswege.")
+        : "";
 
     const fertig = def.schluessel && level >= 1;
     const vorOffen = opts.voraussetzungen && !opts.voraussetzungen(id);
@@ -3607,6 +3634,7 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
         ? t("Brennt zusätzlich: {mehr}", { mehr: ratenBuendelText(brennstoffDelta) })
         : "",
       brennstoffAusTitel,
+      ergiebigkeitTitel,
       speicherDelta > 0
         ? t("Schafft Platz für {menge} {res} mehr", {
             // Einheit aus dem speicher-Eintrag, nicht aus def.einheit: beim
@@ -3648,6 +3676,7 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
          ${hatVerbrauch ? `<span class="kachel-verbrauch">${ratenBuendelMarkup(verbrauchsDelta, "abgang")}</span>` : ""}
          ${hatBrennstoff ? `<span class="kachel-verbrauch">${ratenBuendelMarkup(brennstoffDelta, "abgang")}</span>` : ""}
          ${brennstoffAusText ? `<span class="kachel-verbrauch warnung">${brennstoffAusText}</span>` : ""}
+         ${ergiebigkeitText ? `<span class="kachel-verbrauch${ergiebigkeitWarnung ? " warnung" : ""}">${ergiebigkeitText}</span>` : ""}
          ${speicherDelta > 0 ? `<span class="kachel-gewinn">${RESSOURCEN[speicherRes].symbol} ${vorzeichenSpan(speicherDelta, fmt)} ${speicherEinheit(speicherRes)}</span>` : ""}`;
     // A-130: geschrieben gegen zuletzt geschrieben, nie gegen zurückgelesen
     // (dasselbe Muster wie detail.dataset.stand in slotZeileFuellen) -- der
@@ -3720,7 +3749,7 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
       // R-3/A-100: warnt VORHER, wenn dieser Rückbau die Wohnraum-Kapazität
       // unter die aktuelle Bevölkerung drückt (A-095 fängt das Ergebnis ab,
       // aber erst danach -- Prinzip 10a will die Ansage vorher). Über
-      // `speicherRessourceVon` generisch gehalten, nicht auf "wohnmodul"
+      // `speicherRessourceVon` generisch gehalten, nicht auf "wohnsektor"
       // verdrahtet: dieselbe Frage stellt sich bei jedem Gebäude, das einer
       // Ressource ihre Kapazität gibt.
       let schrumpfWarnung = "";
@@ -3764,12 +3793,16 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
 
     const modusZeile = li.querySelector(".kachel-modus");
     const modusDef = opts.defs === BUILDINGS ? def.anreicherung : null;
+    // A-228: dieselbe Naht wie kannBauen/anreicherungLaeuft -- die Forschung
+    // der Fraktion, der `planetFuerKachel` gehört, nicht die des Spielers.
+    // Für den Spieler selbst (der einzige Fall, den die Oberfläche heute
+    // zeigt) ändert sich dadurch nichts.
     const modusFrei =
-      modusDef && level > 0 && (state.forschung[modusDef.forschung] || 0) >= 1;
+      modusDef && level > 0 && (forschungVon(state, fraktionVon(planetFuerKachel))[modusDef.forschung] || 0) >= 1;
     modusZeile.hidden = !modusFrei;
     if (modusFrei) {
       const laeuft = anreicherungLaeuft(state, planetFuerKachel, id, def);
-      const ausbeute = rate(modusDef.produktion.tritium, level);
+      const ausbeute = rate(modusDef.produktion.deuterium, level);
       const strom = rate(modusDef.verbrauch.energie, level);
       const kurs = ausbeute > 0 ? strom / ausbeute : 0;
       textSetzen(modusZeile.querySelector("[data-modus-name]"), t("Anreicherung"));
@@ -3778,7 +3811,7 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
         laeuft
           ? t("an · −{strom} MW → {menge}", {
               strom: fmt(Math.round(strom)),
-              menge: ratenText("tritium", ausbeute),
+              menge: ratenText("deuterium", ausbeute),
             })
           : t("aus · {kurs} MWh je t", { kurs: fmt(Math.round(kurs)) })
       );
@@ -3788,7 +3821,7 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
         knopf,
         "title",
         t(
-          "Trennt Deuterium aus Wasser, statt es zu fördern – bezahlt mit Strom. {kurs} MWh je Tonne, das {faktor}-fache dessen, was ein Kraftwerk aus derselben Tonne holt. Reicht der Strom nicht, drosselt die ganze Anlage – auch die Förderung.",
+          "Trennt Deuterium aus Wasser, statt es zu fördern – bezahlt mit Strom. {kurs} MWh je Tonne, das {faktor}-fache dessen, was eine Fusionsanlage aus derselben Tonne holt. Reicht der Strom nicht, drosselt die ganze Anlage – auch die Förderung.",
           { kurs: fmt(Math.round(kurs)), faktor: ANREICHERUNG_VERLUST }
         )
       );
@@ -4622,7 +4655,7 @@ function renderForschung(state, root, planet) {
   const info = root.querySelector("#forschung-info");
   if (info) {
     const fluss = forschungsFluss(state);
-    const labore = planetenVon(state).filter((p) => (p.gebaeude && p.gebaeude.forschungslabor) > 0).length;
+    const labore = planetenVon(state).filter((p) => (p.gebaeude && p.gebaeude.forschungssektor) > 0).length;
     // A-061, Prinzip 10a und das A-050-Muster: ein gedrosselter Fluss nennt
     // seinen Grund. Steht hier nur eine kleinere Zahl, sucht der Spieler den
     // Fehler bei sich -- und findet ihn nicht, weil das Labor NICHT kaputt
@@ -4643,13 +4676,13 @@ function renderForschung(state, root, planet) {
     // mehr). Was WIRKLICH Material kostet, ist das LABOR selbst: es zieht
     // laufend Silizium (ab Stufe 3 zusätzlich Elektronik, A-061) -- nur
     // während wirklich geforscht wird (`nurBeiForschung`). Diese Zeile stand
-    // bisher nirgends auf der Forschungsseite, nur an der Forschungslabor-
+    // bisher nirgends auf der Forschungsseite, nur an der Forschungssektor-
     // Kachel im Gebäude-Bereich -- dieselbe Fehlerklasse wie bei Klaus'
     // Sonden (Auskunft existiert, aber nicht dort, wo entschieden wird).
-    const laborDef = BUILDINGS.forschungslabor;
+    const laborDef = BUILDINGS.forschungssektor;
     const materialKosten = {};
     for (const p of planetenVon(state)) {
-      const laborLevel = (p.gebaeude && p.gebaeude.forschungslabor) || 0;
+      const laborLevel = (p.gebaeude && p.gebaeude.forschungssektor) || 0;
       if (laborLevel <= 0) continue;
       for (const resId of laborDef.nurBeiForschung || []) {
         if (!verbrauchAb(laborDef, resId, laborLevel)) continue;
@@ -4732,7 +4765,7 @@ function renderWerft(state, root, planet, jetzt) {
   // Werftstufe beschleunigt den Bau -- ohne Hinweis ist nicht erkennbar,
   // wofür ein Ausbau überhaupt gut wäre.
   //
-  // A-150: der zweite Satz zieht die Parallele zum Forschungslabor ("der
+  // A-150: der zweite Satz zieht die Parallele zum Forschungssektor ("der
   // Zusammenhang Werft/Forschungslabor wurde erst durch Nachfragen klar",
   // Chris' Feedback) -- an der Werft-Kachel, nicht in einer Tour (Prinzip
   // 10a). Beide Anlagen folgen demselben Muster (höhere Stufe = schneller),
@@ -4740,7 +4773,7 @@ function renderWerft(state, root, planet, jetzt) {
   // das war ihm nicht klar.
   const tempo = werftTempo(planet);
   info.title = t(
-    "Werft Stufe {stufe} – baut {tempo}× so schnell wie eine Werft der Stufe 1. Jede weitere Stufe beschleunigt zusätzlich. Für Forschung gilt dasselbe Prinzip – aber am Forschungslabor, einer eigenen Anlage.",
+    "Werft Stufe {stufe} – baut {tempo}× so schnell wie eine Werft der Stufe 1. Jede weitere Stufe beschleunigt zusätzlich. Für Forschung gilt dasselbe Prinzip – aber am Forschungssektor, einer eigenen Anlage.",
     { stufe: planet.gebaeude.werft, tempo: tempo.toFixed(2) }
   );
   // Gerüst der Kopfzeile einmal: Text und Knopf sind getrennte Elemente,
@@ -5187,7 +5220,7 @@ function renderMarkt(state, root, planet) {
   };
 
   if (!handelVerfuegbar(planet)) {
-    stattdessen(t("Kein Handelsposten auf {planet}.", { planet: planet.name }));
+    stattdessen(t("Kein Handelssektor auf {planet}.", { planet: planet.name }));
     return;
   }
 
@@ -5199,7 +5232,7 @@ function renderMarkt(state, root, planet) {
   if (!partner) {
     stattdessen(
       t(
-        "Kein Handelspartner in Reichweite. Der Markt braucht einen Gegenüber – ein fremdes Imperium mit eigenem Handelsposten, das eine Flotte von hier aus erreichen könnte."
+        "Kein Handelspartner in Reichweite. Der Markt braucht einen Gegenüber – ein fremdes Imperium mit eigenem Handelssektor, das eine Flotte von hier aus erreichen könnte."
       ) + handelsReichweitenHinweis(state, planet)
     );
     return;
@@ -5404,6 +5437,14 @@ function renderLager(state, root, planet) {
           <span class="lager-feldgruppe-symbol" data-max-symbol></span>
           <input type="number" min="0" step="100" data-feld="max" />
           <button data-setzen="max">✓</button>
+        </span>
+        <span class="lager-zerlegen" data-zerlegen-zeile hidden>
+          <span class="dezent" data-zerlegen-info></span>
+          <button data-zerlegen></button>
+        </span>
+        <span class="lager-zerlegen" data-entladen-zeile hidden>
+          <span class="dezent" data-entladen-info></span>
+          <button data-entladen></button>
         </span>`;
 
       // Ereignisse EINMAL beim Bauen (Prinzip 8a). Der Planet wird dabei
@@ -5432,6 +5473,23 @@ function renderLager(state, root, planet) {
         });
         zeile.querySelector(`button[data-setzen="${gruppe}"]`).addEventListener("click", uebernehmen);
       }
+      // Zerlegen (A-231): fester Losgröße wie der Markt (MARKT.los), kein
+      // eigenes Zahlenfeld -- "dieselbe Art Mengenfeld, dieselbe Bestätigung"
+      // wie beim Marktverkauf.
+      zeile.querySelector("button[data-zerlegen]").addEventListener("click", () => {
+        zerlegen(state, aktiverPlanet(state), resId, MARKT.los);
+        render(state, root);
+      });
+      // Entladen (A-232): der GANZE aktuelle Bestand auf einmal, kein fester
+      // Los -- Antimaterie ist die Notreserve, und Entladen ist der
+      // Batterie-Griff, nicht der Markt-Griff. Dasselbe Muster wie
+      // Schiffs-Recycling (recyceln() nimmt auch immer den ganzen Bestand
+      // eines Typs, nicht eine feste Anzahl).
+      zeile.querySelector("button[data-entladen]").addEventListener("click", () => {
+        const ziel = aktiverPlanet(state);
+        entladen(state, ziel, Math.floor(ziel.ressourcen[resId] || 0));
+        render(state, root);
+      });
       return zeile;
     },
     aktualisieren: (zeile, resId) => {
@@ -5469,7 +5527,7 @@ function renderLager(state, root, planet) {
       // 🏪 Handels-Mindest -- immer bedienbar, unabhängig von einer Anlage:
       // ein Bestand kann auch ohne laufende Förderung schützenswert sein.
       const handelSymbol = zeile.querySelector('[data-gruppe="handel"] .lager-feldgruppe-symbol');
-      textSetzen(handelSymbol, SYMBOLE.handelsposten);
+      textSetzen(handelSymbol, SYMBOLE.handelssektor);
       const handelFeld = zeile.querySelector('input[data-feld="handel"]');
       attributSetzen(
         handelFeld,
@@ -5516,6 +5574,93 @@ function renderLager(state, root, planet) {
       );
       attributSetzen(maxFeld, "placeholder", hatAnlage ? "" : t("keine Anlage"));
       feldWertSetzen(maxFeld, feldSchluessel("max", planet, resId), hatAnlage ? String(maxBestandFuer(planet, resId) || "") : "");
+
+      // Zerlegen (A-231) -- sichtbar NUR bei Waren mit einem MASSE-
+      // Bestandteil (Katalogfeld, generisch). Fester Los wie am Markt
+      // (MARKT.los), die Quote ist dieselbe wie beim Schiffs-Recycling
+      // (RECYCLING). Ein Fluss-Bestandteil (A-232: Antimaterie -> Energie)
+      // läuft NICHT hier durch, sondern über Entladen weiter unten --
+      // hatNurMasseBestandteile ist genau diese Weiche.
+      const zerlegenZeile = zeile.querySelector("[data-zerlegen-zeile]");
+      if (def.bestandteile && hatNurMasseBestandteile(resId)) {
+        zerlegenZeile.hidden = false;
+        const los = MARKT.los;
+        const rueckbauStufe = forschungVon(state, fraktionVon(planet)).rueckbautechnik || 0;
+        const quote = erstattungsQuote(RECYCLING, rueckbauStufe);
+        const ertrag = skalieren(def.bestandteile, los * quote);
+        const check = kannZerlegen(state, planet, resId, los);
+        textSetzen(
+          zerlegenZeile.querySelector("[data-zerlegen-info]"),
+          t("Zerlegen gibt {quote}% der Bestandteile zurück (mehr mit Rückbautechnik).", {
+            quote: Math.round(quote * 100),
+          })
+        );
+        const zerlegenKnopf = zerlegenZeile.querySelector("button[data-zerlegen]");
+        zerlegenKnopf.disabled = !check.ok;
+        textSetzen(zerlegenKnopf, t("Zerlege {menge} → {ertrag}", { menge: mitEinheit(resId, los), ertrag: buendelText(ertrag) }));
+        attributSetzen(
+          zerlegenKnopf,
+          "title",
+          check.ok
+            ? t("{menge} {res} zerlegen, {ertrag} zurückgewinnen", {
+                menge: mitEinheit(resId, los),
+                res: t(def.name),
+                ertrag: buendelText(ertrag),
+              })
+            : check.grund
+        );
+      } else {
+        zerlegenZeile.hidden = true;
+      }
+
+      // Entladen (A-232) -- sichtbar NUR bei Waren mit einem FLUSS-
+      // Bestandteil (heute: Antimaterie -> Energie). Kein fester Markt-Los
+      // wie bei Zerlegen, sondern der GANZE aktuelle Bestand (siehe
+      // Klick-Handler oben) -- Antimaterie ist die Notreserve, kein
+      // Handelsgut in Stückzahlen.
+      const entladenZeile = zeile.querySelector("[data-entladen-zeile]");
+      if (def.bestandteile && !hatNurMasseBestandteile(resId)) {
+        entladenZeile.hidden = false;
+        const entladenBestand = Math.floor(planet.ressourcen[resId] || 0);
+        const rueckbauStufeEntladen = forschungVon(state, fraktionVon(planet)).rueckbautechnik || 0;
+        const quoteEntladen = erstattungsQuote(RECYCLING, rueckbauStufeEntladen);
+        const ertragEntladen = skalieren(def.bestandteile, entladenBestand * quoteEntladen);
+        // Die Einheit des Ertrags kommt aus dem SPEICHER, nicht aus der
+        // Ressource selbst (speicherEinheit statt buendelText/einheit): Energie
+        // fließt als Leistung (MW), wird aber als Arbeit gespeichert (MWh) --
+        // dieselbe Trennung wie an der Energie-Kachel. buendelText nähme hier
+        // fälschlich die Fluss-Einheit (siehe Bekannte Falle im Auftrag).
+        const ertragText = Object.entries(ertragEntladen)
+          .map(([teilId, betrag]) => `${fmt(betrag)} ${speicherEinheit(teilId)} ${t(RESSOURCEN[teilId].name)}`)
+          .join(", ");
+        const checkEntladen = kannEntladen(state, planet, entladenBestand);
+        textSetzen(
+          entladenZeile.querySelector("[data-entladen-info]"),
+          t(
+            "Entladen gibt {quote}% als Energie in den Speicher zurück (mehr mit Rückbautechnik) – was über die Kapazität hinausgeht, verfällt.",
+            { quote: Math.round(quoteEntladen * 100) }
+          )
+        );
+        const entladenKnopf = entladenZeile.querySelector("button[data-entladen]");
+        entladenKnopf.disabled = !checkEntladen.ok;
+        textSetzen(
+          entladenKnopf,
+          t("Entlade {menge} → {ertrag}", { menge: mitEinheit(resId, entladenBestand), ertrag: ertragText })
+        );
+        attributSetzen(
+          entladenKnopf,
+          "title",
+          checkEntladen.ok
+            ? t("{menge} {res} entladen, {ertrag} in den Speicher", {
+                menge: mitEinheit(resId, entladenBestand),
+                res: t(def.name),
+                ertrag: ertragText,
+              })
+            : checkEntladen.grund
+        );
+      } else {
+        entladenZeile.hidden = true;
+      }
     },
   });
 }
@@ -5976,7 +6121,7 @@ export function ladeEinstellung(state, flotte, hafen, resId, regler, feld) {
 // verspricht, wäre es eine Zusage, die `tanken` stillschweigend kürzt.
 export function tankEinstellung(state, flotte, hafen, regler, feld) {
   const platz = Math.max(0, flotteTankKapazitaet(state, flotte) - (flotte.treibstoff || 0));
-  const vorrat = Math.min(Math.floor(hafen.ressourcen.tritium || 0), platz);
+  const vorrat = Math.min(Math.floor(hafen.ressourcen.deuterium || 0), platz);
   return mengeEinstellung(regler, feld, vorrat, vorrat);
 }
 
@@ -6009,7 +6154,7 @@ export function ladeSperrGrund(state, flotte, hafen, resId) {
 export function tankSperrGrund(state, flotte, hafen) {
   const platz = flotteTankKapazitaet(state, flotte) - (flotte.treibstoff || 0);
   if (platz <= 0) return t("Tank voll.");
-  if (Math.floor(hafen.ressourcen.tritium || 0) <= 0) return t("Kein Deuterium im Lager.");
+  if (Math.floor(hafen.ressourcen.deuterium || 0) <= 0) return t("Kein Deuterium im Lager.");
   return null;
 }
 
@@ -6134,10 +6279,10 @@ function flottenDetailZahlen(state, box, flotte, hafen) {
     );
   }
   textSetzen(
-    box.querySelector("[data-tritium-lage]"),
+    box.querySelector("[data-deuterium-lage]"),
     t("Deuterium an Bord: {menge} ({lager} im Lager)", {
       menge: fmt(flotte.treibstoff),
-      lager: fmt(hafen.ressourcen.tritium || 0),
+      lager: fmt(hafen.ressourcen.deuterium || 0),
     })
   );
   textSetzen(
@@ -6284,7 +6429,7 @@ function flottenDetail(state, root, flotte) {
     </div>
     <div class="flotte-reihe">
       <span class="schieber-gruppe bedienzeile">
-        <span class="dezent zeile-beschriftung" data-tritium-lage></span>
+        <span class="dezent zeile-beschriftung" data-deuterium-lage></span>
         <input class="zeile-regler" type="range" min="0" max="100" step="1" data-tanken-schieber="1" title="${t(
           "Anteil dessen, was noch in den Tank passt und im Lager liegt – 100 % füllt ihn auf. Der Regler stellt nur ein, erst „Tanken“ führt es aus."
         )}" />
@@ -6419,7 +6564,7 @@ function flottenDetail(state, root, flotte) {
   // aus UND rendert komplett neu, wodurch der frisch erzeugte Regler bei 0
   // startete -- sah wie ein spontanes Zurückspringen aus. Bewusst getrennt:
   // Regler = Position wählen, Button = Aktion.
-  // % vom lokal gelagerten Tritium (es gibt keinen Tank-Höchststand im
+  // % vom lokal gelagerten Deuterium (es gibt keinen Tank-Höchststand im
   // Datenmodell -- "100%" heißt hier "alles Verfügbare", nicht "voller Tank").
   // Beim Ziehen UND beim Tippen sofort -- der Sekundentakt wäre für eine
   // Rückmeldung auf die eigene Eingabe zu spät. Die Zahl selbst kommt aus
@@ -6916,7 +7061,7 @@ function kommandoLage(state, jetzt) {
   const { bedarf, fehlt } = tankVorschlag(state, flotte, lage.vonOrt, lage.zielOrt, rundflug);
   const anBord = Math.floor(flotte.treibstoff || 0);
   const hafen = flotte.dockPlanet ? planetById(state, flotte.dockPlanet) : null;
-  const imLager = hafen ? Math.floor(hafen.ressourcen.tritium || 0) : 0;
+  const imLager = hafen ? Math.floor(hafen.ressourcen.deuterium || 0) : 0;
   const vorschlag = Math.min(fehlt, imLager);
   const tankMenge =
     kommandoStand.tankFeld === null ? vorschlag : Math.max(0, Math.min(kommandoStand.tankFeld, imLager));
@@ -7451,12 +7596,12 @@ function renderSystem(state, root, jetzt) {
     const von = flottePosition(state, flotte, jetzt);
     const d = strecke(von, ziel);
     statusEl.innerHTML =
-      t("{flotte}: Entfernung {distanz} · rund {tritium} Deuterium hin · {anBord} an Bord", {
+      t("{flotte}: Entfernung {distanz} · rund {deuterium} Deuterium hin · {anBord} an Bord", {
         // innerHTML, weil unten die Schnellversand-Knöpfe angehängt werden --
         // der Name muss also entschärft sein.
         flotte: htmlText(flotte.name),
         distanz: d.toFixed(1),
-        tritium: fmt(treibstoffFuer(flotte, d)),
+        deuterium: fmt(treibstoffFuer(flotte, d)),
         anBord: fmt(flotte.treibstoff),
       }) + schnellversandKnoepfe(state, flotte, systemId);
     // Schnellversand: erscheint erst mit der jeweiligen KI-Forschung. Der

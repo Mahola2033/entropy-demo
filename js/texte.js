@@ -120,25 +120,25 @@ export const EN = {
     "Exact amount instead of a percentage. Whatever stands here overrides the slider.",
 
   // --- Gebäude ------------------------------------------------------------
-  Metallmine: "Metal Mine",
-  Siliziummine: "Silicon Mine",
+  Metallförderung: "Metal Extraction",
+  Siliziumförderung: "Silicon Extraction",
   Fossilanlage: "Fossil Plant",
   Kernkraftanlage: "Nuclear Plant",
-  Kraftwerk: "Power Plant",
-  Lagerhalle: "Warehouse",
-  "Deuterium-Extraktor": "Deuterium Extractor",
+  Fusionsanlage: "Fusion Plant",
+  Lagernetz: "Storage Network",
+  Deuteriumanlage: "Deuterium Plant",
   Werft: "Shipyard",
-  Iridiummine: "Iridium Mine",
+  Iridiumförderung: "Iridium Extraction",
   Uranmine: "Uranium Mine",
   Fertigung: "Fabrication Plant",
-  Antimateriefabrik: "Antimatter Plant",
-  Forschungslabor: "Research Lab",
-  Handelsposten: "Trading Post",
+  Antimateriekollektor: "Antimatter Collector",
+  Forschungssektor: "Research Sector",
+  Handelssektor: "Trade Sector",
   Magnetfeldgenerator: "Magnetic Field Generator",
   "Hält ein künstliches Magnetfeld um diese Welt und lenkt geladene Teilchen ab. Braucht dauerhaft rund ein Terawatt – fällt der Strom, fällt der Schirm. Zum Vergleich: der Geodynamo der Erde setzt für dasselbe etwa dieselbe Leistung um.":
     "Holds an artificial magnetic field around this world and deflects charged particles. Needs about a terawatt continuously – if the power fails, the shield fails. For comparison: Earth’s geodynamo turns over roughly the same for the same job.",
-  Agrarkuppel: "Agri-Dome",
-  Wohnmodul: "Habitat Module",
+  Agrarsektor: "Agricultural Sector",
+  Wohnsektor: "Residential Sector",
 
   "Fördert Metall aus der Kruste. Sternnahe Welten sind metallreicher, weil ihnen die leichten Stoffe früh weggekocht wurden – Merkur besteht zu einem auffällig großen Teil aus Eisen.":
     "Extracts metal from the crust. Worlds close to their star are richer in metal because the light material was boiled away early on – Mercury is made up of a strikingly large share of iron.",
@@ -152,26 +152,26 @@ export const EN = {
     "Nuclear fission in a pressurized water reactor: heavy nuclei like uranium-235 split under neutron bombardment, releasing binding energy – without fusion's ignition threshold, but with the same steam cycle. Runs anywhere, independent of sun or biomass. Burns uranium from storage – without fuel the reactor stands still.",
   "Fusionsreaktor. Die Reaktion setzt schnelle Neutronen frei – ungeladen, also nur schwer abzuschirmen und nur als Wärme erntbar. Deshalb steckt in jedem Kraftwerk ein Dampfkreislauf, so altmodisch das klingt. Verbrennt Deuterium aus dem Lager – ohne Brennstoff zündet die Fusion nicht.":
     "Fusion reactor. The reaction releases fast neutrons – uncharged, therefore hard to shield and harvestable only as heat. That is why every power plant contains a steam cycle, however old-fashioned that sounds. Burns deuterium from storage – without fuel the fusion does not ignite.",
-  Solarfeld: "Solar Field",
+  Solaranlagen: "Solar Arrays",
   Hydrokultur: "Hydroponics",
   "Baut Nahrung unter Kunstlicht in geschlossenen Regalen – unabhängig von Sonne und Ozonschicht. Teuer erkauft: Pflanzen verwerten nur rund ein Prozent des Lichts, und hier kommt jedes Photon aus der Steckdose. Die teure Antwort, wenn draußen nichts mehr wächst.":
     "Grows food under artificial light in sealed racks – independent of sun and ozone layer. Dearly bought: plants convert only about one percent of the light, and here every photon comes out of the socket. The expensive answer when nothing grows outside any more.",
-  "Für Energie gibt es mehrere Wege, und sie unterscheiden sich im Preis: Die Fossilanlage ist die billigste und von Anfang an baubar, aber ihr Vorrat ist endlich und wächst nie nach. Die Kernkraftanlage verbrennt Uran aus dem Lager und läuft dafür immer und überall – die teuerste Wahl. Das Kraftwerk (erst nach Fusionstechnik erforscht) verbrennt Deuterium – geht der Brennstoff aus, zündet die Fusion nicht mehr und der Reaktor steht, bis wieder Vorrat für den Anlauf da ist. Das Solarfeld braucht keinen Brennstoff und liefert sternnah am meisten – aber seine Halbleiter überstehen die Teilchenflut nicht: ungeschirmte Felder sind danach Schrott. Der bequeme Weg ist der verwundbare; ein Energiespeicher überbrückt Lücken in allen.":
-    "There are several paths to power, and they differ in their price: the fossil plant is the cheapest and buildable from the start, but its reserves are finite and never grow back. The nuclear plant burns uranium from storage and runs anywhere, anytime in return – the most expensive choice. The power plant (researched only after fusion technology) burns deuterium – once the fuel runs out, the fusion no longer ignites and the reactor stands still until there is stock for a fresh start-up. The solar field needs no fuel and yields the most close to the star – but its semiconductors do not survive the particle flood: unshielded fields are scrap afterwards. The convenient path is the vulnerable one; an energy storage bridges gaps in all of them.",
+  "Für Energie gibt es mehrere Wege, und sie unterscheiden sich im Preis: Die Fossilanlage ist die billigste und von Anfang an baubar, aber ihr Vorrat ist endlich und wächst nie nach. Die Kernkraftanlage verbrennt Uran aus dem Lager und läuft dafür immer und überall – die teuerste Wahl. Die Fusionsanlage (erst nach Fusionstechnik erforscht) verbrennt Deuterium – geht der Brennstoff aus, zündet die Fusion nicht mehr und der Reaktor steht, bis wieder Vorrat für den Anlauf da ist. Die Solaranlagen brauchen keinen Brennstoff und liefern sternnah am meisten – aber ihre Halbleiter überstehen die Teilchenflut nicht: ungeschirmte Anlagen sind danach Schrott. Der bequeme Weg ist der verwundbare; ein Energiespeicher überbrückt Lücken in allen.":
+    "There are several paths to power, and they differ in their price: the fossil plant is the cheapest and buildable from the start, but its reserves are finite and never grow back. The nuclear plant burns uranium from storage and runs anywhere, anytime in return – the most expensive choice. The fusion plant (researched only after fusion technology) burns deuterium – once the fuel runs out, the fusion no longer ignites and the reactor stands still until there is stock for a fresh start-up. The solar arrays need no fuel and yield the most close to the star – but their semiconductors do not survive the particle flood: unshielded arrays are scrap afterwards. The convenient path is the vulnerable one; an energy storage bridges gaps in all of them.",
   "Kein Brennstoff – der Reaktor ist aus. Er zündet wieder, sobald Deuterium für {dauer} im Lager liegt.":
     "No fuel – the reactor is out. It ignites again once there is deuterium for {dauer} in storage.",
   "Kein Brennstoff – der Reaktor ist aus. Er zündet wieder, sobald Uran für {dauer} im Lager liegt.":
     "No fuel – the reactor is out. It ignites again once there is uranium for {dauer} in storage.",
   "Kein Brennstoff – Reaktor aus": "No fuel – reactor out",
   // A-142: der Slot bleibt reserviert, statt bei fehlender Brennstoffanlage
-  // zu verschwinden (G4/R-8). A-147: Text jetzt für Kraftwerk UND
+  // zu verschwinden (G4/R-8). A-147: Text jetzt für Fusionsanlage UND
   // Fossilanlage gemeinsam (kein zweiter leerer Zustand), die alten
-  // kraftwerk-spezifischen Fassungen sind damit Geschichte.
-  "Ohne Kraftwerk oder Fossilanlage gibt es keinen Brennstoffverbrauch zu zeigen.":
-    "Without a power plant or fossil plant there is no fuel draw to show.",
+  // fusionsanlage-spezifischen Fassungen sind damit Geschichte.
+  "Ohne Fusionsanlage oder Fossilanlage gibt es keinen Brennstoffverbrauch zu zeigen.":
+    "Without a fusion plant or fossil plant there is no fuel draw to show.",
   "Keine brennstoffgebundene Anlage gebaut": "No fuel-based facility built",
-  "Deuterium im Lager geteilt durch den Verbrauch des Kraftwerks – Zufluss nicht eingerechnet.":
-    "Deuterium in storage divided by the power plant's consumption – inflow not included.",
+  "Deuterium im Lager geteilt durch den Verbrauch der Fusionsanlage – Zufluss nicht eingerechnet.":
+    "Deuterium in storage divided by the fusion plant's consumption – inflow not included.",
   "Uran im Lager geteilt durch den Verbrauch der Kernkraftanlage – Zufluss nicht eingerechnet.":
     "Uranium in storage divided by the nuclear plant's consumption – inflow not included.",
   "Brennstoff für {dauer}": "Fuel for {dauer}",
@@ -185,8 +185,8 @@ export const EN = {
     "Fossil reserves divided by the fossil plant's consumption – reserves never grow back.",
   "Stufe {stufe} verbrennt {rate} t/Jahr. Jede weitere Ausbaustufe zieht mehr – die Reichweite gilt für die jetzige Stufe.":
     "Level {stufe} burns {rate} t/year. Every further level draws more – the range holds for the current level.",
-  "Achtung: Ungeschirmte Solarfelder überstehen die Teilchenflut nicht.":
-    "Warning: unshielded solar fields will not survive the particle flood.",
+  "Achtung: Ungeschirmte Solaranlagen überstehen die Teilchenflut nicht.":
+    "Warning: unshielded solar arrays will not survive the particle flood.",
   "Photovoltaik in Feldern. Halbleiter ernten Licht direkt, ohne Brennstoff und ohne Dampfkreislauf – aber ihr Kristallgitter ist empfindlich: schnelle geladene Teilchen schlagen Atome von ihren Plätzen, und genau daraus besteht eine Teilchenflut. Sternnahe Orbits liefern mehr, weil die Bestrahlungsstärke mit dem Abstandsquadrat fällt.":
     "Photovoltaics in fields. Semiconductors harvest light directly, with no fuel and no steam cycle – but their crystal lattice is delicate: fast charged particles knock atoms off their sites, and that is exactly what a particle flood is made of. Orbits close to the star yield more, because irradiance falls with the square of distance.",
   "Erhöht die Lagerkapazität aller lagerbaren Ressourcen.": "Increases storage capacity for all stockpiled resources.",
@@ -228,13 +228,13 @@ export const EN = {
   Logistiknetzwerk: "Logistics Network",
   Antimaterietechnik: "Antimatter Tech",
   Magnetosphärentechnik: "Magnetosphere Tech",
-  "Erlaubt den Bau planetarer Magnetfeldgeneratoren. Sie halten keinen Gammablitz auf – der braucht Masse, dafür sind die Wohnmodule da. Sie lenken die geladene Teilchenflut ab, die einer Supernova jahrtausendelang folgt, und halten damit die Atmosphäre. Vorbild ist ein real durchgerechneter Magnetschild am L1-Punkt des Mars.":
-    "Enables planetary magnetic field generators. They stop no gamma flash – that needs mass, which is what habitat modules are for. They deflect the charged particle flood that follows a supernova for millennia, and thereby hold the atmosphere. The model is a real magnetic shield concept for the L1 point of Mars.",
+  "Erlaubt den Bau planetarer Magnetfeldgeneratoren. Sie halten keinen Gammablitz auf – der braucht Masse, dafür sind die Wohnsektoren da. Sie lenken die geladene Teilchenflut ab, die einer Supernova jahrtausendelang folgt, und halten damit die Atmosphäre. Vorbild ist ein real durchgerechneter Magnetschild am L1-Punkt des Mars.":
+    "Enables planetary magnetic field generators. They stop no gamma flash – that needs mass, which is what residential sectors are for. They deflect the charged particle flood that follows a supernova for millennia, and thereby hold the atmosphere. The model is a real magnetic shield concept for the L1 point of Mars.",
 
   "Verbessert die Abbaueffizienz aller Minen um 5% pro Stufe.":
     "Improves extraction efficiency of all mines by 5% per level.",
-  "Verbessert den Wirkungsgrad deiner Kraftwerke um 8% pro Stufe. Eine Wärmekraftmaschine kann prinzipiell nie alle Wärme in Strom wandeln: die Grenze ist 1 minus dem Verhältnis von kalter zu heißer Temperatur. Fortschritt heißt hier, heißer zu werden.":
-    "Improves the efficiency of your power plants by 8% per level. A heat engine can never convert all of its heat into electricity: the ceiling is 1 minus the ratio of cold to hot temperature. Progress here means running hotter.",
+  "Verbessert den Wirkungsgrad deiner Fusionsanlagen um 8% pro Stufe. Eine Wärmekraftmaschine kann prinzipiell nie alle Wärme in Strom wandeln: die Grenze ist 1 minus dem Verhältnis von kalter zu heißer Temperatur. Fortschritt heißt hier, heißer zu werden.":
+    "Improves the efficiency of your fusion plants by 8% per level. A heat engine can never convert all of its heat into electricity: the ceiling is 1 minus the ratio of cold to hot temperature. Progress here means running hotter.",
   "Verkürzt die Flugzeit deiner Sonden um 10% pro Stufe.":
     "Shortens probe travel time by 10% per level.",
   "Erhöht die Ausbeute aus Wracks und Asteroiden um 15% pro Stufe.":
@@ -249,12 +249,12 @@ export const EN = {
     "Increases freighter cargo capacity by 20% per level.",
   "Erhöht die maximale Reichweite deiner Sonden und verkürzt Reisezeiten zwischen Systemen. Der Treibstoffbedarf wächst nicht mit der Geschwindigkeit, sondern exponentiell mit ihr – wer Treibstoff mitnimmt, muss auch den Treibstoff beschleunigen. Deshalb ist jede Verbesserung des Antriebs mehr wert als jeder größere Tank.":
     "Increases the maximum range of your probes and shortens travel times between systems. Fuel demand does not grow with speed but exponentially in it – whoever carries fuel must accelerate that fuel too. This is why any improvement to the drive is worth more than any bigger tank.",
-  "Erhöht die Kapazität aller Lagerhallen um 6% pro Stufe.":
-    "Increases the capacity of all warehouses by 6% per level.",
-  "Zweite Stufe der Energiegewinnung. Verbessert Kraftwerke um weitere 10% pro Stufe. Fusion gewinnt Energie nur, solange die Kerne leichter sind als Eisen – dort sind sie am festesten gebunden. Jenseits davon kostet Verschmelzen Energie, statt welche zu liefern. Schaltet das Kraftwerk frei.":
-    "Second tier of power generation. Improves power plants by a further 10% per level. Fusion only yields energy while the nuclei are lighter than iron – that is where binding is tightest. Beyond it, fusing costs energy instead of releasing it. Unlocks the power plant.",
-  "Verbessert die Ausbeute deiner Iridiumminen um 7% pro Stufe.":
-    "Improves the yield of your iridium mines by 7% per level.",
+  "Erhöht die Kapazität aller Lagernetze um 6% pro Stufe.":
+    "Increases the capacity of all storage networks by 6% per level.",
+  "Zweite Stufe der Energiegewinnung. Verbessert Fusionsanlagen um weitere 10% pro Stufe. Fusion gewinnt Energie nur, solange die Kerne leichter sind als Eisen – dort sind sie am festesten gebunden. Jenseits davon kostet Verschmelzen Energie, statt welche zu liefern. Schaltet die Fusionsanlage frei.":
+    "Second tier of power generation. Improves fusion plants by a further 10% per level. Fusion only yields energy while the nuclei are lighter than iron – that is where binding is tightest. Beyond it, fusing costs energy instead of releasing it. Unlocks the fusion plant.",
+  "Verbessert die Ausbeute deiner Iridiumförderungen um 7% pro Stufe.":
+    "Improves the yield of your iridium extraction sites by 7% per level.",
   "Startet mit einem Klick so viele Sonden, wie es unerforschte einfache Ziele im System gibt -- statt jede einzeln loszuschicken.":
     "Launches as many probes as there are unexplored simple targets in the system, in one click – instead of sending each one separately.",
   "Dasselbe für Erkunder: ein Klick deckt alle komplexen Ziele im System auf -- Anomalien, Strukturen, Gefahren.":
@@ -350,6 +350,8 @@ export const EN = {
   // --- Arbeitskraft-Leerlauf (A-155) ---------------------------------------
   "{planet}: nur {quote} % Beschäftigung – Arbeitskraft-Leerlauf stiehlt Ressourcen und stärkt Piraten in der Nähe.":
     "{planet}: only {quote} % employment – idle workforce steals resources and strengthens nearby pirates.",
+  "{planet}: {ressource}-Vorkommen bei {prozent} % Ergiebigkeit – das Bergwerk wird nicht leer, nur ärmer. Recycling, Bergung oder ein Umzug gleichen das aus.":
+    "{planet}: {ressource} deposit at {prozent} % yield – the mine never runs empty, only leaner. Recycling, salvage, or relocating offset it.",
 
   // --- Energiespeicher (v0.29) --------------------------------------------
   Energiespeicher: "Energy Store",
@@ -478,8 +480,8 @@ export const EN = {
     "Catching up made no progress: {bloecke} blocks without advancing, stuck on an event of type [{art}]. The remaining time is left open and was NOT applied.",
   unbekannt: "unknown",
   "Nicht genug Ressourcen ({res}).": "Not enough resources ({res}).",
-  "Kein Forschungslabor im Imperium – ohne Labor forscht niemand.":
-    "No research lab in the empire – without a lab nobody researches.",
+  "Kein Forschungssektor im Imperium – ohne Labor forscht niemand.":
+    "No research sector in the empire – without a lab nobody researches.",
   "Nicht genug Frachtraum.": "Not enough cargo space.",
   "Nicht genug vorhanden.": "Not enough in stock.",
   "Nicht genug Credits.": "Not enough credits.",
@@ -549,8 +551,8 @@ export const EN = {
     "{partner} no longer buys from you – relations are too poor, and they do not need it either.",
   "{gruppe} gibt ihren Stützpunkt auf und zieht weiter – ihr System ist leergeräumt.":
     "{gruppe} abandons its base and moves on – their system has been picked clean.",
-  "Kein Handelspartner in Reichweite. Der Markt braucht einen Gegenüber – ein fremdes Imperium mit eigenem Handelsposten, das eine Flotte von hier aus erreichen könnte.":
-    "No trading partner in range. The market needs a counterparty – a foreign empire with its own trading post that a fleet could reach from here.",
+  "Kein Handelspartner in Reichweite. Der Markt braucht einen Gegenüber – ein fremdes Imperium mit eigenem Handelssektor, das eine Flotte von hier aus erreichen könnte.":
+    "No trading partner in range. The market needs a counterparty – a foreign empire with its own trade sector that a fleet could reach from here.",
   "Handel mit {partner} auf {planet} · Kasse dort {credits}":
     "Trading with {partner} on {planet} · their funds: {credits}",
   Unbekannt: "Unknown",
@@ -560,8 +562,10 @@ export const EN = {
   "{partner} hat nur {menge} {res} abzugeben.": "{partner} has only {menge} {res} to spare.",
   "Nicht genug {res} im Marktlager.": "Not enough {res} in the market depot.",
   "Nicht handelbar.": "Not tradable.",
+  "Nicht zerlegbar.": "Cannot be broken down.",
+  "Kein Energiespeicher gebaut.": "No energy store built.",
   "Menge muss positiv sein.": "Amount must be positive.",
-  "Kein Handelsposten auf diesem Planeten.": "No trading post on this planet.",
+  "Kein Handelssektor auf diesem Planeten.": "No trade sector on this planet.",
   "Keine Ladung an Bord.": "No cargo on board.",
   "Keine Schiffe verfügbar.": "No ships available.",
   "Keine Schiffe an Bord.": "No ships on board.",
@@ -637,6 +641,12 @@ export const EN = {
   "{flotte}: {schiff} bei {planet} repariert.": "{flotte}: {schiff} repaired at {planet}.",
   "{flotte}: {anzahl}× {schiff} recycelt – {erstattung} zurückgewonnen.":
     "{flotte}: {anzahl}× {schiff} recycled – {erstattung} recovered.",
+  "{planet}: {menge} {ware} zerlegt – {ertrag} zurückgewonnen.":
+    "{planet}: {menge} {ware} broken down – {ertrag} recovered.",
+  "{planet}: {menge} Antimaterie entladen – {geladen} MWh gespeichert.":
+    "{planet}: {menge} antimatter discharged – {geladen} MWh stored.",
+  "{planet}: {menge} Antimaterie entladen – {geladen} MWh gespeichert, {verfallen} MWh verfallen (Speicher voll).":
+    "{planet}: {menge} antimatter discharged – {geladen} MWh stored, {verfallen} MWh lost (store full).",
   "{fracht} auf {planet} gelöscht.": "{fracht} unloaded at {planet}.",
   "{flotte} hat keine Schiffe mehr und wurde aufgelöst.": "{flotte} has no ships left and was disbanded.",
   "{wer}: Reste gingen zwischen den Systemen verloren.": "{wer}: the remains were lost between systems.",
@@ -912,6 +922,9 @@ export const EN = {
   "Verbraucht zusätzlich: {mehr} – fehlt der Nachschub, drosselt die Anlage anteilig":
     "Additionally consumes: {mehr} – if supply runs short, the facility throttles proportionally",
   "Brennt zusätzlich: {mehr}": "Additionally burns: {mehr}",
+  "Ergiebigkeit {prozent} %": "Yield {prozent}%",
+  "Das Vorkommen wird nie leer, nur ärmer – die Förderrate sinkt mit der geförderten Menge auf diesen Anteil. Recycling, Bergung und ein Umzug bleiben die Auswege.":
+    "The deposit never runs empty, only leaner – the extraction rate falls with the amount already mined, down to this share. Recycling, salvage, and relocating remain the ways out.",
   "Schafft Platz für {menge} {res} mehr": "Creates room for {menge} more {res}",
   "Benötigt: {voraussetzungen}": "Requires: {voraussetzungen}",
   erforscht: "researched",
@@ -922,8 +935,8 @@ export const EN = {
 
   // --- Werft --------------------------------------------------------------
   "Ohne Werft lassen sich keine Schiffe bauen.": "Without a shipyard no ships can be built.",
-  "Werft Stufe {stufe} – baut {tempo}× so schnell wie eine Werft der Stufe 1. Jede weitere Stufe beschleunigt zusätzlich. Für Forschung gilt dasselbe Prinzip – aber am Forschungslabor, einer eigenen Anlage.":
-    "Shipyard level {stufe} – builds {tempo}× as fast as a level 1 shipyard. Every further level speeds it up more. The same principle applies to research – but at the research lab, a separate facility.",
+  "Werft Stufe {stufe} – baut {tempo}× so schnell wie eine Werft der Stufe 1. Jede weitere Stufe beschleunigt zusätzlich. Für Forschung gilt dasselbe Prinzip – aber am Forschungssektor, einer eigenen Anlage.":
+    "Shipyard level {stufe} – builds {tempo}× as fast as a level 1 shipyard. Every further level speeds it up more. The same principle applies to research – but at the research sector, a separate facility.",
   // Seit v0.83 zwei getrennte Schlüssel: der Abbrechen-Knopf steht fest im
   // Gerüst, damit die mitlaufende Restzeit ihn nicht jede Sekunde mitreißt
   // (Prinzip 8a, A-004). Vorher steckte der ganze Knopf als Markup im Text.
@@ -949,7 +962,7 @@ export const EN = {
     '<li class="dezent">You cannot build on an outpost.</li>',
 
   // --- Markt --------------------------------------------------------------
-  "Kein Handelsposten auf {planet}.": "No trading post on {planet}.",
+  "Kein Handelssektor auf {planet}.": "No trade sector on {planet}.",
   "{res} – Bestand {menge} auf {planet}": "{res} – stock {menge} on {planet}",
   "Verkauf {verkauf} Credits/Stück · Kauf {kauf} Credits/Stück":
     "Sell {verkauf} credits/unit · buy {kauf} credits/unit",
@@ -965,6 +978,14 @@ export const EN = {
     "Pay {preis} credits, {menge} {res} then wait at the market to be collected",
   "Kaufe {menge} → 🪙 {preis}": "Buy {menge} → 🪙 {preis}",
   "Credits: {menge}": "Credits: {menge}",
+  "Zerlegen gibt {quote}% der Bestandteile zurück (mehr mit Rückbautechnik).":
+    "Breaking down returns {quote}% of the components (more with Deconstruction Technology).",
+  "Zerlege {menge} → {ertrag}": "Break down {menge} → {ertrag}",
+  "{menge} {res} zerlegen, {ertrag} zurückgewinnen": "Break down {menge} {res}, recover {ertrag}",
+  "Entladen gibt {quote}% als Energie in den Speicher zurück (mehr mit Rückbautechnik) – was über die Kapazität hinausgeht, verfällt.":
+    "Discharging returns {quote}% as energy into the store (more with Deconstruction Technology) – anything past capacity is lost.",
+  "Entlade {menge} → {ertrag}": "Discharge {menge} → {ertrag}",
+  "{menge} {res} entladen, {ertrag} in den Speicher": "Discharge {menge} {res}, {ertrag} into the store",
 
   // --- Verarbeitung -------------------------------------------------------
   "Außenposten haben keine Produktion.": "Outposts have no production.",
@@ -1173,8 +1194,8 @@ export const EN = {
   "{ziele} von {gesamt} Ziel(en) mit {schiffe} Schiff(en)": "{ziele} of {gesamt} target(s) with {schiffe} ship(s)",
   "Keine Flotte gewählt – stelle eine auf und wähle sie aus, um Befehle zu geben.":
     "No fleet selected – form one and select it to give orders.",
-  "{flotte}: Entfernung {distanz} · rund {tritium} Deuterium hin · {anBord} an Bord":
-    "{flotte}: distance {distanz} · about {tritium} deuterium one way · {anBord} on board",
+  "{flotte}: Entfernung {distanz} · rund {deuterium} Deuterium hin · {anBord} an Bord":
+    "{flotte}: distance {distanz} · about {deuterium} deuterium one way · {anBord} on board",
 
   // --- Karten (js/karte.js) -----------------------------------------------
   "Galaxiekarte mit {systeme} Systemen": "Galaxy map with {systeme} systems",
@@ -1273,8 +1294,8 @@ export const EN = {
   "Worum es geht": "What this is about",
   "Am Himmel steht ein Stern, der sterben wird. Das Neutrino-Observatorium liest die Brennstufe in seinem Kern und kann daraus ablesen, wann er kollabiert – das ist keine Prophezeiung, sondern gerechnete Astrophysik: die Brennstufen eines massereichen Sterns haben bekannte Dauern.":
     "There is a star in the sky that is going to die. The neutrino observatory reads the burning stage in its core and can tell from it when the star will collapse – that is not prophecy but calculated astrophysics: the burning stages of a massive star have known durations.",
-  "Wenn er kollabiert, geschieht zweierlei, und zwar zu sehr verschiedenen Zeiten. Zuerst kommt der Blitz, mit dem Licht. Er tötet niemanden – Wohnmodule sind versiegelt –, aber er zerlegt die Ozonschicht und damit das Einzige auf der Oberfläche, das Sonnenlicht braucht: die Landwirtschaft.":
-    "When it collapses, two things happen at very different times. First comes the flash, travelling with the light. It kills no one – habitats are sealed – but it destroys the ozone layer, and with it the only thing on the surface that needs sunlight: agriculture.",
+  "Wenn er kollabiert, geschieht zweierlei, und zwar zu sehr verschiedenen Zeiten. Zuerst kommt der Blitz, mit dem Licht. Er tötet niemanden – Wohnsektoren sind versiegelt –, aber er zerlegt die Ozonschicht und damit das Einzige auf der Oberfläche, das Sonnenlicht braucht: die Landwirtschaft.":
+    "When it collapses, two things happen at very different times. First comes the flash, travelling with the light. It kills no one – residential sectors are sealed – but it destroys the ozone layer, and with it the only thing on the surface that needs sunlight: agriculture.",
   "Jahrhunderte später trifft die Teilchenflut ein. Sie ist der eigentliche Weltenkiller, sie bleibt Jahrtausende, und sie ist der Grund, warum es in diesem Spiel überhaupt etwas zu gewinnen gibt.":
     "Centuries later the particle flood arrives. It is the real world killer, it stays for millennia, and it is the reason this game has anything to win at all.",
   "Deine Aufgabe ist nicht, die Supernova aufzuhalten. Das kann nichts. Deine Aufgabe ist, dass deine Welten das Jahrhundert danach überleben.":
@@ -1293,8 +1314,8 @@ export const EN = {
     "There are two very different kinds of resources, and the difference decides more than any number. Metal, silicon and everything else that is stored accumulates: what you do not need today is still there tomorrow.",
   "Energie und Arbeitskraft sind keine Vorräte, sondern Flüsse. Sie werden in jedem Moment erzeugt und im selben Moment verbraucht. Reicht ein Fluss nicht, wird gedrosselt – und zwar alles, was daran hängt.":
     "Power and workforce are not stores but flows. They are produced in every moment and consumed in the same moment. If a flow falls short, everything that draws on it is throttled.",
-  "Arbeitskraft kommt aus deiner Bevölkerung, und Bevölkerung wächst nur, wenn Wohnraum frei ist. Deshalb ist ein Wohnmodul selten das, was am dringendsten aussieht, und oft das, was am meisten bringt: es hebt nicht eine Zahl, sondern die Obergrenze aller anderen.":
-    "Workforce comes from your population, and population only grows while there is free living space. That is why a habitat rarely looks like the most urgent thing to build and often is the most valuable: it does not raise one number, it raises the ceiling of all the others.",
+  "Arbeitskraft kommt aus deiner Bevölkerung, und Bevölkerung wächst nur, wenn Wohnraum frei ist. Deshalb ist ein Wohnsektor selten das, was am dringendsten aussieht, und oft das, was am meisten bringt: er hebt nicht eine Zahl, sondern die Obergrenze aller anderen.":
+    "Workforce comes from your population, and population only grows while there is free living space. That is why a residential sector rarely looks like the most urgent thing to build and often is the most valuable: it does not raise one number, it raises the ceiling of all the others.",
 
   "Vorrang – die Entscheidung, die zählt": "Priority – the decision that counts",
   "Wenn Strom oder Leute knapp werden, teilt das Spiel sie von selbst gleichmäßig auf. Das ist im Normalfall vernünftig und im Notfall genau falsch: wer zu wenig hat, will nicht überall halb laufen, sondern das Wichtige ganz und den Rest gar nicht.":
@@ -1305,8 +1326,8 @@ export const EN = {
     "As long as there is enough, the setting changes nothing at all. It is not a permanent arithmetic chore but an emergency decision. In an emergency, though, it is the most important one you have.",
 
   "Der Schirm, und warum halb nicht reicht": "The shield, and why half is not enough",
-  "Gegen die Teilchenflut hilft ein Magnetfeld. Der Grund ist Physik: die Flut besteht aus geladenen Teilchen, und die lassen sich magnetisch ablenken. Gegen den Gammablitz hilft es nicht – der braucht Masse, und dafür sind die Wohnmodule da.":
-    "A magnetic field works against the particle flood. The reason is physics: the flood consists of charged particles, and those can be deflected magnetically. It does not help against the gamma flash – that one needs mass, and that is what the habitats are for.",
+  "Gegen die Teilchenflut hilft ein Magnetfeld. Der Grund ist Physik: die Flut besteht aus geladenen Teilchen, und die lassen sich magnetisch ablenken. Gegen den Gammablitz hilft es nicht – der braucht Masse, und dafür sind die Wohnsektoren da.":
+    "A magnetic field works against the particle flood. The reason is physics: the flood consists of charged particles, and those can be deflected magnetically. It does not help against the gamma flash – that one needs mass, and that is what the residential sectors are for.",
   "Ein solcher Generator hält kein Schutzschild im Sinne eines Kraftfelds, sondern eine Lebenserhaltung für einen ganzen Planeten. Und weil er ein Feld dauerhaft aufrechterhalten muss, braucht er dauerhaft enorme Leistung – er dominiert den Energiehaushalt einer Welt vollständig.":
     "Such a generator does not hold a shield in the sense of a force field; it runs life support for an entire planet. And because it must sustain a field permanently, it needs enormous power permanently – it dominates a world's energy budget completely.",
   "Entscheidend ist: ein Schirm auf halber Leistung ist kein halber Schutz. Ein Feld mit Lücken lenkt nicht die Hälfte der Teilchen ab, es reißt an der falschen Stelle auf. Wenn die Flut eintrifft, zählt nur, ob er voll versorgt läuft – mit Strom und mit Leuten.":
@@ -1351,12 +1372,12 @@ export const EN = {
   // geborgt und stehen deshalb weiter oben -- hier steht nur, was es NICHT
   // schon gibt.
   "Eine Welt, und eine {begriff}": "One world, and a {begriff}",
-  "Du führst genau eine Welt: {planet}. Ein Wohnmodul, ein kleiner Vorrat – und ein Himmel voller Sterne, in denen noch nie jemand war.":
-    "You run exactly one world: {planet}. One habitat, a small stock of supplies – and a sky full of stars where no one has ever been.",
+  "Du führst genau eine Welt: {planet}. Ein Wohnsektor, ein kleiner Vorrat – und ein Himmel voller Sterne, in denen noch nie jemand war.":
+    "You run exactly one world: {planet}. One residential sector, a small stock of supplies – and a sky full of stars where no one has ever been.",
   // A-045: der alte Satz empfahl das Forschen, das im Startzustand gar nicht
   // geht -- genau die Stelle, die Chris gemeldet hat.
-  "Zum Anfangen genügt ein Handgriff: im Bereich Planet eine Anlage ausbauen – Fossilanlage und Wohnmodul tragen alles andere. Geforscht wird erst, wenn ein Forschungslabor steht; Forschung ist kein Kauf, sondern Arbeit, und ohne Labor arbeitet niemand daran.":
-    "One move is enough to start: upgrade a facility under Planet – the fossil plant and the habitat carry everything else. Research only begins once a research lab stands; research is not a purchase but work, and without a lab nobody is doing it.",
+  "Zum Anfangen genügt ein Handgriff: im Bereich Planet eine Anlage ausbauen – Fossilanlage und Wohnsektor tragen alles andere. Geforscht wird erst, wenn ein Forschungssektor steht; Forschung ist kein Kauf, sondern Arbeit, und ohne Labor arbeitet niemand daran.":
+    "One move is enough to start: upgrade a facility under Planet – the fossil plant and the residential sector carry everything else. Research only begins once a research sector stands; research is not a purchase but work, and without a lab nobody is doing it.",
   "Die Uhr oben im Kopf zeigt, wieviel Zeit bleibt. Alles Weitere steht im Handbuch – jederzeit, unterster Eintrag in der Leiste links.":
     "The clock in the header shows how much time is left. Everything else is in the manual – at any time, bottom entry in the bar on the left.",
   "Handbuch öffnen": "Open the manual",
@@ -1560,11 +1581,11 @@ export const EN = {
   "aus · {kurs} MWh je t": "off · {kurs} MWh per t",
   Einschalten: "Switch on",
   Ausschalten: "Switch off",
-  "Trennt Deuterium aus Wasser, statt es zu fördern – bezahlt mit Strom. {kurs} MWh je Tonne, das {faktor}-fache dessen, was ein Kraftwerk aus derselben Tonne holt. Reicht der Strom nicht, drosselt die ganze Anlage – auch die Förderung.":
-    "Separates deuterium from water instead of extracting it – paid for in power. {kurs} MWh per tonne, {faktor} times what a power plant gets back out of that same tonne. If power runs short, the whole facility throttles – extraction included.",
+  "Trennt Deuterium aus Wasser, statt es zu fördern – bezahlt mit Strom. {kurs} MWh je Tonne, das {faktor}-fache dessen, was eine Fusionsanlage aus derselben Tonne holt. Reicht der Strom nicht, drosselt die ganze Anlage – auch die Förderung.":
+    "Separates deuterium from water instead of extracting it – paid for in power. {kurs} MWh per tonne, {faktor} times what a fusion plant gets back out of that same tonne. If power runs short, the whole facility throttles – extraction included.",
   Anreicherungstechnik: "Enrichment Technology",
-  "Schaltet am Deuterium-Extraktor einen zweiten Betriebsmodus frei: Anreicherung trennt schweren Wasserstoff aus Wasser, statt ihn zu fördern – bezahlt wird mit Strom. Deuterium steckt in jedem Wasser, aber nur in jedem sechstausendvierhundertsten Wasserstoffkern; die beiden Sorten unterscheiden sich chemisch fast nicht, und genau deshalb ist die Trennung Arbeit. Sie erzeugt nichts, sie sortiert – und wie jede Sortierung kostet sie mehr, als der Unterschied wert ist. Wieviel mehr, entscheidet in diesem Spiel die Spielbarkeit und nicht die Physik: wirklich liefert eine Tonne Deuterium in der Fusion um Größenordnungen mehr Energie, als ihre Abtrennung kostet.":
-    "Unlocks a second operating mode on the deuterium extractor: enrichment separates heavy hydrogen from water instead of extracting it – paid for in power. Deuterium is in every drop of water, but only in one hydrogen nucleus out of every six thousand four hundred; the two kinds are chemically almost identical, and that is exactly why separating them is work. It creates nothing, it sorts – and like any sorting it costs more than the difference is worth. How much more is decided in this game by playability, not by physics: in reality a tonne of deuterium yields orders of magnitude more energy in fusion than its separation costs.",
+  "Schaltet an der Deuteriumanlage einen zweiten Betriebsmodus frei: Anreicherung trennt schweren Wasserstoff aus Wasser, statt ihn zu fördern – bezahlt wird mit Strom. Deuterium steckt in jedem Wasser, aber nur in jedem sechstausendvierhundertsten Wasserstoffkern; die beiden Sorten unterscheiden sich chemisch fast nicht, und genau deshalb ist die Trennung Arbeit. Sie erzeugt nichts, sie sortiert – und wie jede Sortierung kostet sie mehr, als der Unterschied wert ist. Wieviel mehr, entscheidet in diesem Spiel die Spielbarkeit und nicht die Physik: wirklich liefert eine Tonne Deuterium in der Fusion um Größenordnungen mehr Energie, als ihre Abtrennung kostet.":
+    "Unlocks a second operating mode on the deuterium plant: enrichment separates heavy hydrogen from water instead of extracting it – paid for in power. Deuterium is in every drop of water, but only in one hydrogen nucleus out of every six thousand four hundred; the two kinds are chemically almost identical, and that is exactly why separating them is work. It creates nothing, it sorts – and like any sorting it costs more than the difference is worth. How much more is decided in this game by playability, not by physics: in reality a tonne of deuterium yields orders of magnitude more energy in fusion than its separation costs.",
   // --- Spielstand sichern und zurückholen (A-073) -------------------------
   Spielstand: "Save game",
   "Dein Spielstand liegt im Speicher deines Browsers – und der gehört dem Browser, nicht dir: „Chronik beim Schließen löschen“, Privatmodus oder knapper Speicherplatz können ihn jederzeit entfernen. Hier holst du ihn als Text heraus und legst ihn ab, wo er dir gehört.":

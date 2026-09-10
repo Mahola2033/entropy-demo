@@ -17,7 +17,7 @@
 // localStorage-Eintrag: sonst wäre sie bei jedem SAVE_VERSION-Sprung wieder
 // weg -- genau das, was einem neuen Tester als Erstes passieren würde.
 
-import { EN } from "./texte.js?v=0.9.16";
+import { EN } from "./texte.js?v=0.9.26";
 
 export const SPRACHEN = [
   { code: "de", name: "Deutsch" },

@@ -22,9 +22,9 @@
 // hier stehen dürfen, sind die, die aus der Physik folgen und deshalb fest
 // sind: der Zeitmaßstab und die Frist.
 
-import { t } from "./sprache.js?v=0.9.16";
-import { feedbackAdresse } from "./feedback.js?v=0.9.16";
-import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.16";
+import { t } from "./sprache.js?v=0.9.26";
+import { feedbackAdresse } from "./feedback.js?v=0.9.26";
+import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.26";
 
 export function handbuchAbschnitte() {
   return [
@@ -42,7 +42,7 @@ export function handbuchAbschnitte() {
           "Am Himmel steht ein Stern, der sterben wird. Das Neutrino-Observatorium liest die Brennstufe in seinem Kern und kann daraus ablesen, wann er kollabiert – das ist keine Prophezeiung, sondern gerechnete Astrophysik: die Brennstufen eines massereichen Sterns haben bekannte Dauern."
         ),
         t(
-          "Wenn er kollabiert, geschieht zweierlei, und zwar zu sehr verschiedenen Zeiten. Zuerst kommt der Blitz, mit dem Licht. Er tötet niemanden – Wohnmodule sind versiegelt –, aber er zerlegt die Ozonschicht und damit das Einzige auf der Oberfläche, das Sonnenlicht braucht: die Landwirtschaft."
+          "Wenn er kollabiert, geschieht zweierlei, und zwar zu sehr verschiedenen Zeiten. Zuerst kommt der Blitz, mit dem Licht. Er tötet niemanden – Wohnsektoren sind versiegelt –, aber er zerlegt die Ozonschicht und damit das Einzige auf der Oberfläche, das Sonnenlicht braucht: die Landwirtschaft."
         ),
         t(
           "Jahrhunderte später trifft die Teilchenflut ein. Sie ist der eigentliche Weltenkiller, sie bleibt Jahrtausende, und sie ist der Grund, warum es in diesem Spiel überhaupt etwas zu gewinnen gibt."
@@ -106,10 +106,10 @@ export function handbuchAbschnitte() {
         // ursprünglichen behalten (sonst vergliche das Handbuch zwei von
         // vier Optionen, genau die Falle aus A-149).
         t(
-          "Für Energie gibt es mehrere Wege, und sie unterscheiden sich im Preis: Die Fossilanlage ist die billigste und von Anfang an baubar, aber ihr Vorrat ist endlich und wächst nie nach. Die Kernkraftanlage verbrennt Uran aus dem Lager und läuft dafür immer und überall – die teuerste Wahl. Das Kraftwerk (erst nach Fusionstechnik erforscht) verbrennt Deuterium – geht der Brennstoff aus, zündet die Fusion nicht mehr und der Reaktor steht, bis wieder Vorrat für den Anlauf da ist. Das Solarfeld braucht keinen Brennstoff und liefert sternnah am meisten – aber seine Halbleiter überstehen die Teilchenflut nicht: ungeschirmte Felder sind danach Schrott. Der bequeme Weg ist der verwundbare; ein Energiespeicher überbrückt Lücken in allen."
+          "Für Energie gibt es mehrere Wege, und sie unterscheiden sich im Preis: Die Fossilanlage ist die billigste und von Anfang an baubar, aber ihr Vorrat ist endlich und wächst nie nach. Die Kernkraftanlage verbrennt Uran aus dem Lager und läuft dafür immer und überall – die teuerste Wahl. Die Fusionsanlage (erst nach Fusionstechnik erforscht) verbrennt Deuterium – geht der Brennstoff aus, zündet die Fusion nicht mehr und der Reaktor steht, bis wieder Vorrat für den Anlauf da ist. Die Solaranlagen brauchen keinen Brennstoff und liefern sternnah am meisten – aber ihre Halbleiter überstehen die Teilchenflut nicht: ungeschirmte Anlagen sind danach Schrott. Der bequeme Weg ist der verwundbare; ein Energiespeicher überbrückt Lücken in allen."
         ),
         t(
-          "Arbeitskraft kommt aus deiner Bevölkerung, und Bevölkerung wächst nur, wenn Wohnraum frei ist. Deshalb ist ein Wohnmodul selten das, was am dringendsten aussieht, und oft das, was am meisten bringt: es hebt nicht eine Zahl, sondern die Obergrenze aller anderen."
+          "Arbeitskraft kommt aus deiner Bevölkerung, und Bevölkerung wächst nur, wenn Wohnraum frei ist. Deshalb ist ein Wohnsektor selten das, was am dringendsten aussieht, und oft das, was am meisten bringt: er hebt nicht eine Zahl, sondern die Obergrenze aller anderen."
         ),
         // A-052: der Verderb steht seit v1.25 nur noch im Tooltip der Kachel,
         // und Tooltips gibt es auf einem Telefon nicht. Deshalb hier, im
@@ -139,7 +139,7 @@ export function handbuchAbschnitte() {
       titel: t("Der Schirm, und warum halb nicht reicht"),
       absaetze: [
         t(
-          "Gegen die Teilchenflut hilft ein Magnetfeld. Der Grund ist Physik: die Flut besteht aus geladenen Teilchen, und die lassen sich magnetisch ablenken. Gegen den Gammablitz hilft es nicht – der braucht Masse, und dafür sind die Wohnmodule da."
+          "Gegen die Teilchenflut hilft ein Magnetfeld. Der Grund ist Physik: die Flut besteht aus geladenen Teilchen, und die lassen sich magnetisch ablenken. Gegen den Gammablitz hilft es nicht – der braucht Masse, und dafür sind die Wohnsektoren da."
         ),
         t(
           "Ein solcher Generator hält kein Schutzschild im Sinne eines Kraftfelds, sondern eine Lebenserhaltung für einen ganzen Planeten. Und weil er ein Feld dauerhaft aufrechterhalten muss, braucht er dauerhaft enorme Leistung – er dominiert den Energiehaushalt einer Welt vollständig."
@@ -352,7 +352,7 @@ export function erststartTafel(planetName) {
     titel: t("Eine Welt, und eine {begriff}", { begriff: t(BEGRIFF_VORWARNZEIT) }),
     absaetze: [
       t(
-        "Du führst genau eine Welt: {planet}. Ein Wohnmodul, ein kleiner Vorrat – und ein Himmel voller Sterne, in denen noch nie jemand war.",
+        "Du führst genau eine Welt: {planet}. Ein Wohnsektor, ein kleiner Vorrat – und ein Himmel voller Sterne, in denen noch nie jemand war.",
         { planet: planetName }
       ),
       ...geborgt,
@@ -375,7 +375,7 @@ export function erststartTafel(planetName) {
       // Fossilanlage (A-147) übernimmt seinen Platz als das, was am ersten
       // Tag WIRKLICH baubar ist -- derselbe feste Satz, dieselbe Ehrlichkeit.
       t(
-        "Zum Anfangen genügt ein Handgriff: im Bereich Planet eine Anlage ausbauen – Fossilanlage und Wohnmodul tragen alles andere. Geforscht wird erst, wenn ein Forschungslabor steht; Forschung ist kein Kauf, sondern Arbeit, und ohne Labor arbeitet niemand daran."
+        "Zum Anfangen genügt ein Handgriff: im Bereich Planet eine Anlage ausbauen – Fossilanlage und Wohnsektor tragen alles andere. Geforscht wird erst, wenn ein Forschungssektor steht; Forschung ist kein Kauf, sondern Arbeit, und ohne Labor arbeitet niemand daran."
       ),
     ],
     // Steht getrennt, weil es kein Inhalt ist, sondern der Weg zum Rest.
