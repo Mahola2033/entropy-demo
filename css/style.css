@@ -3627,6 +3627,27 @@ body {
   padding: var(--abstand-4) var(--abstand-6) var(--abstand-4);
 }
 
+/* A-248 (Tobi, 10.09.: "da starre ich schon so lange drauf"): In einem Grid
+   ist jede Rasterzeile so hoch wie ihr hoechstes Mitglied -- bei fuenf
+   Gruppen in zwei bis drei Spalten blieb unter den kurzen Karten der ersten
+   Zeile eine Luecke stehen (`align-items: start`, Nicht anfassen, haelt sie
+   oben statt sie zu strecken -- siehe Falle dort). `js/ui.js`,
+   `uebersichtHoheGruppeMarkieren` setzt diese Klasse bei JEDEM Render neu
+   auf die aktuell hoechste Gruppe (nicht fest auf "Fluesse netto" --
+   welche Gruppe das ist, wechselt mit dem Ressourcenbestand, siehe A-248
+   Falle 3). Das Grid-Auto-Placement raeumt die zweite Zeilenhaelfte der
+   spannenden Spalte dabei von selbst frei (5 Gruppen, 2-3 Spalten -- immer
+   eine Zelle uebrig), die Lesereihenfolge (Standort/Bestaende/Fluesse/
+   Bevoelkerung/Laufendes, A-064) bleibt dabei unveraendert, unabhaengig
+   davon, welche Gruppe spannt (Grid-Auto-Placement platziert stets in
+   DOM-Reihenfolge, nie rueckwaerts). Bei EINER Spalte (schmale Breite)
+   setzt `uebersichtHoheGruppeMarkieren` die Klasse gar nicht erst --
+   jede Gruppe steht dort ohnehin allein in ihrer Zeile, ein Ueberspringen
+   erzeugte nur eine neue Luecke statt die alte zu schliessen. */
+.uebersicht-gruppe--hoch {
+  grid-row: span 2;
+}
+
 .uebersicht-titel {
   font-size: var(--schrift-s);
   letter-spacing: 0.06em;

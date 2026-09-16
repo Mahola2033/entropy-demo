@@ -28,6 +28,96 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.9.36",
+    de: [
+      "Iridium auf Planeten erschöpft sich nicht mehr in Minuten. Die Fördermenge, gegen die eine Iridiummine ihre Ergiebigkeit misst, war zu klein bemessen -- ein Rückfallwert, keine Absicht -- und wird jetzt aus derselben Rechnung wie bei jeder anderen Förderanlage hergeleitet. Ein Asteroidengürtel bleibt die deutlich ergiebigere Quelle.",
+    ],
+    en: [
+      "Iridium on planets no longer runs dry within minutes. The reference amount a mine's yield is measured against was set too small -- a fallback value, not a design choice -- and is now derived the same way as for every other mining building. An asteroid belt remains the far richer source.",
+    ],
+  },
+  {
+    version: "0.9.35",
+    de: [
+      "Nur intern: Der Roadmap-Ausblick im Development-Bereich versprach unter „Später” noch lesbare Namen statt Nummern für Sternensysteme -- die gibt es seit dem 16.08. Auf den aktuellen Stand gezogen. Für den Spieler ändert sich am Spiel selbst nichts.",
+    ],
+    en: [
+      "Internal only: The roadmap outlook in the development area still promised readable star system names instead of numbers under „Later” -- that has existed since Aug 16. Brought up to date. Nothing changes in the game itself for players.",
+    ],
+  },
+  {
+    version: "0.9.34",
+    de: [
+      "Der Magnetfeldgenerator hat jetzt eine Höchststufe: eine Stufe schirmt ab, mehr nicht -- eine zweite hätte nur den Strombedarf verdoppelt und damit die Überlebenschance in der Teilchenflut gesenkt. Der Ausbau-Knopf zeigt das jetzt an und nennt den Grund.",
+    ],
+    en: [
+      "The Magnetic Field Generator now has a maximum level: one level shields the world, a second would only have doubled its power draw and lowered the odds of surviving the particle flood. The upgrade button now shows this and states the reason.",
+    ],
+  },
+  {
+    version: "0.9.33",
+    de: [
+      "Fünf Katalogtexte korrigiert: Abwehrstellung und Bunker wirken heute schon gegen Überfälle, nicht erst später -- die Abwehrstellung kürzt die erbeutete Fracht, der Bunker schützt Lagerinhalt bis zu seiner Kapazität. Energietechnik und Fusionstechnik verbessern jede Energieanlage, nicht nur die Fusionsanlage. Fördertechnik nennt jetzt Metall-, Silizium-, Uran- und Deuteriumförderung -- Iridium hat mit der Iridiumverarbeitung eine eigene Fördertechnik.",
+    ],
+    en: [
+      "Corrected five catalog texts: the Defense Installation and the Bunker already work against raids today, not just later -- the Defense Installation cuts into looted cargo, the Bunker protects stored goods up to its capacity. Energy Tech and Fusion Tech improve every power plant, not just the fusion plant. Extraction Tech now names metal, silicon, uranium and deuterium mining -- iridium has its own extraction tech, Iridium Processing.",
+    ],
+  },
+  {
+    version: "0.9.32",
+    de: [
+      "Asteroidengürtel sind jetzt besiedelbar. Eine Sonde zeigt vorher, welcher der drei Gesteinstypen dort liegt und was er hergibt: metallreiche, silikatreiche oder -- selten -- iridiumreiche Gürtel. Eine solche Kolonie hat keine eigene Landwirtschaft und muss versorgt werden, baut dafür wegen der geringen Schwerkraft besonders günstig. Die Beschreibung der Iridiumförderung nennt jetzt den richtigen Größenvergleich zwischen Kruste und Asteroid.",
+    ],
+    en: [
+      "Asteroid belts can now be colonized. A probe reveals in advance which of three rock types is out there and what it yields: metal-rich, silicate-rich, or -- rarely -- iridium-rich belts. Such a colony has no farming of its own and needs to be supplied, but builds unusually cheaply thanks to its low gravity. The iridium mining description now states the correct comparison in scale between crust and asteroid.",
+    ],
+  },
+  {
+    version: "0.9.31",
+    de: [
+      "Nur intern: Tobis lokale Vollversion (Port 5184) läuft jetzt mit demselben Code wie diese Demo, nur ohne den sterbenden Stern -- ein einziger Schalter (`js/variante.js`), keine zweite Fassung des Spiels. `npm run veroeffentlichen` zieht sie ab jetzt automatisch nach. Für Tester ändert sich nichts.",
+    ],
+    en: [
+      "Internal only: Tobi's local full version (port 5184) now runs the exact same code as this demo, just without the dying star -- a single switch (`js/variante.js`), not a second copy of the game. `npm run veroeffentlichen` now updates it automatically. Nothing changes for testers.",
+    ],
+  },
+  {
+    version: "0.9.30",
+    de: [
+      "Nur intern: `npm run zustand` (Messwerkzeug der Planung, kein Spielinhalt) meldet zwei alte Fehlalarme nicht mehr und prüft neu zwei bisher unbewachte Pflichten aus dem Auftrags-Leitfaden. Für den Spieler ändert sich nichts.",
+    ],
+    en: [
+      "Internal only: `npm run zustand` (a planning measurement tool, not game content) no longer reports two stale false alarms and now checks two previously unguarded duties from the internal task guide. Nothing changes for players.",
+    ],
+  },
+  {
+    version: "0.9.29",
+    de: [
+      "Nur intern: Die Bot-Messwerkzeuge (`botmessung`, `weltlauf`) kennen jetzt fünf Schwierigkeitsstufen für Testläufe (sehr leicht bis sehr schwer, Faktor 1,4 bis 0,6 auf Rohstoffvorkommen/Solarlage/Brennstoffvorrat der Bot-Welten). Der Faktor existiert ausschließlich in den Werkzeugen – kein Spielstand, keine Oberfläche, keine echte Schwierigkeitswahl ändert sich dadurch.",
+    ],
+    en: [
+      "Internal only: the bot measurement tools (`botmessung`, `weltlauf`) now support five difficulty tiers for test runs (very easy to very hard, factor 1.4 to 0.6 on bot-world resource deposits/solar exposure/fuel reserves). The factor exists only inside the tools – no save data, no interface, and no real difficulty setting changes because of this.",
+    ],
+  },
+  {
+    version: "0.9.28",
+    de: [
+      "Nur intern: `npm run weltlauf` (Langzeit-Messwerkzeug, kein Spielinhalt) nennt jetzt in einer Kopfzeile, wie viele Spieljahre ein „Tag“ des Werkzeugs bedeutet und an welchem Tag die Supernova zuschlägt – und warnt ausdrücklich, wenn ein Lauf überwiegend eine Galaxie nach der Flut misst. Ein neues fünftes Argument (`ohne-supernova`) schaltet sie für Vergleichsläufe ab. Für den Spieler ändert sich am Spiel selbst nichts.",
+    ],
+    en: [
+      "Internal only: `npm run weltlauf` (a long-run measurement tool, not game content) now prints a header stating how many game-years one of its \"days\" represents and on which day the supernova hits – with an explicit warning when a run mostly measures a galaxy after the flood. A new fifth argument (`ohne-supernova`) switches it off for comparison runs. Nothing changes in the game itself for players.",
+    ],
+  },
+  {
+    version: "0.9.27",
+    de: [
+      "Die leere Fläche in „Diese Welt in Zahlen“ (unter Standort und Beständen, während Flüsse netto danebensteht) ist deutlich kleiner geworden – bei voller Fensterbreite von rund 40 % auf rund 15 % der Blockfläche. Welche Karte den Ausschlag gibt, wird jetzt laufend neu bestimmt statt fest auf Flüsse netto gesetzt.",
+    ],
+    en: [
+      "The empty space in \"This World in Numbers\" (below Location and Stock, next to Net Flows) has shrunk substantially – at full window width, from about 40% down to about 15% of the block's area. Which card sets the pace is now re-checked continuously instead of always being Net Flows.",
+    ],
+  },
+  {
     version: "0.9.26",
     de: [
       "Nur intern: Der Roadmap-Ausblick im Development-Bereich versprach drei Dinge, die längst gebaut oder gestrichen waren (Verteidigung für Planeten, endliche Vorkommen, eine Handy-Oberfläche) und nannte für die endlichen Vorkommen fälschlich einen Spielstand-Reset. Auf den aktuellen Stand gezogen. Für den Spieler ändert sich am Spiel selbst nichts.",
@@ -2039,7 +2129,6 @@ export const ROADMAP_PUNKTE = [
     de: "Später",
     en: "Later",
     punkte: [
-      { de: "Lesbare Systemnamen statt Nummern", en: "Readable system names instead of numbers" },
       { de: "Ein Prioritäten-Fenster: Strom und Arbeitskraft von Hand verteilen", en: "A priority panel: assign power and workforce by hand" },
     ],
   },

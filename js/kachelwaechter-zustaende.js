@@ -9,8 +9,8 @@
 // (A-158-Auftrag) -- deshalb drei feste Stände statt "was zufällig im
 // localStorage lag".
 
-import { neuesSpiel } from "./state.js?v=0.9.26";
-import { BUILDINGS, SCHIFFE } from "./data.js?v=0.9.26";
+import { neuesSpiel } from "./state.js?v=0.9.36";
+import { BUILDINGS, SCHIFFE } from "./data.js?v=0.9.36";
 
 // früh -- frischer Start, nichts gebaut. Der unveränderte Weltstart selbst.
 export function kwZustandFrueh(saat) {
@@ -45,6 +45,11 @@ export function kwZustandSpaet(saat) {
 
   for (const id of Object.keys(BUILDINGS)) heimat.gebaeude[id] = 25;
   for (const resId of Object.keys(heimat.ressourcen)) heimat.ressourcen[resId] = 5_000_000_000;
+  // A-257: ohne die Forschung zeigt die Schild-Kachel nur "noch nicht
+  // erforscht" -- die eigentlich neue Zeile ("Höchststufe erreicht") kommt
+  // erst danach zum Zug. Gerade DIESER Zustand (Stufe 25, weit über der
+  // Höchststufe 1) ist der Fall, den der Wächter dafür braucht.
+  state.forschung.magnetosphaerentechnik = 1;
 
   heimat.bauQueue = {
     gebaeudeId: "metallfoerderung",

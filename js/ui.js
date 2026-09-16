@@ -49,7 +49,8 @@ import {
   RECYCLING,
   erstattungsQuote,
   VORKOMMEN_MELDESCHWELLE,
-} from "./data.js?v=0.9.26";
+} from "./data.js?v=0.9.36";
+import { VARIANTE } from "./variante.js?v=0.9.36";
 import {
   effektiveRaten,
   angezeigteRate,
@@ -133,7 +134,7 @@ import {
   fossilReichweiteMs,
   fossilVerbrauchProStunde,
   foerderErgiebigkeit,
-} from "./state.js?v=0.9.26";
+} from "./state.js?v=0.9.36";
 import {
   bauStarten,
   forschungStarten,
@@ -210,7 +211,7 @@ import {
   routeStoppen,
   routeMindestbeladungSetzen,
   routeBeladungAnteil,
-} from "./simulation.js?v=0.9.26";
+} from "./simulation.js?v=0.9.36";
 import {
   flottePosition,
   flotteKapazitaet,
@@ -230,26 +231,26 @@ import {
   flotteSiedlerKapazitaet,
   flotteLadungAnteile,
   flotteTankAnteile,
-} from "./flotten.js?v=0.9.26";
-import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.26";
-import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.26";
-import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.26";
+} from "./flotten.js?v=0.9.36";
+import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.36";
+import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.36";
+import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.36";
 // Nur für den Neustart-Knopf im Abspann. Der Weg dorthin ist derselbe wie im
 // Testmodus (js/testmodus.js) -- ein zweiter Reset wäre eine zweite Wahrheit
 // darüber, was "neu anfangen" bedeutet.
-import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.26";
-import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.26";
-import { systemName, sternFuer } from "./galaxie.js?v=0.9.26";
+import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.36";
+import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.36";
+import { systemName, sternFuer } from "./galaxie.js?v=0.9.36";
 // Die beiden Karten. Sie holen sich von hier `listeAbgleichen` zurück -- ein
 // Ringtausch, der trägt, weil keine der beiden Dateien beim LADEN etwas aus
 // der anderen benutzt, sondern erst beim Zeichnen. Die Alternative wäre ein
 // zweiter Abgleich-Mechanismus in karte.js gewesen, und genau davor warnt
 // Prinzip 5.
-import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.26";
-import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.26";
-import { feedbackAdresse } from "./feedback.js?v=0.9.26";
-import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.26";
-import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.26";
+import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.36";
+import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.36";
+import { feedbackAdresse } from "./feedback.js?v=0.9.36";
+import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.36";
+import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.36";
 
 // UI-lokaler Regler-Zustand für die Flotten-Beladung/Tanken-Schieber --
 // bewusst NICHT Teil des Spielzustands. Nötig, weil render() auch von einem
@@ -739,7 +740,12 @@ export function render(state, root) {
   // Bauen fehl, behauptet das Paket lieber zu viel als zu wenig.
   const standText =
     STAND === "spielkopie" ? t("Spielkopie") : STAND === "demo" ? t("Demo") : t("Entwicklung");
-  root.querySelector("#version").textContent = `v${VERSION} · ${standText}`;
+  // A-272: die Vollversion trägt zusätzlich einen Zusatz -- Prinzip 0d, man
+  // soll oben sehen, welches Spiel gerade läuft. VARIANTE (js/variante.js)
+  // ist eine andere Achse als STAND: STAND sagt die Herkunft der Dateien,
+  // VARIANTE, ob diese Welt eine Supernova bekommt.
+  const variantenZusatz = VARIANTE === "voll" ? ` · ${t("Vollversion")}` : "";
+  root.querySelector("#version").textContent = `v${VERSION} · ${standText}${variantenZusatz}`;
   renderDatum(state, root, jetzt);
   renderSupernova(state, root, jetzt);
   renderAbspann(state, root);
@@ -4293,6 +4299,39 @@ function prozentText(faktor) {
   return vorzeichenSpan(p) + " %";
 }
 
+// A-248 (Tobi, 10.09.: "da ist eine Luecke im UI, die ich anstarre"): In
+// `.uebersicht-raster` (css/style.css) ist jede Rasterzeile so hoch wie ihr
+// hoechstes Mitglied, und `align-items: start` (Nicht anfassen -- Falle im
+// Auftrag) haelt die kuerzeren Karten oben statt sie zu strecken. Der Rest
+// der Zeile blieb bisher leer (gemessen: 40 % der Blockflaeche bei 1920×1080
+// im Zustand "spaet"). Diese Funktion markiert bei JEDEM Render die AKTUELL
+// hoechste sichtbare Gruppe mit `.uebersicht-gruppe--hoch` (`grid-row: span
+// 2`) -- NICHT fest auf "Fluesse netto": welche Gruppe am hoechsten ist,
+// wechselt mit dem Ressourcenbestand (frueh weniger Zeilen als spaet, siehe
+// Auftrag Falle 3). Grid-Auto-Placement platziert die fuenf Gruppen weiter
+// strikt in DOM-Reihenfolge (Standort/Bestaende/Fluesse/Bevoelkerung/
+// Laufendes, A-064) -- welche Gruppe spannt, aendert daran nichts, weil eine
+// spannende Gruppe immer an ihrer eigenen Stelle im Ablauf bleibt und nur
+// die sonst leere letzte Zelle der zweiten Zeile mitbelegt (5 Gruppen passen
+// in 2 bis 3 Spalten nie randvoll in zwei Zeilen).
+// Bei EINER Spalte (schmale Breite) steht jede Gruppe ohnehin allein in
+// ihrer Zeile -- ein Ueberspringen erzeugte dort nur eine neue Luecke
+// statt die alte zu schliessen, deshalb bleibt die Klasse dort aus
+// (erkannt daran, dass keine zwei Gruppen denselben `offsetTop` teilen).
+function uebersichtHoheGruppeMarkieren(box) {
+  const gruppen = [...box.querySelectorAll(".uebersicht-gruppe")].filter((g) => !g.hidden);
+  for (const g of gruppen) g.classList.remove("uebersicht-gruppe--hoch");
+  if (gruppen.length < 2) return;
+  const ersteZeile = gruppen[0].offsetTop;
+  const mehrspaltig = gruppen.some((g) => g !== gruppen[0] && g.offsetTop === ersteZeile);
+  if (!mehrspaltig) return;
+  let hoechste = gruppen[0];
+  for (const g of gruppen) {
+    if (g.offsetHeight > hoechste.offsetHeight) hoechste = g;
+  }
+  hoechste.classList.add("uebersicht-gruppe--hoch");
+}
+
 function renderUebersicht(state, root, planet) {
   const box = root.querySelector("#planet-uebersicht");
   if (!box.dataset.gebaut) {
@@ -4608,6 +4647,11 @@ function renderUebersicht(state, root, planet) {
       ? `${planet.werftQueue.anzahl}× ${t(SCHIFFE[planet.werftQueue.schiffId].name)} · ${kopfZeitText(state, planet, planet.werftQueue, "werft", jetzt)}`
       : UEBERSICHT_LEER
   );
+
+  // A-248: erst NACHDEM alle Werte (und damit die tatsaechlichen Hoehen der
+  // fuenf Gruppen) stehen -- eine Messung davor traefe noch die Werte des
+  // vorherigen Planeten oder Takts.
+  uebersichtHoheGruppeMarkieren(box);
 }
 
 
@@ -7872,7 +7916,10 @@ function affinitaetText(daten) {
   // Klassenwert -- eine Felswelt mit 1,35 g zeigte deshalb gar nichts an
   // (Klassenwert exakt 1), und bei einer Supererde stand eine Zahl, die von der
   // tatsächlich berechneten Kostenlage abwich.
-  const g = daten.schwerkraft || (klasse ? klasse.schwerkraft : 1);
+  // A-274-Fund: `||` behandelte 0 als "nicht gesetzt" -- traf bisher nie zu,
+  // bricht aber am Asteroidengürtel (schwerkraft ABSICHTLICH 0). `??` lässt
+  // die 0 durch, siehe schwerkraftVon (state.js) für dieselbe Falle.
+  const g = daten.schwerkraft ?? (klasse ? klasse.schwerkraft : 1);
   if (Math.abs(g - 1) >= 0.05) {
     teile.push(t("{wert} g", {
       wert: g.toLocaleString(gebietsschema(), { maximumFractionDigits: 2 }),
@@ -7942,6 +7989,22 @@ function slotDetail(state, objekt, gesperrt, eigen) {
     }
     case "leer": return t("leer");
     case "anomalie": return objekt.verwertet ? t("ausgewertet") : t("auswertbar");
+    case "asteroiden": {
+      // A-274: Typ und Profil VOR der Gründung zeigen, genau wie beim
+      // Planeten oben (dieselbe Begründung: eine Kolonie ohne diese
+      // Information wäre ein Blindflug). Der Haufen-Teil davor ist
+      // UNVERÄNDERT die alte default-Logik -- die Bergung des Rests bleibt
+      // möglich, auch wenn die Welt daneben besiedelbar ist.
+      const haufenTeil = objekt.verwertet
+        ? t("verwertet")
+        : !objekt.daten.ertrag
+        ? t("erkundet")
+        : objekt.restErtrag
+        ? t("Rest: {rest} – Frachtraum reichte nicht", { rest: buendelText(objekt.restErtrag) })
+        : t("Ertrag: {ertrag}", { ertrag: buendelText(offenerErtrag(state, objekt)) });
+      if (!objekt.daten.kolonisierbar) return haufenTeil;
+      return `${haufenTeil} · ${t("besiedelbar")}${affinitaetText(objekt.daten)}`;
+    }
     default:
       if (objekt.verwertet) return t("verwertet");
       if (!objekt.daten.ertrag) return t("erkundet");
@@ -8012,7 +8075,16 @@ export function orbitAngebot(state, systemId, objekt, flotte, rueckkehrGewaehlt 
 
   // `!gesperrt` steht seitdem ausdrücklich da: bis A-092 kam dieser Zweig nur
   // an einem offenen Orbit vorbei, weil die Sperre eine Zeile höher abbrach.
-  if (!gesperrt && objekt.entdeckt && objekt.typ === "planet" && objekt.daten.kolonisierbar) {
+  // A-274: derselbe Zweig gilt jetzt auch für einen Asteroidengürtel --
+  // dieselbe Tür für Außenposten und Kolonie wie bei einem Planeten
+  // (Entwurf 3.1). `gesperrt` (aus objektGesperrt) hat "Tiefliegendes
+  // Vorkommen" schon oben abgefangen.
+  if (
+    !gesperrt &&
+    objekt.entdeckt &&
+    (objekt.typ === "planet" || objekt.typ === "asteroiden") &&
+    objekt.daten.kolonisierbar
+  ) {
     const aussen = kannGruendungsmission(state, flotte, "aussenposten", systemId, objekt.orbit);
     const kolonie = kannGruendungsmission(state, flotte, "kolonie", systemId, objekt.orbit);
     return {

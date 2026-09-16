@@ -30,9 +30,11 @@ import {
   STARTSCHWIERIGKEIT_VORGABE,
   techStufe,
   mengeSkaliert,
-} from "./data.js?v=0.9.26";
-import { stromFuer, waehle, zwischen, mischen, gewichtetWaehlen } from "./zufall.js?v=0.9.26";
-import { sternFuer } from "./galaxie.js?v=0.9.26";
+  GUERTEL_ZONEN_GEWICHTE,
+  GUERTEL_WASSER_GEWICHTE,
+} from "./data.js?v=0.9.36";
+import { stromFuer, waehle, zwischen, mischen, gewichtetWaehlen } from "./zufall.js?v=0.9.36";
+import { sternFuer } from "./galaxie.js?v=0.9.36";
 
 // Systeme können bis zu 50 Orbits haben -- römische Zahlen daher berechnen
 // statt aus einer Tabelle nehmen.
@@ -73,6 +75,35 @@ export function planetEigenschaften(rng, orbit, orbitAnzahl, leuchtkraft = 1) {
     klasse: zieheGewichtet(rng, zone.klassen),
     zone: zone.name,
     wasser: zieheGewichtet(rng, zone.wasser),
+  };
+}
+
+// A-274: Ein eigener Strom je Gürtel-Objekt, NIE der Strom des Systems
+// (`rng` in systemGenerieren) -- Prinzip 1, die Zusammensetzung liegt fest,
+// bevor jemand hinsieht, und darf beim Hinzufügen keine bestehende Ziehung
+// (Haufen, Wracks, Gefahren) verschieben. Muster wie systemName/sternFuer
+// (js/galaxie.js): ein eigener Faktor, hier zusätzlich mit dem Orbit
+// verrechnet, weil es EIN Strom je Objekt ist, nicht je System. 353 ist eine
+// Primzahl über dem größten Orbit (SYSTEM_REGELN.orbits.max = 50) und in
+// keiner anderen stromFuer-Kennung dieses Projekts verwendet -- die Summe
+// ist deshalb für jedes (systemId, orbit)-Paar eindeutig.
+function guertelStrom(seed, systemId, orbit) {
+  return stromFuer(seed, systemId * 353 + orbit);
+}
+
+// Zusammensetzung eines Asteroidengürtels (Entwurf 3.2/3.3): Typ C/S/M nach
+// Zone gewichtet (außen mehr C, wie in der Realität), Wasseranteil nach Typ
+// gewichtet (C ist die wasserreiche Sorte). Die Zone selbst kommt weiterhin
+// aus derselben deterministischen Funktion wie bei Planeten -- keine zweite
+// Zonenrechnung.
+function guertelEigenschaften(seed, systemId, orbit, orbitAnzahl, leuchtkraft) {
+  const guertelRng = guertelStrom(seed, systemId, orbit);
+  const zone = orbitZone(orbit, orbitAnzahl, leuchtkraft);
+  const klasse = zieheGewichtet(guertelRng, GUERTEL_ZONEN_GEWICHTE[zone.name]);
+  return {
+    klasse,
+    zone: zone.name,
+    wasser: zieheGewichtet(guertelRng, GUERTEL_WASSER_GEWICHTE[klasse]),
   };
 }
 
@@ -384,12 +415,26 @@ export function systemGenerieren(seed, systemId, optionen = {}) {
     const eintrag = gewichtetWaehlen(rng, VORKOMMEN_TABELLE);
     const sperre = vielleichtGesperrt();
     const menge = zwischen(rng, eintrag.menge.min, eintrag.menge.max) * (sperre ? 2.5 : 1);
+    // A-274: die Zusammensetzung (Typ, Zone, Wasser) kommt aus einem EIGENEN
+    // Strom (guertelEigenschaften) -- der Haufen oben ist unverändert aus dem
+    // Systemstrom `rng` gezogen, in genau der Reihenfolge wie vor dieser
+    // Runde. Kein zusätzlicher Aufruf von `rng()` hier: sonst verschöbe sich
+    // jede Ziehung danach (Wracks, Strukturen, Gefahren) in jeder
+    // bestehenden Galaxie.
+    const eig = guertelEigenschaften(seed, systemId, orbit, orbitAnzahl, stern.leuchtkraft);
     objekte.push(
       neuesObjekt(systemId, orbit, {
         typ: "asteroiden",
         bezeichnung: sperre ? "Tiefliegendes Vorkommen" : "Asteroidengürtel",
         benoetigt: sperre,
-        daten: { ertrag: { [eintrag.ressource]: Math.round(menge) } },
+        daten: {
+          ertrag: { [eintrag.ressource]: Math.round(menge) },
+          ...eig,
+          // Kein eigener Körper mit Masse/Radius -- die Schwerkraft ist
+          // direkt 0 (Entwurf 3.3), nicht über schwerkraftAus gerechnet.
+          schwerkraft: 0,
+          kolonisierbar: true,
+        },
       })
     );
   }

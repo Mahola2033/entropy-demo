@@ -19,16 +19,17 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.9.26";
+export const VERSION = "0.9.36";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
-// "entwicklung" und wird von uebernehmen.mjs beim Kopieren auf "spielkopie"
-// umgeschrieben -- die Markierung reist also MIT DEN DATEIEN und nicht mit dem
-// Port. Genau daran hat es gefehlt: am 2026-08-16 stellte sich heraus, dass der
-// Server auf Port 5184 seit dem 13.08. mit falschem Arbeitsverzeichnis lief und
-// zwei Tage lang den Entwicklungsordner statt der Spielkopie auslieferte. Die
-// launch.json war korrekt, der PROZESS war älter als die Trennung -- von außen
-// war das nur an einer Versionsnummer zu erkennen, die man kennen musste.
+// "entwicklung" und wird von vollversion.mjs (bis A-272: uebernehmen.mjs) beim
+// Kopieren auf "spielkopie" umgeschrieben -- die Markierung reist also MIT DEN
+// DATEIEN und nicht mit dem Port. Genau daran hat es gefehlt: am 2026-08-16
+// stellte sich heraus, dass der Server auf Port 5184 seit dem 13.08. mit
+// falschem Arbeitsverzeichnis lief und zwei Tage lang den Entwicklungsordner
+// statt der Spielkopie auslieferte. Die launch.json war korrekt, der PROZESS
+// war älter als die Trennung -- von außen war das nur an einer Versionsnummer
+// zu erkennen, die man kennen musste.
 //
 // Die Vorgabe ist bewusst "entwicklung": schlägt das Umschreiben beim Kopieren
 // fehl, behauptet die Spielkopie fälschlich, Entwicklungsstand zu sein. Das ist
@@ -65,7 +66,7 @@ export const DEMO_SAAT = 20269933;
 // wird an den anzeigenden Stellen, nicht hier. Einzige Ausnahme ist
 // voraussetzungenText() weiter unten -- die einzige Funktion in dieser Datei,
 // die Anzeigetext zusammensetzt.
-import { t } from "./sprache.js?v=0.9.26";
+import { t } from "./sprache.js?v=0.9.36";
 
 // A-164 (31.08.2026): Von 50 auf 125.000 (×2.500) -- die Maßstabsrunde.
 // Vorher skalierte EIN MASSSTAB Material, Menschen und Arbeitskraft
@@ -1157,7 +1158,7 @@ export const BUILDINGS = {
     gruppe: "foerderung",
     name: "Iridiumförderung",
     beschreibung:
-      "Fördert Iridium. In der Kruste ist es fast nicht vorhanden: Iridium bindet an Eisen und ist bei der Entstehung des Planeten mit ihm in den Kern gesunken. In Asteroiden liegt es hundertfach dichter – die Iridiumschicht am Ende der Kreidezeit stammt von einem.",
+      "Fördert Iridium. In der Kruste ist es fast nicht vorhanden: Iridium bindet an Eisen und ist bei der Entstehung des Planeten mit ihm in den Kern gesunken. Asteroiden haben diese Trennung nie durchlaufen und tragen noch den Urgehalt – rund zwanzigtausendfach dichter als das Krustenmittel. Die Iridiumschicht am Ende der Kreidezeit stammt von einem Einschlag.",
     kategorie: "iridium",
     baseCost: { metall: 180, silizium: 120 },
     costFactor: 1.5,
@@ -1373,6 +1374,14 @@ export const BUILDINGS = {
     beschreibung:
       "Hält ein künstliches Magnetfeld um diese Welt und lenkt geladene Teilchen ab. Braucht dauerhaft rund ein Terawatt – fällt der Strom, fällt der Schirm. Zum Vergleich: der Geodynamo der Erde setzt für dasselbe etwa dieselbe Leistung um.",
     kategorie: "schutz",
+    // A-257: einzige Stufe, die existiert -- der Kommentar zu
+    // `magnetosphaerentechnik` sagt es schon ("eine Stufe, fertig oder
+    // nicht"), nur kannte `kannBauen` bis hierher keine Höchststufe. Die
+    // Wirkung hängt allein an `schildStufe > 0` (supernovaFlut) und am
+    // Versorgungsanteil, NIE an der Stufenzahl -- eine zweite Stufe verdoppelt
+    // nur den Stromposten (einziges `faktor: 1`-Feld im Katalog) und senkt
+    // damit die Überlebenschance, ohne den Schutz zu verbessern.
+    hoechststufe: 1,
     baseCost: { metall: 8000, silizium: 6000, iridium: 2000, elektronik: 900 },
     costFactor: 1.6,
     buildTimeDivisor: 1.2,
@@ -2024,7 +2033,13 @@ export const SOLAR_ZONEN_FAKTOR = {
   "äußer": 0.35,
 };
 
+// `planet.solarZonenFaktor` ist dieselbe ÜBERSCHREIBUNG wie `planet.affinitaet`
+// bei `planetAffinitaet` (js/state.js): kein Produktionscode setzt sie je,
+// nur Einzelfälle/Tests koennen damit gezielt einen Wert setzen, ohne das
+// Zonen-Modell zu umgehen (A-234 -- der Schwierigkeitsfaktor lebt dort, nicht
+// hier: diese Funktion kennt ihn nicht, nur den Ueberschreibungswert).
 export function solarLageFaktor(planet) {
+  if (planet && typeof planet.solarZonenFaktor === "number") return planet.solarZonenFaktor;
   const faktor = planet && planet.zone ? SOLAR_ZONEN_FAKTOR[planet.zone] : undefined;
   return faktor === undefined ? 1 : faktor;
 }
@@ -2080,7 +2095,17 @@ export const PLANETEN_KLASSEN = {
     // Uran (A-148): lithophil, reichert sich MIT der Krustendifferenzierung
     // an (Granite, Pegmatite) -- eine kleine, kaum differenzierte Welt ohne
     // anhaltenden Vulkanismus hat davon am wenigsten, eine Supererde mit mehr
-    // innerer Wärme am meisten. Gegenläufig zu Iridium (siderophil).
+    // innerer Wärme am meisten.
+    //
+    // A-280/F6: NICHT "gegenläufig zu Iridium", wie hier bis dahin stand.
+    // Iridium ist zwar siderophil und sinkt MIT der Differenzierung in den
+    // Kern (ENTWURF-ASTEROIDENBERGBAU.md 1.1) -- aber die einzige Quelle, die
+    // trotzdem an die Oberfläche kommt, ist Mantelgestein aus tiefen Plumes
+    // (Bushveld, ebd. 1.2), und die braucht dieselbe innere Wärme/Tektonik
+    // wie die Uran-Anreicherung, nicht ihr Gegenteil. Die Werte spiegeln das
+    // schon richtig -- eine Supererde hat am MEISTEN Iridium, nicht am
+    // wenigsten. Gegen die Physik gehalten, Wert unverändert, nur der
+    // Kommentar war falsch.
     geologie: { metall: 1.2, silizium: 0.9, iridium: 0.9, uran: 0.7 },
   },
   felswelt: {
@@ -2113,6 +2138,77 @@ export const PLANETEN_KLASSEN = {
     oberflaeche: false, atmosphaere: true,
     geologie: {}, gas: { deuterium: 2.2 },
   },
+  // --- Asteroidengürtel (A-274, ENTWURF-ASTEROIDENBERGBAU.md) --------------
+  // Besiedelbar wie eine Kleinwelt: oberflaeche true, atmosphaere false --
+  // dieselbe Regel liefert Nahrung 0, ganz ohne Sonderfall (affinitaetVon).
+  // schwerkraft steht hier nur als Richtwert für Welten ohne echten Radius
+  // (wie bei den Riesen oben); der tatsächliche Gürtel bekommt in welt.js
+  // schwerkraft = 0 direkt, weil er keinen eigenen Körper mit Masse/Radius
+  // hat, über den man rechnen könnte.
+  //
+  // Die drei Typen sind KEIN Erfinden neuer Zahlen, sondern die reale
+  // Dreiteilung (Entwurf 1.3): C (kohlenstoffreich, wasserhaltig, ~75 %),
+  // S (Silikat, ~20 %), M (Metall, selten). Iridium ist siderophil (1.1) --
+  // undifferenziertes Material (C, S) trägt den vollen "Urgehalt" der
+  // Ursonne, ein Metallkörper (M) ist der abgetrennte KERN eines zerbrochenen
+  // Körpers und dadurch noch einmal deutlich reicher (1.3). Uran ist
+  // GEGENLÄUFIG (lithophil, reichert sich erst mit einer Krustendifferenzierung
+  // an, siehe Kommentar an PLANETEN_KLASSEN.kleinwelt) -- undifferenziertes
+  // Material hat wenig, ein reiner Metallkern praktisch keins.
+  //
+  // Zahlen: Anker aus Schritt 0 von A-274 (siehe A-274-Ergebnis für die
+  // Herleitung und einen Fund dazu: die Diminishing-Returns-Kurve allein
+  // bremst kaum, die eigentliche Knappheit sitzt am ORT). Iridium bleibt für
+  // C/S bewusst UNTER AFFINITAET_GUT (1.4) -- "Urgehalt" ist im Spiel
+  // spürbar, aber nicht die Schlagzeile, die erst der M-Typ liefert (Entwurf
+  // 3.3: nur M ist "reich an Iridium", C/S sind "Iridium auf Urgehalt").
+  // M trägt das 15-fache des Iridiumvorkommens einer Felswelt (9 gegen 0.6).
+  guertelC: {
+    id: "guertelC", name: "C-Gürtel", masse: [0, 0], schwerkraft: 0,
+    oberflaeche: true, atmosphaere: false,
+    geologie: { metall: 0.5, silizium: 1.0, iridium: 1.2, uran: 0.15 },
+  },
+  guertelS: {
+    id: "guertelS", name: "S-Gürtel", masse: [0, 0], schwerkraft: 0,
+    oberflaeche: true, atmosphaere: false,
+    geologie: { metall: 1.5, silizium: 1.6, iridium: 1.2, uran: 0.1 },
+  },
+  guertelM: {
+    id: "guertelM", name: "M-Gürtel", masse: [0, 0], schwerkraft: 0,
+    // Kein Uran: ein reiner Metallkern hat die lithophilen Elemente nie
+    // enthalten, sie blieben im (längst zerschlagenen) Mantel des
+    // Ursprungskörpers zurück -- derselbe Gegensatz wie bei kleinwelt/
+    // felswelt, nur konsequent bis auf 0 zu Ende gedacht.
+    oberflaeche: true, atmosphaere: false,
+    geologie: { metall: 1.8, silizium: 0.3, iridium: 9, uran: 0 },
+  },
+};
+
+// Wasseranteil je Gürteltyp (Entwurf 3.3): C ist die wasserreiche Sorte
+// (→ Deuterium über affinitaetVon), S und M sind arm daran. Dieselbe
+// Gewichtsform wie ORBIT_ZONEN.wasser, hier vom TYP bestimmt statt von der
+// Zone -- die Zone wirkt trotzdem mit, und zwar auf ZWEI Wegen, ohne eine
+// zweite Rechnung zu brauchen: ZONE_EIS skaliert das Ergebnis direkt (außen
+// mehr Deuterium, für jeden Typ gleichermaßen), und C wird laut
+// GUERTEL_ZONEN_GEWICHTE außen häufiger gezogen -- also gibt es im Schnitt
+// gerade dort mehr von der wasserreichen Sorte.
+export const GUERTEL_WASSER_GEWICHTE = {
+  guertelC: { trocken: 1, maessig: 3, reich: 6 },
+  guertelS: { trocken: 5, maessig: 4, reich: 1 },
+  guertelM: { trocken: 8, maessig: 2, reich: 0 },
+};
+
+// Welcher Gürteltyp an welcher Zone -- gestaucht aus der realen Verteilung
+// (Entwurf 1.3: C ~75 %, S ~20 %, M selten), so dass ein System mit 2-8
+// Gürteln eine spürbare, aber keine sichere Chance auf einen M-Gürtel hat
+// (bei 5 % je Ziehung: 1 − 0,95^8 ≈ 34 % für mindestens einen M-Gürtel).
+// Nach außen mehr C, wie in der Realität (1.3: dort blieb Eis erhalten).
+export const GUERTEL_ZONEN_GEWICHTE = {
+  "heiß": { guertelC: 40, guertelS: 50, guertelM: 10 },
+  "warm": { guertelC: 55, guertelS: 37, guertelM: 8 },
+  "habitabel": { guertelC: 68, guertelS: 27, guertelM: 5 },
+  "kalt": { guertelC: 80, guertelS: 16, guertelM: 4 },
+  "äußer": { guertelC: 88, guertelS: 9, guertelM: 3 },
 };
 
 // Was die Schwerkraft kostet. Zwei verschiedene Physiken, deshalb zwei Formeln:
@@ -2457,7 +2553,8 @@ export const RESEARCH = {
   foerdertechnik: {
     id: "foerdertechnik",
     name: "Fördertechnik",
-    beschreibung: "Verbessert die Abbaueffizienz aller Minen um 5% pro Stufe.",
+    beschreibung:
+      "Verbessert die Abbaueffizienz von Metall-, Silizium-, Uran- und Deuteriumförderung um 5% pro Stufe -- Iridium hat mit der Iridiumverarbeitung eine eigene Fördertechnik.",
     baseCost: { metall: 200, silizium: 100 },
     costFactor: 1.8,
     buildTimeDivisor: 1.5,
@@ -2468,7 +2565,7 @@ export const RESEARCH = {
     id: "energietechnik",
     name: "Energietechnik",
     beschreibung:
-      "Verbessert den Wirkungsgrad deiner Fusionsanlagen um 8% pro Stufe. Eine Wärmekraftmaschine kann prinzipiell nie alle Wärme in Strom wandeln: die Grenze ist 1 minus dem Verhältnis von kalter zu heißer Temperatur. Fortschritt heißt hier, heißer zu werden.",
+      "Verbessert den Wirkungsgrad jeder Energieanlage um 8% pro Stufe -- Fossil-, Kernkraft- und Fusionsanlage ebenso wie Solaranlagen und Energiespeicher. Eine Wärmekraftmaschine kann prinzipiell nie alle Wärme in Strom wandeln: die Grenze ist 1 minus dem Verhältnis von kalter zu heißer Temperatur. Fortschritt heißt hier, heißer zu werden.",
     baseCost: { metall: 150, silizium: 150 },
     costFactor: 1.8,
     buildTimeDivisor: 1.5,
@@ -2578,7 +2675,7 @@ export const RESEARCH = {
     // Wirkung (was erforschen ERMÖGLICHT) vor der Verbesserung (was es an
     // Bestehendem verstärkt).
     beschreibung:
-      "Zweite Stufe der Energiegewinnung. Verbessert Fusionsanlagen um weitere 10% pro Stufe. Fusion gewinnt Energie nur, solange die Kerne leichter sind als Eisen – dort sind sie am festesten gebunden. Jenseits davon kostet Verschmelzen Energie, statt welche zu liefern. Schaltet die Fusionsanlage frei.",
+      "Zweite Stufe der Energiegewinnung. Verbessert dieselben Energieanlagen wie Energietechnik um weitere 10% pro Stufe. Fusion gewinnt Energie nur, solange die Kerne leichter sind als Eisen – dort sind sie am festesten gebunden. Jenseits davon kostet Verschmelzen Energie, statt welche zu liefern. Schaltet die Fusionsanlage frei.",
     baseCost: { metall: 500, silizium: 400 },
     costFactor: 1.7,
     buildTimeDivisor: 1.4,
@@ -3084,7 +3181,7 @@ export const ABWEHR = {
     id: "abwehrstellung",
     name: "Abwehrstellung",
     beschreibung:
-      "Bodengestützte Verteidigung in Stückzahl, nicht in Ausbaustufen -- wie eine Flotte, nur ohne Flug. Kostet im Frieden wenig (Bereitschaft: Kühlung, Zielrechner, Kondensatoren), im Gefecht viel. Verteidigt heute noch gegen nichts -- die Bedrohung kommt erst später.",
+      "Bodengestützte Verteidigung in Stückzahl, nicht in Ausbaustufen -- wie eine Flotte, nur ohne Flug. Kostet im Frieden wenig (Bereitschaft: Kühlung, Zielrechner, Kondensatoren), im Gefecht viel. Feuert bei einem Überfall, solange genug Energie übrig ist, und kürzt dadurch die erbeutete Fracht -- geht dabei wie jede Abwehranlage anteilig kaputt.",
     // Dieselbe Werft-Schwelle wie das billigste Schiff: die Wahl soll von
     // Anfang an bestehen (Prinzip 14), nicht erst spät freigeschaltet sein.
     werftAb: 1,
@@ -3155,7 +3252,7 @@ export const ABWEHR = {
     id: "bunker",
     name: "Bunker",
     beschreibung:
-      "Gehärteter Lagerraum in Stückzahl. Sein Inhalt wird bei einem Überfall nicht mitgenommen -- verteidigt heute noch gegen nichts, die Bedrohung kommt erst später. Deutlich mehr Bau je Einheit Kapazität als das normale Lagernetz: sicherer Lagerraum oder mehr Lagerraum, nie beides.",
+      "Gehärteter Lagerraum in Stückzahl. Sein Inhalt bleibt bei einem Überfall geschützt, bis zur eigenen Kapazität -- was darüber hinausgeht, bleibt ungeschützt. Deutlich mehr Bau je Einheit Kapazität als das normale Lagernetz: sicherer Lagerraum oder mehr Lagerraum, nie beides.",
     werftAb: 1,
     // Dasselbe Material wie das Lagernetz selbst (Metall/Silizium, KEIN
     // Elektronik -- er ist Baumasse, keine Sensor-/Waffentechnik wie die
@@ -3540,14 +3637,40 @@ export const VORKOMMEN_GEBAEUDE = Object.values(BUILDINGS).filter((def) => def.g
 //
 // Iridiumförderung fehlt in START.startstufenHeimatwelt -- sie bleibt auf der
 // Heimatwelt absichtlich bei Stufe 0 (siehe der Kommentar an dieser Tabelle:
-// "Iridium ... bleibt bei null"). Ohne Rückfall wäre ihre Referenzmenge 0 und
-// jede Iridiumförderung stünde sofort bei x = Infinity, Ergiebigkeit 0 statt
-// nie-0. Der Rückfall ist Stufe 1, die erste tatsächlich gebaute -- kein
-// Design-Entscheid dieser Runde, sondern eine Lücke im Auftrag, die nur eine
-// der fünf Anlagen betrifft. Siehe A-236-Ergebnis.
+// "Iridium ... bleibt bei null") und bleibt es auch (A-280, "Nicht anfassen":
+// die Tabelle). Bis A-280 fiel die Referenz dafür auf Stufe 1 zurück (`|| 1`)
+// -- kein Design-Entscheid, sondern eine Lücke im Auftrag (siehe
+// A-236-Ergebnis). Die Folge, gemessen (B-30): Ergiebigkeit einer
+// Stufe-10-Iridiumförderung halbiert sich nach 0,2 Spielstunden statt nach
+// Stunden -- Prinzip 13 ("keine physikalische Antwort"), und die Arena
+// verlor darüber die Rettung der Persona "panisch" (KEIN SCHIRM).
+//
+// A-280, Schritt 0 -- Herleitung statt Rückfall: `iridiumfoerderung` und
+// `uranmine` sind dieselbe Anlage in allem außer dem Namen (Kosten,
+// costFactor, buildTimeDivisor, UND `produktion`-Kurve Wort für Wort
+// identisch, siehe uranmine-Kommentar: "Nach dem Muster der
+// Iridiumförderung"). Die Referenzstufe ist deshalb die HALBE Startstufe der
+// baugleichen Uranmine (12 -> 6), nicht deren volle Stufe: Anker 1
+// (ENTWURF-ASTEROIDENBERGBAU.md 1.2 gegen 1.3) hält Iridium auf einem
+// Planeten für "selten, klein" gegen sein Vorkommen im M-Gürtel -- eine
+// Industrie, die auf der Heimatwelt nie zur selben Routine wurde wie die
+// baugleiche Uranmine, ist genau dieses "selten, klein" in derselben
+// Kurvenform. Ändert sich die Uranmine-Startstufe künftig, folgt die
+// Iridium-Referenz von allein (dasselbe Prinzip wie FOSSIL_VORRAT_BASIS
+// oben).
+//
+// Anker 2 (Verbraucher/Pacing) UND Anker 3 (Prinzip 13b) siehe A-280-Ergebnis
+// für die Messung: M-Gürtel (Affinität 9) erreicht den Magnetschild (250 Mio
+// t) in Minuten, eine Felswelt (Affinität 0,6) in rund eineinhalb Stunden --
+// erreichbar, aber nicht bequem. `START.startstufenHeimatwelt` bleibt dabei
+// unverändert (Iridium weiterhin ohne Eintrag).
+export const VORKOMMEN_REFERENZSTUFE_OHNE_HEIMATWELT = {
+  iridiumfoerderung: Math.round(START.startstufenHeimatwelt.uranmine / 2),
+};
+
 export const VORKOMMEN_BASIS = {};
 for (const def of VORKOMMEN_GEBAEUDE) {
-  const stufe = START.startstufenHeimatwelt[def.id] || 1;
+  const stufe = START.startstufenHeimatwelt[def.id] || VORKOMMEN_REFERENZSTUFE_OHNE_HEIMATWELT[def.id];
   for (const [resId, spec] of Object.entries(def.produktion)) {
     const proStunde = rate(spec, stufe);
     VORKOMMEN_BASIS[resId] = proStunde * (jahreInMs(FOSSIL.vorratJahre) / (3600 * 1000));

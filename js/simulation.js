@@ -49,7 +49,7 @@ import {
   bauzeitFuerLevel,
   forschungsAufwand,
   voraussetzungenText,
-} from "./data.js?v=0.9.26";
+} from "./data.js?v=0.9.36";
 import {
   effektiveRaten,
   bevoelkerungsWachstumsrate,
@@ -111,7 +111,7 @@ import {
   arbeitskraftDiebstahlAnteil,
   maxReichweite,
   handelsMindestFuer,
-} from "./state.js?v=0.9.26";
+} from "./state.js?v=0.9.36";
 import {
   ortVonPlanet,
   ortVonSystem,
@@ -131,9 +131,9 @@ import {
   schiffeGesamt,
   schiffeStaerke,
   schiffeText,
-} from "./flotten.js?v=0.9.26";
-import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.26";
-import { stromFuer, waehle } from "./zufall.js?v=0.9.26";
+} from "./flotten.js?v=0.9.36";
+import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.36";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.36";
 import {
   reichenAus,
   fehlende,
@@ -144,8 +144,8 @@ import {
   buendelText,
   formatZahl as fmt,
   name as resName,
-} from "./ressourcen.js?v=0.9.26";
-import { t } from "./sprache.js?v=0.9.26";
+} from "./ressourcen.js?v=0.9.36";
+import { t } from "./sprache.js?v=0.9.36";
 
 // Kurzform: Ressourcen in ein Planetenlager einlagern, begrenzt durch den
 // gemeinsamen Pool und etwaige Annahmeregeln. Gibt zurück, was nicht
@@ -166,7 +166,7 @@ function insLager(state, planet, buendel) {
     (resId) => aufnahmeGrenzeFuer(planet, resId)
   );
 }
-import { systemName, entfernung } from "./galaxie.js?v=0.9.26";
+import { systemName, entfernung } from "./galaxie.js?v=0.9.36";
 
 const MS_PRO_STUNDE = 1000 * 60 * 60;
 
@@ -5923,12 +5923,37 @@ function stuetzpunktGruenden(state, flotte, befehl, typ, zeit) {
   planet.klasse = objekt.daten.klasse || null;
   planet.zone = objekt.daten.zone || null;
   planet.wasser = objekt.daten.wasser || null;
-  planet.schwerkraft = objekt.daten.schwerkraft || 1;
+  // A-274-Fund: `||` behandelt 0 als "nicht gesetzt" -- traf bisher nie zu
+  // (jeder Planet hat eine positive Schwerkraft), aber ein Asteroidengürtel
+  // trägt ABSICHTLICH 0 (Entwurf 3.3). `??` lässt die 0 durch und fällt nur
+  // bei einem wirklich fehlenden Feld (älterer Spielstand, Testobjekt) auf 1
+  // zurück. Dieselbe Falle wie bei schwerkraftVon (state.js) und
+  // affinitaetText (ui.js) -- an allen drei Stellen behoben.
+  planet.schwerkraft = objekt.daten.schwerkraft ?? 1;
   // Uhr auf den Gründungszeitpunkt stellen. Ohne das erbte eine Kolonie den
   // gemeinsamen state.letzterTick und würde beim nächsten Vorrücken für eine
   // Zeit mitproduzieren, in der es sie noch gar nicht gab.
   planet.letzterTick = zeit;
   planetUhrStarten(planet, zeit);
+  // A-274, Bekannte Falle "Haufen und Kolonie am selben Orbit": ein
+  // Asteroidengürtel kann besiedelt werden, während sein Haufen noch
+  // unverwertet daliegt -- bei jedem anderen Objekt schließen sich
+  // Vorkommen und Kolonisierbarkeit aus (siehe Kommentar an
+  // OBJEKT_REGELN/missionFuerObjekt). Ohne diese Zeile würde der Haufen mit
+  // der Gründung praktisch unerreichbar, weil orbitAngebot() für einen
+  // eigenen Stützpunkt gar nicht mehr bis zur Bergungsfrage kommt --
+  // Prinzip 7a verlangt, dass er nicht einfach verschwindet. Die Siedler
+  // heben auf, was ins frische Lager passt; der Rest bleibt als restErtrag
+  // liegen (dieselbe Regel wie beim Kolonieschiff selbst, ein paar Zeilen
+  // weiter unten) und bleibt "eigener Besitz" -- ohne Sperre, aber (Fund,
+  // Ergebnis) noch ohne eigene Bergungsmission an einem besetzten Orbit.
+  if (objekt.daten.ertrag && !objekt.verwertet) {
+    const { abgelehnt } = insLager(state, planet, objekt.daten.ertrag);
+    setzeOrbitZustand(state, befehl.zielSystem, befehl.zielOrbit, {
+      verwertet: true,
+      restErtrag: Object.keys(abgelehnt).length ? abgelehnt : null,
+    });
+  }
   if (typ === "kolonie") {
     // A-132: KEIN Startvorrat mehr -- die Kolonie bekommt ausschließlich das,
     // was der Spieler im Frachtraum mitgeschickt hat. Dieselbe Stelle, an der
@@ -6076,7 +6101,13 @@ export function kannGruendungsmission(state, flotte, art, systemId, orbit) {
   const objekt = findeObjekt(state, systemId, orbit);
   if (!objekt) return { ok: false, grund: t("Unbekanntes Ziel.") };
   if (!objekt.entdeckt) return { ok: false, grund: t("Noch nicht erkundet.") };
-  if (objekt.typ !== "planet" || !objekt.daten.kolonisierbar) {
+  // A-274: ein Asteroidengürtel wird besiedelbar wie ein Planet, dieselbe
+  // Tür für Außenposten UND Kolonie (Entwurf 3.1). `objektGesperrt` gilt
+  // unverändert -- ein "Tiefliegendes Vorkommen" bleibt verschlossen, bis
+  // die Schlüsseltechnologie da ist (kam vorher nie vor: eine kolonisierbare
+  // Quelle mit `benoetigt` gab es bislang nicht, siehe A-274-Ergebnis).
+  const gruendbarerTyp = objekt.typ === "planet" || objekt.typ === "asteroiden";
+  if (!gruendbarerTyp || !objekt.daten.kolonisierbar || objektGesperrt(state, objekt)) {
     return { ok: false, grund: t("Hier lässt sich nichts errichten.") };
   }
   if (planetAn(state, systemId, orbit)) return { ok: false, grund: t("Hier steht bereits ein Stützpunkt.") };
@@ -6577,6 +6608,21 @@ export function kannBauen(state, planet, gebaeudeId) {
     }
   }
   const level = naechstesGebaeudeLevel(planet, gebaeudeId);
+  // A-257: eine Höchststufe sperrt wie eine fehlende Forschung -- `level` ist
+  // hier schon die Zielstufe DIESES Versuchs (naechstesGebaeudeLevel zählt
+  // Bestand + Warteschlange + 1 mit), die Warteschlangen-Falle aus A-211 ist
+  // damit ohne Zutun mitgezählt. Dieselbe Meldung trägt auch den Fall einer
+  // laufenden Partie, die schon über der Höchststufe steht (nicht migriert,
+  // siehe Auftrag): sie sagt in beiden Fällen richtig, dass eine weitere
+  // Stufe nichts bringt.
+  if (def.hoechststufe && level > def.hoechststufe) {
+    return {
+      ok: false,
+      grund: t("Höchststufe erreicht ({stufe}) – weitere Ausbaustufen bringen nichts.", {
+        stufe: def.hoechststufe,
+      }),
+    };
+  }
   const kosten = gebaeudeKosten(planet, def, level);
   //  heisst: alles stimmt ausser dem Kontostand. Seit A-012 darf man
   // in dieser Lage trotzdem EINREIHEN -- der Auftrag wartet dann vorn in der

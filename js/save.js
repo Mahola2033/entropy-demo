@@ -11,12 +11,12 @@ import {
   speicherbarerVersatz,
   spielDatum,
   vollerFossilVorrat,
-} from "./state.js?v=0.9.26";
-import { piratenWeltStart, botWeltStart, piratenNamenNachziehen } from "./simulation.js?v=0.9.26";
-import { notausgangLoeschen } from "./aufholen.js?v=0.9.26";
-import { DEMO_SAAT, VERSION } from "./data.js?v=0.9.26";
-import { t } from "./sprache.js?v=0.9.26";
-import { startschwierigkeit } from "./schwierigkeit.js?v=0.9.26";
+} from "./state.js?v=0.9.36";
+import { piratenWeltStart, botWeltStart, piratenNamenNachziehen } from "./simulation.js?v=0.9.36";
+import { notausgangLoeschen } from "./aufholen.js?v=0.9.36";
+import { DEMO_SAAT, VERSION } from "./data.js?v=0.9.36";
+import { t } from "./sprache.js?v=0.9.36";
+import { startschwierigkeit } from "./schwierigkeit.js?v=0.9.36";
 
 const STORAGE_KEY = "entropy-save";
 
@@ -389,6 +389,33 @@ export function migrationsKette(stand, migrationen, zielVersion) {
     if (++schritte > 1000) throw new Error("Migrationskette lief zu lange, vermutlich Zyklus.");
   }
   return aktuell;
+}
+
+// Prüft NUR, ob ein Weg von `von` nach `bis` durch `migrationen` lückenlos
+// ist -- ohne einen echten Spielstand zu brauchen (anders als
+// `migrationsKette()` oben, die auf einem vollen `stand`-Objekt läuft). Für
+// zwei Werkzeuge gedacht, die vor dem Kopieren/Veröffentlichen nur die REINE
+// Versionszahl kennen: `veroeffentlichen.mjs` (Vorflug 2) und
+// `vollversion.mjs` (A-272). Ruft trotzdem die ECHTEN Migrationsfunktionen
+// auf (mit einem minimalen `{ version }`-Platzhalter statt eines vollen
+// Stands) -- die bestehenden Migrationen vertragen das, weil sie fehlende
+// Felder ohnehin über `|| []`/`|| {}` abfangen (Kategorie-3a-Pflicht, siehe
+// Leitfaden).
+//
+// Bewusst eine zweite Funktion statt `migrationsKette()` wiederzuverwenden:
+// die dort geworfene Fehlerklasse (Vertragsbruch EINER Migration) ist ein
+// Programmierfehler und soll laut bleiben; hier ist eine fehlende
+// Kettenglied dagegen der ERWARTETE, abzufragende Fall.
+export function wegSuchen(von, bis, migrationen) {
+  const schritte = [von];
+  let aktuell = von;
+  while (aktuell < bis) {
+    const schritt = migrationen[aktuell];
+    if (!schritt) return { geschlossen: false, luecke: aktuell, schritte };
+    aktuell = schritt({ version: aktuell }).version;
+    schritte.push(aktuell);
+  }
+  return { geschlossen: true, schritte };
 }
 
 export function laden() {

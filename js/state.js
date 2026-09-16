@@ -50,17 +50,18 @@ import {
   VORKOMMEN_RESSOURCEN,
   ARBEITSKRAFT_LEERLAUF,
   DROSSELUNG,
-} from "./data.js?v=0.9.26";
-import { stromFuer, waehle } from "./zufall.js?v=0.9.26";
-import { systemGenerieren } from "./welt.js?v=0.9.26";
+} from "./data.js?v=0.9.36";
+import { VARIANTE } from "./variante.js?v=0.9.36";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.36";
+import { systemGenerieren } from "./welt.js?v=0.9.36";
 // A-082: eigener Zufallsstrom für den Heimatweltnamen. Die Kennung ist eine
 // beliebige feste Zahl -- wichtig ist nur, dass sie keiner Systemkennung in
 // die Quere kommt und sich nie wieder ändert (sonst hieße jede bestehende
 // Partie beim nächsten Laden anders).
 const HEIMATWELT_NAMEN_KENNUNG = 900001;
-import { galaxiePlanen, entfernung, schluesselImSystem } from "./galaxie.js?v=0.9.26";
-import { skalieren } from "./ressourcen.js?v=0.9.26";
-import { t } from "./sprache.js?v=0.9.26";
+import { galaxiePlanen, entfernung, schluesselImSystem } from "./galaxie.js?v=0.9.36";
+import { skalieren } from "./ressourcen.js?v=0.9.36";
+import { t } from "./sprache.js?v=0.9.36";
 
 // v0.28: Sterntypen verschieben die Orbitzonen -- dieselbe Saat erzeugt jetzt
 // andere Planeten. Ein alter Spielstand trüge Fortschritt zu Orbits, in denen
@@ -311,7 +312,12 @@ function startsystemAufdecken(seed, galaxie, schwierigkeit) {
 // STARTSCHWIERIGKEIT ("leicht"/"normal"/"schwer", js/data.js). Fehlt sie
 // oder ist sie unbekannt, greift STARTSCHWIERIGKEIT_VORGABE ("normal") in
 // welt.js. Wirkt NUR auf die Heimatwelt dieser neuen Partie, nirgends sonst.
-export function neuesSpiel(saat, schwierigkeit) {
+// `variante` folgt demselben Muster wie `tagessprungSichtbar(stand = STAND)`
+// in js/testmodus.js: Vorgabe ist der Modulwert aus js/variante.js, ein
+// dritter Parameter existiert nur, damit ein Test beide Zweige ohne
+// Modul-Trickserei gegeneinander messen kann (tests/supernova.test.js,
+// A-272). Kein Aufrufer im Spiel selbst übergibt ihn.
+export function neuesSpiel(saat, schwierigkeit, variante = VARIANTE) {
   const seed = (saat ?? Date.now()) >>> 0;
   // DIE UHR WIRD EINMAL GELESEN, und das ist keine Sparsamkeit.
   //
@@ -413,7 +419,12 @@ export function neuesSpiel(saat, schwierigkeit) {
     // sichtbar -- die Welt existiert, bevor jemand hinsieht (Prinzip 1), und
     // die Frist ist keine gesetzte Zahl, sondern Entfernung durch
     // Geschwindigkeit (Prinzip 13). Siehe SUPERNOVA in data.js.
-    supernova: supernovaAnlegen(seed, galaxie, jetzt),
+    //
+    // A-272: In der Variante "voll" (Tobis Vollversion) entsteht gar erst
+    // keine Supernova -- state.supernova bleibt null, derselbe Zustand, den
+    // tests/hilfen.js für die Testwelt seit je erzwingt. Kein zweiter Zweig,
+    // keine weitere Stelle liest die Variante (js/variante.js).
+    supernova: variante === "voll" ? null : supernovaAnlegen(seed, galaxie, jetzt),
     angezeigtesSystem: galaxie.heimatSystem,
     meldungen: [],
     testZeitOffsetMs: 0,
@@ -3535,8 +3546,14 @@ export function stufeEingereihtErfuellt(stand, kopf, warteschlange, passtZu, ben
 // Die einzige Stelle, an der Kosten planetenabhängig werden. ALLE Berechnungen
 // von Gebäude- und Schiffskosten laufen hierüber -- auch Erstattungen bei
 // Storno, sonst würde ein Abbruch auf einer Supererde Geld drucken.
+// A-274-Fund: `planet.schwerkraft ? … : 1` behandelte 0 als "nicht gesetzt"
+// und lieferte fälschlich den Fallback 1 -- traf bisher nie zu (jede
+// bestehende Welt hat eine echte, positive Schwerkraft), bricht aber am
+// Asteroidengürtel, dessen Schwerkraft ABSICHTLICH 0 ist. Derselbe Fehler
+// wie bei affinitaetFaktor (F4): 0 ist ein gültiger, gesetzter Wert.
 export function schwerkraftVon(planet) {
-  return planet && planet.schwerkraft ? planet.schwerkraft : 1;
+  const wert = planet && planet.schwerkraft;
+  return typeof wert === "number" ? wert : 1;
 }
 
 // Traglast: linear mit der Schwerkraft.

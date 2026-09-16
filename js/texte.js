@@ -194,8 +194,8 @@ export const EN = {
     "Extracts deuterium from water – the fuel without which no fleet flies. Heavy hydrogen is stable and sits wherever water does: in every six-thousandth hydrogen nucleus, in ice, in oceans, in damp rock.",
   "Ermöglicht den Schiffbau. Höhere Stufen bauen schneller.":
     "Enables shipbuilding. Higher levels build faster.",
-  "Fördert Iridium. In der Kruste ist es fast nicht vorhanden: Iridium bindet an Eisen und ist bei der Entstehung des Planeten mit ihm in den Kern gesunken. In Asteroiden liegt es hundertfach dichter – die Iridiumschicht am Ende der Kreidezeit stammt von einem.":
-    "Mines iridium. There is almost none in the crust: iridium binds to iron and sank into the core with it while the planet formed. Asteroids carry it a hundred times more densely – the iridium layer at the end of the Cretaceous came from one.",
+  "Fördert Iridium. In der Kruste ist es fast nicht vorhanden: Iridium bindet an Eisen und ist bei der Entstehung des Planeten mit ihm in den Kern gesunken. Asteroiden haben diese Trennung nie durchlaufen und tragen noch den Urgehalt – rund zwanzigtausendfach dichter als das Krustenmittel. Die Iridiumschicht am Ende der Kreidezeit stammt von einem Einschlag.":
+    "Mines iridium. There is almost none in the crust: iridium binds to iron and sank into the core with it while the planet formed. Asteroids never went through that separation and still carry the primordial abundance – roughly twenty thousand times denser than the average crust. The iridium layer at the end of the Cretaceous came from an impact.",
   "Erzeugt Antimaterie aus Energie. Der Wirkungsgrad ist miserabel und bleibt es – Antimaterie ist kein Brennstoff, sondern der dichteste Speicher, den die Physik kennt: 9 × 10¹⁶ Joule je Kilogramm umgesetzter Masse, das Zehnmillionenfache von chemischem Sprengstoff.":
     "Manufactures antimatter from power. The efficiency is dismal and always will be – antimatter is not a fuel but the densest storage medium physics knows: 9 × 10¹⁶ joules per kilogram of converted mass, ten million times chemical explosive.",
   "Macht aus Silizium und viel Strom Elektronik. Ein Halbleiter ist nicht Rohmasse, sondern Reinheit: auf eine Milliarde Siliziumatome darf höchstens ein fremdes kommen. Der größte Teil des eingesetzten Materials wird dabei nicht zu Bauteilen, sondern zu Abfall – dieser Verlust ist der Preis der Veredelung.":
@@ -231,10 +231,10 @@ export const EN = {
   "Erlaubt den Bau planetarer Magnetfeldgeneratoren. Sie halten keinen Gammablitz auf – der braucht Masse, dafür sind die Wohnsektoren da. Sie lenken die geladene Teilchenflut ab, die einer Supernova jahrtausendelang folgt, und halten damit die Atmosphäre. Vorbild ist ein real durchgerechneter Magnetschild am L1-Punkt des Mars.":
     "Enables planetary magnetic field generators. They stop no gamma flash – that needs mass, which is what residential sectors are for. They deflect the charged particle flood that follows a supernova for millennia, and thereby hold the atmosphere. The model is a real magnetic shield concept for the L1 point of Mars.",
 
-  "Verbessert die Abbaueffizienz aller Minen um 5% pro Stufe.":
-    "Improves extraction efficiency of all mines by 5% per level.",
-  "Verbessert den Wirkungsgrad deiner Fusionsanlagen um 8% pro Stufe. Eine Wärmekraftmaschine kann prinzipiell nie alle Wärme in Strom wandeln: die Grenze ist 1 minus dem Verhältnis von kalter zu heißer Temperatur. Fortschritt heißt hier, heißer zu werden.":
-    "Improves the efficiency of your fusion plants by 8% per level. A heat engine can never convert all of its heat into electricity: the ceiling is 1 minus the ratio of cold to hot temperature. Progress here means running hotter.",
+  "Verbessert die Abbaueffizienz von Metall-, Silizium-, Uran- und Deuteriumförderung um 5% pro Stufe -- Iridium hat mit der Iridiumverarbeitung eine eigene Fördertechnik.":
+    "Improves extraction efficiency of metal, silicon, uranium and deuterium mining by 5% per level -- iridium has its own extraction tech, Iridium Processing.",
+  "Verbessert den Wirkungsgrad jeder Energieanlage um 8% pro Stufe -- Fossil-, Kernkraft- und Fusionsanlage ebenso wie Solaranlagen und Energiespeicher. Eine Wärmekraftmaschine kann prinzipiell nie alle Wärme in Strom wandeln: die Grenze ist 1 minus dem Verhältnis von kalter zu heißer Temperatur. Fortschritt heißt hier, heißer zu werden.":
+    "Improves the efficiency of every power plant by 8% per level -- fossil, nuclear and fusion plants as well as solar arrays and energy storage. A heat engine can never convert all of its heat into electricity: the ceiling is 1 minus the ratio of cold to hot temperature. Progress here means running hotter.",
   "Verkürzt die Flugzeit deiner Sonden um 10% pro Stufe.":
     "Shortens probe travel time by 10% per level.",
   "Erhöht die Ausbeute aus Wracks und Asteroiden um 15% pro Stufe.":
@@ -251,8 +251,8 @@ export const EN = {
     "Increases the maximum range of your probes and shortens travel times between systems. Fuel demand does not grow with speed but exponentially in it – whoever carries fuel must accelerate that fuel too. This is why any improvement to the drive is worth more than any bigger tank.",
   "Erhöht die Kapazität aller Lagernetze um 6% pro Stufe.":
     "Increases the capacity of all storage networks by 6% per level.",
-  "Zweite Stufe der Energiegewinnung. Verbessert Fusionsanlagen um weitere 10% pro Stufe. Fusion gewinnt Energie nur, solange die Kerne leichter sind als Eisen – dort sind sie am festesten gebunden. Jenseits davon kostet Verschmelzen Energie, statt welche zu liefern. Schaltet die Fusionsanlage frei.":
-    "Second tier of power generation. Improves fusion plants by a further 10% per level. Fusion only yields energy while the nuclei are lighter than iron – that is where binding is tightest. Beyond it, fusing costs energy instead of releasing it. Unlocks the fusion plant.",
+  "Zweite Stufe der Energiegewinnung. Verbessert dieselben Energieanlagen wie Energietechnik um weitere 10% pro Stufe. Fusion gewinnt Energie nur, solange die Kerne leichter sind als Eisen – dort sind sie am festesten gebunden. Jenseits davon kostet Verschmelzen Energie, statt welche zu liefern. Schaltet die Fusionsanlage frei.":
+    "Second tier of power generation. Improves the same power plants as Energy Tech by a further 10% per level. Fusion only yields energy while the nuclei are lighter than iron – that is where binding is tightest. Beyond it, fusing costs energy instead of releasing it. Unlocks the fusion plant.",
   "Verbessert die Ausbeute deiner Iridiumförderungen um 7% pro Stufe.":
     "Improves the yield of your iridium extraction sites by 7% per level.",
   "Startet mit einem Klick so viele Sonden, wie es unerforschte einfache Ziele im System gibt -- statt jede einzeln loszuschicken.":
@@ -290,8 +290,8 @@ export const EN = {
   // --- Verteidigung (A-204) -------------------------------------------------
   Verteidigung: "Defense",
   Abwehrstellung: "Defense Installation",
-  "Bodengestützte Verteidigung in Stückzahl, nicht in Ausbaustufen -- wie eine Flotte, nur ohne Flug. Kostet im Frieden wenig (Bereitschaft: Kühlung, Zielrechner, Kondensatoren), im Gefecht viel. Verteidigt heute noch gegen nichts -- die Bedrohung kommt erst später.":
-    "Ground-based defense built in numbers, not levels -- like a fleet, only it never flies. Costs little in peacetime (standby: cooling, targeting computer, capacitors), a lot in combat. Defends against nothing yet -- the threat comes later.",
+  "Bodengestützte Verteidigung in Stückzahl, nicht in Ausbaustufen -- wie eine Flotte, nur ohne Flug. Kostet im Frieden wenig (Bereitschaft: Kühlung, Zielrechner, Kondensatoren), im Gefecht viel. Feuert bei einem Überfall, solange genug Energie übrig ist, und kürzt dadurch die erbeutete Fracht -- geht dabei wie jede Abwehranlage anteilig kaputt.":
+    "Ground-based defense built in numbers, not levels -- like a fleet, only it never flies. Costs little in peacetime (standby: cooling, targeting computer, capacitors), a lot in combat. Fires during a raid as long as enough power is left, cutting into the loot taken -- and takes proportional losses like any defense installation.",
   // --- Ortung (A-205) --------------------------------------------------------
   Ortungsstation: "Sensor Station",
   "Verlängert die Vorwarnung vor einem Angriff und zeigt Stärke und Ziel des Anflugs. Wirkt sofort, kämpft nicht und verhindert nichts -- ihr ganzer Nutzen ist Zeit.":
@@ -299,8 +299,8 @@ export const EN = {
 
   // --- Bunker (A-206) ---------------------------------------------------------
   Bunker: "Bunker",
-  "Gehärteter Lagerraum in Stückzahl. Sein Inhalt wird bei einem Überfall nicht mitgenommen -- verteidigt heute noch gegen nichts, die Bedrohung kommt erst später. Deutlich mehr Bau je Einheit Kapazität als das normale Lagernetz: sicherer Lagerraum oder mehr Lagerraum, nie beides.":
-    "Hardened storage built in numbers. Its contents aren't taken in a raid -- defends against nothing yet, the threat comes later. Costs noticeably more to build per unit of capacity than the ordinary storage network: safe storage or more storage, never both.",
+  "Gehärteter Lagerraum in Stückzahl. Sein Inhalt bleibt bei einem Überfall geschützt, bis zur eigenen Kapazität -- was darüber hinausgeht, bleibt ungeschützt. Deutlich mehr Bau je Einheit Kapazität als das normale Lagernetz: sicherer Lagerraum oder mehr Lagerraum, nie beides.":
+    "Hardened storage built in numbers. Its contents stay protected in a raid, up to its own capacity -- anything beyond that stays unprotected. Costs noticeably more to build per unit of capacity than the ordinary storage network: safe storage or more storage, never both.",
   "{anzahl}× {abwehr} auf {planet} fertiggestellt.": "{anzahl}× {abwehr} completed at {planet}.",
   "Kein laufender Abwehrbau.": "No defense construction in progress.",
   "Im Bau: {anzahl}× {abwehr} ({dauer})": "Building: {anzahl}× {abwehr} ({dauer})",
@@ -607,6 +607,8 @@ export const EN = {
   "Das würde eine Voraussetzung hinter die Forschung schieben, die sie braucht.":
     "That would push a prerequisite behind the research that needs it.",
   "Warteschlange voll ({max}/{max}).": "Queue full ({max}/{max}).",
+  "Höchststufe erreicht ({stufe}) – weitere Ausbaustufen bringen nichts.":
+    "Maximum level reached ({stufe}) – further upgrades do nothing.",
   "Braucht {noetig} Bevölkerung (aktuell {aktuell}).": "Requires {noetig} population (currently {aktuell}).",
   "{res} gibt es hier nicht.": "There is no {res} here.",
   "{res} gibt es hier nicht ({art}).": "There is no {res} here ({art}).",
@@ -743,6 +745,9 @@ export const EN = {
   Spielkopie: "Play copy",
   Entwicklung: "Development",
   Demo: "Demo",
+  // A-272: Zusatz zur Versionsanzeige, wenn VARIANTE (js/variante.js) "voll"
+  // ist -- Tobis lokale Vollversion ohne Supernova.
+  Vollversion: "Full version",
   "+1 Tag": "+1 day",
   Pause: "Pause",
   // A-161: aria-label der Sprungnavigation, gemeinsam für Handbuch und
@@ -1245,6 +1250,7 @@ export const EN = {
   "dein Außenposten": "your outpost",
   "nicht besiedelbar": "not colonizable",
   "besiedelbar · {radius} Erdradien": "colonizable · {radius} Earth radii",
+  besiedelbar: "colonizable",
   besiegt: "defeated",
   "besiegt · Rest liegt noch: {rest}": "defeated · still lying here: {rest}",
   "gefährlich · Flotte: {schiffe} · {hp} HP": "dangerous · fleet: {schiffe} · {hp} HP",
