@@ -41,6 +41,10 @@ import {
   ARBEITSKRAFT_LEERLAUF,
   VORKOMMEN_RESSOURCEN,
   VORKOMMEN_MELDESCHWELLE,
+  VORKOMMEN_RATE_SPEC,
+  ABBAUSCHIFF_FOERDERSTUFE,
+  ABBAUSCHIFF_DAUER_STUNDEN,
+  rate,
 
   taugtAlsStartwelt,
   REICHWEITE,
@@ -49,7 +53,7 @@ import {
   bauzeitFuerLevel,
   forschungsAufwand,
   voraussetzungenText,
-} from "./data.js?v=0.9.36";
+} from "./data.js?v=0.9.48";
 import {
   effektiveRaten,
   bevoelkerungsWachstumsrate,
@@ -59,6 +63,7 @@ import {
   fossilVorratNachziehen,
   nahrungsbilanzNachziehen,
   gefoerdertNachziehen,
+  gefoerdertVon,
   foerderErgiebigkeit,
   brennstoffReichweiteMs,
   affinitaetFaktor,
@@ -111,7 +116,7 @@ import {
   arbeitskraftDiebstahlAnteil,
   maxReichweite,
   handelsMindestFuer,
-} from "./state.js?v=0.9.36";
+} from "./state.js?v=0.9.48";
 import {
   ortVonPlanet,
   ortVonSystem,
@@ -131,9 +136,9 @@ import {
   schiffeGesamt,
   schiffeStaerke,
   schiffeText,
-} from "./flotten.js?v=0.9.36";
-import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.36";
-import { stromFuer, waehle } from "./zufall.js?v=0.9.36";
+} from "./flotten.js?v=0.9.48";
+import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.48";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.48";
 import {
   reichenAus,
   fehlende,
@@ -144,8 +149,8 @@ import {
   buendelText,
   formatZahl as fmt,
   name as resName,
-} from "./ressourcen.js?v=0.9.36";
-import { t } from "./sprache.js?v=0.9.36";
+} from "./ressourcen.js?v=0.9.48";
+import { t } from "./sprache.js?v=0.9.48";
 
 // Kurzform: Ressourcen in ein Planetenlager einlagern, begrenzt durch den
 // gemeinsamen Pool und etwaige Annahmeregeln. Gibt zurück, was nicht
@@ -166,7 +171,7 @@ function insLager(state, planet, buendel) {
     (resId) => aufnahmeGrenzeFuer(planet, resId)
   );
 }
-import { systemName, entfernung } from "./galaxie.js?v=0.9.36";
+import { systemName, entfernung } from "./galaxie.js?v=0.9.48";
 
 const MS_PRO_STUNDE = 1000 * 60 * 60;
 
@@ -1891,6 +1896,23 @@ function piratenErwecken(state, systemId, objekt, zeit) {
   return fraktion;
 }
 
+// A-235 (Tobi zu R-47: "Piraten kriegen einen Agressionswert der Skalieren
+// kann"): die EINZIGE Stelle, die PIRAT.mindestBeute durch PIRAT.aggression
+// teilt. Jeder Aufrufer ruft sie auf, keiner rechnet die Teilung selbst nach
+// (Bekannte Falle des Auftrags, A-178: dieselbe Regel von Hand an mehreren
+// Stellen ist die teuerste Fehlerklasse dieses Projekts -- sechsmal von Hand,
+// zwei davon falsch). Höhere Aggression senkt die Schwelle: sie fliegen für
+// weniger Beute los.
+//
+// Aggression 0 gibt es nicht -- eine Division durch null legt den Lauf lahm.
+// Ein Wert <= 0 gilt als nicht gesetzt und fällt auf die Vorgabe 1,0 zurück,
+// dasselbe Muster wie schwierigkeitFaktorAus (tests/schwierigkeit.js) für den
+// A-234-Regler.
+export function wirksameMindestBeute() {
+  const aggression = PIRAT.aggression > 0 ? PIRAT.aggression : 1;
+  return PIRAT.mindestBeute / aggression;
+}
+
 // Was eine Gruppe im eigenen System noch holen kann.
 //
 // ANOMALIEN SIND AUSGENOMMEN, und das ist eine Zusicherung, keine Feinheit:
@@ -1922,7 +1944,7 @@ export function besteBeuteImSystem(state, systemId, zeit) {
       : objekt.restErtrag || ertragVon(state, objekt);
     if (!offen) continue;
     const summe = Object.values(offen).reduce((a, b) => a + b, 0);
-    if (summe < PIRAT.mindestBeute) continue;
+    if (summe < wirksameMindestBeute()) continue;
     if (!bestes || summe > bestes.summe) bestes = { objekt, summe };
   }
   return bestes;
@@ -1992,7 +2014,7 @@ function piratenSchritt(state, fraktion, zeit) {
   }
 
   // BEUTE GEHT VOR BEWAFFNUNG: fehlt Frachtraum, kann die Gruppe nichts
-  // heimbringen, und dann nützt ihr auch kein weiteres Kriegsschiff. Genau
+  // heimbringen, und dann nützt ihr auch keine weitere Fregatte. Genau
   // dieser Fall hat beim ersten Wurf die ganze Galaxie stillstehen lassen.
   const frachter = flotte.schiffe[PIRAT.frachtTyp] || 0;
   const bauen = frachter < PIRAT.frachterMindestens
@@ -2189,11 +2211,11 @@ export function piratenNeugruendung(state, zeit) {
 // Tobis Entscheidung: **Piraten greifen Fracht an, NIE Planeten.** Das hält
 // "verhindern statt bestrafen" für das, was man nicht beaufsichtigen kann,
 // macht aber das, was man bewusst automatisiert hat, zu einem echten Risiko --
-// und gibt dem Kriegsschiff eine Verteidigungsrolle, die es bisher nicht hat.
+// und gibt der Fregatte eine Verteidigungsrolle, die sie bisher nicht hat.
 //
 // **Man sieht sie kommen.** Im All gibt es keine Tarnung: ein Schiff strahlt
-// seine Abwärme gegen einen 3-Kelvin-Hintergrund ab (steht schon als Lore am
-// Kriegsschiff). Der Überfall ist deshalb keine Falle, sondern eine
+// seine Abwärme gegen einen 3-Kelvin-Hintergrund ab (steht schon als Lore an
+// der Fregatte). Der Überfall ist deshalb keine Falle, sondern eine
 // Entscheidung mit Vorlauf -- hinfliegen und verteidigen, oder die Route
 // umlegen.
 // Wen überfällt diese Gruppe?
@@ -2234,7 +2256,7 @@ function piratenZiel(state, fraktion, basis, flotte = null) {
     // weiterhin das Mindestbeute-Gate direkt darunter (roh genug, dass sich
     // ein Überfall überhaupt lohnt) und ist von diesem Auftrag nicht berührt.
     const wert = knapp ? sprit : verkaufswertVon(fremd.ladung);
-    if (fracht < PIRAT.mindestBeute && sprit < PIRAT.mindestBeute) continue;
+    if (fracht < wirksameMindestBeute() && sprit < wirksameMindestBeute()) continue;
     if (wert <= 0) continue;
     if (!bestes || wert > bestes.wert) bestes = { art: "flotte", flotte: fremd, fracht, wert };
   }
@@ -2248,7 +2270,7 @@ function piratenZiel(state, fraktion, basis, flotte = null) {
   // Abfangen im Vorbeiflug), keine kleine Ergänzung. Begründung siehe
   // Ergebnis-Abschnitt.
   // A-208, Fund beim Bauen: OHNE diese Zeile lief eine junge Gruppe (fast
-  // nur Kriegsschiffe, noch kein Frachter -- siehe "BEUTE GEHT VOR
+  // nur Fregatten, noch kein Frachter -- siehe "BEUTE GEHT VOR
   // BEWAFFNUNG" in piratenSchritt) in eine Endlosschleife: piratenZiel
   // fand IMMER einen Planeten (anders als eine vorbeikommende Flotte ist
   // er nie weg), piratenBeutezug lieferte true und piratenSchritt kehrte
@@ -2275,7 +2297,7 @@ function piratenZiel(state, fraktion, basis, flotte = null) {
       if (beziehungZu(state, fraktion.id, wem) > KAMPF.beutezugAb) continue;
 
       const wert = weltBeuteWert(planet);
-      if (wert < PIRAT.mindestBeute) continue;
+      if (wert < wirksameMindestBeute()) continue;
       if (!bestes || wert > bestes.wert) bestes = { art: "planet", planet, wert };
     }
   }
@@ -5408,6 +5430,9 @@ function missionAusfuehren(state, flotte, befehl, zeit) {
     case "bergung":
       bergung(state, flotte, befehl, zeit);
       break;
+    case "abbau":
+      abbauMission(state, flotte, befehl);
+      break;
     case "niederlassung":
       piratenNiederlassung(state, flotte, befehl, zeit);
       break;
@@ -5606,6 +5631,63 @@ function bergung(state, flotte, befehl, zeit) {
       geladen: buendelText(geladen),
       rest: buendelText(rest),
     }),
+    null, herkunftVon(flotte)
+  );
+}
+
+// A-282: Das Abbauschiff -- foerdert an einem Asteroidenguertel, ohne dass
+// dort eine Kolonie steht.
+//
+// WARUM KEIN DRITTER FALL IN bergung() (Schritt 0, Bekannte Falle): Die
+// Funktion kennt "verschlossen" (nurRest) und "nachwachsend" (Zeit seit
+// geerntetZeit) -- der Guertelabbau ist keiner von beiden. Er markiert die
+// Quelle NIE als `verwertet` (die Ergiebigkeit faellt, wird aber nie 0,
+// exakt wie bei jeder Foerderanlage -- A-236) und haengt an keiner
+// Zeit-seit-Ernte-Rechnung, sondern an derselben Rate x Ergiebigkeit-Kette
+// wie eine Anlage. Ein dritter Fall haette beide bestehenden Zweige
+// verbogen, um eine voellig andere Vorkommens-Mechanik durchzuschleusen --
+// das ist der Fund, den Prinzip 5 hier verbietet. Wiederverwendet werden
+// stattdessen die Bausteine, die bergung() selbst benutzt: frachtraumFrei,
+// hinzufuegen, setzeOrbitZustand, meldungHinzufuegen.
+//
+// WIE DER ERTRAG ENTSTEHT (keine zweite Ertragsformel): dieselbe Kette wie
+// eine Foerderanlage -- VORKOMMEN_RATE_SPEC (die {basis,faktor}-Kurve der
+// passenden Anlage) an der virtuellen Stufe ABBAUSCHIFF_FOERDERSTUFE, mal
+// foerderErgiebigkeit/vollesVorkommen (A-236) gegen ein EIGENES
+// `gefoerdert`-Feld am Objekt (nicht am Planeten -- ein Guertel wird nicht
+// besiedelt, siehe js/systeme.js ORBIT_ZUSTAND_FELDER). "Ertrag je Fahrt
+// begrenzt" (Entwurf 0f): eine feste Dauer je Einsatz
+// (ABBAUSCHIFF_DAUER_STUNDEN), keine Zeit-seit-letztem-Besuch-Rechnung.
+//
+// WELCHE RESSOURCE: die des Haufens an diesem Objekt (`objekt.daten.ertrag`)
+// -- ein Guertel traegt genau einen Ressourcentyp (VORKOMMEN_TABELLE). Ist
+// das Antimaterie (kein Eintrag in VORKOMMEN_RATE_SPEC, "Nicht anfassen" in
+// A-282), foerdert das Schiff dort nicht -- dieselbe Grenze wie bei jeder
+// anderen Foerderanlage, die es fuer Antimaterie ebenfalls nicht gibt.
+function abbauMission(state, flotte, befehl) {
+  const objekt = findeObjekt(state, befehl.zielSystem, befehl.zielOrbit);
+  if (!objekt || objekt.typ !== "asteroiden" || objektGesperrt(state, objekt)) return;
+
+  const haufen = objekt.daten.ertrag;
+  const resId = haufen && Object.keys(haufen)[0];
+  const spec = resId && VORKOMMEN_RATE_SPEC[resId];
+  if (!spec) return;
+
+  const quelle = { klasse: objekt.daten.klasse, gefoerdert: objekt.gefoerdert };
+  const proStunde = rate(spec, ABBAUSCHIFF_FOERDERSTUFE) * foerderErgiebigkeit(quelle, resId);
+  const ertrag = proStunde * ABBAUSCHIFF_DAUER_STUNDEN;
+  if (!(ertrag > 0)) return;
+
+  const geladen = Math.floor(Math.min(ertrag, frachtraumFrei(state, flotte)));
+  if (geladen <= 0) return;
+
+  hinzufuegen(flotte.ladung, { [resId]: geladen });
+  setzeOrbitZustand(state, befehl.zielSystem, befehl.zielOrbit, {
+    gefoerdert: { ...objekt.gefoerdert, [resId]: gefoerdertVon(quelle, resId) + geladen },
+  });
+  meldungHinzufuegen(
+    state,
+    t("{objekt}: {fracht} abgebaut.", { objekt: objekt.name, fracht: buendelText({ [resId]: geladen }) }),
     null, herkunftVon(flotte)
   );
 }
@@ -7281,6 +7363,8 @@ export function missionLabel(art) {
       return t("Forschungsmission");
     case "bergung":
       return t("Bergung");
+    case "abbau":
+      return t("Abbau");
     case "aussenposten":
       return t("Außenposten");
     case "kolonie":

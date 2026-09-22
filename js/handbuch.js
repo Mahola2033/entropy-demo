@@ -22,9 +22,9 @@
 // hier stehen dürfen, sind die, die aus der Physik folgen und deshalb fest
 // sind: der Zeitmaßstab und die Frist.
 
-import { t } from "./sprache.js?v=0.9.36";
-import { feedbackAdresse } from "./feedback.js?v=0.9.36";
-import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.36";
+import { t } from "./sprache.js?v=0.9.48";
+import { feedbackAdresse } from "./feedback.js?v=0.9.48";
+import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.48";
 
 export function handbuchAbschnitte() {
   return [
@@ -172,7 +172,7 @@ export function handbuchAbschnitte() {
       titel: t("Flotten, Reichweite und Treibstoff"),
       absaetze: [
         t(
-          "Jedes Schiff hat einen Tank, und die Reichweite einer Flotte ist der Tank geteilt durch den Verbrauch – also ein Mittelwert über alle Schiffe darin. Das hat eine Folge, die nirgends als Sonderregel steht: ein Kriegsschiff im Erkunderverband verkürzt dessen Reichweite."
+          "Jedes Schiff hat einen Tank, und die Reichweite einer Flotte ist der Tank geteilt durch den Verbrauch – also ein Mittelwert über alle Schiffe darin. Das hat eine Folge, die nirgends als Sonderregel steht: eine Fregatte im Erkunderverband verkürzt dessen Reichweite."
         ),
         t(
           "Der Frachter wird dadurch von selbst zum Tanker, ohne dass ihm jemand diese Rolle gegeben hätte. Solche Zusammenhänge sind der Kern dieses Spiels: die Regeln sind wenige, die Folgen ergeben sich."

@@ -476,12 +476,16 @@ body {
    zwischen den beiden Reihen, s.u.) -- der Name "Kapazitäten" blieb im Code
    trotzdem stehen (`.res-reihe-kapazitaet`, `kapazitaeten` in `js/ui.js`),
    Umbenennen wäre hier Lärm ohne Gegenwert. */
+/* A-210: Rahmen/Abstand verdichtet (var(--abstand-4) -> var(--abstand-3),
+   je zwei Kanten/Reihen macht das rund 10 px an beiden Prüfgrößen) -- der
+   gewonnene Platz geht an .spielfeld (1fr in .rahmen, siehe dort), nicht
+   verloren. Nicht Teil davon: die Kacheln selbst (siehe .res-reihe unten). */
 .ressourcenleiste {
   grid-area: ressourcen;
   display: flex;
   flex-direction: column;
-  gap: var(--abstand-4);
-  padding: var(--abstand-4) var(--abstand-7);
+  gap: var(--abstand-3);
+  padding: var(--abstand-3) var(--abstand-7);
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
 }
@@ -515,8 +519,27 @@ body {
      Seit A-010 (v0.95) traegt die Nahrungskachel eine dritte Zeile (Verderb).
      Die Mindesthoehe rechnet sie mit ein -- aus demselben Grund wie oben: der
      Platz steht IMMER bereit, damit beide Rasterzeilen der Leiste gleich hoch
-     bleiben und nichts springt. */
-  grid-auto-rows: minmax(5.35rem, auto);
+     bleiben und nichts springt.
+
+     A-210, GEMESSEN (1097x520, Zustand "spät", unveränderte Spaltenbreite):
+     die tatsächlich gebrauchte Höhe (zwei Zeilen, kein Umbruch) ist 74,19 px
+     -- 5,35rem (85,6 px) trug damit rund 11,4 px Luft. 5rem (80 px) lässt
+     denselben Puffer gegen die oben beschriebene Umbruch-Jitter-Gefahr
+     bestehen (der eigentliche Grund für die Mindesthöhe), ist aber näher am
+     gemessenen Bedarf -- nicht auf 74,19 px selbst, weil das den Puffer auf
+     null setzen und genau das Springen zurückbringen würde, das diese Regel
+     verhindert. */
+  grid-auto-rows: minmax(5rem, auto);
+}
+/* A-210: `.res-wert` ist auf den breitesten FLUSSKACHEL-Fall ausgelegt
+   (9,2rem, A-142) -- die Bestandsreihe zeigt nur `formatKurz`-Kurzform und
+   braucht das nicht. GEMESSEN (1097x520): der ungünstigste realistische Fall
+   "999,9 Bio kg" braucht 89,34 px; 6,5rem (104 px) lässt gut 14 px Puffer,
+   ohne die Kachel wie beim breiteren Fall aus A-142 aufzublähen. Nur hier
+   überschrieben (Selektor via die Reihe, nicht `.res-reihe-kapazitaet`) --
+   die Flusskachel behält ihre eigene, unveraendert breitere Mindestbreite. */
+.res-reihe:not(.res-reihe-kapazitaet) .res-wert {
+  min-width: 6.5rem;
 }
 
 .res-reihe-kapazitaet {
@@ -708,8 +731,32 @@ body {
   min-width: 5.8rem;
 }
 
+/* A-108 Punkt 1 (G1: eine Grundlinie je Reihe -- Rate und Marke stehen
+   deshalb NEBENEINANDER, nicht gestapelt, sonst wüchse die Kachel um eine
+   Zeile, sobald beide zugleich etwas zu sagen haben, z. B. eine fließende
+   Rate bei vollem Lager). Der äußere `.res-unten`-Flex bleibt bei zwei
+   Kindern (`.res-zahl`, `.res-rate-marke`) -- `justify-content: space-
+   between` unveraendert. */
+.res-rate-marke {
+  display: flex;
+  align-items: baseline;
+  gap: var(--abstand-3);
+}
+
+.res-marke {
+  font-size: var(--schrift-s);
+  color: var(--text-dezent);
+}
+/* Leer ist der haeufige Fall (die meisten Kacheln haben nie eine Marke) --
+   dieselbe `:empty`-Regel wie bei der Mengen-Lesehilfe aus A-214: kein
+   Platz fuer nichts. */
+.res-marke:empty {
+  display: none;
+}
+
 .res-wert.warnung,
-.res-rate.warnung {
+.res-rate.warnung,
+.res-marke.warnung {
   color: var(--warnung);
 }
 
@@ -2095,6 +2142,18 @@ body {
   font-variant-numeric: tabular-nums;
 }
 .zeile-eingabe { grid-column: 4; min-width: 0; }
+/* A-214 (F14): Lesehilfe unter einem Mengen-Eingabefeld ("21 Mio" statt
+   21000000) -- EINE Klasse fuer alle betroffenen Felder (Prinzip 5), immer
+   auf einer eigenen Zeile UNTER dem Feld, nie daneben (das würde die ohnehin
+   knappen Bedienzeilen-Spalten noch schmaler machen, Kachel-Wächter/B-26).
+   Leer (kein Wert) nimmt sie keine Zeile weg (`:empty`). */
+.zeile-eingabe-einheit {
+  display: block;
+  font-size: var(--schrift-xs);
+}
+.zeile-eingabe-einheit:empty {
+  display: none;
+}
 .zeile-knopf-1 { grid-column: 5; }
 .zeile-knopf-2 { grid-column: 6; }
 
@@ -2161,9 +2220,21 @@ body {
 }
 .lager-feldgruppe {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--abstand-3);
   min-width: 0;
+}
+/* A-214 (F14): Lesehilfe fuer die Eingabe ("21 Mio" statt 21000000) --
+   `flex-basis: 100%` haengt sie unter Symbol/Feld/Knopf an eine eigene
+   Zeile, statt die drei ohnehin knappen Spalten (B-26) noch schmaler zu
+   machen. Leer (kein Wert) nimmt sie keine Zeile weg (`:empty`). */
+.lager-feldgruppe-einheit {
+  flex-basis: 100%;
+  font-size: var(--schrift-xs);
+}
+.lager-feldgruppe-einheit:empty {
+  display: none;
 }
 .lager-feldgruppe input[type="number"] {
   width: 100%;
@@ -3754,6 +3825,17 @@ body {
    Inhalt und schiebt die Zeile doch wieder auf. */
 .kachel-modus .zeile-zahl {
   min-width: 0;
+}
+
+/* A-214 (Nachtrag, Abnahme 0.9.26): `.dezent` ist seit der Token-Runde fest
+   `--schrift-l` (A-105) und skaliert nicht mehr relativ zu seinem engen
+   Kachel-Kontext -- seitdem behauptet die Auszeichnung "dezent", waehrend
+   sie GROESSER ist als der Text daneben (13,6px gegen 12,8px `--schrift-m`
+   von .kachel-modus). Eine eigene, kleinere Stufe NUR hier stellt wieder
+   her, was der Name verspricht, ohne `.dezent` selbst anzufassen (das gilt
+   an jeder anderen Stelle richtig). */
+.kachel-modus .zeile-zahl.dezent {
+  font-size: var(--schrift-s);
 }
 
 .kachel-modus button {

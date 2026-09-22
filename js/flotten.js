@@ -9,16 +9,16 @@
 // Ereignis in vorspulenBisJetzt läuft. Die Position wird nur bei Bedarf
 // interpoliert -- für die Anzeige und im Moment des Umleitens.
 
-import { SCHIFFE, FLOTTE, RESEARCH, SONDE, unterlichtSekundenProEinheit } from "./data.js?v=0.9.36";
-import { systemPosition, entfernung } from "./galaxie.js?v=0.9.36";
+import { SCHIFFE, FLOTTE, RESEARCH, SONDE, unterlichtSekundenProEinheit } from "./data.js?v=0.9.48";
+import { systemPosition, entfernung } from "./galaxie.js?v=0.9.48";
 // Zugriff dieser Datei auf state.js: Zugehörigkeit (fraktionVon/planetenVon)
 // und seit A-133 der Forschungsstand einer Fraktion (forschungVon). Beides
 // hier nachzubauen wäre dieselbe Grenze an zwei Stellen -- genau das Muster,
 // an dem das Produktionsmodell in v0.18 einmal auseinandergelaufen ist. Kein
 // Kreis: state.js kennt flotten.js nicht.
-import { planetenVon, fraktionVon, forschungVon } from "./state.js?v=0.9.36";
-import { SPIELER_FRAKTION } from "./data.js?v=0.9.36";
-import { t } from "./sprache.js?v=0.9.36";
+import { planetenVon, fraktionVon, forschungVon } from "./state.js?v=0.9.48";
+import { SPIELER_FRAKTION } from "./data.js?v=0.9.48";
+import { t } from "./sprache.js?v=0.9.48";
 
 // --- Position -------------------------------------------------------------
 // Ein Ort ist immer { x, y, systemId|null, orbit|null }.
@@ -118,8 +118,8 @@ export function ladungGesamt(flotte) {
 //
 //   Die Reichweite einer Flotte ist tank/verbrauch -- ein GEWICHTETER
 //   Mittelwert über ihre Schiffe. Die Typen tragen absichtlich verschiedene
-//   Reichweiten (Sonde 200 Einheiten, Kriegsschiff und Frachter 60), also
-//   verkürzt jedes Kriegsschiff die Reichweite eines Erkunderverbands.
+//   Reichweiten (Sonde 200 Einheiten, Fregatte und Frachter 60), also
+//   verkürzt jede Fregatte die Reichweite eines Erkunderverbands.
 //   Wer weit will, nimmt wenig mit -- oder einen Frachter als Tanker.
 //
 // Der Frachter ist damit doppelt nützlich, ohne dass ihm jemand eine
@@ -251,7 +251,7 @@ export function treibstoffFuer(flotte, distanz) {
   return Math.max(FLOTTE.mindestVerbrauch, Math.ceil(verbrauchProStrecke(flotte) * distanz));
 }
 
-// "3× Kriegsschiff, 1× Frachter" -- wie buendelText, nur für Schiffe statt
+// "3× Fregatte, 1× Frachter" -- wie buendelText, nur für Schiffe statt
 // Ressourcen (unterschiedliche Namenstabellen, deshalb keine gemeinsame Funktion).
 export function schiffeText(schiffe) {
   return Object.entries(schiffe)

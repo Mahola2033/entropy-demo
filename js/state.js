@@ -50,18 +50,18 @@ import {
   VORKOMMEN_RESSOURCEN,
   ARBEITSKRAFT_LEERLAUF,
   DROSSELUNG,
-} from "./data.js?v=0.9.36";
-import { VARIANTE } from "./variante.js?v=0.9.36";
-import { stromFuer, waehle } from "./zufall.js?v=0.9.36";
-import { systemGenerieren } from "./welt.js?v=0.9.36";
+} from "./data.js?v=0.9.48";
+import { VARIANTE } from "./variante.js?v=0.9.48";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.48";
+import { systemGenerieren } from "./welt.js?v=0.9.48";
 // A-082: eigener Zufallsstrom für den Heimatweltnamen. Die Kennung ist eine
 // beliebige feste Zahl -- wichtig ist nur, dass sie keiner Systemkennung in
 // die Quere kommt und sich nie wieder ändert (sonst hieße jede bestehende
 // Partie beim nächsten Laden anders).
 const HEIMATWELT_NAMEN_KENNUNG = 900001;
-import { galaxiePlanen, entfernung, schluesselImSystem } from "./galaxie.js?v=0.9.36";
-import { skalieren } from "./ressourcen.js?v=0.9.36";
-import { t } from "./sprache.js?v=0.9.36";
+import { galaxiePlanen, entfernung, schluesselImSystem } from "./galaxie.js?v=0.9.48";
+import { skalieren } from "./ressourcen.js?v=0.9.48";
+import { t } from "./sprache.js?v=0.9.48";
 
 // v0.28: Sterntypen verschieben die Orbitzonen -- dieselbe Saat erzeugt jetzt
 // andere Planeten. Ein alter Spielstand trüge Fortschritt zu Orbits, in denen
@@ -1465,6 +1465,27 @@ export function bevoelkerungsWachstumsrate(planet) {
   return BEVOELKERUNG.basisRateJahr + BEVOELKERUNG.vorratsBonusMaxJahr * vorratsanteil(planet);
 }
 
+// A-108 Punkt 2 / A-166: dieselbe schrittbasierte Näherung, die die
+// Simulation für die Übersicht zeigt (nicht anfassen, A-166) -- eine
+// Momentaufnahme zum aktuellen Bestand, keine Buchung. EIN Rechenweg für
+// `planetUebersicht` UND die Ressourcenleiste (js/ui.js, `lagerEintrag`),
+// sonst driftet eine von beiden lautlos auseinander (A-112-Fehlerklasse,
+// derselbe Grund wie bei `bevoelkerungsWachstumsrate` oben). Ergebnis in
+// Menschen pro Stunde, negativ bei Unterversorgung, 0 bei vollem Wohnraum
+// oder ohne Bevölkerung.
+export function bevoelkerungWachstumProStunde(state, planet) {
+  if (!planet || planet.typ === "aussenposten") return 0;
+  const menschen = (planet.ressourcen && planet.ressourcen.bevoelkerung) || 0;
+  if (menschen <= 0) return 0;
+  const platz = speicherKapazitaet(planet, "bevoelkerung");
+  const raten = produktionsAufloesung(state, planet);
+  const versorgt = (raten.drosselung.nahrung === undefined ? 1 : raten.drosselung.nahrung) >= 1;
+  const proStundeFaktor = MS_PRO_STUNDE_STATE / BEVOELKERUNG.schrittMs;
+  if (!versorgt) return -menschen * bevoelkerungsSchrittFaktor(BEVOELKERUNG.basisRateJahr) * proStundeFaktor;
+  if (menschen < platz) return menschen * bevoelkerungsSchrittFaktor(bevoelkerungsWachstumsrate(planet)) * proStundeFaktor;
+  return 0;
+}
+
 // Arbeitskraft-Leerlauf (A-155): der Anteil der laufenden Förderung, der bei
 // einer gegebenen Beschäftigungsquote (gebundene / verfügbare Arbeitskraft)
 // gestohlen wird -- STETIG zwischen den vier Marken aus ARBEITSKRAFT_LEERLAUF
@@ -2591,25 +2612,16 @@ export function planetUebersicht(state, planet) {
   // (planetRatenAnwenden in simulation.js, über die tatsächlich verstrichene
   // Spanne) statt in festen `schrittMs`-Sprüngen. Diese Anzeige rechnet
   // bewusst WEITER mit der alten, schrittbasierten Näherung -- nicht anfassen
-  // (A-166) -- sie ist ohnehin nur eine Stundenrate zur Übersicht, keine
-  // Buchung: `bevoelkerungsSchrittFaktor(rJahr) × (Stunde/schrittMs)` ist
-  // dieselbe Jahresrate, nur auf "je Stunde" umgerechnet, damit sie neben den
-  // anderen Zahlen steht. Die drei Fälle (schrumpft/wächst/ruht) folgen
-  // derselben Logik wie die Buchung selbst.
+  // (A-166). Stundenrate ist eine MOMENTAUFNAHME (Rate zum aktuellen
+  // Bestand), keine exakte Vorhersage: proportionales Wachstum beschleunigt
+  // mit dem Bestand, eine lineare Hochrechnung daraus ist deshalb bei
+  // `stundenBisDeckel` unten leicht zu hoch gegriffen -- akzeptiert für eine
+  // Übersichtsschätzung.
   const versorgt = (raten.drosselung.nahrung === undefined ? 1 : raten.drosselung.nahrung) >= 1;
-  // Stundenrate ist eine MOMENTAUFNAHME (Rate zum aktuellen Bestand), keine
-  // exakte Vorhersage: proportionales Wachstum beschleunigt mit dem Bestand,
-  // eine lineare Hochrechnung daraus ist deshalb bei `stundenBisDeckel` unten
-  // leicht zu hoch gegriffen -- akzeptiert für eine Übersichtsschätzung.
-  const proStundeFaktor = MS_PRO_STUNDE_STATE / BEVOELKERUNG.schrittMs;
-  let wachstumProStunde = 0;
-  if (!aussenposten && menschen > 0) {
-    if (!versorgt) {
-      wachstumProStunde = -menschen * bevoelkerungsSchrittFaktor(BEVOELKERUNG.basisRateJahr) * proStundeFaktor;
-    } else if (menschen < platz) {
-      wachstumProStunde = menschen * bevoelkerungsSchrittFaktor(bevoelkerungsWachstumsrate(planet)) * proStundeFaktor;
-    }
-  }
+  // A-108: die eigentliche Rechnung steht jetzt EINMAL in
+  // `bevoelkerungWachstumProStunde` (oben in dieser Datei) -- dieselbe
+  // Funktion, die seit A-108 auch die Ressourcenleiste (js/ui.js) benutzt.
+  const wachstumProStunde = bevoelkerungWachstumProStunde(state, planet);
   const bevoelkerung = {
     menschen,
     platz,

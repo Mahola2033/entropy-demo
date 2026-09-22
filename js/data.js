@@ -19,7 +19,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.9.36";
+export const VERSION = "0.9.48";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von vollversion.mjs (bis A-272: uebernehmen.mjs) beim
@@ -66,7 +66,7 @@ export const DEMO_SAAT = 20269933;
 // wird an den anzeigenden Stellen, nicht hier. Einzige Ausnahme ist
 // voraussetzungenText() weiter unten -- die einzige Funktion in dieser Datei,
 // die Anzeigetext zusammensetzt.
-import { t } from "./sprache.js?v=0.9.36";
+import { t } from "./sprache.js?v=0.9.48";
 
 // A-164 (31.08.2026): Von 50 auf 125.000 (×2.500) -- die Maßstabsrunde.
 // Vorher skalierte EIN MASSSTAB Material, Menschen und Arbeitskraft
@@ -376,7 +376,12 @@ export const RESSOURCEN = {
   //
   // `bestandteile` (A-232): 60 Energie je Kilogramm -- das Rezept des
   // Kollektors rückwärts gelesen (verbrauch.energie 900 : produktion.antimaterie
-  // 15 = 60, level-unabhängig). Iridium steht ABSICHTLICH NICHT hier: es wird
+  // 15 = 60). Das gilt auf JEDER Stufe nur, weil beide Faktoren des Kollektors
+  // gleich sind (1,2, seit A-286); bis dahin stand hier „level-unabhängig",
+  // und das war falsch: bei 1,15 gegen 1,2 fiel der Preis je Stufe, die feste
+  // 60 blieb, und der Kreis kippte ab Stufe 6. Der Wächter ist
+  // `tests/kreise.test.js` -- er rechnet für jede Ressource mit `bestandteile`
+  // nach, dass die Rückgabe nie über dem Einsatz liegt. Iridium steht ABSICHTLICH NICHT hier: es wird
   // von der ANLAGE verbraucht (Einschluss, Verarbeitung), steckt nicht in der
   // Antimaterie selbst. Was drin steckt, ist Energie -- sie zurückzuholen
   // heißt, die Masse zu annihilieren, nicht sie zu zerlegen. Deshalb ist
@@ -780,6 +785,7 @@ export const SYMBOLE = {
   erkunder: "🛰️",
   forschungsschiff: "🔬",
   frachter: "🚚",
+  abbauschiff: "⛏️",
   kolonieschiff: "🏠",
   kriegsschiff: "⚔️",
   // Verteidigung (A-204, A-205, A-206)
@@ -1207,7 +1213,22 @@ export const BUILDINGS = {
     // Iridiumindustrie ist damit Voraussetzung für Antimaterie, nicht nur
     // Eintrittskarte. Läuft nicht genug Iridium nach, drosselt der Kollektor
     // anteilig (bzw. zieht bis zur eingestellten Reserve aus dem Lager).
-    verbrauch: { energie: { basis: 900, faktor: 1.15 }, iridium: { basis: 20, faktor: 1.15 }, arbeitskraft: { basis: 45, faktor: 1.15 } },
+    //
+    // A-286: DER ENERGIEFAKTOR STEHT GLEICH DEM PRODUKTIONSFAKTOR (beide 1,2).
+    // Mit `rate() = basis x L x faktor^L` kürzt sich die Stufe heraus, der
+    // Faktor nicht: Energie je kg = 900/15 x (Energiefaktor/Produktionsfaktor)^L.
+    // Bei 1,15 gegen 1,2 fiel der Preis um 4,2 % je Stufe (57,5 MW/kg auf
+    // Stufe 1, 25,6 auf Stufe 20) -- ein Wirkungsgrad, der mit der Anlagengröße
+    // STEIGT, obwohl die Beschreibung oben sagt, er bleibe miserabel, und
+    // obwohl größere Anlagen in der Realität nur mehr Ausbeute bringen, nicht
+    // billigere (Einschluss und Kühlung werden mit der Menge eher schwerer).
+    // Zugleich unterschritt der Preis ab Stufe 6 die feste Rückgabe von
+    // `RESSOURCEN.antimaterie.bestandteile` bei Deckelquote: Strom aus nichts.
+    // Jetzt konstant 60 MW je kg auf jeder Stufe -- und die Rückgabe (höchstens
+    // 0,8 x 60) bleibt darunter. Wer einen der beiden Faktoren wieder
+    // verschiebt, macht `tests/kreise.test.js` rot. Iridium und Arbeitskraft
+    // behalten 1,15: sie sind kein Teil dieses Kreises.
+    verbrauch: { energie: { basis: 900, faktor: 1.2 }, iridium: { basis: 20, faktor: 1.15 }, arbeitskraft: { basis: 45, faktor: 1.15 } },
   },
   // Die zweite Verarbeitungskette (A-009). Sie steht bewusst FRÜHER als die
   // Werft (Bevölkerungsschwelle 800 gegen 1200): wer die Werft freischaltet,
@@ -1523,12 +1544,12 @@ export const PIRAT = {
   schiffTyp: "kriegsschiff",
   // Eine Gruppe braucht Frachtraum, sonst kann sie ihre Beute nicht mitnehmen.
   // Klingt selbstverständlich, war es beim ersten Wurf nicht: eine Flotte aus
-  // reinen Kriegsschiffen flog los, konnte nichts aufnehmen und kam leer
+  // reinen Fregatten flog los, konnte nichts aufnehmen und kam leer
   // zurück -- endlos. Gefunden hat das der Weltlauf (tests/weltlauf.mjs), kein
   // Test: in der Galaxie bewegte sich über dreißig Tage kein Gramm Material.
   frachtTyp: "frachter",
   frachtKosten: { metall: 300, silizium: 200 },
-  // So viele Frachter hält eine Gruppe mindestens vor, bevor sie Kriegsschiffe
+  // So viele Frachter hält eine Gruppe mindestens vor, bevor sie Fregatten
   // baut. Beute geht vor Bewaffnung -- ohne Nachschub nützt die Bewaffnung nichts.
   frachterMindestens: 2,
   // Vorlauf zwischen "sie nehmen Kurs" und der ersten Kampfrunde. Im All gibt
@@ -1538,6 +1559,18 @@ export const PIRAT = {
   vorwarnungMs: 90 * 1000,
   // Fracht, die eine Bergungsfahrt lohnt. Darunter bleibt die Flotte zu Hause.
   mindestBeute: 200,
+  // A-235 (Tobi zu R-47, wörtlich: "Piraten kriegen einen Agressionswert der
+  // Skalieren kann"): teilt GENAU die Schwelle oben (wirksameMindestBeute,
+  // js/simulation.js) -- höher heißt, sie fliegen für weniger Beute los.
+  // Eine Eigenschaft der Piraten, keine des Messaufbaus (anders als der
+  // Schwierigkeitsfaktor aus A-234, der eine Testwelt beschreibt und deshalb
+  // im Werkzeug lebt) -- deshalb hier im Datenmodell, auch wenn das Spiel
+  // selbst den Wert nie verändert; das bleibt den Messwerkzeugen vorbehalten.
+  // Vorgabe 1,0: exakt das heutige Verhalten. Trägt KEINEN Maßstab -- ein
+  // Verhältnis, das bei einer künftigen MASSSTAB-Änderung unverändert bleibt
+  // (siehe die MASSSTAB-Schleife unten: "aggression" steht dort bewusst
+  // nicht in der Feldliste).
+  aggression: 1.0,
   // Ab welchem Tankstand eine Gruppe als in SPRITNOT gilt. Darunter bewertet
   // sie Ziele nach Treibstoff statt nach Fracht (siehe piratenZiel). Anteil,
   // keine Menge -- traegt deshalb KEINEN Massstab.
@@ -2992,7 +3025,7 @@ export const TRANSPORT = {
 //
 // Die Staffelung folgt dem Anspruch der Schiffe, nicht ihrem Preis: Sonde und
 // Frachter sind Blech mit Tank (1), der Erkunder traegt Menschen (2),
-// Forschungs- und Kriegsschiff brauchen Spezialausruestung (3), das
+// Forschungsschiff und Fregatte brauchen Spezialausruestung (3), das
 // Kolonieschiff ist eine fliegende Stadtgruendung (4).
 export const SCHIFFE = {
   sonde: {
@@ -3048,6 +3081,31 @@ export const SCHIFFE = {
     beschreibung: "Bringt Bergungsgut und Ressourcen nach Hause. Große Funde brauchen mehrere Fahrten.",
     kosten: { metall: 700, silizium: 300, elektronik: 90 },
     bauzeitSek: 240,
+    verbraucht: false,
+    tank: 720,
+    tempo: 0.7,
+    kapazitaet: 4000,
+    verbrauchProStrecke: 12,
+    hp: 60,
+    angriff: 0,
+  },
+  // A-282: das Abbauschiff -- foerdert an einem Asteroidengürtel, ohne dass
+  // dort eine Kolonie steht (Entwurf 3.1 Spalte (c)). "Der Maßstab, an dem
+  // sich das neue Schiff messen lässt" (Auftragstext): tank/tempo/
+  // kapazitaet/verbrauchProStrecke/hp Ziffer für Ziffer wie beim Frachter --
+  // dasselbe Schiff im Rumpf, nur mit einer Verarbeitungsanlage an Bord
+  // (teurer, länger im Bau). Die Förderung selbst nutzt keine eigene Zahl
+  // hier: Rate und Ergiebigkeit kommen aus VORKOMMEN_RATE_SPEC/
+  // foerderErgiebigkeit (js/simulation.js, abbauMission) -- dieselbe Kette
+  // wie eine Förderanlage (Prinzip 5).
+  abbauschiff: {
+    id: "abbauschiff",
+    werftAb: 1,
+    name: "Abbauschiff",
+    beschreibung:
+      "Bleibt am Asteroidengürtel, verarbeitet vor Ort und lädt das Ergebnis direkt in den eigenen Frachtraum – der Einstieg vor einer eigenen Förderkolonie, nicht ihr Ersatz. Fördert nach derselben abnehmenden Ergiebigkeit wie jede Förderanlage, ohne dass dort jemand siedeln muss.",
+    kosten: { metall: 900, silizium: 500, elektronik: 150 },
+    bauzeitSek: 300,
     verbraucht: false,
     tank: 720,
     tempo: 0.7,
@@ -3114,7 +3172,10 @@ export const SCHIFFE = {
   kriegsschiff: {
     id: "kriegsschiff",
     werftAb: 3,
-    name: "Kriegsschiff",
+    // A-243: "Fregatte" ist der bestaetigte Anzeigename (Tobi, 25.08.,
+    // KONZEPT-CONTENT.md:825, "Ja bitte."). Die ID bleibt "kriegsschiff"
+    // (Muster A-233: die interne ID bleibt, der Umfang ist die Prosa).
+    name: "Fregatte",
     beschreibung:
       "Bewaffnetes Schiff. Einziger Schiffstyp, der Gefahren-Objekte angreifen kann. Verstecken kann es sich nicht: jedes Schiff strahlt seine Abwärme gegen einen drei Grad über dem absoluten Nullpunkt kalten Hintergrund ab. Wer im System ist, ist sichtbar.",
     kosten: { metall: 900, silizium: 500, elektronik: 140 },
@@ -3169,13 +3230,23 @@ export const FLOTTE = {
 //   Energieproduktion:      1.372.061.161 MW/h  ->  3 × 4.500.000 = 0,98 %
 //   Arbeitskraftangebot:      750.000.000 /h    ->  3 × 2.500.000 = 1,00 %
 // Baukosten liegen ABSICHTLICH NICHT auf derselben 1-%-Marke: `kosten` ist
-// im ganzen Spiel (auch bei SCHIFFE) eine EINMALIGE Zahl in einer kleinen,
-// von MASSSTAB unberührten Größenordnung (Sonde: 40 Metall) -- gegen eine
-// STÜNDLICHE Produktion in Billionenhöhe zu rechnen ergäbe einen Bruchteil
-// im Bereich von Sekunden Amortisationszeit, keine sinnvolle Prozentzahl.
-// Bemessen stattdessen an vergleichbaren Schiffen (Erkunder/Frachter-Klasse,
-// leicht darüber -- Militärtechnik statt Zivilschiff). Details und die volle
-// Messung im Ergebnis-Abschnitt von A-204.
+// eine EINMALIGE Zahl, keine stündliche -- gegen eine STÜNDLICHE Produktion
+// in Billionenhöhe zu rechnen ergäbe eine Amortisationszeit im Bereich von
+// Sekunden, keine sinnvolle Prozentzahl. Bemessen stattdessen an
+// vergleichbaren Schiffen (Erkunder/Frachter-Klasse, leicht darüber --
+// Militärtechnik statt Zivilschiff). Details und die volle Messung im
+// Ergebnis-Abschnitt von A-204.
+//
+// `kosten` STEHT ROH DA UND LÄUFT DURCH MASSSTAB (A-284), genau wie
+// `SCHIFFE.kosten` -- die Sonde steht als 40 Metall in der Tabelle und kostet
+// im Spiel 5 Mio. Bis A-284 stand hier der gegenteilige Satz („eine kleine,
+// von MASSSTAB unberührte Größenordnung"), und er war falsch: Die
+// Durchläufe unten deckten ABWEHR nicht ab, Abwehrstellung und Ortung
+// kosteten 900 statt 112,5 Mio Metall -- der Bunker daneben, mit
+// Milliardenzahlen geschrieben, lag um den Faktor 2,9 Millionen darüber.
+// Wer eine Zahl in `kosten` einträgt, schreibt sie also in Tabellengröße
+// (wie der Erkunder mit 500/350/70), NIE in Spielgröße. `passiv`, `aktiv`
+// und `kapazitaetProStueck` sind dagegen bereits Spielgröße und bleiben es.
 export const ABWEHR = {
   abwehrstellung: {
     id: "abwehrstellung",
@@ -3259,7 +3330,10 @@ export const ABWEHR = {
     // beiden anderen Anlagen). Hergeleitet, nicht geschätzt: Kosten je
     // Kapazitätseinheit rund das Fünffache dessen, was das Lagernetz an
     // der Startwelt (Stufe 15→16) kostet -- Messung im Ergebnis-Abschnitt.
-    kosten: { metall: 2_600_000_000, silizium: 1_000_000_000 },
+    // Roh wie alle `kosten` dieser Tabelle: nach dem Maßstab-Durchlauf 2,6 Mrd
+    // Metall und 1,0 Mrd Silizium (A-284 -- vorher hier gleich in
+    // Spielgröße geschrieben, weil ABWEHR keinen Durchlauf hatte).
+    kosten: { metall: 20_800, silizium: 8_000 },
     bauzeitSek: 300,
     // Bemessen wie abwehrstellung/ortung gegen die Jahresleistung der
     // Startwelt (Konzept 9.4) -- bei drei Stück rund 1,3 % statt
@@ -3304,6 +3378,10 @@ export const MISSIONS_SCHIFF = {
   transport: "frachter",
   kolonie: "kolonieschiff",
   militaer: "kriegsschiff",
+  // A-282: eigene Missionsart, eigener Schiffstyp -- ohne eigenen Eintrag
+  // fiele ein Abbau-Versand still auf den Frachter zurück (Bekannte Falle
+  // des Auftrags).
+  abbau: "abbauschiff",
 };
 
 // --- Kampf ------------------------------------------------------------
@@ -3545,6 +3623,12 @@ for (const def of Object.values(SCHIFFE)) {
     def.siedlerKapazitaet = Math.round(def.siedlerKapazitaet * MASSSTAB * MENSCHEN_FAKTOR);
   }
 }
+// Auch die Abwehranlagen tragen ihre Baukosten roh in der Tabelle (A-284).
+// Nur `kosten`: passiv/aktiv/kapazitaetProStueck sind bereits in Spielgröße
+// geschrieben und dürfen hier NICHT mit durch -- 125.000-fach zu viel.
+for (const def of Object.values(ABWEHR)) {
+  skaliereBuendel(def.kosten);
+}
 for (const def of Object.values(RESSOURCEN)) {
   // Bevölkerung ist kein Material -- sie trägt zusätzlich zu MASSSTAB den
   // MENSCHEN_FAKTOR (A-164). Jede andere Ressource (auch der Energiespeicher)
@@ -3687,3 +3771,35 @@ export const VORKOMMEN_RESSOURCEN = Object.keys(VORKOMMEN_BASIS);
 // fertig als Testfall ohnehin schon führt -- kein zusätzlich gegriffener
 // Wert, sondern ein bereits geprüfter.
 export const VORKOMMEN_MELDESCHWELLE = 0.25;
+
+// --- Das Abbauschiff (A-282) -------------------------------------------
+// Prinzip 5: keine zweite Ertragsformel. Statt eines eigenen Fördersatzes
+// nimmt das Schiff die IDENTISCHE {basis,faktor}-Kurve der Förderanlage,
+// die dieselbe Ressource fördert -- aus VORKOMMEN_GEBAEUDE abgeleitet, wie
+// VORKOMMEN_BASIS selbst, kein zweiter Katalog. Nur die fünf
+// VORKOMMEN_RESSOURCEN sind vertreten; ein Antimaterie-Haufen (siehe
+// VORKOMMEN_TABELLE, "Nicht anfassen" in A-282) hat hier bewusst KEINEN
+// Eintrag -- keine Förderanlage kennt diese Ressource, also kann auch das
+// Schiff dort nicht abbauen (kannMission verweigert es).
+export const VORKOMMEN_RATE_SPEC = {};
+for (const def of VORKOMMEN_GEBAEUDE) {
+  for (const [resId, spec] of Object.entries(def.produktion)) {
+    VORKOMMEN_RATE_SPEC[resId] = spec;
+  }
+}
+
+// Welche Anlagenstufe entspricht einem Schiff? Hergeleitet (Schritt 0,
+// A-282-Ergebnis): Stufe 1, die niedrigste, die es gibt -- "der Einstieg
+// davor, nicht ihr Ersatz" (Entwurf 3.1/0f). Eine ausgebaute Förderkolonie
+// (A-274) bleibt bei jeder höheren Stufe ergiebiger; das Schiff braucht
+// dafür weder Bevölkerung noch Nahrungslieferung.
+export const ABBAUSCHIFF_FOERDERSTUFE = 1;
+
+// "Ertrag je Fahrt begrenzt" (Entwurf 0f, wörtlich) -- ein Abbau-Einsatz
+// fördert eine FESTE Zeitspanne lang, nicht "wie lange auch immer seit dem
+// letzten Besuch vergangen ist". Das macht jede Fahrt einzeln vorhersagbar
+// (derselbe Einsatz liefert an derselben Ergiebigkeit immer denselben
+// Ertrag) und erspart eine zweite Zeitbuchhaltung neben `gefoerdert`.
+// 6 Stunden: in derselben Größenordnung wie eine einzelne Bergungsfahrt,
+// spürbar aber nicht dominant (Prinzip 6, Zahlen sind spät).
+export const ABBAUSCHIFF_DAUER_STUNDEN = 6;

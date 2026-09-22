@@ -28,6 +28,116 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.9.48",
+    de: [
+      "Der Antimateriekollektor wird mit jeder Ausbaustufe nicht mehr billiger je Kilogramm: Er braucht auf jeder Stufe gleich viel Energie für dieselbe Menge Antimaterie -- ein größerer Kollektor macht mehr, nicht effizienter. Damit lässt sich aus dem Entladen von Antimaterie kein Strom mehr gewinnen, der mehr ist als hineingesteckt wurde. Ausgebaute Kollektoren ziehen entsprechend mehr Energie.",
+    ],
+    en: [
+      "The Antimatter Collector no longer gets cheaper per kilogram with every upgrade: it needs the same amount of energy for the same amount of antimatter at every level -- a bigger collector makes more, not more efficiently. That closes the loophole where unloading antimatter could return more power than was put in. Upgraded collectors draw correspondingly more energy.",
+    ],
+  },
+  {
+    version: "0.9.47",
+    de: [
+      "Abwehrstellungen und Ortungsstationen kosten jetzt im Bau, was sie kosten sollten: Material in der Größenordnung eines Erkunders oder einer Fregatte statt nahezu nichts. Wie viele Stellungen du dir leisten willst, ist damit wieder eine echte Entscheidung. Bereits gebaute Anlagen bleiben stehen.",
+    ],
+    en: [
+      "Defense Installations and Sensor Stations now cost what they should to build: materials on the order of an Explorer or a Frigate instead of almost nothing. How many installations you can afford is a real decision again. Anything you have already built stays in place.",
+    ],
+  },
+  {
+    version: "0.9.46",
+    de: [
+      "Die Bevölkerungskachel zeigt jetzt ihre Wachstumsrate wie jede andere Ressource -- ist der Wohnraum voll, steht das als eigener Hinweis daneben, statt die Rate zu verdecken. Dasselbe gilt für ein volles Lager: die Rate bleibt sichtbar, der Hinweis kommt dazu.",
+    ],
+    en: [
+      "The population tile now shows its growth rate like any other resource -- when housing is full, that now shows as its own note next to the rate instead of hiding it. The same applies to a full warehouse: the rate stays visible, the note is added alongside.",
+    ],
+  },
+  {
+    version: "0.9.45",
+    de: [
+      "Die Ressourcenkacheln oben sind jetzt einheitlich hoch und etwas kompakter -- die Leiste braucht weniger Platz, der Rest des Bildschirms mehr.",
+    ],
+    en: [
+      "The resource tiles at the top are now a uniform, slightly more compact height -- the bar takes up less room, leaving more for the rest of the screen.",
+    ],
+  },
+  {
+    version: "0.9.44",
+    de: [
+      "Farbe zeigt jetzt, ob eine Zahl dir nützt, nicht ob sie ein Plus oder Minus trägt: Baukosten und Startkosten sind rot, wenn eine schwere Welt sie erhöht, und grün, wenn eine leichte Welt sie senkt.",
+      "Mengenfelder (Lager, Logistiknetz, Hafen, Handelsrouten, Kommandoleiste) zeigen jetzt eine Lesehilfe wie \"21 Mio\" neben der Eingabe -- eingetippt wird weiterhin die genaue Zahl.",
+    ],
+    en: [
+      "Color now shows whether a number is good for you, not whether it carries a plus or a minus: build and launch costs turn red when a heavy world raises them, and green when a light world lowers them.",
+      "Amount fields (storage, logistics network, harbor, trade routes, command bar) now show a reading aid like \"21 M\" next to the input -- typing still enters the exact number.",
+    ],
+  },
+  {
+    version: "0.9.43",
+    de: [
+      "Nur intern: Neun weitere interne Messwerkzeuge der Planung (u. a. `pacing`, `skalierung`, `piratenlage`) nennen jetzt wie schon `weltlauf` seit dem letzten Update, ob die Supernova in ihrem jeweiligen Lauf mitläuft und wann Blitz und Flut fallen. Für den Spieler ändert sich nichts.",
+    ],
+    en: [
+      "Internal only: nine more internal planning measurement tools (including `pacing`, `skalierung`, `piratenlage`) now state, like `weltlauf` since the last update, whether the supernova runs in their measurement and when the flash and flood hit. Nothing changes for players.",
+    ],
+  },
+  {
+    version: "0.9.42",
+    de: [
+      "Das Kriegsschiff heißt jetzt Fregatte. Dasselbe Schiff, derselbe Preis, dieselben Werte -- nur der Name ist neu.",
+    ],
+    en: [
+      "The Warship is now called the Frigate. Same ship, same cost, same stats -- only the name changed.",
+    ],
+  },
+  {
+    version: "0.9.41",
+    de: [
+      "Nur intern: Der Kachel-Wächter (unser Prüfwerkzeug gegen abgeschnittene oder sich überlappende Bedienelemente) kannte den Lager-Bereich bisher gar nicht und prüfte ihn deshalb nie. Er deckt ihn jetzt mit ab und hat dabei einen bereits bekannten Darstellungsfehler in der schmalen Fensterbreite bestätigt (noch nicht behoben). Für den Spieler ändert sich nichts.",
+    ],
+    en: [
+      "Internal only: Our tile-guard tool (checks for clipped or overlapping controls) didn't know about the storage area at all and never checked it. It now covers that area too, and confirmed an already-known display glitch at narrow window widths in the process (not fixed yet). Nothing changes for players.",
+    ],
+  },
+  {
+    version: "0.9.40",
+    de: [
+      "Nur intern: Piraten bekommen einen Aggressionswert im Datenmodell (Vorgabe 1,0 -- heutiges Verhalten, unverändert). Er teilt die Mindestbeute-Schwelle, ab der sich eine Fahrt für eine Bande lohnt -- heute noch ohne Wirkung, weil kein Werkzeug ihn setzt. Für den Spieler ändert sich nichts.",
+    ],
+    en: [
+      "Internal only: Pirates get an aggression value in the data model (default 1.0 -- today's behavior, unchanged). It scales the minimum-loot threshold that decides whether a raid is worth it for a band -- currently without effect, since no tool sets it yet. Nothing changes for players.",
+    ],
+  },
+  {
+    version: "0.9.39",
+    de: [
+      "Nur intern: Zwei Textstellen (`vollversion.mjs`, `SPIELKOPIE.md`) nannten einen Server-Eintrag `entropy-spiel`, den es in der Werkzeug-Konfiguration nie gab -- der echte Eintrag heißt `entropy-vollversion`. Für den Spieler ändert sich nichts.",
+    ],
+    en: [
+      "Internal only: Two text spots (`vollversion.mjs`, `SPIELKOPIE.md`) named a server entry `entropy-spiel` that never existed in the tooling config -- the real entry is called `entropy-vollversion`. Nothing changes for players.",
+    ],
+  },
+  {
+    version: "0.9.38",
+    de: [
+      "Das Abbauschiff: eine neue Schiffsklasse, an der Werft baubar. Sie bleibt am Asteroidengürtel, fördert dort vor Ort und lädt das Ergebnis direkt in den eigenen Frachtraum -- ohne dass dort eine Kolonie stehen muss. Eine eigene Förderkolonie bleibt der ergiebigere Weg, das Schiff ist der schnelle Einstieg davor.",
+    ],
+    en: [
+      "The Mining Ship: a new ship class, buildable at the shipyard. It stays at an asteroid belt, extracts on site and loads the result straight into its own cargo hold -- no colony required there. A dedicated mining colony remains the richer path; the ship is the quick way to get started before that.",
+    ],
+  },
+  {
+    version: "0.9.37",
+    de: [
+      "Nur intern: Untersucht, warum `npm run weltlauf` (Messwerkzeug der Planung, kein Spielinhalt) bei einem 30-Tage-Lauf hängen blieb. Ergebnis: kein Fehler in der Simulation -- isoliert gemessen läuft er zuverlässig in rund 16 Minuten durch; die ursprüngliche Beobachtung erklärt sich vermutlich durch parallel laufende Prozesse auf derselben Maschine. Für den Spieler ändert sich nichts.",
+    ],
+    en: [
+      "Internal only: Investigated why `npm run weltlauf` (a planning measurement tool, not game content) appeared to hang on a 30-day run. Result: no bug in the simulation -- measured in isolation it reliably finishes in about 16 minutes; the original observation is most likely explained by other processes competing for CPU on the same machine. Nothing changes for players.",
+    ],
+  },
+  {
     version: "0.9.36",
     de: [
       "Iridium auf Planeten erschöpft sich nicht mehr in Minuten. Die Fördermenge, gegen die eine Iridiummine ihre Ergiebigkeit misst, war zu klein bemessen -- ein Rückfallwert, keine Absicht -- und wird jetzt aus derselben Rechnung wie bei jeder anderen Förderanlage hergeleitet. Ein Asteroidengürtel bleibt die deutlich ergiebigere Quelle.",

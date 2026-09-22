@@ -49,8 +49,9 @@ import {
   RECYCLING,
   erstattungsQuote,
   VORKOMMEN_MELDESCHWELLE,
-} from "./data.js?v=0.9.36";
-import { VARIANTE } from "./variante.js?v=0.9.36";
+  VORKOMMEN_RATE_SPEC,
+} from "./data.js?v=0.9.48";
+import { VARIANTE } from "./variante.js?v=0.9.48";
 import {
   effektiveRaten,
   angezeigteRate,
@@ -125,6 +126,7 @@ import {
   pufferReichweiteMs,
   ausbauVorschau,
   planetUebersicht,
+  bevoelkerungWachstumProStunde,
   beschaffungsZeiten,
   brennstoffBereit,
   brennstoffReichweiteAnlageMs,
@@ -134,7 +136,7 @@ import {
   fossilReichweiteMs,
   fossilVerbrauchProStunde,
   foerderErgiebigkeit,
-} from "./state.js?v=0.9.36";
+} from "./state.js?v=0.9.48";
 import {
   bauStarten,
   forschungStarten,
@@ -211,7 +213,7 @@ import {
   routeStoppen,
   routeMindestbeladungSetzen,
   routeBeladungAnteil,
-} from "./simulation.js?v=0.9.36";
+} from "./simulation.js?v=0.9.48";
 import {
   flottePosition,
   flotteKapazitaet,
@@ -231,26 +233,26 @@ import {
   flotteSiedlerKapazitaet,
   flotteLadungAnteile,
   flotteTankAnteile,
-} from "./flotten.js?v=0.9.36";
-import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.36";
-import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.36";
-import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.36";
+} from "./flotten.js?v=0.9.48";
+import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.48";
+import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.48";
+import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.48";
 // Nur für den Neustart-Knopf im Abspann. Der Weg dorthin ist derselbe wie im
 // Testmodus (js/testmodus.js) -- ein zweiter Reset wäre eine zweite Wahrheit
 // darüber, was "neu anfangen" bedeutet.
-import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.36";
-import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.36";
-import { systemName, sternFuer } from "./galaxie.js?v=0.9.36";
+import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.48";
+import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.48";
+import { systemName, sternFuer } from "./galaxie.js?v=0.9.48";
 // Die beiden Karten. Sie holen sich von hier `listeAbgleichen` zurück -- ein
 // Ringtausch, der trägt, weil keine der beiden Dateien beim LADEN etwas aus
 // der anderen benutzt, sondern erst beim Zeichnen. Die Alternative wäre ein
 // zweiter Abgleich-Mechanismus in karte.js gewesen, und genau davor warnt
 // Prinzip 5.
-import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.36";
-import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.36";
-import { feedbackAdresse } from "./feedback.js?v=0.9.36";
-import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.36";
-import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.36";
+import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.48";
+import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.48";
+import { feedbackAdresse } from "./feedback.js?v=0.9.48";
+import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.48";
+import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.48";
 
 // UI-lokaler Regler-Zustand für die Flotten-Beladung/Tanken-Schieber --
 // bewusst NICHT Teil des Spielzustands. Nötig, weil render() auch von einem
@@ -287,6 +289,30 @@ function feldWertSetzen(feld, schluessel, gespeichert) {
   if (!feld || feld === document.activeElement) return;
   const soll = feldEingabe[schluessel] !== undefined ? feldEingabe[schluessel] : gespeichert;
   if (feld.value !== soll) feld.value = soll;
+}
+
+// A-214 (F14, Tobi: "21 Million instead of 21000000"): EINE Stelle für die
+// Lesehilfe neben jedem Mengen-Eingabefeld (Prinzip 5), statt sie an jeder
+// der neun Fundstellen einzeln nachzubauen. `formatKurz` ist dieselbe
+// Kurzform wie überall sonst im Spiel ("21 Mio") -- keine neue Übersetzung
+// nötig, das Kürzel ist längst über `t()` abgedeckt.
+//
+// Ändert NIE den Feldwert selbst (Mechanismus Punkt 3): wer 21000000
+// eintippt, bekommt weiterhin genau 21000000 gespeichert -- das hier zeigt
+// nur, was die Ziffernfolge bedeutet, während sie im Feld steht.
+export function mengeHinweisText(wert) {
+  return Number.isFinite(wert) && wert !== 0 ? formatKurz(wert) : "";
+}
+
+// Verdrahtet EIN Eingabefeld mit seinem Hinweis-Element: einmal beim Bauen
+// (live bei jedem Tastenanschlag) und einmal hier zurückgegeben, damit der
+// Aufrufer denselben Abgleich auch bei jedem Render wiederholen kann (der
+// Feldwert kann sich auch ohne Tastenanschlag ändern, z. B. nach "Setzen").
+function mengeHinweisVerdrahten(feld, hinweisEl) {
+  const abgleichen = () => textSetzen(hinweisEl, mengeHinweisText(Number(feld.value)));
+  feld.addEventListener("input", abgleichen);
+  abgleichen();
+  return abgleichen;
 }
 
 // Dauern erscheinen in Spieltagen und Spieljahren, nicht in Sekunden am
@@ -1412,15 +1438,24 @@ function resKachelGeruest() {
           <span class="res-symbol"></span>
           <span class="res-wert"></span>
         </span>
-        <span class="res-rate"></span>
+        <span class="res-rate-marke">
+          <span class="res-rate"></span>
+          <span class="res-marke"></span>
+        </span>
       </span>
       <span class="res-zusatz" hidden></span>`;
   return div;
 }
 
+// A-108 Punkt 1 (G3, Slot-Katalog): Rate und Marke sind ZWEI Slots, nie
+// derselbe Knoten -- vorher trug `.res-rate` wahlweise die Rate ODER "voll"/
+// "Lager voll", zwei Bedeutungen an einem Platz. Beide Slots sind jetzt IMMER
+// im Gerüst da (Punkt 3/A-142-Muster) und unabhängig befüllbar; für die
+// meisten Kacheln bleibt `.res-marke` leer (`:empty` -> keine Zeile Platz,
+// css/style.css).
 function resKachelFuellen(
   div,
-  { symbol, name, wert, rate, rateKlasse = "", klassen = "", titel = "", farbe = "", zusatz = "" }
+  { symbol, name, wert, rate, rateKlasse = "", marke = "", markeKlasse = "", klassen = "", titel = "", farbe = "", zusatz = "" }
 ) {
   div.className = `res-kachel ${klassen}`;
   attributSetzen(div, "title", titel);
@@ -1436,6 +1471,11 @@ function resKachelFuellen(
   // A-126 (P19): `rate` kann jetzt eine vorzeichenSpan-Markup-Stelle tragen
   // (nie Spielertext -- alle Aufrufer liefern hier nur Systemzahlen/-labels).
   markupSetzen(rateEl, rate);
+  // Die Marke trägt nur Systemtext (P18-Antworten wie "voll"/"Lager voll",
+  // über `t()`), nie Markup -- `textSetzen` reicht, kein `vorzeichenSpan`.
+  const markeEl = div.querySelector(".res-marke");
+  markeEl.className = `res-marke ${markeKlasse}`;
+  textSetzen(markeEl, marke);
   // `.res-zusatz` ist seit A-052 leer und bleibt es. Der Knoten steht im
   // Gerüst, damit er beim nächsten Gebrauch nicht neu erfunden wird -- als
   // `hidden` ist er kein Rasterkind und kostet keine Zeile (die Warnung in
@@ -1751,6 +1791,25 @@ function renderRessourcen(state, root, planet) {
       });
     }
 
+    // A-108 Punkt 2 (P17.3, Tobis Inventur: "Bevölkerungs-Zuwachs als Rate
+    // oben, ist ja überall so"): der Rate-Slot füllt sich jetzt auch für
+    // Speicher-Ressourcen -- heute nur Bevölkerung. EIN Rechenweg für die
+    // Zahl (`bevoelkerungWachstumProStunde`, js/state.js, dieselbe Funktion
+    // wie die "Diese Welt in Zahlen"-Übersicht, B3: nicht neu rechnen),
+    // dieselbe Textform wie jede andere Rate dieser Funktion. Bewusst NICHT
+    // über den lokalen `rate`/`zieht` der Produktionskette geführt -- die
+    // gilt für Bevölkerung nicht (kein Verarbeitungs-/Mangel-Rechenweg) und
+    // bleibt für Titel/Mangelzeile unverändert, wie vor dieser Runde.
+    const bevoelkerungsRate = resId === "bevoelkerung" ? bevoelkerungWachstumProStunde(state, planet) : 0;
+    // Definition von fertig, Punkt 5: "die Rate bleibt sichtbar", auch wenn
+    // der Wohnraum voll ist und das Wachstum deshalb genau 0 erreicht --
+    // anders als bei den übrigen Ressourcen (dort heißt 0 "gerade nichts los,
+    // keine Zeile wert"), ist 0 bei der Bevölkerung selbst die Auskunft
+    // ("Wachstum gestoppt"), nicht deren Fehlen. Sichtbar bleibt sie deshalb,
+    // solange es überhaupt eine Bevölkerung gibt (`bestandJetzt > 0`).
+    const rateSichtbar = resId === "bevoelkerung" ? bestandJetzt > 0 : rate > 0 || zieht;
+    const anzeigeProStunde = resId === "bevoelkerung" ? bevoelkerungsRate : rate;
+
     return {
       schluessel: resId,
       art: "bestand",
@@ -1759,20 +1818,20 @@ function renderRessourcen(state, root, planet) {
       wert: hatSpeicher
         ? `${fmt(bestandJetzt)} / ${fmt(eigenerSpeicher)}`
         : mitEinheit(resId, bestandJetzt),
-      rate: hatSpeicher
-        ? speicherVoll
-          ? t("voll")
-          : ""
-        : rate > 0
-          ? // A-050: eine Rate, die nirgends ankommt, darf nicht wie ein
-            // Zugewinn aussehen. Das Pluszeichen war hier die Lüge.
-            lagerVoll
-            ? t("Lager voll")
-            : vorzeichenMitEinheit(resId, rateProJahr(rate)) + einheitSpan(t("/Jahr"))
-          : zieht
-            ? vorzeichenMitEinheit(resId, rateProJahr(rate)) + einheitSpan(t("/Jahr"))
-            : "",
-      rateKlasse: zieht || speicherVoll || (lagerVoll && rate > 0) ? "warnung" : "",
+      // A-050: eine Rate, die nirgends ankommt, darf nicht wie ein Zugewinn
+      // aussehen -- deshalb bleibt die Zahl auch bei vollem Lager stehen
+      // (die Warnung wandert in die Marke, s.u.), statt sie durch Text zu
+      // ersetzen.
+      rate: rateSichtbar ? vorzeichenMitEinheit(resId, rateProJahr(anzeigeProStunde)) + einheitSpan(t("/Jahr")) : "",
+      rateKlasse: zieht ? "warnung" : "",
+      // A-108 Punkt 1 (G3): "voll"/"Lager voll" sind die MARKE, kein
+      // Vorzeichen-Zustand der Rate mehr -- die Rate bleibt bei vollem
+      // Lager/Speicher sichtbar (Punkt 2), die Marke sagt zusätzlich, warum
+      // sie gerade nirgends ankommt. Bekannte Falle: die Warnfarbe gehört
+      // jetzt hierher, nicht mehr zu `rateKlasse` -- eine fließende Rate ist
+      // kein Mangel (Prinzip 11).
+      marke: hatSpeicher ? (speicherVoll ? t("voll") : "") : lagerVoll && rate > 0 ? t("Lager voll") : "",
+      markeKlasse: speicherVoll || (lagerVoll && rate > 0) ? "warnung" : "",
       // A-052: DER VERDERB STAND HIER ALS EIGENE ZEILE (aus A-010) und hat
       // damit genau das gebrochen, was die v0.40/41-Regeln absichern: die
       // Nahrungskachel war höher als ihre Nachbarn, die Reihe wirkte
@@ -2173,7 +2232,7 @@ function momentMeldung(state, id) {
     case "piraten":
       return {
         text: t(
-          "Piraten in deinem System. Sie sind kein Naturereignis: sie bauen, tanken und kämpfen nach denselben Regeln wie du. Sie greifen Fracht an und nie Planeten – deine Welten sind sicher, deine Transporte nicht. Und im All gibt es keine Tarnung: du siehst sie kommen, so wie sie dich. Ein Kriegsschiff im Verband ist die Antwort darauf."
+          "Piraten in deinem System. Sie sind kein Naturereignis: sie bauen, tanken und kämpfen nach denselben Regeln wie du. Sie greifen Fracht an und nie Planeten – deine Welten sind sicher, deine Transporte nicht. Und im All gibt es keine Tarnung: du siehst sie kommen, so wie sie dich. Eine Fregatte im Verband ist die Antwort darauf."
         ),
         ziel: { bereich: "handbuch", anker: "flotten" },
       };
@@ -4235,9 +4294,19 @@ export function vorzeichenText(wert, formatBetrag = fmt) {
 // Dieselbe Entscheidung, als fertiges Markup mit der Rollenklasse
 // (--zufluss/--abgang, css/style.css) für sichtbare Oberfläche --
 // NUR per `markupSetzen`/innerHTML einsetzen, nie per `textSetzen`.
-export function vorzeichenSpan(wert, formatBetrag = fmt) {
+//
+// A-214 (F12, Tobi: "Farbe folgt der Wirkung, nicht dem Vorzeichen"): DIE eine
+// Stelle, an der Farbe entschieden wird (Prinzip 5) -- Vorgabe bleibt
+// Vorzeichen = Wirkung (`invertiert = false`, jeder bestehende Aufrufer
+// unverändert), aber ein Aufrufer, der eine Zahl zeigt, bei der eine POSITIVE
+// Zahl schlecht fürs Ergebnis ist (Baukosten, Startkosten -- ein Faktor > 1
+// heißt teurer), sagt das mit `invertiert = true` selbst. Die Funktion
+// errechnet die Wirkung nie aus dem Vorzeichen allein, sobald der Aufrufer
+// widerspricht.
+export function vorzeichenSpan(wert, formatBetrag = fmt, invertiert = false) {
   if (wert === 0) return formatBetrag(0);
-  return `<span class="${wert > 0 ? "zufluss" : "abgang"}">${vorzeichenText(wert, formatBetrag)}</span>`;
+  const gut = invertiert ? wert < 0 : wert > 0;
+  return `<span class="${gut ? "zufluss" : "abgang"}">${vorzeichenText(wert, formatBetrag)}</span>`;
 }
 
 // A-182: die Einheit als EIGENER Knoten mit fester Grundfarbe (css/style.css,
@@ -4294,9 +4363,12 @@ function dezimal(zahl, stellen = 2) {
 // Markup (vorzeichenSpan) -- Aufrufer setzen das Ergebnis über `markupSetzen`.
 // A-165: „%" ist begleitender Text wie jede andere Einheit, bleibt also
 // außerhalb des Spans (vorher in `formatBetrag`, färbte mit).
-function prozentText(faktor) {
+//
+// A-214: `invertiert` reicht nur an vorzeichenSpan durch -- ein Kostenfaktor
+// (bauFaktor/startFaktor) ist über 100 % teurer, nicht besser (siehe dort).
+export function prozentText(faktor, invertiert = false) {
   const p = Math.round((faktor - 1) * 100);
-  return vorzeichenSpan(p) + " %";
+  return vorzeichenSpan(p, fmt, invertiert) + " %";
 }
 
 // A-248 (Tobi, 10.09.: "da ist eine Luecke im UI, die ich anstarre"): In
@@ -4385,8 +4457,8 @@ function renderUebersicht(state, root, planet) {
     "schwerkraft",
     t("{g} g · Bauen {bau} · Starten {start}", {
       g: dezimal(s.schwerkraft),
-      bau: prozentText(s.bauFaktor),
-      start: prozentText(s.startFaktor),
+      bau: prozentText(s.bauFaktor, true),
+      start: prozentText(s.startFaktor, true),
     })
   );
   attributSetzen(
@@ -5471,16 +5543,19 @@ function renderLager(state, root, planet) {
           <span class="lager-feldgruppe-symbol"></span>
           <input type="number" min="0" step="100" data-feld="handel" />
           <button data-setzen="handel">✓</button>
+          <span class="lager-feldgruppe-einheit dezent" data-einheit="handel"></span>
         </span>
         <span class="zeile-knopf-1 lager-feldgruppe" data-gruppe="verarbeitung">
           <span class="lager-feldgruppe-symbol">⚗️</span>
           <input type="number" min="0" step="100" data-feld="verarbeitung" />
           <button data-setzen="verarbeitung">✓</button>
+          <span class="lager-feldgruppe-einheit dezent" data-einheit="verarbeitung"></span>
         </span>
         <span class="zeile-knopf-2 lager-feldgruppe" data-gruppe="max">
           <span class="lager-feldgruppe-symbol" data-max-symbol></span>
           <input type="number" min="0" step="100" data-feld="max" />
           <button data-setzen="max">✓</button>
+          <span class="lager-feldgruppe-einheit dezent" data-einheit="max"></span>
         </span>
         <span class="lager-zerlegen" data-zerlegen-zeile hidden>
           <span class="dezent" data-zerlegen-info></span>
@@ -5516,6 +5591,8 @@ function renderLager(state, root, planet) {
           if (ereignis.key === "Enter") uebernehmen();
         });
         zeile.querySelector(`button[data-setzen="${gruppe}"]`).addEventListener("click", uebernehmen);
+        // A-214 (F14): lebt neben demselben Feld, live bei jedem Anschlag.
+        mengeHinweisVerdrahten(feld, zeile.querySelector(`[data-einheit="${gruppe}"]`));
       }
       // Zerlegen (A-231): fester Losgröße wie der Markt (MARKT.los), kein
       // eigenes Zahlenfeld -- "dieselbe Art Mengenfeld, dieselbe Bestätigung"
@@ -5583,6 +5660,7 @@ function renderLager(state, root, planet) {
         feldSchluessel("handel", planet, resId),
         String(handelsMindestFuer(planet, resId) || "")
       );
+      textSetzen(zeile.querySelector('[data-einheit="handel"]'), mengeHinweisText(Number(handelFeld.value)));
 
       // ⚗️ Verarbeitungs-Reserve -- unverändert zum alten Ort (A-066).
       const verarbFeld = zeile.querySelector('input[data-feld="verarbeitung"]');
@@ -5596,6 +5674,7 @@ function renderLager(state, root, planet) {
         feldSchluessel("verarbeitung", planet, resId),
         String(verarbeitungsReserveFuer(planet, resId) || "")
       );
+      textSetzen(zeile.querySelector('[data-einheit="verarbeitung"]'), mengeHinweisText(Number(verarbFeld.value)));
 
       // Max -- wirkt erst mit A-154. Ohne fördernde Anlage bleibt das Feld
       // (E11/G4: der Slot ist reserviert, nicht versteckt) aber gesperrt und
@@ -5618,6 +5697,7 @@ function renderLager(state, root, planet) {
       );
       attributSetzen(maxFeld, "placeholder", hatAnlage ? "" : t("keine Anlage"));
       feldWertSetzen(maxFeld, feldSchluessel("max", planet, resId), hatAnlage ? String(maxBestandFuer(planet, resId) || "") : "");
+      textSetzen(zeile.querySelector('[data-einheit="max"]'), hatAnlage ? mengeHinweisText(Number(maxFeld.value)) : "");
 
       // Zerlegen (A-231) -- sichtbar NUR bei Waren mit einem MASSE-
       // Bestandteil (Katalogfeld, generisch). Fester Los wie am Markt
@@ -5750,11 +5830,16 @@ function renderLogistiknetz(state, root, planet, jetzt) {
       zeile.innerHTML = `
         <span class="markt-name zeile-beschriftung"></span>
         <span class="dezent zeile-zahl" data-lage></span>
-        <input class="zeile-eingabe" type="number" min="0" step="100" data-mindest="${resId}" />
+        <span class="zeile-eingabe">
+          <input type="number" min="0" step="100" data-mindest="${resId}" />
+          <span class="zeile-eingabe-einheit dezent" data-einheit></span>
+        </span>
         <button class="zeile-knopf-1" data-mindest-setzen></button>
         <button class="zeile-knopf-2" data-mindest-loeschen hidden></button>`;
 
       const feld = zeile.querySelector("input[data-mindest]");
+      // A-214 (F14): lebt neben demselben Feld, live bei jedem Anschlag.
+      mengeHinweisVerdrahten(feld, zeile.querySelector("[data-einheit]"));
       // Ereignisse EINMAL beim Bauen, und immer auf den GERADE gewählten
       // Planeten -- die Zeile überlebt den Planetenwechsel.
       const uebernehmen = () => {
@@ -5791,6 +5876,7 @@ function renderLogistiknetz(state, root, planet, jetzt) {
       const feld = zeile.querySelector("input[data-mindest]");
       attributSetzen(feld, "placeholder", t("kein Mindestbestand"));
       feldWertSetzen(feld, feldSchluessel("mindest", planet, resId), wert ? String(wert) : "");
+      textSetzen(zeile.querySelector("[data-einheit]"), mengeHinweisText(Number(feld.value)));
 
       textSetzen(zeile.querySelector("[data-mindest-setzen]"), t("Setzen"));
       const loeschen = zeile.querySelector("[data-mindest-loeschen]");
@@ -6240,12 +6326,14 @@ function ladenBestaetigenTitel(resId) {
 function mengenAnzeigenFuellen(state, box, flotte, hafen) {
   const tankRegler = box.querySelector("input[data-tanken-schieber]");
   if (tankRegler) {
+    const tankenFeld = box.querySelector("input[data-tanken-feld]");
     textSetzen(
       box.querySelector('[data-tanken-anzeige="1"]'),
-      mengeEinstellungText(
-        tankEinstellung(state, flotte, hafen, tankRegler, box.querySelector("input[data-tanken-feld]"))
-      )
+      mengeEinstellungText(tankEinstellung(state, flotte, hafen, tankRegler, tankenFeld))
     );
+    // A-214 (F14): läuft über dieselbe Stelle wie die Zahl daneben (siehe
+    // Kommentar oben an der Funktion) -- Sekundentakt UND jede Eingabe.
+    textSetzen(box.querySelector('[data-tanken-einheit="1"]'), mengeHinweisText(Number(tankenFeld.value)));
     // A-101: der Knopf sagt, wenn er strukturell nichts tun KANN -- Tank voll
     // oder kein Deuterium im Lager. Ein Regler auf 0 % sperrt nicht (siehe
     // ladeSperrGrund/tankSperrGrund); der Knopf bleibt dann wie bisher aktiv.
@@ -6260,12 +6348,12 @@ function mengenAnzeigenFuellen(state, box, flotte, hafen) {
   // A-132: derselbe Aufbau wie die Tankzeile -- eigener Regler, eigener Raum.
   const siedlerRegler = box.querySelector("input[data-siedler-schieber]");
   if (siedlerRegler) {
+    const siedlerFeld = box.querySelector("input[data-siedler-feld]");
     textSetzen(
       box.querySelector('[data-siedler-anzeige="1"]'),
-      mengeEinstellungText(
-        siedlerEinstellung(state, flotte, hafen, siedlerRegler, box.querySelector("input[data-siedler-feld]"))
-      )
+      mengeEinstellungText(siedlerEinstellung(state, flotte, hafen, siedlerRegler, siedlerFeld))
     );
+    textSetzen(box.querySelector('[data-siedler-einheit="1"]'), mengeHinweisText(Number(siedlerFeld.value)));
     const grund = siedlerSperrGrund(state, flotte, hafen);
     const knopf = box.querySelector("button[data-siedler-bestaetigen]");
     if (knopf) {
@@ -6275,12 +6363,12 @@ function mengenAnzeigenFuellen(state, box, flotte, hafen) {
   }
   for (const regler of box.querySelectorAll("input[data-laden-schieber]")) {
     const resId = regler.dataset.ladenSchieber;
+    const ladenFeld = box.querySelector(`input[data-laden-feld="${resId}"]`);
     textSetzen(
       box.querySelector(`[data-laden-anzeige="${resId}"]`),
-      mengeEinstellungText(
-        ladeEinstellung(state, flotte, hafen, resId, regler, box.querySelector(`input[data-laden-feld="${resId}"]`))
-      )
+      mengeEinstellungText(ladeEinstellung(state, flotte, hafen, resId, regler, ladenFeld))
     );
+    textSetzen(box.querySelector(`[data-laden-einheit="${resId}"]`), mengeHinweisText(Number(ladenFeld.value)));
     const grund = ladeSperrGrund(state, flotte, hafen, resId);
     const knopf = box.querySelector(`button[data-laden-bestaetigen="${resId}"]`);
     if (knopf) {
@@ -6478,9 +6566,12 @@ function flottenDetail(state, root, flotte) {
           "Anteil dessen, was noch in den Tank passt und im Lager liegt – 100 % füllt ihn auf. Der Regler stellt nur ein, erst „Tanken“ führt es aus."
         )}" />
         <span class="schieber-wert zeile-zahl" data-tanken-anzeige="1"></span>
-        <input type="number" class="menge-feld zeile-eingabe" min="0" step="1" placeholder="${t("genaue Menge")}" data-tanken-feld="1" title="${t(
-          "Genauer Betrag statt Prozent. Was hier steht, hat Vorrang vor dem Regler."
-        )}" />
+        <span class="zeile-eingabe">
+          <input type="number" class="menge-feld" min="0" step="1" placeholder="${t("genaue Menge")}" data-tanken-feld="1" title="${t(
+            "Genauer Betrag statt Prozent. Was hier steht, hat Vorrang vor dem Regler."
+          )}" />
+          <span class="zeile-eingabe-einheit dezent" data-tanken-einheit="1"></span>
+        </span>
         <button class="zeile-knopf-1" data-tanken-bestaetigen="1" title="${tankBestaetigenTitel()}">${t("Tanken")}</button>
         <button class="zeile-knopf-2" data-tanken-alles-ab="1" ${flotte.treibstoff > 0 ? "" : "disabled"} title="${t(
           "Gesamten Treibstoff ans Lager zurückgeben"
@@ -6501,9 +6592,12 @@ function flottenDetail(state, root, flotte) {
           "Anteil dessen, was noch in den Kolonistenraum passt und im Lager an Bevölkerung lebt – 100 % füllt ihn auf. Der Regler stellt nur ein, erst „Laden“ führt es aus. Zählt NICHT gegen den Frachtraum."
         )}" />
         <span class="schieber-wert zeile-zahl" data-siedler-anzeige="1"></span>
-        <input type="number" class="menge-feld zeile-eingabe" min="0" step="1" placeholder="${t("genaue Menge")}" data-siedler-feld="1" title="${t(
-          "Genauer Betrag statt Prozent. Was hier steht, hat Vorrang vor dem Regler."
-        )}" />
+        <span class="zeile-eingabe">
+          <input type="number" class="menge-feld" min="0" step="1" placeholder="${t("genaue Menge")}" data-siedler-feld="1" title="${t(
+            "Genauer Betrag statt Prozent. Was hier steht, hat Vorrang vor dem Regler."
+          )}" />
+          <span class="zeile-eingabe-einheit dezent" data-siedler-einheit="1"></span>
+        </span>
         <button class="zeile-knopf-1" data-siedler-bestaetigen="1" title="${siedlerBestaetigenTitel()}">${t("Laden")}</button>
         <button class="zeile-knopf-2" data-siedler-alle-ab="1" ${flotte.siedler > 0 ? "" : "disabled"} title="${t(
           "Alle Kolonisten an Bord ans Lager zurückgeben"
@@ -6524,9 +6618,12 @@ function flottenDetail(state, root, flotte) {
             "Anteil dessen, was gerade wirklich ladbar ist: freier Frachtraum, begrenzt durch den Lagerbestand – 100 % nimmt alles davon. Der Regler stellt nur ein, „Laden“ führt aus."
           )}" />
           <span class="schieber-wert zeile-zahl" data-laden-anzeige="${r}"></span>
-          <input type="number" class="menge-feld zeile-eingabe" min="0" step="1" placeholder="${t("genaue Menge")}" data-laden-feld="${r}" title="${t(
-            "Genauer Betrag statt Prozent. Was hier steht, hat Vorrang vor dem Regler."
-          )}" />
+          <span class="zeile-eingabe">
+            <input type="number" class="menge-feld" min="0" step="1" placeholder="${t("genaue Menge")}" data-laden-feld="${r}" title="${t(
+              "Genauer Betrag statt Prozent. Was hier steht, hat Vorrang vor dem Regler."
+            )}" />
+            <span class="zeile-eingabe-einheit dezent" data-laden-einheit="${r}"></span>
+          </span>
           <button class="zeile-knopf-1" data-laden-bestaetigen="${r}" title="${ladenBestaetigenTitel(r)}">${t("Laden")}</button>
         </span>`).join("")}
     </div>
@@ -6874,6 +6971,11 @@ function routenDetail(state, root, flotte) {
       render(state, root);
     });
   });
+  // A-214 (F14): "0" (der Startwert) zeigt bewusst keinen Hinweis
+  // (mengeHinweisText liefert für 0 "").
+  box.querySelectorAll("input[data-regel-wert]").forEach((feld) => {
+    mengeHinweisVerdrahten(feld, box.querySelector(`[data-regel-einheit="${feld.dataset.regelWert}"]`));
+  });
   return box;
 }
 
@@ -6911,6 +7013,7 @@ function routenHaltHtml(state, halt, index, routeLaeuft) {
           <option value="ueberschuss">${t("nur Überschuss über")}</option>
         </select>
         <input type="number" min="0" step="100" value="0" data-regel-wert="${index}" ${routeLaeuft ? "disabled" : ""} title="${gesperrtGrund || t("Reservemenge, die am Planeten bleibt")}" />
+        <span class="zeile-eingabe-einheit dezent" data-regel-einheit="${index}"></span>
         <button data-regel-hinzufuegen="${index}" ${routeLaeuft ? "disabled" : ""} title="${gesperrtGrund || t("Legt fest, was an diesem Halt geladen wird")}">${t("Regel setzen")}</button>
       </div>
     </div>`;
@@ -7213,7 +7316,10 @@ function kommandoGeruestBauen(state, root, leiste) {
       <div class="bedienzeile kommando-sprit">
         <span class="dezent zeile-beschriftung">${t("Nachtanken")}</span>
         <span class="zeile-zahl" data-kommando-sprit></span>
-        <input type="number" class="menge-feld zeile-eingabe" min="0" step="1" data-kommando-tankfeld />
+        <span class="zeile-eingabe">
+          <input type="number" class="menge-feld" min="0" step="1" data-kommando-tankfeld />
+          <span class="zeile-eingabe-einheit dezent" data-kommando-tankeinheit></span>
+        </span>
       </div>
       <button class="kommando-los" data-kommando-los disabled></button>
       <div class="dezent" data-kommando-grund></div>
@@ -7253,6 +7359,9 @@ function kommandoGeruestBauen(state, root, leiste) {
       render(state, root);
     }
   });
+  // A-214 (F14): live bei jedem Anschlag -- "change" oben feuert erst beim
+  // Verlassen des Felds, das wäre für die Lesehilfe zu spät.
+  mengeHinweisVerdrahten(leiste.querySelector("[data-kommando-tankfeld]"), leiste.querySelector("[data-kommando-tankeinheit]"));
 }
 
 function renderKommando(state, root, jetzt) {
@@ -7380,6 +7489,9 @@ function renderKommando(state, root, jetzt) {
     const soll = lage.aktion ? String(lage.tankMenge) : "";
     if (spritFeld.value !== soll) spritFeld.value = soll;
   }
+  // A-214 (F14): auch nach einem programmatisch gesetzten Vorschlag (oben),
+  // nicht nur nach eigener Eingabe.
+  textSetzen(leiste.querySelector("[data-kommando-tankeinheit]"), mengeHinweisText(Number(spritFeld.value)));
 
   const los = leiste.querySelector("[data-kommando-los]");
   los.disabled = !lage.aktion || !lage.aktion.check.ok;
@@ -8108,35 +8220,65 @@ export function orbitAngebot(state, systemId, objekt, flotte, rueckkehrGewaehlt 
   }
 
   const art = missionFuerObjekt(state, objekt);
-  if (!art) return { hinweis: objekt.verwertet ? t("erledigt") : "–" };
+  // A-282: Ein Gürtel trägt ZWEI unabhängige Quellen -- den einmaligen Haufen
+  // (bergbar über `art`/missionFuerObjekt wie bisher) und die laufende
+  // Förderung, die ein Abbauschiff dort abbauen kann. Die zweite bleibt
+  // verfügbar, auch wenn der Haufen längst `verwertet` ist -- deshalb eigens
+  // geprüft, VOR dem früheren Ausstieg unten, der sonst auch diesen Fall
+  // stumm auf "erledigt" gesetzt hätte.
+  const abbauResId =
+    objekt.typ === "asteroiden" && objekt.daten.ertrag
+      ? Object.keys(objekt.daten.ertrag).find((resId) => VORKOMMEN_RATE_SPEC[resId])
+      : null;
+  if (!art && !abbauResId) return { hinweis: objekt.verwertet ? t("erledigt") : "–" };
 
-  const check = kannMission(state, flotte, art, systemId, objekt.orbit, rueckkehrGewaehlt);
+  const aktionen = [];
+  if (art) {
+    const check = kannMission(state, flotte, art, systemId, objekt.orbit, rueckkehrGewaehlt);
+    // A-152: der Sonden-Knopf nennt die Zielkosten VOR dem Klick (Prinzip 10a) --
+    // dieselbe Zahl, die missionBefehlen beim Start auch tankt (check.treibstoffZiel
+    // kommt aus genau derselben Rechnung, s. kannMission, kein zweiter Rechenweg).
+    const label =
+      art === "sonde" && check.ok && check.treibstoffZiel !== undefined
+        ? t("{label} · {sprit} Deuterium", { label: missionLabel(art), sprit: fmt(Math.ceil(check.treibstoffZiel)) })
+        : missionLabel(art);
+    aktionen.push({ typ: "mission", art, label, check, titel: check.ok ? "" : check.grund });
+  }
+  if (abbauResId) {
+    const checkAbbau = kannMission(state, flotte, "abbau", systemId, objekt.orbit, rueckkehrGewaehlt);
+    aktionen.push({
+      typ: "mission",
+      art: "abbau",
+      label: missionLabel("abbau"),
+      check: checkAbbau,
+      titel: checkAbbau.ok ? "" : checkAbbau.grund,
+    });
+  }
+
   // A-020: Standard ist BLEIBEN. Der Rückflug ist eine Wahl beim Losschicken
   // — vorbelegt nur dort, wo der Rückweg der SINN der Mission ist (Bergung
-  // bringt Beute heim). Alles andere kann genauso gut am Ziel stehen bleiben
-  // und von dort weiterfliegen.
+  // und Abbau bringen beide Fracht heim). Alles andere kann genauso gut am
+  // Ziel stehen bleiben und von dort weiterfliegen.
   //
   // Reicht der Treibstoff nur für den Hinflug, ist der Schalter gesperrt und
   // sagt im Titel, warum — der Knopf daneben bleibt trotzdem benutzbar
   // (Prinzip 10a: die teurere Wahl blockiert nicht die billigere).
-  const rueckKlar = kannMission(state, flotte, art, systemId, objekt.orbit, true);
-  // A-152: der Sonden-Knopf nennt die Zielkosten VOR dem Klick (Prinzip 10a) --
-  // dieselbe Zahl, die missionBefehlen beim Start auch tankt (check.treibstoffZiel
-  // kommt aus genau derselben Rechnung, s. kannMission, kein zweiter Rechenweg).
-  const label =
-    art === "sonde" && check.ok && check.treibstoffZiel !== undefined
-      ? t("{label} · {sprit} Deuterium", { label: missionLabel(art), sprit: fmt(Math.ceil(check.treibstoffZiel)) })
-      : missionLabel(art);
+  //
+  // Ein Orbit hat EINEN Rückkehr-Schalter für alle angebotenen Aktionen; ist
+  // der Haufen bereits `verwertet`, bleibt nur noch "abbau" übrig und
+  // bestimmt ihn.
+  const primaerArt = art || "abbau";
+  const rueckKlar = kannMission(state, flotte, primaerArt, systemId, objekt.orbit, true);
   return {
-    aktionen: [{ typ: "mission", art, label, check, titel: check.ok ? "" : check.grund }],
+    aktionen,
     rueckkehr: {
       moeglich: rueckKlar.ok,
-      vorbelegt: art === "bergung" && rueckKlar.ok,
+      vorbelegt: (primaerArt === "bergung" || primaerArt === "abbau") && rueckKlar.ok,
       titel: rueckKlar.ok
         ? t("Fliegt nach der Mission zum Heimathafen zurück. Ohne Haken bleibt die Flotte am Ziel und kann von dort weiter.")
         : rueckKlar.grund,
     },
-    rueckzug: art === "militaer",
+    rueckzug: primaerArt === "militaer",
   };
 }
 

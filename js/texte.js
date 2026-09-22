@@ -271,8 +271,9 @@ export const EN = {
   Erkunder: "Explorer",
   Forschungsschiff: "Science Vessel",
   Frachter: "Freighter",
+  Abbauschiff: "Mining Ship",
   Kolonieschiff: "Colony Ship",
-  Kriegsschiff: "Warship",
+  Fregatte: "Frigate",
 
   "Billige Einwegsonde. Deckt einfache Ziele auf. Sie kehrt nicht zurück, weil Abbremsen genauso viel Treibstoff kostet wie Beschleunigen – eine Sonde, die heimkommen soll, ist ein ganz anderes Schiff.":
     "Cheap single-use probe. Reveals simple targets. It does not come back, because slowing down costs as much fuel as speeding up – a probe meant to return is an entirely different ship.",
@@ -282,6 +283,8 @@ export const EN = {
     "Studies anomalies. Without a science mission an anomaly will not yield its technology.",
   "Bringt Bergungsgut und Ressourcen nach Hause. Große Funde brauchen mehrere Fahrten.":
     "Brings salvage and resources home. Large finds take several runs.",
+  "Bleibt am Asteroidengürtel, verarbeitet vor Ort und lädt das Ergebnis direkt in den eigenen Frachtraum – der Einstieg vor einer eigenen Förderkolonie, nicht ihr Ersatz. Fördert nach derselben abnehmenden Ergiebigkeit wie jede Förderanlage, ohne dass dort jemand siedeln muss.":
+    "Stays at the asteroid belt, processes on site and loads the result straight into its own cargo hold – the entry point before a full mining colony, not its replacement. Extracts under the same diminishing yield as any mining facility, without anyone having to settle there.",
   "Gründet eine vollwertige Kolonie. Braucht eigene Kolonisten an Bord, die der Spieler selbst belädt, und wird beim Gründen verbraucht.":
     "Founds a full colony. Needs its own colonists on board, loaded by the player, and is consumed when founding.",
   "Bewaffnetes Schiff. Einziger Schiffstyp, der Gefahren-Objekte angreifen kann. Verstecken kann es sich nicht: jedes Schiff strahlt seine Abwärme gegen einen drei Grad über dem absoluten Nullpunkt kalten Hintergrund ab. Wer im System ist, ist sichtbar.":
@@ -696,11 +699,13 @@ export const EN = {
     "{objekt}: captured {beute} – {rest} left behind, collect with a freighter.",
   "{objekt}: kein Frachtraum übrig – {rest} liegen bereit, mit Frachter abholen.":
     "{objekt}: no cargo space left – {rest} lie ready, collect with a freighter.",
+  "{objekt}: {fracht} abgebaut.": "{objekt}: mined {fracht}.",
 
   // --- Missionsarten und Flottenstatus ------------------------------------
   Erkundung: "Exploration",
   Forschungsmission: "Science Mission",
   Bergung: "Salvage",
+  Abbau: "Mining",
   Außenposten: "Outpost",
   Koloniegründung: "Colonize",
   Angriff: "Attack",
@@ -1350,8 +1355,8 @@ export const EN = {
     "Some things you can see without being able to use them. A deep deposit stays visible and locked until you have the matching technology. Discovering and exploiting are two different things. Only the source itself is locked – anything that was already lying there or left behind can be salvaged at any time.",
 
   "Flotten, Reichweite und Treibstoff": "Fleets, range and fuel",
-  "Jedes Schiff hat einen Tank, und die Reichweite einer Flotte ist der Tank geteilt durch den Verbrauch – also ein Mittelwert über alle Schiffe darin. Das hat eine Folge, die nirgends als Sonderregel steht: ein Kriegsschiff im Erkunderverband verkürzt dessen Reichweite.":
-    "Every ship has a tank, and a fleet's range is tank divided by consumption – an average across all ships in it. This has a consequence that is written down nowhere as a special rule: a warship in a scouting group shortens that group's range.",
+  "Jedes Schiff hat einen Tank, und die Reichweite einer Flotte ist der Tank geteilt durch den Verbrauch – also ein Mittelwert über alle Schiffe darin. Das hat eine Folge, die nirgends als Sonderregel steht: eine Fregatte im Erkunderverband verkürzt dessen Reichweite.":
+    "Every ship has a tank, and a fleet's range is tank divided by consumption – an average across all ships in it. This has a consequence that is written down nowhere as a special rule: a frigate in a scouting group shortens that group's range.",
   "Der Frachter wird dadurch von selbst zum Tanker, ohne dass ihm jemand diese Rolle gegeben hätte. Solche Zusammenhänge sind der Kern dieses Spiels: die Regeln sind wenige, die Folgen ergeben sich.":
     "This turns the freighter into a tanker all by itself, without anyone assigning it that role. Connections like this are the heart of this game: the rules are few, the consequences follow.",
   "Ein System, in dem noch nie jemand war, kennt keine Sprungroute. Der erste Flug dorthin geht deshalb unterlichtschnell und dauert lange – danach steht der Anker und es ist für immer ein Sprung.":
@@ -1465,8 +1470,8 @@ export const EN = {
   // Handbuch-Absatz, der schon übersetzt ist.
   "Deine Werft steht. Sonden sind Einwegschiffe – eine deckt genau ein Ziel auf und bleibt dort. Erkunder kommen zurück und arbeiten mehrere Orbits nacheinander ab. Frachter tragen, und ihr Frachtraum ist zugleich der einzige Platz für zusätzlichen Treibstoff. Welche Rümpfe überhaupt vom Band laufen, entscheidet die Stufe der Werft – sie baut nicht nur schneller, sie schaltet die größeren erst frei.":
     "Your shipyard is up. Probes are one-way ships – each uncovers exactly one target and stays there. Scouts come back and work through several orbits one after another. Freighters carry, and their hold is also the only place for extra fuel. Which hulls leave the line at all depends on the shipyard's level – it does not just build faster, it unlocks the larger ones in the first place.",
-  "Piraten in deinem System. Sie sind kein Naturereignis: sie bauen, tanken und kämpfen nach denselben Regeln wie du. Sie greifen Fracht an und nie Planeten – deine Welten sind sicher, deine Transporte nicht. Und im All gibt es keine Tarnung: du siehst sie kommen, so wie sie dich. Ein Kriegsschiff im Verband ist die Antwort darauf.":
-    "Pirates in your system. They are not a force of nature: they build, refuel and fight by the same rules you do. They attack cargo and never planets – your worlds are safe, your transports are not. And there is no stealth in space: you see them coming, just as they see you. A warship in the group is the answer to that.",
+  "Piraten in deinem System. Sie sind kein Naturereignis: sie bauen, tanken und kämpfen nach denselben Regeln wie du. Sie greifen Fracht an und nie Planeten – deine Welten sind sicher, deine Transporte nicht. Und im All gibt es keine Tarnung: du siehst sie kommen, so wie sie dich. Eine Fregatte im Verband ist die Antwort darauf.":
+    "Pirates in your system. They are not a force of nature: they build, refuel and fight by the same rules you do. They attack cargo and never planets – your worlds are safe, your transports are not. And there is no stealth in space: you see them coming, just as they see you. A frigate in the group is the answer to that.",
 
   // --- Der Hinweis auf ein zu kleines Fenster (A-111) ------------------------
   "Dein Fenster ist kleiner, als Entropy es erwartet – die Oberfläche ist für etwa 1900 × 950 Punkte gebaut, hier sind es {breite} × {hoehe}. Die Seite scrollt deshalb, statt etwas abzuschneiden. Mehr Platz bekommst du mit Vollbild (F11) oder einer niedrigeren Windows-Skalierung.":

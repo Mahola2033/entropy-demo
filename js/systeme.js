@@ -5,8 +5,8 @@
 // Orbit die Flags entdeckt/verwertet. Dadurch bleibt der Spielstand klein,
 // egal wie groß die Galaxie ist.
 
-import { systemGenerieren } from "./welt.js?v=0.9.36";
-import { schluesselImSystem, systemName } from "./galaxie.js?v=0.9.36";
+import { systemGenerieren } from "./welt.js?v=0.9.48";
+import { schluesselImSystem, systemName } from "./galaxie.js?v=0.9.48";
 
 // Laufzeit-Zwischenspeicher, wird nicht gespeichert.
 const cache = new Map();
@@ -30,6 +30,12 @@ const ORBIT_ZUSTAND_FELDER = [
   // objekt.daten.kolonisierbar überträgt (siehe unten). Bleibt selbst flach,
   // die Sicherheitsmaßnahme aus A-175 gilt unverändert.
   "kolonisierbarErzwungen",
+  // A-282: das Abbauschiff foerdert an einem Guertel-Objekt, ohne dass dort
+  // eine Kolonie steht -- dieselbe Buchfuehrung wie planet.gefoerdert
+  // (A-236), nur am Objekt statt am Planeten, weil holeSystem das Objekt bei
+  // jedem Cache-Miss aus der Saat neu baut (siehe oben). Ohne diesen Eintrag
+  // waere jeder Abbau-Ertrag nach dem naechsten cacheLeeren()/Laden verloren.
+  "gefoerdert",
 ];
 
 function cacheSchluessel(state, systemId) {

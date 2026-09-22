@@ -18,13 +18,16 @@
 // im Browser (window.__entropy.kachelWaechter) derselbe Code bleibt
 // (Bekannte Falle 3 des Auftrags).
 
-import { BUILDINGS, RESEARCH, SCHIFFE, ABWEHR } from "./data.js?v=0.9.36";
+import { BUILDINGS, RESEARCH, SCHIFFE, ABWEHR } from "./data.js?v=0.9.48";
 
 // Welche Kachel-/Kartenfamilien geprüft werden. `.res-kachel` ist die
 // Ressourcenleiste (A-157s Fall, in JEDEM Bereich sichtbar, A-076).
 // `.gebaeude-item` ist die zweite große Kachelfamilie (Anlagen & Sektoren,
-// A-146) mit derselben Grid-/Flex-Bauweise. Weitere Familien: hier ergänzen.
-export const KACHEL_SELECTOR = ".res-kachel, .gebaeude-item";
+// A-146) mit derselben Grid-/Flex-Bauweise. `.lager-zeile` ist die dritte
+// (A-238, Fund aus A-231 DoD 5): die Lager-Bedienzeile (js/ui.js,
+// renderLager) -- ein Streifen statt einer Kachel, aber dieselbe
+// Rasterbauweise (`.bedienzeile`). Weitere Familien: hier ergänzen.
+export const KACHEL_SELECTOR = ".res-kachel, .gebaeude-item, .lager-zeile";
 
 // Bereiche, die mindestens eine der geprüften Kachel-Familien zeigen (A-207).
 // `.gebaeude-item` entsteht an drei Stellen in ui.js: renderGebaeude
@@ -34,7 +37,8 @@ export const KACHEL_SELECTOR = ".res-kachel, .gebaeude-item";
 // (gemessen: ohne diese Liste sieht der Wächter ausschließlich "planet",
 // 34 statt 57 Kacheln im Zustand "spät"). `bereichFuerWaechterSetzen` in
 // ui.js ist der einzige Weg, sie von außen zu wechseln.
-export const KACHEL_BEREICHE = ["planet", "forschung", "werft"];
+// A-238: "lager" dazu -- renderLager (ui.js) baut `.lager-zeile` nur dort.
+export const KACHEL_BEREICHE = ["planet", "forschung", "werft", "lager"];
 
 // Ein Pixel Toleranz, nicht mehr (bekannte Falle im Auftrag): ein Element,
 // das exakt an der Kachelkante endet (Grid-Kacheln mit `gap`), ist kein
