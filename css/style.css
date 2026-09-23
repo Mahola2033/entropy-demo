@@ -624,9 +624,18 @@ body {
   border-radius: var(--radius-l);
 }
 
+/* A-297, Mechanismus-Punkt 2: `line-height: 1` sagt dem Layout, die Zeile
+   sei genau `font-size` hoch (20,8px bei `--schrift-titel`) -- Color-Emoji
+   rendern aber mit ihren EIGENEN Glyphen-Metriken, die dieses Maß nicht
+   einhalten (gemessen: 27px tatsächliche Bildhöhe, 4px Übergriff oben über
+   den 22px hohen Elternkasten in `.zeile-beschriftung`, dieselbe Zahl auch
+   an der Ressourcenleiste bei 2560×1440, B-26). Der Fix sitzt an der
+   Zeilenhöhe, NICHT an der Schriftgröße (Nicht anfassen) -- `1.3` deckt den
+   gemessenen Wert (27 / 20,8 ≈ 1,3) mit knapper Marge, ohne das Symbol
+   selbst zu vergrößern. */
 .res-symbol {
   font-size: var(--schrift-titel);
-  line-height: 1;
+  line-height: 1.3;
 }
 
 /* Symbol und Zahl sind EINE Gruppe (A-078): sie rücken zusammen und bleiben
@@ -956,6 +965,24 @@ body {
   color: var(--warnung);
 }
 
+/* A-294 (M8): der Verbrauch-Behälter der Ausbau-Kachel -- dasselbe Muster
+   wie `.brennstoff-zeilen` an der Flusskachel (KONZEPT-UI.md Abschnitt 4:
+   "ein Slot, der immer da ist, mit null bis n Zeilen darin"), null bis vier
+   `.kachel-verbrauch`-Zeilen (Material, Brennstoff, zwei Warnungen). */
+.kachel-verbrauch-behaelter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--abstand-1);
+}
+
+/* Dieselbe Zeilenhöhe wie der leere Behälter selbst (siehe `line-height`
+   an `.kachel-mitte > .kachel-verbrauch-behaelter` weiter unten) -- sonst
+   wäre eine Zeile INNEN eine andere Höhe als die reservierte Höhe des
+   leeren Behälters, und der Rest-Versatz käme durch die Hintertür zurück. */
+.kachel-verbrauch-behaelter > .kachel-verbrauch {
+  line-height: 1.3;
+}
+
 .lager-balken-rahmen {
   height: 0.5rem;
   background: var(--bg);
@@ -1024,6 +1051,20 @@ body {
 /* ==== SPIELFELD (MITTE) ==== */
 .spielfeld {
   grid-area: spielfeld;
+  /* A-297: Größen-Container für `.bedienzeile`s schmalen Rückfall
+     (css/style.css, weiter unten bei `.bedienzeile`) -- `.spielfeld`s
+     eigene Breite kommt aus dem umgebenden Grid (`.rahmen`, `grid-area:
+     spielfeld`), NIE aus seinem Inhalt (deshalb auch `overflow-x: auto`
+     als Sicherheitsnetz unten) -- ein Container, dessen Größe vom eigenen
+     Inhalt abhinge, geriete in einen Zirkel mit der Query, die auf ihn
+     zeigt. `.spielfeld` ist der gemeinsame Vorfahre JEDER `.bedienzeile`
+     (Markt, Lager, Logistiknetz, Flottendetail) -- ein Eintrag deckt alle
+     fünf Familien ab, wie schon die Handbuch-Lösung (`.bereich[data-
+     bereich="handbuch"]` weiter oben) für ihren eigenen, engeren Fall.
+     Handbuch/Development setzen ihren EIGENEN, näheren Container --
+     `@container`-Abfragen dort greifen weiterhin auf ihn zu, nicht auf
+     diesen hier (die nächste Vorfahren-Regel gewinnt), kein Konflikt. */
+  container-type: inline-size;
   padding: var(--abstand-7) var(--abstand-7);
   /* A-111: die Mindesthöhe ist ein expliziter Pixelwert, kein `auto` -- nur
      dadurch zählt sie als Minimum-Beitrag der Zeile im Grid (siehe .rahmen).
@@ -1683,6 +1724,29 @@ body {
   font-size: var(--schrift-m);
 }
 
+/* A-294 (M8): drei der fünf festen Mitte-Zeilen (Ertrag, Verbrauch,
+   Arbeitskraft) bleiben bei JEDER Ausbau-Kachel im Fluss, auch wenn sie für
+   dieses Gebäude gerade nichts zu sagen haben -- `min-height` reserviert
+   ihre Zeile, statt sie über `[hidden]` verschwinden zu lassen (derselbe
+   Kniff wie `.lager-prognose`, A-051). Kosten und Dauer brauchen das nicht:
+   sie sind an jeder Nicht-fertig-Kachel gefüllt. Ohne diese drei Zeilen war
+   eine Kachel mit z.B. nur Kosten+Dauer sichtbar niedriger als eine mit
+   allen fünf -- genau der Versatz, den A-108 schon an der Kopfleiste
+   gemessen hat, hier an der Ausbau-Kachel-Familie (Prinzip 10).
+   `line-height` steht explizit dabei, nicht nur `min-height`: ohne sie
+   reserviert eine LEERE Zeile nur `1em` (die reine Schrifthöhe), während
+   eine GEFÜLLTE Zeile die normale (etwas größere) Browser-Zeilenhöhe
+   braucht -- gemessen 94,56 px (drei Zeilen gefüllt) gegen 86,16 px (nur
+   eine) an `.kachel-mitte` selbst, ein Rest-Versatz von rund 4 px je fehlende
+   Zeile trotz `min-height`. Mit gleichem `line-height` für leer UND gefüllt
+   verschwindet der Rest, weil beide Fälle dieselbe Zeilenboxhöhe benutzen. */
+.kachel-mitte > .kachel-gewinn,
+.kachel-mitte > .kachel-verbrauch-behaelter,
+.kachel-mitte > .kachel-verbrauch {
+  min-height: 1.3em;
+  line-height: 1.3;
+}
+
 .kachel-kosten {
   font-variant-numeric: tabular-nums;
 }
@@ -2107,13 +2171,34 @@ body {
    Behälter, das alle Zeilen dieselben Spalten teilen ließe, ginge nur ohne
    Rahmen. Auto-Spalten fielen damit je Zeile anders aus, und das ist genau
    die Unruhe, die 10b abstellen soll. Die Breiten stehen deshalb als
-   Variablen: EINE Stelle ändert alle Bedienzeilen des Spiels. */
+   Variablen: EINE Stelle ändert alle Bedienzeilen des Spiels.
+
+   A-294 (M11, Fund aus `Handel.png`): Die beiden Knopf-Spalten waren trotz
+   dieser Begründung NICHT fest -- `minmax(var(--zeile-knopf), max-content)`
+   lässt die Spalte über die Mindestbreite hinaus wachsen, sobald der
+   Knopftext mehr Platz braucht. Der Markt ist die einzige der fünf
+   `.bedienzeile`-Familien mit variablem Knopftext (Betrag + Symbol statt
+   eines festen Worts wie „Tanken"/„Setzen") -- ihre Zeilen fielen dadurch
+   sichtbar unterschiedlich breit aus, genau wie im Screenshot markiert
+   (rote Linien: die rechten Kanten der Knöpfe sitzen zeilenweise
+   verschieden). Gemessen (unangetastete Rechenformel, `MARKT.los` × höchster
+   Kurs, Antimaterie kauf=60): „Verkaufe 5.000 → 🪙 200.000" braucht 216px,
+   deutlich über der alten Mindestbreite von 96px. `--zeile-knopf` auf
+   14rem (224px, knapp über dem gemessenen Höchstwert) angehoben UND
+   `max-content` entfernt -- die Spalte wächst jetzt nicht mehr mit, sie IST
+   14rem, wie die Begründung oben es für alle sechs Spalten verlangt.
+
+   A-297: Wer eine dieser fünf Breiten ODER `--abstand-5`/`--abstand-6`
+   ändert, muss die Schwelle in der `@container`-Regel bei `.bedienzeile`
+   weiter unten von Hand nachrechnen -- Custom Properties lassen sich in
+   `@container`/`@media`-Bedingungen nicht auflösen (gemessen, siehe dort),
+   die Schwelle steht deshalb als ausgerechnete Zahl, nicht als `calc(var(...))`. */
 :root {
   --zeile-beschriftung: 8rem;
   --zeile-regler: 7rem;
   --zeile-zahl: 10rem;
   --zeile-eingabe: 8rem;
-  --zeile-knopf: 6rem;
+  --zeile-knopf: 14rem;
 }
 
 .bedienzeile {
@@ -2123,8 +2208,8 @@ body {
     var(--zeile-regler)
     var(--zeile-zahl)
     var(--zeile-eingabe)
-    minmax(var(--zeile-knopf), max-content)
-    minmax(var(--zeile-knopf), max-content);
+    var(--zeile-knopf)
+    var(--zeile-knopf);
   align-items: center;
   column-gap: var(--abstand-5);
   row-gap: var(--abstand-3);
@@ -2164,8 +2249,58 @@ body {
 .bedienzeile button { min-height: 1.9rem; }
 
 /* Schmal: das Raster fällt auf zwei Spalten zurück, die Beschriftung nimmt
-   eine eigene Zeile. Lieber ein anderes Raster als eines, das überläuft. */
-@media (max-width: 720px) {
+   eine eigene Zeile. Lieber ein anderes Raster als eines, das überläuft.
+
+   A-297 (Fund aus B-26): Diese Regel fragte bis dahin `@media (max-width:
+   720px)` -- das FENSTER, nicht den tatsächlich verfügbaren Platz. Bei
+   1097 px Fensterbreite (Klaus' Prüfgröße) blieb der Rückfall aus, obwohl
+   die Zeile selbst (Statusspalte und Navigation abgezogen) nur rund 530 px
+   Platz hatte -- derselbe Fehlertyp, den A-161 am Handbuch schon gemessen
+   und mit `@container` gelöst hat (siehe dortiger Kommentar). `@container`
+   ersetzt die Fensterbreite durch die Breite von `.spielfeld` (weiter oben,
+   der gemeinsame Vorfahre jeder `.bedienzeile`).
+
+   Die Schwelle ist berechnet, nicht geraten, aber NICHT als `calc(var(...))`
+   in der Bedingung selbst -- GEMESSEN, nicht angenommen: `@container`- UND
+   `@media`-Bedingungen werden VOR jeder Kaskade ausgewertet und können sich
+   deshalb nicht auf Custom Properties beziehen (`var()` in der
+   Bedingung wird von keinem Browser aufgelöst; geprüft mit
+   `calc(var(--zeile-beschriftung) + 950px)` gegen einen 577px schmalen
+   Container -- die Regel blieb wirkungslos, derselbe `calc(500px+550px)`
+   ohne `var()` griff sofort). Deshalb steht unten die AUSGERECHNETE Zahl,
+   mit der Rechnung daneben: sechs Spaltenbreiten (8+7+10+8+14+14 = 61rem)
+   + fünf Spaltenabstände (`column-gap`, 5 × `--abstand-5` = 5 × 0,6rem =
+   3rem) + der eigene Rahmen der Zeile (Innenabstand 2 × `--abstand-6` =
+   1,5rem, siehe `.markt-zeile`/`.lager-zeile`) = 65,5rem, + 2px für den
+   1px-Rand links/rechts. **Ändert sich eine `--zeile-*`-Breite oder
+   `--abstand-5`/`--abstand-6`, muss die `65.5rem` von Hand nachgerechnet
+   werden** -- derselbe Kompromiss, den A-161 für das Handbuch
+   (`@container (max-width: 55rem)`, dort ebenfalls eine ausgerechnete,
+   keine abgeleitete Zahl) schon eingegangen ist. `tests/stil.mjs`
+   (Prüfung 4, A-301) rechnet genau diese Rechnung nach und meldet eine
+   Abweichung, statt sie stillschweigend stehen zu lassen.
+
+   A-302: Die Zahl selbst steht in REM, nicht mehr in PX (65,5rem statt
+   vorher der ausmultiplizierte 1050px-Wert) -- geprüft, nicht angenommen,
+   dass `calc()` OHNE `var()` gemischte Einheiten (rem + px) in einer
+   `@container`-Bedingung genauso verarbeitet wie A-297s reinen px-Fall
+   (an einem synthetischen Testbehälter: 700px greift, 1200px nicht, bei
+   70 % Wurzel-Schriftgröße verschiebt sich die Grenze proportional auf
+   rund 735,6px). Der Grund: `rem` in einer `@container`-Bedingung bezieht
+   sich auf die Schriftgröße des WURZEL-Elements, und genau die setzt die
+   Grundskalierung (`js/ui.js`, `grundskalierungWert`/`renderGrundskalierung`,
+   Spielstandwert `state.grundskalierung`). Bei einer fest in PX
+   geschriebenen Schwelle wächst die rem-breite Zeile mit der
+   Grundskalierung mit, die Schwelle nicht -- genau das Problem, das das
+   Handbuch mit seiner `55rem`-Schwelle nie hatte. Live gemessen (Fund für
+   die Planung, siehe Ergebnis von A-302): Der reale schmale Rückfall zeigt
+   sich dabei NICHT als Kastenüberlauf, weil `.spielfeld`s eigene Breite
+   selbst NICHT mit der Grundskalierung skaliert (gemessen: unverändert bei
+   70 % wie bei 100 %) -- die Vereinheitlichung ist trotzdem richtig, weil
+   sie beide Schwellen (Bedienzeile, Handbuch) auf denselben, in sich
+   konsistenten Mechanismus bringt und nicht mehr an einer unsichtbaren
+   Fenster/Wurzel-Verwechslung hängt. */
+@container (max-width: calc(65.5rem + 2px)) {
   .bedienzeile { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .zeile-regler,
   .zeile-zahl,
@@ -2281,6 +2416,34 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-m);
   padding: var(--abstand-4) var(--abstand-6);
+  position: relative;
+  --fortschritt: 0;
+}
+
+/* A-295: „arbeitend" zeigt Fortschritt als Fläche (P18, A-037) -- vorher
+   stand die Reisedauer nur als Text da, wie bei Bau/Forschung/Werft füllt
+   die Zeile jetzt sich selbst von links. Gleicher Mechanismus, gleiche drei
+   Eigenschaften wie bei `.gebaeude-item::before` oben (keine Maßänderung,
+   liegt unter dem Inhalt, keine neue Farbe) -- eigene Regel, weil die
+   Flotten-Zeile eine andere Grundklasse als die Kachel-Familie ist. */
+.flotte-zeile::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: calc(var(--fortschritt) * 100%);
+  background: var(--akzent);
+  opacity: 0.16;
+  border-radius: var(--radius-m) 0 0 var(--radius-m);
+  pointer-events: none;
+  transition: width 1s linear;
+}
+
+.flotte-zeile:not(.unterwegs)::before {
+  width: 0;
+  transition: none;
 }
 
 .flotte-detail {
@@ -3626,11 +3789,11 @@ body {
 }
 
 /* ==== „DIESE WELT IN ZAHLEN" (A-064) ====
-   Fünf Gruppen nebeneinander, zwei bis drei Spalten je nach Breite des
-   Spielfelds. `auto-fit` mit einer Mindestbreite statt einer festen
-   Spaltenzahl: die Statusspalte lässt sich einklappen und gibt dabei 380 px
-   ans Spielfeld ab -- eine feste Spaltenzahl stünde bei einer der beiden
-   Breiten falsch.
+   VIER Gruppen nebeneinander (A-294/M7: „Flüsse netto" ist raus, siehe
+   js/ui.js), ein bis zwei Spalten je nach Breite des Spielfelds. `auto-fit`
+   mit einer Mindestbreite statt einer festen Spaltenzahl: die Statusspalte
+   lässt sich einklappen und gibt dabei 380 px ans Spielfeld ab -- eine feste
+   Spaltenzahl stünde bei einer der beiden Breiten falsch.
 
    Die Gruppen dürfen verschieden hoch sein (`align-items: start`); die
    ZEILEN darin dürfen es nicht. Jede hat eine Mindesthöhe, damit ein leerer
@@ -3642,20 +3805,28 @@ body {
    `.uebersicht` (der äußere Behälter, `#planet-uebersicht`) trug dieses
    Grid bis dahin SELBST -- die Namenszeile stand als erstes Grid-Kind darin
    und teilte sich eine Rasterzeile mit einer 146 px hohen Karte, obwohl ihr
-   eigener Inhalt nur 30 px braucht. Das Grid wandert jetzt auf einen NEUEN
-   inneren Träger, `.uebersicht-raster` -- Spaltenzahl/-breite UNVERÄNDERT
-   (Nicht anfassen), nur ohne die Namenszeile als Mitglied. `.uebersicht`
-   selbst ist jetzt nur noch der äußere Block, der Kopfzeile (`.uebersicht-
-   name`) und Raster STAPELT, kein Grid mehr. */
+   eigener Inhalt nur 30 px braucht. Das Grid wandert seither auf einen
+   eigenen inneren Träger, `.uebersicht-raster`, nur ohne die Namenszeile als
+   Mitglied. `.uebersicht` selbst ist nur noch der äußere Block, der
+   Kopfzeile (`.uebersicht-name`) und Raster STAPELT, kein Grid mehr.
+
+   A-294 (M7): Spaltendeckel von drei auf ZWEI gesenkt. Der alte Deckel
+   (76rem, siehe Git-Historie) war auf FÜNF Gruppen gerechnet, von denen bei
+   drei Spalten in der zweiten Zeile immer genau eine übrig blieb -- eine
+   Lücke, die A-248 nur mit einer spannenden Gruppe abmildern konnte (14,7 %
+   statt der geforderten <10 %, siehe js/ui.js). Mit „Flüsse netto" entfernt
+   bleiben VIER Gruppen: Bei drei Spalten wäre die zweite Zeile fast leer
+   (ein Glied, zwei leere Zellen) -- bei ZWEI Spalten füllen vier Gruppen
+   zwei Zeilen randvoll, ganz ohne Rest und ohne dass irgendetwas spannen
+   müsste. */
 .uebersicht-raster {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
-  /* Deckel bei drei Spalten. Ohne ihn legte auto-fit auf WQHD mit
-     eingeklappter Statusspalte alle fünf Gruppen in EINE Zeile -- fünf
-     schmale Säulen, in denen jede zweite Zahl umbricht. Der Auftrag will
-     zwei bis drei Spalten, und 76rem sind genau die Breite, ab der eine
-     vierte Spalte von 20rem nicht mehr hineinpasst. */
-  max-width: 76rem;
+  /* Deckel bei zwei Spalten. Drei Spalten von 20rem plus zwei Lücken
+     bräuchten 61rem (3×20rem + 2×var(--abstand-4)) -- 44rem lässt genau
+     zwei Spalten zu (2×20rem + 1×Lücke = 40,5rem) und bleibt sicher darunter,
+     wächst mit `1fr` aber bis knapp über 20rem je Spalte, wenn Platz ist. */
+  max-width: 50rem;
   align-items: start;
   gap: var(--abstand-4);
 }
@@ -3698,26 +3869,13 @@ body {
   padding: var(--abstand-4) var(--abstand-6) var(--abstand-4);
 }
 
-/* A-248 (Tobi, 10.09.: "da starre ich schon so lange drauf"): In einem Grid
-   ist jede Rasterzeile so hoch wie ihr hoechstes Mitglied -- bei fuenf
-   Gruppen in zwei bis drei Spalten blieb unter den kurzen Karten der ersten
-   Zeile eine Luecke stehen (`align-items: start`, Nicht anfassen, haelt sie
-   oben statt sie zu strecken -- siehe Falle dort). `js/ui.js`,
-   `uebersichtHoheGruppeMarkieren` setzt diese Klasse bei JEDEM Render neu
-   auf die aktuell hoechste Gruppe (nicht fest auf "Fluesse netto" --
-   welche Gruppe das ist, wechselt mit dem Ressourcenbestand, siehe A-248
-   Falle 3). Das Grid-Auto-Placement raeumt die zweite Zeilenhaelfte der
-   spannenden Spalte dabei von selbst frei (5 Gruppen, 2-3 Spalten -- immer
-   eine Zelle uebrig), die Lesereihenfolge (Standort/Bestaende/Fluesse/
-   Bevoelkerung/Laufendes, A-064) bleibt dabei unveraendert, unabhaengig
-   davon, welche Gruppe spannt (Grid-Auto-Placement platziert stets in
-   DOM-Reihenfolge, nie rueckwaerts). Bei EINER Spalte (schmale Breite)
-   setzt `uebersichtHoheGruppeMarkieren` die Klasse gar nicht erst --
-   jede Gruppe steht dort ohnehin allein in ihrer Zeile, ein Ueberspringen
-   erzeugte nur eine neue Luecke statt die alte zu schliessen. */
-.uebersicht-gruppe--hoch {
-  grid-row: span 2;
-}
+/* A-294 (M7): `.uebersicht-gruppe--hoch` (A-248, „die spannende Gruppe
+   fuellt die uebrige Zelle der zweiten Zeile") ist ENTFERNT, nicht nur
+   ungenutzt -- die Begruendung dafuer steht ausfuehrlich in js/ui.js, an der
+   Stelle, an der `uebersichtHoheGruppeMarkieren` frueher stand. Kurzfassung:
+   fuenf Gruppen brauchten die spannende Zelle, VIER Gruppen bei zwei Spalten
+   (siehe `.uebersicht-raster` oben) haben keine uebrige Zelle mehr, die eine
+   spannende Gruppe sinnvoll fuellen koennte. */
 
 .uebersicht-titel {
   font-size: var(--schrift-s);

@@ -9,16 +9,16 @@
 // Ereignis in vorspulenBisJetzt läuft. Die Position wird nur bei Bedarf
 // interpoliert -- für die Anzeige und im Moment des Umleitens.
 
-import { SCHIFFE, FLOTTE, RESEARCH, SONDE, unterlichtSekundenProEinheit } from "./data.js?v=0.9.48";
-import { systemPosition, entfernung } from "./galaxie.js?v=0.9.48";
+import { SCHIFFE, FLOTTE, RESEARCH, SONDE, unterlichtSekundenProEinheit } from "./data.js?v=0.9.60";
+import { systemPosition, entfernung } from "./galaxie.js?v=0.9.60";
 // Zugriff dieser Datei auf state.js: Zugehörigkeit (fraktionVon/planetenVon)
 // und seit A-133 der Forschungsstand einer Fraktion (forschungVon). Beides
 // hier nachzubauen wäre dieselbe Grenze an zwei Stellen -- genau das Muster,
 // an dem das Produktionsmodell in v0.18 einmal auseinandergelaufen ist. Kein
 // Kreis: state.js kennt flotten.js nicht.
-import { planetenVon, fraktionVon, forschungVon } from "./state.js?v=0.9.48";
-import { SPIELER_FRAKTION } from "./data.js?v=0.9.48";
-import { t } from "./sprache.js?v=0.9.48";
+import { planetenVon, fraktionVon, forschungVon } from "./state.js?v=0.9.60";
+import { SPIELER_FRAKTION } from "./data.js?v=0.9.60";
+import { t } from "./sprache.js?v=0.9.60";
 
 // --- Position -------------------------------------------------------------
 // Ein Ort ist immer { x, y, systemId|null, orbit|null }.
@@ -31,13 +31,23 @@ export function ortVonPlanet(state, planet) {
   return ortVonSystem(state, planet.systemId, planet.orbit);
 }
 
+// Wie weit ist ein laufender Streckenabschnitt zum Zeitpunkt t (0 bis 1)?
+// Eigene Funktion statt Herleitung an zwei Stellen (Prinzip 5) -- sowohl die
+// Positionsinterpolation hier als auch die Fortschrittsfläche der Flotten-
+// Kachel (js/ui.js, A-295) brauchen genau diese Zahl.
+export function reiseAnteil(flotte, zeitpunkt) {
+  const ab = flotte.abschnitt;
+  if (!ab) return 0;
+  const gesamt = ab.ankunftZeit - ab.startZeit;
+  return gesamt <= 0 ? 1 : Math.min(1, Math.max(0, (zeitpunkt - ab.startZeit) / gesamt));
+}
+
 // Wo ist die Flotte zum Zeitpunkt t? Unterwegs wird linear interpoliert.
 export function flottePosition(state, flotte, zeitpunkt) {
   const ab = flotte.abschnitt;
   if (!ab) return flotte.ort;
 
-  const gesamt = ab.ankunftZeit - ab.startZeit;
-  const anteil = gesamt <= 0 ? 1 : Math.min(1, Math.max(0, (zeitpunkt - ab.startZeit) / gesamt));
+  const anteil = reiseAnteil(flotte, zeitpunkt);
 
   // Innerhalb eines Systems bleibt die Galaxie-Position gleich, nur der
   // Orbit wandert.

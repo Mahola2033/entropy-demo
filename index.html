@@ -24,7 +24,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Entropy</title>
-  <link rel="stylesheet" href="css/style.css?v=0.9.48" />
+  <link rel="stylesheet" href="css/style.css?v=0.9.60" />
 </head>
 <body>
   <!--
@@ -219,6 +219,10 @@
               js/karte.js und bleiben danach stehen -- 500 Sterne pro Sekunde
               neu zu zeichnen wäre genau der Klickfresser aus Prinzip 8a.
             -->
+            <!-- A-294 (M10): die Legende steht jetzt ÜBER der Karte, nicht mehr
+                 darunter -- derselbe Blick soll erst wissen, was die Punkte
+                 bedeuten, bevor er sie liest, statt danach nachzuschlagen. -->
+            <div id="galaxie-legende" class="karte-legende"></div>
             <!-- Die Hülle trägt die Zoomknöpfe (A-039). Sie stehen an einer
                  festen Stelle über der Karte, damit sie beim Zoomen nicht
                  mitwandern (Prinzip 8) -- gebaut werden sie EINMAL in
@@ -227,7 +231,6 @@
               <svg id="galaxie-karte" class="karte" viewBox="-104 -104 208 208"
                    preserveAspectRatio="xMidYMid meet" role="img"></svg>
             </div>
-            <div id="galaxie-legende" class="karte-legende"></div>
             <div class="spalte-scrollt">
               <ul id="galaxie-liste" class="system-liste"></ul>
             </div>
@@ -460,6 +463,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=0.9.48"></script>
+  <script type="module" src="js/main.js?v=0.9.60"></script>
 </body>
 </html>

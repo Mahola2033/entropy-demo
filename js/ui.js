@@ -44,14 +44,13 @@ import {
   LJ_PRO_EINHEIT,
   rateProJahr,
   ANREICHERUNG_VERLUST,
-  ARBEITSKRAFT_LEERLAUF,
   RUECKBAU,
   RECYCLING,
   erstattungsQuote,
   VORKOMMEN_MELDESCHWELLE,
   VORKOMMEN_RATE_SPEC,
-} from "./data.js?v=0.9.48";
-import { VARIANTE } from "./variante.js?v=0.9.48";
+} from "./data.js?v=0.9.60";
+import { VARIANTE } from "./variante.js?v=0.9.60";
 import {
   effektiveRaten,
   angezeigteRate,
@@ -136,7 +135,7 @@ import {
   fossilReichweiteMs,
   fossilVerbrauchProStunde,
   foerderErgiebigkeit,
-} from "./state.js?v=0.9.48";
+} from "./state.js?v=0.9.60";
 import {
   bauStarten,
   forschungStarten,
@@ -213,9 +212,10 @@ import {
   routeStoppen,
   routeMindestbeladungSetzen,
   routeBeladungAnteil,
-} from "./simulation.js?v=0.9.48";
+} from "./simulation.js?v=0.9.60";
 import {
   flottePosition,
+  reiseAnteil,
   flotteKapazitaet,
   ladungGesamt,
   schiffeGesamt,
@@ -233,26 +233,26 @@ import {
   flotteSiedlerKapazitaet,
   flotteLadungAnteile,
   flotteTankAnteile,
-} from "./flotten.js?v=0.9.48";
-import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.48";
-import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.48";
-import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.48";
+} from "./flotten.js?v=0.9.60";
+import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.60";
+import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.60";
+import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.60";
 // Nur für den Neustart-Knopf im Abspann. Der Weg dorthin ist derselbe wie im
 // Testmodus (js/testmodus.js) -- ein zweiter Reset wäre eine zweite Wahrheit
 // darüber, was "neu anfangen" bedeutet.
-import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.48";
-import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.48";
-import { systemName, sternFuer } from "./galaxie.js?v=0.9.48";
+import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.60";
+import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.60";
+import { systemName, sternFuer } from "./galaxie.js?v=0.9.60";
 // Die beiden Karten. Sie holen sich von hier `listeAbgleichen` zurück -- ein
 // Ringtausch, der trägt, weil keine der beiden Dateien beim LADEN etwas aus
 // der anderen benutzt, sondern erst beim Zeichnen. Die Alternative wäre ein
 // zweiter Abgleich-Mechanismus in karte.js gewesen, und genau davor warnt
 // Prinzip 5.
-import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.48";
-import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.48";
-import { feedbackAdresse } from "./feedback.js?v=0.9.48";
-import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.48";
-import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.48";
+import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.60";
+import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.60";
+import { feedbackAdresse } from "./feedback.js?v=0.9.60";
+import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.60";
+import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.60";
 
 // UI-lokaler Regler-Zustand für die Flotten-Beladung/Tanken-Schieber --
 // bewusst NICHT Teil des Spielzustands. Nötig, weil render() auch von einem
@@ -3661,6 +3661,19 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
     const fertig = def.schluessel && level >= 1;
     const vorOffen = opts.voraussetzungen && !opts.voraussetzungen(id);
 
+    // A-294 (M8, Slot-Katalog KONZEPT-UI.md Abschnitt 4): Arbeitskraft
+    // bekommt eine eigene feste Zeile statt in der allgemeinen Verbrauchs-
+    // zeile mitzulaufen -- `verbrauchsDelta` (ausbauVorschau, js/state.js)
+    // ueberspringt beim Sammeln nur "energie", nicht "arbeitskraft", trug
+    // sie also bisher zusammen mit jedem Material in EINEM Bündel.
+    const arbeitskraftDelta = verbrauchsDelta.arbeitskraft || 0;
+    const hatArbeitskraft = arbeitskraftDelta > 0;
+    const verbrauchOhneArbeitskraft = {};
+    for (const [resId, betrag] of Object.entries(verbrauchsDelta)) {
+      if (resId !== "arbeitskraft") verbrauchOhneArbeitskraft[resId] = betrag;
+    }
+    const hatVerbrauchOhneArbeitskraft = Object.keys(verbrauchOhneArbeitskraft).length > 0;
+
     // Sichtbar bleibt nur, was man beim Überfliegen braucht: Symbol, Name,
     // Stufe, Kosten (als Symbole), Dauer, Aktion. Beschreibung, ausgeschriebene
     // Kosten, Energiebilanz und Voraussetzungen wandern in den Tooltip --
@@ -3687,9 +3700,16 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
               dauer: fmtDauer(dauer),
             }),
       hatProduktion ? t("Bringt zusätzlich: {mehr}", { mehr: ratenBuendelText(produktionsDelta) }) : "",
-      hatVerbrauch
+      hatVerbrauchOhneArbeitskraft
         ? t("Verbraucht zusätzlich: {mehr} – fehlt der Nachschub, drosselt die Anlage anteilig", {
-            mehr: ratenBuendelText(verbrauchsDelta),
+            mehr: ratenBuendelText(verbrauchOhneArbeitskraft),
+          })
+        : "",
+      // Dieselbe Satzform wie oben, nur auf Arbeitskraft allein bezogen --
+      // kein neuer Text, nur ein zweites Bündel derselben Übersetzung.
+      hatArbeitskraft
+        ? t("Verbraucht zusätzlich: {mehr} – fehlt der Nachschub, drosselt die Anlage anteilig", {
+            mehr: ratenBuendelText({ arbeitskraft: arbeitskraftDelta }),
           })
         : "",
       // A-114: eigene Zeile statt "verbraucht", weil der Brennstoff anders
@@ -3725,33 +3745,110 @@ function kachelFuellen(state, root, opts, id, li, lagerRaten) {
     textSetzen(li.querySelector(".kachel-name"), t(def.name));
     textSetzen(li.querySelector(".kachel-stufe"), def.schluessel ? (level >= 1 ? "✓" : SYMBOLE.gesperrt) : String(level));
 
-    // Die Mitte trägt keine Knöpfe -- sie darf am Stück neu geschrieben
-    // werden, und das hält die Zahlen einfach.
-    const mitte = fertig
-      ? `<span class="dezent">${t("erforscht")}</span>`
-      : // A-126 (P19): Kosten sind ein Abgang und bekommen deshalb ein "−" --
-        // { abgang: true } kommt von HIER, nicht aus buendelSymbole selbst
-        // (Falle: dieselbe Funktion zeigt an anderer Stelle Erträge/Ladung,
-        // die KEIN Minus bekommen dürfen).
-        `<span class="kachel-kosten"><span class="zeilen-marke">${t("Kosten")}</span> ${istForschung ? `${RESSOURCEN.forschung.symbol} ${fmt(aufwand)} ${RESSOURCEN.forschung.einheit}` : buendelSymbole(kosten, { abgang: true })}</span>
-         <span class="kachel-dauer">${fmtDauer(dauer)}${
-           energieText ? ` · ${vorzeichenSpan(Math.round(energieDelta))} MW` : ""
-         }</span>
-         ${hatProduktion ? `<span class="kachel-gewinn">${ratenBuendelMarkup(produktionsDelta, "zufluss")}</span>` : ""}
-         ${hatVerbrauch ? `<span class="kachel-verbrauch">${ratenBuendelMarkup(verbrauchsDelta, "abgang")}</span>` : ""}
-         ${hatBrennstoff ? `<span class="kachel-verbrauch">${ratenBuendelMarkup(brennstoffDelta, "abgang")}</span>` : ""}
-         ${brennstoffAusText ? `<span class="kachel-verbrauch warnung">${brennstoffAusText}</span>` : ""}
-         ${ergiebigkeitText ? `<span class="kachel-verbrauch${ergiebigkeitWarnung ? " warnung" : ""}">${ergiebigkeitText}</span>` : ""}
-         ${speicherDelta > 0 ? `<span class="kachel-gewinn">${RESSOURCEN[speicherRes].symbol} ${vorzeichenSpan(speicherDelta, fmt)} ${speicherEinheit(speicherRes)}</span>` : ""}`;
-    // A-130: geschrieben gegen zuletzt geschrieben, nie gegen zurückgelesen
-    // (dasselbe Muster wie detail.dataset.stand in slotZeileFuellen) -- der
-    // Browser serialisiert innerHTML beim Auslesen normalisiert, ein reiner
-    // Rückvergleich kann deshalb JEDEN Takt fehlschlagen, ohne dass sich am
-    // Inhalt etwas geändert hat.
-    const mitteEl = li.querySelector(".kachel-mitte");
-    if (mitteEl.dataset.stand !== mitte) {
-      mitteEl.dataset.stand = mitte;
-      mitteEl.innerHTML = mitte;
+    // A-294 (M8): `.kachel-mitte` trägt seit dieser Runde FESTE Zeilen-Slots
+    // (Kosten · Dauer+Energie · Ertrag · Verbrauch · Arbeitskraft, in dieser
+    // Reihenfolge -- KONZEPT-UI.md Abschnitt 4, der bindende Katalog), nach
+    // dem Muster der Werft-Kachel (Gerüst einmal in `kachelGeruest`, hier nur
+    // noch Werte). Vorher wurde die ganze Mitte als EIN variables HTML-
+    // Fragment neu geschrieben -- eine Kachel mit vier sichtbaren Zeilen war
+    // dadurch buchstäblich höher als eine mit einer, und weil `.kachel-raster`
+    // Zeilen `auto` statt `1fr` hoch macht (siehe dortiger Kommentar: `1fr`
+    // wurde zweimal versucht und verworfen), fing nur eine HANDGESETZTE
+    // Mindesthöhe an `.gebaeude-item` das ab -- brach, sobald eine Kachel
+    // darüber wuchs. Drei der fünf Zeilen (Ertrag, Verbrauch, Arbeitskraft)
+    // bleiben deshalb IMMER im Fluss (nie `hidden`, nur leer) und reservieren
+    // ihre Zeile über `min-height` (css/style.css) -- derselbe Kniff wie
+    // `.lager-prognose` (A-051). Kosten/Dauer sind ohnehin an jeder
+    // Nicht-fertig-Kachel gefüllt.
+    const kostenEl = li.querySelector(".kachel-kosten");
+    const dauerEl = li.querySelector("[data-dauer]");
+    const ertragEl = li.querySelector("[data-ertrag]");
+    const verbrauchBehaelter = li.querySelector("[data-verbrauch-behaelter]");
+    const arbeitskraftEl = li.querySelector("[data-arbeitskraft]");
+    const erforschtEl = li.querySelector("[data-erforscht]");
+
+    kostenEl.hidden = fertig;
+    dauerEl.hidden = fertig;
+    ertragEl.hidden = fertig;
+    verbrauchBehaelter.hidden = fertig;
+    arbeitskraftEl.hidden = fertig;
+    erforschtEl.hidden = !fertig;
+
+    if (fertig) {
+      textSetzen(erforschtEl, t("erforscht"));
+    } else {
+      // A-126 (P19): Kosten sind ein Abgang und bekommen deshalb ein "−" --
+      // { abgang: true } kommt von HIER, nicht aus buendelSymbole selbst
+      // (Falle: dieselbe Funktion zeigt an anderer Stelle Erträge/Ladung,
+      // die KEIN Minus bekommen dürfen).
+      textSetzen(li.querySelector("[data-kosten-marke]"), t("Kosten"));
+      markupSetzen(
+        li.querySelector("[data-kosten-wert]"),
+        istForschung
+          ? `${RESSOURCEN.forschung.symbol} ${fmt(aufwand)} ${RESSOURCEN.forschung.einheit}`
+          : buendelSymbole(kosten, { abgang: true })
+      );
+
+      markupSetzen(
+        dauerEl,
+        `${fmtDauer(dauer)}${energieText ? ` · ${vorzeichenSpan(Math.round(energieDelta))} MW` : ""}`
+      );
+
+      // Ertrag: Produktion UND Speicherzuwachs sind BEIDE ein Zugewinn dieser
+      // Stufe (dieselbe Klasse `kachel-gewinn` trugen sie schon vorher) --
+      // in der Praxis mutmaßlich nie gleichzeitig (eine Förderanlage baut
+      // keinen Speicher, ein Wohnsektor fördert nichts), aber falls doch,
+      // teilen sie sich die eine Zeile wie schon Dauer+Energie es tun.
+      const ertragTeile = [];
+      if (hatProduktion) ertragTeile.push(ratenBuendelMarkup(produktionsDelta, "zufluss"));
+      if (speicherDelta > 0) {
+        ertragTeile.push(
+          `${RESSOURCEN[speicherRes].symbol} ${vorzeichenSpan(speicherDelta, fmt)} ${speicherEinheit(speicherRes)}`
+        );
+      }
+      markupSetzen(ertragEl, ertragTeile.join(" · "));
+
+      // Verbrauch-Behälter: derselbe Container-Slot wie der Brennstoff-
+      // Behälter der Flusskachel (KONZEPT-UI.md: "ein Slot, der immer da
+      // ist, mit null bis n Zeilen darin") -- bis zu vier mögliche Zeilen
+      // (Material, Brennstoff, Brennstoff-aus-Warnung, Ergiebigkeits-
+      // Warnung), `listeAbgleichen` statt Innerhtml-Neuschrieb, damit ein
+      // offener Tooltip/eine Textauswahl einen Takt übersteht (Prinzip 8a).
+      const verbrauchZeilen = [];
+      if (hatVerbrauchOhneArbeitskraft) {
+        verbrauchZeilen.push({
+          schluessel: "material",
+          klasse: "kachel-verbrauch",
+          html: ratenBuendelMarkup(verbrauchOhneArbeitskraft, "abgang"),
+        });
+      }
+      if (hatBrennstoff) {
+        verbrauchZeilen.push({
+          schluessel: "brennstoff",
+          klasse: "kachel-verbrauch",
+          html: ratenBuendelMarkup(brennstoffDelta, "abgang"),
+        });
+      }
+      if (brennstoffAusText) {
+        verbrauchZeilen.push({ schluessel: "brennstoffAus", klasse: "kachel-verbrauch warnung", html: brennstoffAusText });
+      }
+      if (ergiebigkeitText) {
+        verbrauchZeilen.push({
+          schluessel: "ergiebigkeit",
+          klasse: `kachel-verbrauch${ergiebigkeitWarnung ? " warnung" : ""}`,
+          html: ergiebigkeitText,
+        });
+      }
+      listeAbgleichen(verbrauchBehaelter, verbrauchZeilen, {
+        schluessel: (z) => z.schluessel,
+        bauen: () => document.createElement("span"),
+        aktualisieren: (span, z) => {
+          span.className = z.klasse;
+          markupSetzen(span, z.html);
+        },
+      });
+
+      markupSetzen(arbeitskraftEl, hatArbeitskraft ? ratenBuendelMarkup({ arbeitskraft: arbeitskraftDelta }, "abgang") : "");
     }
 
     // Vorrang: nur an gebauten Gebäuden, die überhaupt etwas Knappes ziehen.
@@ -4113,7 +4210,14 @@ function kachelGeruest(state, root, opts, id) {
       <span class="kachel-name"></span>
       <span class="kachel-stufe"></span>
     </div>
-    <div class="kachel-mitte"></div>
+    <div class="kachel-mitte">
+      <span class="kachel-kosten"><span class="zeilen-marke" data-kosten-marke></span> <span data-kosten-wert></span></span>
+      <span class="kachel-dauer" data-dauer></span>
+      <span class="kachel-gewinn" data-ertrag></span>
+      <span class="kachel-verbrauch-behaelter" data-verbrauch-behaelter></span>
+      <span class="kachel-verbrauch" data-arbeitskraft></span>
+      <span class="dezent" data-erforscht hidden></span>
+    </div>
     <div class="kachel-strom" hidden>
       <button data-strom="2" title="">▲</button>
       <button data-strom="1" title="">•</button>
@@ -4224,17 +4328,24 @@ function uebersichtGeruest(box, state, root) {
        <div data-liste="${id}"></div>
      </div>`;
   // A-169 (Tobis Meldung 31.08.: "da ist ein Riesen Feld mit nichts drin"):
-  // Die Namenszeile stand bis dahin als ERSTES KIND im 3-Spalten-Kartenraster
-  // -- ihre Rasterzelle wurde dadurch so hoch wie ihre Nachbarkarte (146 px),
-  // ihr Inhalt aber blieb 30 px, macht 116 px sichtbar leere Fläche direkt
-  // neben zwei gerahmten Karten. Weg B aus dem Auftrag: die Zeile wandert als
-  // eigene Kopfzeile ÜBER das Raster, über die volle Breite -- damit teilt
-  // sie keine Rasterzeile mehr mit einer Karte (das Leerflächen-Problem
-  // verschwindet strukturell, nicht durch einen Rahmen darum, den der
-  // Auftrag ausdrücklich als Risiko nennt) und ist sichtbar etwas ANDERES
-  // als die Karten, keine schlechte davon. `.uebersicht-raster` trägt jetzt
-  // das Grid, das vorher an `.uebersicht` selbst hing (css/style.css) --
-  // Spaltenzahl/-breite (Nicht anfassen) unverändert, nur der Träger wechselt.
+  // Die Namenszeile stand bis dahin als ERSTES KIND im Kartenraster -- ihre
+  // Rasterzelle wurde dadurch so hoch wie ihre Nachbarkarte, ihr Inhalt aber
+  // blieb niedrig. Weg B aus dem Auftrag: die Zeile wandert als eigene
+  // Kopfzeile ÜBER das Raster, über die volle Breite -- damit teilt sie
+  // keine Rasterzeile mehr mit einer Karte. `.uebersicht-raster` trägt das
+  // Grid, `.uebersicht` selbst stapelt nur noch Kopfzeile und Raster.
+  //
+  // A-294 (M7): Die Gruppe „Flüsse netto" ist HIER heraus -- sie
+  // duplizierte die Kopfleiste (Energie/Brennstoff/Arbeitskraft stehen dort
+  // je als eigene Kachel, jede Lagerressource mit Nettofluss trägt ihre Rate
+  // schon in ihrer eigenen Kachel, siehe Ergebnis-Abschnitt für die
+  // vollständige Liste). Sie war zugleich die mit Abstand höchste der fünf
+  // Gruppen (A-248: 339 px gegen 110-151 px der übrigen) -- ihr Wegfall ist
+  // der eigentliche Grund, warum die Lückenfläche jetzt unter 10 % liegt,
+  // nicht nur eine Umsortierung. `css/style.css` deckelt die Spaltenzahl
+  // seither bei ZWEI statt drei: vier Gruppen füllen zwei Spalten ohne Rest,
+  // eine dritte Spalte hätte bei vier Gliedern immer eine ganze leere Zeile
+  // hinterlassen (siehe dortiger Kommentar an `.uebersicht-raster`).
   box.innerHTML = `
     <div class="uebersicht-name bedienzeile">
       <span class="zeile-beschriftung" data-namen-marke></span>
@@ -4245,7 +4356,6 @@ function uebersichtGeruest(box, state, root) {
       <div class="uebersicht-hinweis dezent" data-hinweis hidden></div>
       ${gruppe("standort", ["welt", "orbit", "schwerkraft", "vorkommen"])}
       ${gruppe("bestaende", ["warenlager"])}
-      ${gruppe("fluesse", ["energie", "brennstoff", "arbeitskraft"])}
       ${gruppe("bevoelkerung", ["menschen", "wohnraum"])}
       ${gruppe("laufendes", ["bau", "forschung", "werftauftrag"])}
     </div>`;
@@ -4371,39 +4481,27 @@ export function prozentText(faktor, invertiert = false) {
   return vorzeichenSpan(p, fmt, invertiert) + " %";
 }
 
-// A-248 (Tobi, 10.09.: "da ist eine Luecke im UI, die ich anstarre"): In
-// `.uebersicht-raster` (css/style.css) ist jede Rasterzeile so hoch wie ihr
-// hoechstes Mitglied, und `align-items: start` (Nicht anfassen -- Falle im
-// Auftrag) haelt die kuerzeren Karten oben statt sie zu strecken. Der Rest
-// der Zeile blieb bisher leer (gemessen: 40 % der Blockflaeche bei 1920×1080
-// im Zustand "spaet"). Diese Funktion markiert bei JEDEM Render die AKTUELL
-// hoechste sichtbare Gruppe mit `.uebersicht-gruppe--hoch` (`grid-row: span
-// 2`) -- NICHT fest auf "Fluesse netto": welche Gruppe am hoechsten ist,
-// wechselt mit dem Ressourcenbestand (frueh weniger Zeilen als spaet, siehe
-// Auftrag Falle 3). Grid-Auto-Placement platziert die fuenf Gruppen weiter
-// strikt in DOM-Reihenfolge (Standort/Bestaende/Fluesse/Bevoelkerung/
-// Laufendes, A-064) -- welche Gruppe spannt, aendert daran nichts, weil eine
-// spannende Gruppe immer an ihrer eigenen Stelle im Ablauf bleibt und nur
-// die sonst leere letzte Zelle der zweiten Zeile mitbelegt (5 Gruppen passen
-// in 2 bis 3 Spalten nie randvoll in zwei Zeilen).
-// Bei EINER Spalte (schmale Breite) steht jede Gruppe ohnehin allein in
-// ihrer Zeile -- ein Ueberspringen erzeugte dort nur eine neue Luecke
-// statt die alte zu schliessen, deshalb bleibt die Klasse dort aus
-// (erkannt daran, dass keine zwei Gruppen denselben `offsetTop` teilen).
-function uebersichtHoheGruppeMarkieren(box) {
-  const gruppen = [...box.querySelectorAll(".uebersicht-gruppe")].filter((g) => !g.hidden);
-  for (const g of gruppen) g.classList.remove("uebersicht-gruppe--hoch");
-  if (gruppen.length < 2) return;
-  const ersteZeile = gruppen[0].offsetTop;
-  const mehrspaltig = gruppen.some((g) => g !== gruppen[0] && g.offsetTop === ersteZeile);
-  if (!mehrspaltig) return;
-  let hoechste = gruppen[0];
-  for (const g of gruppen) {
-    if (g.offsetHeight > hoechste.offsetHeight) hoechste = g;
-  }
-  hoechste.classList.add("uebersicht-gruppe--hoch");
-}
-
+// A-248 (Tobi, 10.09.: "da ist eine Luecke im UI, die ich anstarre") baute
+// hier `uebersichtHoheGruppeMarkieren`: bei FUENF Gruppen in 2-3 Spalten
+// blieb in der zweiten Zeile immer GENAU EINE Zelle uebrig (5 passt in
+// keine der beiden Spaltenzahlen randvoll), und die Funktion liess die
+// jeweils hoechste sichtbare Gruppe (`grid-row: span 2`) genau diese Zelle
+// mitbelegen. A-248 selbst hat gemessen, dass „Fluesse netto" darin mit
+// Abstand die hoechste Gruppe war (339 px gegen 110-151 px) und deshalb
+// TROTZDEM nur auf 14,7-13,9 % statt der geforderten <10 % kam.
+//
+// A-294 (M7) ENTFERNT genau diese Gruppe -- der Auftrag verlangt danach
+// ausdruecklich eine Entscheidung: "Faellt die Fluesse-Liste weg, [...]
+// Bleibt sie ohne Fall, geht sie mit." Sie hat keinen Fall mehr, und zwar
+// nicht nur "keinen mehr noetigen": Bei VIER Gruppen in der jetzt auf zwei
+// Spalten gedeckelten `.uebersicht-raster` (siehe dortiger Kommentar) gibt
+// es keine uebrige Zelle mehr, die eine spannende Gruppe fuellen koennte --
+// wuerde die Funktion die insgesamt hoechste der vier markieren, spannte sie
+// oft in eine NICHT EXISTIERENDE dritte Zeile hinein (steht sie in Zeile 2)
+// und risse damit ihre Zeilennachbarin dorthin mit, wo vorher keine Luecke
+// war. Die Funktion ist deshalb komplett entfernt, nicht nur ihr Aufruf --
+// eine Laufzeitmessung ohne Fall UND mit Schadenspotential ist keine, die
+// 0f stehen lassen will. `.uebersicht-gruppe--hoch` folgt in css/style.css.
 function renderUebersicht(state, root, planet) {
   const box = root.querySelector("#planet-uebersicht");
   if (!box.dataset.gebaut) {
@@ -4436,7 +4534,7 @@ function renderUebersicht(state, root, planet) {
   const hinweis = box.querySelector("[data-hinweis]");
   hinweis.hidden = !u.aussenposten;
   if (u.aussenposten) textSetzen(hinweis, t("Außenposten haben keine Wirtschaft."));
-  for (const id of ["bestaende", "fluesse", "bevoelkerung", "laufendes"]) {
+  for (const id of ["bestaende", "bevoelkerung", "laufendes"]) {
     box.querySelector(`[data-gruppe="${id}"]`).hidden = u.aussenposten;
   }
 
@@ -4530,108 +4628,7 @@ function renderUebersicht(state, root, planet) {
     },
   });
 
-  // --- 3. Flüsse netto ----------------------------------------------------
-  titel("fluesse", t("Flüsse netto"));
-  marke("energie", t("Energie"));
-  const e = u.energie;
-  wertHtml(
-    "energie",
-    t("{erzeugt} erzeugt · {gebraucht} gebraucht · {netto}", {
-      erzeugt: fmt(Math.round(e.produktion)),
-      gebraucht: fmt(Math.round(e.verbrauch)),
-      // A-165: "MW" ist begleitender Text, keine Zahl -- das war hier bis
-      // dahin falsch gelesen ("−14 MW" komplett gefärbt). Zahl in den Span,
-      // Einheit fest im Satz (P19 Regel 2).
-      netto: `${vorzeichenSpan(Math.round(e.netto))} MW`,
-    })
-  );
-  box.querySelector('[data-wert="energie"]').classList.toggle("warnung", e.effizienz < 1);
-  marke("brennstoff", t("Brennstoff"));
-  wertHtml(
-    "brennstoff",
-    e.brennstoffStunden === null
-      ? UEBERSICHT_LEER
-      : // Die Marke der Zeile sagt schon "Brennstoff" -- der fertige Satz aus
-        // A-055 stünde hier als "Brennstoff | Brennstoff für 3 Jahre".
-        //
-        // Der Verbrauch steht daneben (A-088): dieselbe Bedingung wie an der
-        // Energie-Kachel, und die einzige Zahl, aus der man die Dauer selbst
-        // nachrechnen kann. Vorzeichen fest -- Brennstoff wird hier immer
-        // VERBRAUCHT, das ist keine wertabhängige Richtung (A-126).
-        t("reicht {dauer}", { dauer: fmtDauer(e.brennstoffStunden * 3600) }) +
-          Object.entries(e.brennstoffRaten)
-            .map(
-              ([resId, proStunde]) =>
-                ` · ${vorzeichenMitEinheit(resId, -rateProJahr(proStunde))}${t("/Jahr")}`
-            )
-            .join("")
-  );
-  marke("arbeitskraft", t("Arbeitskraft"));
-  // A-155: Prinzip 10a -- der Spieler sieht den Leerlauf, bevor er wehtut.
-  // Unter vollAb (80 %) kommt die Beschäftigungsquote dazu, ab dort steht die
-  // Kachel wie zuvor (Kategorie-1-Verhalten für gut beschäftigte Welten).
-  const leerlaufHinweis =
-    u.arbeitskraft.quote < ARBEITSKRAFT_LEERLAUF.vollAb
-      ? " · " +
-        t("{quote} % beschäftigt – Leerlauf kostet {anteil} % Förderung", {
-          quote: Math.round(u.arbeitskraft.quote * 100),
-          anteil: Math.round(u.arbeitskraft.diebstahlAnteil * 100),
-        })
-      : "";
-  wert(
-    "arbeitskraft",
-    t("frei {frei} von {gesamt}", {
-      frei: fmt(Math.round(u.arbeitskraft.frei)),
-      gesamt: fmt(Math.round(u.arbeitskraft.produktion)),
-    }) + leerlaufHinweis
-  );
-  // Warnfarbe wie bisher bei echtem Mangel (frei < 0), UND ab 50 %
-  // Beschäftigung ("sehr ungemütlich", Tobi 25.08.) -- dieselbe Schwelle wie
-  // ARBEITSKRAFT_LEERLAUF.ungemuetlichAb, keine zweite Zahl dafür.
-  box
-    .querySelector('[data-wert="arbeitskraft"]')
-    .classList.toggle(
-      "warnung",
-      u.arbeitskraft.frei < 0 || u.arbeitskraft.quote < ARBEITSKRAFT_LEERLAUF.ungemuetlichAb
-    );
-  listeAbgleichen(box.querySelector('[data-liste="fluesse"]'), u.fluesse, {
-    schluessel: (f) => f.resId,
-    bauen: () => {
-      const div = document.createElement("div");
-      div.className = "uebersicht-zeile";
-      div.innerHTML = `<span class="uebersicht-marke"></span><span class="uebersicht-wert"></span>`;
-      return div;
-    },
-    aktualisieren: (div, f) => {
-      textSetzen(
-        div.querySelector(".uebersicht-marke"),
-        `${RESSOURCEN[f.resId].symbol || ""} ${t(RESSOURCEN[f.resId].name)}`
-      );
-      const el = div.querySelector(".uebersicht-wert");
-      // A-154: zwei Gründe teilen sich `drosselung`, aber sie sind keine
-      // Warnung in gleichem Maß -- Regime B (Rohstoffmangel) bekommt den
-      // Satz von vorher, Regime C (Zielmenge erreicht) sagt, WAS gerade
-      // wirklich passiert (Anlage läuft auf Grundlast), statt "gedrosselt"
-      // wie ein Fehler klingen zu lassen (A-050-Muster: ein gedrosselter
-      // Fluss nennt seinen Grund).
-      markupSetzen(
-        el,
-        nettoText(f.resId, f.netto) +
-          (f.maxGedrosselt
-            ? ` · ${t("Zielmenge erreicht – Anlage läuft auf Grundlast")}`
-            : f.drosselung < 1
-              ? ` · ${t("gedrosselt auf {anteil}%", { anteil: Math.round(f.drosselung * 100) })}`
-              : "")
-      );
-      const jahr = rateProJahr(f.netto);
-      el.classList.toggle(
-        "warnung",
-        (nettoSichtbar(jahr) && jahr < 0) || (f.drosselung < 1 && !f.maxGedrosselt)
-      );
-    },
-  });
-
-  // --- 4. Bevölkerung & Schwellen -----------------------------------------
+  // --- 3. Bevölkerung & Schwellen -----------------------------------------
   titel("bevoelkerung", t("Bevölkerung & Schwellen"));
   marke("menschen", t("Bevölkerung"));
   const b = u.bevoelkerung;
@@ -4690,7 +4687,7 @@ function renderUebersicht(state, root, planet) {
     },
   });
 
-  // --- 5. Laufendes -------------------------------------------------------
+  // --- 4. Laufendes -------------------------------------------------------
   //
   // Kein neuer Rechenweg: Restzeiten kommen aus denselben Helfern wie die
   // Statusspalte (kopfZeitText, forschungRestSekunden). Zwei Stellen, die
@@ -4720,10 +4717,6 @@ function renderUebersicht(state, root, planet) {
       : UEBERSICHT_LEER
   );
 
-  // A-248: erst NACHDEM alle Werte (und damit die tatsaechlichen Hoehen der
-  // fuenf Gruppen) stehen -- eine Messung davor traefe noch die Werte des
-  // vorherigen Planeten oder Takts.
-  uebersichtHoheGruppeMarkieren(box);
 }
 
 
@@ -6071,6 +6064,9 @@ function flottenZeileFuellen(state, li, flotte, jetzt) {
     const aktiv = state.aktiveFlotte === flotte.id;
     const pos = flottePosition(state, flotte, jetzt);
     li.classList.toggle("system-aktiv", aktiv);
+    // A-295: dieselbe Fläche wie Bau/Forschung/Werft (P18 „arbeitend").
+    li.classList.toggle("unterwegs", !!flotte.abschnitt);
+    fortschrittSetzen(li, reiseAnteil(flotte, jetzt));
 
     const schiffsText =
       Object.entries(flotte.schiffe)

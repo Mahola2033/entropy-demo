@@ -19,7 +19,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.9.48";
+export const VERSION = "0.9.60";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von vollversion.mjs (bis A-272: uebernehmen.mjs) beim
@@ -66,7 +66,7 @@ export const DEMO_SAAT = 20269933;
 // wird an den anzeigenden Stellen, nicht hier. Einzige Ausnahme ist
 // voraussetzungenText() weiter unten -- die einzige Funktion in dieser Datei,
 // die Anzeigetext zusammensetzt.
-import { t } from "./sprache.js?v=0.9.48";
+import { t } from "./sprache.js?v=0.9.60";
 
 // A-164 (31.08.2026): Von 50 auf 125.000 (×2.500) -- die Maßstabsrunde.
 // Vorher skalierte EIN MASSSTAB Material, Menschen und Arbeitskraft
@@ -426,6 +426,11 @@ export const RESSOURCEN = {
   // Kapazität, kein Anteil am gemeinsamen Lagerpool).
   // Nicht handelbar, ganz ohne Sonderregel: der Markt kennt nur Ressourcen
   // mit einem Eintrag in MARKT_PREISE.
+  // `faktor` war kurzzeitig 1,2 (A-215, v0.9.59) -- zurückgenommen durch
+  // A-303 (23.09.2026, Ebene-3-Pause, verfehltes Ziel, sofortiger
+  // Bevölkerungsdeckel). Die Messungen bleiben in `AUFTRAEGE/
+  // A-215-wohnraum-waechst-gradueller.md` stehen, Grundlage für die nächste
+  // Ebene-3-Runde.
   bevoelkerung: {
     id: "bevoelkerung", name: "Bevölkerung", symbol: "👥", farbe: "#f0b429", einheit: "",
     art: "lager", start: 1000, lagerverbrauch: 0, gebaeude: "wohnsektor",

@@ -28,6 +28,105 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.9.60",
+    de: [
+      "Nur intern: Eine Balancing-Änderung am Wohnsektor (v0.9.59, nie veröffentlicht) ist zurückgenommen -- sie verfehlte ihr eigenes Ziel und hätte bestehende Spielstände sofort Bevölkerung gekostet. Für den Spieler ändert sich nichts.",
+    ],
+    en: [
+      "Internal only: A habitat-sector balancing change (v0.9.59, never released) has been reverted -- it missed its own target and would have cost existing save files population immediately. Nothing changes for players.",
+    ],
+  },
+  {
+    version: "0.9.58",
+    de: [
+      "Die Umbruch-Schwelle der schmalen Bedienzeilen (z. B. im Lager) zieht jetzt mit der Grundskalierung mit, statt an einer festen Pixelzahl zu hängen -- betrifft nur, wer die Oberfläche in den Einstellungen kleiner stellt.",
+    ],
+    en: [
+      "The narrow-layout breakpoint for control rows (e.g. in Storage) now follows the UI scale setting instead of a fixed pixel value -- only relevant if you shrink the interface in Settings.",
+    ],
+  },
+  {
+    version: "0.9.57",
+    de: [
+      "Nur intern: Ein neuer Wächter im Stil-Prüfnetz rechnet die Umbruch-Schwelle des schmalen Bedienzeilen-Rasters gegen die acht Spaltengrößen nach, aus denen sie von Hand ausgerechnet wurde -- ändert sich eine davon und die Schwelle wird nicht mitgezogen, meldet der Wächter das jetzt, statt es bei einem Kommentar zu belassen. Für den Spieler ändert sich nichts.",
+    ],
+    en: [
+      "Internal only: A new guard in the style check net recomputes the narrow layout's collapse threshold from the eight column sizes it was hand-calculated from -- if one of them changes without the threshold following, the guard now reports it instead of relying on a comment. Nothing changes for players.",
+    ],
+  },
+  {
+    version: "0.9.56",
+    de: [
+      "Flotten unterwegs füllen ihre Zeile jetzt selbst von links, wie ein Baubalken – vorher stand die Reisedauer nur als Text da, ohne dass man den Fortschritt sah.",
+    ],
+    en: [
+      "Fleets underway now fill their own row from the left, like a build bar – previously the travel time was only shown as text, with no visible sense of progress.",
+    ],
+  },
+  {
+    version: "0.9.55",
+    de: [
+      "Die Lager-Zeilen laufen bei sehr schmalem Fenster nicht mehr über den Rand hinaus – sie brechen jetzt genau dann auf zwei Spalten um, wenn ihr eigener Platz eng wird, nicht erst wenn das ganze Fenster schmal ist.",
+    ],
+    en: [
+      "The storage rows no longer run past their edge at very narrow window widths – they now switch to two columns exactly when their own available space gets tight, not only once the whole window is narrow.",
+    ],
+  },
+  {
+    version: "0.9.54",
+    de: [
+      "Die Kauf- und Verkaufsknöpfe im Handel sind jetzt in jeder Zeile gleich breit, egal wie groß die Zahl dahinter ist – vorher wanderte der rechte Rand von Zeile zu Zeile.",
+    ],
+    en: [
+      "The buy and sell buttons in Trade are now the same width on every line, regardless of how big the number behind them is – previously the right edge shifted from row to row.",
+    ],
+  },
+  {
+    version: "0.9.53",
+    de: [
+      "Die Legende der Galaxiekarte steht jetzt über der Karte statt darunter – du weißt jetzt schon, was die Punkte bedeuten, bevor du sie liest.",
+    ],
+    en: [
+      "The galaxy map's legend now sits above the map instead of below it – you know what the dots mean before you read them, not after.",
+    ],
+  },
+  {
+    version: "0.9.52",
+    de: [
+      "Die Ausbau-Kacheln (Gebäude und Forschung) sind jetzt gleichmäßiger hoch: Ertrag, Verbrauch und Arbeitskraft haben feste Zeilen statt wechselnder Höhe, dazu zeigt jede Kachel ihren Arbeitskraftbedarf jetzt als eigene Zeile statt versteckt im allgemeinen Verbrauch.",
+    ],
+    en: [
+      "Build tiles (buildings and research) now stay more consistent in height: yield, consumption and workforce have fixed rows instead of shifting height, and each tile now shows its workforce cost on its own line instead of hidden inside the general consumption line.",
+    ],
+  },
+  {
+    version: "0.9.51",
+    de: [
+      "„Diese Welt in Zahlen“ zeigt keine Flüsse-Liste mehr, die ohnehin schon in der Ressourcenleiste stand -- der Block ist dadurch deutlich kompakter, ohne dass eine Zahl verschwindet.",
+    ],
+    en: [
+      "\"This World In Numbers\" no longer shows a flow list that already duplicated the resource bar -- the block is noticeably more compact, without any number disappearing.",
+    ],
+  },
+  {
+    version: "0.9.50",
+    de: [
+      "Abwehrstellungen zahlen jetzt wirklich für jeden Schuss: Feuern sie bei einem Überfall, zieht das echte Energie aus deinem Energiespeicher, statt nur eine Bedingung zu prüfen. Bei starkem Beschuss kann der Speicher dabei spürbar leerlaufen -- die restliche Wirtschaft der Welt läuft davon unberührt weiter.",
+    ],
+    en: [
+      "Defense installations now really pay for every shot: when they fire during a raid, that draws real energy from your energy store instead of just checking a condition. Under heavy fire the store can noticeably drain -- the rest of the world's economy keeps running unaffected.",
+    ],
+  },
+  {
+    version: "0.9.49",
+    de: [
+      "Abbauschiffe holen an reichen Asteroidengürteln jetzt auch auf der ersten Fahrt mehr heraus: Ein metallreicher M-Gürtel bringt von Anfang an deutlich mehr Iridium als ein kohliger. Vorher zeigte sich der Unterschied erst über mehrere Fahrten, wenn die Ergiebigkeit langsam sank.",
+    ],
+    en: [
+      "Mining ships now get more out of rich asteroid belts from the very first trip: a metal-rich M-class belt yields noticeably more iridium than a carbonaceous one right away. Previously the difference only showed up over several trips, as yield gradually declined.",
+    ],
+  },
+  {
     version: "0.9.48",
     de: [
       "Der Antimateriekollektor wird mit jeder Ausbaustufe nicht mehr billiger je Kilogramm: Er braucht auf jeder Stufe gleich viel Energie für dieselbe Menge Antimaterie -- ein größerer Kollektor macht mehr, nicht effizienter. Damit lässt sich aus dem Entladen von Antimaterie kein Strom mehr gewinnen, der mehr ist als hineingesteckt wurde. Ausgebaute Kollektoren ziehen entsprechend mehr Energie.",

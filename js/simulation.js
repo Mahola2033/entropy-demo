@@ -53,7 +53,7 @@ import {
   bauzeitFuerLevel,
   forschungsAufwand,
   voraussetzungenText,
-} from "./data.js?v=0.9.48";
+} from "./data.js?v=0.9.60";
 import {
   effektiveRaten,
   bevoelkerungsWachstumsrate,
@@ -116,7 +116,7 @@ import {
   arbeitskraftDiebstahlAnteil,
   maxReichweite,
   handelsMindestFuer,
-} from "./state.js?v=0.9.48";
+} from "./state.js?v=0.9.60";
 import {
   ortVonPlanet,
   ortVonSystem,
@@ -136,9 +136,9 @@ import {
   schiffeGesamt,
   schiffeStaerke,
   schiffeText,
-} from "./flotten.js?v=0.9.48";
-import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.48";
-import { stromFuer, waehle } from "./zufall.js?v=0.9.48";
+} from "./flotten.js?v=0.9.60";
+import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.60";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.60";
 import {
   reichenAus,
   fehlende,
@@ -149,8 +149,8 @@ import {
   buendelText,
   formatZahl as fmt,
   name as resName,
-} from "./ressourcen.js?v=0.9.48";
-import { t } from "./sprache.js?v=0.9.48";
+} from "./ressourcen.js?v=0.9.60";
+import { t } from "./sprache.js?v=0.9.60";
 
 // Kurzform: Ressourcen in ein Planetenlager einlagern, begrenzt durch den
 // gemeinsamen Pool und etwaige Annahmeregeln. Gibt zurück, was nicht
@@ -171,7 +171,7 @@ function insLager(state, planet, buendel) {
     (resId) => aufnahmeGrenzeFuer(planet, resId)
   );
 }
-import { systemName, entfernung } from "./galaxie.js?v=0.9.48";
+import { systemName, entfernung } from "./galaxie.js?v=0.9.60";
 
 const MS_PRO_STUNDE = 1000 * 60 * 60;
 
@@ -2526,6 +2526,31 @@ function raubzugAusfuehren(state, flotte, zeit) {
   const deckungsgrad = bedarf > 0 ? Math.min(1, ueberschuss / bedarf) : 1;
   const stueckFeuernd = Math.floor(abwehrBestand(planet, "abwehrstellung") * deckungsgrad);
   const kuerzung = Math.min(PIRAT.abwehrKuerzungMax, stueckFeuernd * PIRAT.abwehrKuerzungProStueck);
+
+  // A-285, Schritt 0: `deckungsgrad` war bisher nur eine SCHWELLE (wie viele
+  // Stellungen feuern DÜRFEN) -- abgezogen wurde nichts, der Überschuss floss
+  // unangetastet weiter in den Energiespeicher (planetRatenAnwenden, "Fluss-
+  // Speicher"). Jetzt zieht das tatsächliche Feuern echte Energie aus GENAU
+  // diesem Speicher -- derselbe `planet.ressourcen.energie`-Bestand, keine
+  // zweite Buchhaltung (Prinzip 5).
+  //
+  // DAUER DES GEFECHTS: `aktiv.energie` steht im Katalog "je Stück und
+  // STUNDE" (data.js, ABWEHR-Kommentar) -- eine Rate, kein Einmalbetrag. Ein
+  // Raubzug ist aber "EIN Schritt, kein Rundensystem" (A-208, s.o.), er
+  // führt also KEINE eigene Gefechtsdauer. Reused wird deshalb die einzige
+  // im Spiel bereits vorhandene Zahl für "wie lange dauert ein Schusswechsel
+  // in Echtzeit": `KAMPF.rundenDauerSek` (180s) -- nicht, weil der Raubzug
+  // jetzt doch Runden führt (er tut es nicht, DoD 2 bleibt: nur EIN
+  // Deckungsgrad, EIN Abzug), sondern weil das die einzige Größe ist, die
+  // "eine Kampfhandlung dauert X Echtzeit" schon beziffert; eine zweite,
+  // eigens erfundene Zahl wäre keine Herleitung mehr, sondern eine neue
+  // Design-Entscheidung, die dieser Auftrag nicht freigibt.
+  if (stueckFeuernd > 0) {
+    const aktivVerbrauch = ABWEHR.abwehrstellung.aktiv.energie * stueckFeuernd;
+    const gefechtsStunden = KAMPF.rundenDauerSek / 3600;
+    const bisher = planet.ressourcen.energie || 0;
+    planet.ressourcen.energie = Math.max(0, bisher - aktivVerbrauch * gefechtsStunden);
+  }
 
   // 5. Der Bunker schützt einen Teil -- EINMAL vergeben (DoD 3 des
   // Auftrags), nicht je Ressource einzeln (A-206s Fund, siehe
@@ -5653,11 +5678,15 @@ function bergung(state, flotte, befehl, zeit) {
 // WIE DER ERTRAG ENTSTEHT (keine zweite Ertragsformel): dieselbe Kette wie
 // eine Foerderanlage -- VORKOMMEN_RATE_SPEC (die {basis,faktor}-Kurve der
 // passenden Anlage) an der virtuellen Stufe ABBAUSCHIFF_FOERDERSTUFE, mal
-// foerderErgiebigkeit/vollesVorkommen (A-236) gegen ein EIGENES
-// `gefoerdert`-Feld am Objekt (nicht am Planeten -- ein Guertel wird nicht
-// besiedelt, siehe js/systeme.js ORBIT_ZUSTAND_FELDER). "Ertrag je Fahrt
-// begrenzt" (Entwurf 0f): eine feste Dauer je Einsatz
-// (ABBAUSCHIFF_DAUER_STUNDEN), keine Zeit-seit-letztem-Besuch-Rechnung.
+// affinitaetFaktor UND foerderErgiebigkeit/vollesVorkommen (A-236) gegen ein
+// EIGENES `gefoerdert`-Feld am Objekt (nicht am Planeten -- ein Guertel wird
+// nicht besiedelt, siehe js/systeme.js ORBIT_ZUSTAND_FELDER).
+// affinitaetFaktor steht hier ZUSAETZLICH, nicht nur mittelbar ueber
+// vollesVorkommen (A-287): bei einem unberuehrten Guertel ist die
+// Ergiebigkeit 1 unabhaengig von der Affinitaet, die erste Fahrt wuerde die
+// Guerteltypen sonst nicht unterscheiden. "Ertrag je Fahrt begrenzt"
+// (Entwurf 0f): eine feste Dauer je Einsatz (ABBAUSCHIFF_DAUER_STUNDEN),
+// keine Zeit-seit-letztem-Besuch-Rechnung.
 //
 // WELCHE RESSOURCE: die des Haufens an diesem Objekt (`objekt.daten.ertrag`)
 // -- ein Guertel traegt genau einen Ressourcentyp (VORKOMMEN_TABELLE). Ist
@@ -5674,7 +5703,8 @@ function abbauMission(state, flotte, befehl) {
   if (!spec) return;
 
   const quelle = { klasse: objekt.daten.klasse, gefoerdert: objekt.gefoerdert };
-  const proStunde = rate(spec, ABBAUSCHIFF_FOERDERSTUFE) * foerderErgiebigkeit(quelle, resId);
+  const proStunde =
+    rate(spec, ABBAUSCHIFF_FOERDERSTUFE) * affinitaetFaktor(quelle, resId) * foerderErgiebigkeit(quelle, resId);
   const ertrag = proStunde * ABBAUSCHIFF_DAUER_STUNDEN;
   if (!(ertrag > 0)) return;
 
