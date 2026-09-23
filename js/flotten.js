@@ -9,16 +9,16 @@
 // Ereignis in vorspulenBisJetzt läuft. Die Position wird nur bei Bedarf
 // interpoliert -- für die Anzeige und im Moment des Umleitens.
 
-import { SCHIFFE, FLOTTE, RESEARCH, SONDE, unterlichtSekundenProEinheit } from "./data.js?v=0.9.60";
-import { systemPosition, entfernung } from "./galaxie.js?v=0.9.60";
+import { SCHIFFE, FLOTTE, RESEARCH, SONDE, unterlichtSekundenProEinheit } from "./data.js?v=0.9.64";
+import { systemPosition, entfernung } from "./galaxie.js?v=0.9.64";
 // Zugriff dieser Datei auf state.js: Zugehörigkeit (fraktionVon/planetenVon)
 // und seit A-133 der Forschungsstand einer Fraktion (forschungVon). Beides
 // hier nachzubauen wäre dieselbe Grenze an zwei Stellen -- genau das Muster,
 // an dem das Produktionsmodell in v0.18 einmal auseinandergelaufen ist. Kein
 // Kreis: state.js kennt flotten.js nicht.
-import { planetenVon, fraktionVon, forschungVon } from "./state.js?v=0.9.60";
-import { SPIELER_FRAKTION } from "./data.js?v=0.9.60";
-import { t } from "./sprache.js?v=0.9.60";
+import { planetenVon, fraktionVon, forschungVon } from "./state.js?v=0.9.64";
+import { SPIELER_FRAKTION } from "./data.js?v=0.9.64";
+import { t } from "./sprache.js?v=0.9.64";
 
 // --- Position -------------------------------------------------------------
 // Ein Ort ist immer { x, y, systemId|null, orbit|null }.
@@ -288,6 +288,17 @@ export function schiffeStaerke(schiffe, schadenKarte = {}) {
   return { hp: Math.max(0, hp), angriff };
 }
 
+// A-256: `sondentechnik` versprach seit ihrer Einführung „10% kürzere
+// Flugzeit je Stufe", wurde aber nirgends gelesen -- eine Forschung, die der
+// Spieler findet und die nichts tut. Der Bonus gilt NUR für echte
+// Sondenflüge (eine Flotte ausschließlich aus Sonden, das Einwegschiff, das
+// genau ein Ziel aufdeckt) -- eine gemischte Flotte fliegt keinen
+// Erkundungsflug, ihre Zeit bleibt unberührt.
+function istSondenFlotte(flotte) {
+  return Object.entries(flotte.schiffe).some(([, anzahl]) => anzahl > 0)
+    && Object.entries(flotte.schiffe).every(([id, anzahl]) => anzahl <= 0 || id === "sonde");
+}
+
 // `unterlicht`: es gibt keine vermessene Route zum Ziel, also kein Sprung,
 // sondern ein Erstflug mit Unterlichtgeschwindigkeit. Die Grundflugzeit
 // (Sprungvorbereitung) entfällt dabei -- es wird ja nichts vorbereitet, es
@@ -295,10 +306,18 @@ export function schiffeStaerke(schiffe, schadenKarte = {}) {
 // ist auch unterlichtschnell ein besserer Antrieb.
 export function flugdauerMs(state, flotte, distanz, unterlicht = false) {
   const antriebBonus = (state.forschung.antriebstechnik || 0) * RESEARCH.antriebstechnik.reisezeitProLevel;
+  // Fraktionsblind wie antriebBonus daneben (B-22): liest die Forschung des
+  // Spielers, nicht die der fliegenden Fraktion -- heute richtig, weil nur
+  // der Spieler Sonden losschickt (siehe Bekannte Falle im Auftrag).
+  const sondenBonus = istSondenFlotte(flotte)
+    ? (state.forschung.sondentechnik || 0) * RESEARCH.sondentechnik.sondenProLevel
+    : 0;
   const roh = unterlicht
     ? distanz * unterlichtSekundenProEinheit()
     : SONDE.grundflugzeitSek + distanz * SONDE.flugzeitProEntfernungSek;
-  const faktor = Math.max(0.2, 1 - antriebBonus) / flotteTempo(flotte);
+  // Beide Boni in EINER Rechnung, unter derselben Untergrenze -- keine
+  // Kombination darf die Flugzeit auf null drücken.
+  const faktor = Math.max(0.2, 1 - antriebBonus - sondenBonus) / flotteTempo(flotte);
   return Math.max(5, Math.round(roh * faktor)) * 1000;
 }
 

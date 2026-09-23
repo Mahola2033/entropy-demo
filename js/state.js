@@ -50,18 +50,18 @@ import {
   VORKOMMEN_RESSOURCEN,
   ARBEITSKRAFT_LEERLAUF,
   DROSSELUNG,
-} from "./data.js?v=0.9.60";
-import { VARIANTE } from "./variante.js?v=0.9.60";
-import { stromFuer, waehle } from "./zufall.js?v=0.9.60";
-import { systemGenerieren } from "./welt.js?v=0.9.60";
+} from "./data.js?v=0.9.64";
+import { VARIANTE } from "./variante.js?v=0.9.64";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.64";
+import { systemGenerieren } from "./welt.js?v=0.9.64";
 // A-082: eigener Zufallsstrom für den Heimatweltnamen. Die Kennung ist eine
 // beliebige feste Zahl -- wichtig ist nur, dass sie keiner Systemkennung in
 // die Quere kommt und sich nie wieder ändert (sonst hieße jede bestehende
 // Partie beim nächsten Laden anders).
 const HEIMATWELT_NAMEN_KENNUNG = 900001;
-import { galaxiePlanen, entfernung, schluesselImSystem } from "./galaxie.js?v=0.9.60";
-import { skalieren } from "./ressourcen.js?v=0.9.60";
-import { t } from "./sprache.js?v=0.9.60";
+import { galaxiePlanen, entfernung, schluesselImSystem, sternFuer } from "./galaxie.js?v=0.9.64";
+import { skalieren } from "./ressourcen.js?v=0.9.64";
+import { t } from "./sprache.js?v=0.9.64";
 
 // v0.28: Sterntypen verschieben die Orbitzonen -- dieselbe Saat erzeugt jetzt
 // andere Planeten. Ein alter Spielstand trüge Fortschritt zu Orbits, in denen
@@ -3039,18 +3039,37 @@ export function naechsteBasis(state, systemId, fraktionId = SPIELER_FRAKTION) {
 export function supernovaAnlegen(seed, galaxie, jetzt) {
   const zielEinheiten = SUPERNOVA.entfernungLj / LJ_PRO_EINHEIT;
   let bester = null;
+  // A-304: bevorzugt wird ein System, dessen Stern ein ECHTER Vorläufer ist
+  // (B-Stern, Masse >= SUPERNOVA.vorlaeuferMasseMin) -- vor A-304 gab es in
+  // der ganzen Galaxie keinen einzigen Stern, der explodieren könnte, jetzt
+  // schon, aber selten: bei 500 Systemen und ~0,04 % B-Häufigkeit (STERN_
+  // TYPEN.b, gegen die reale Sternzählung geprüft) enthält eine Galaxie im
+  // Mittel weniger als einen. `besterVorlaeufer` läuft deshalb NUR über den
+  // Fund, nicht über eine zweite eigene Suche -- dieselbe Schleife, ein Feld
+  // mehr geprüft, keine neue Größenordnung (Skalierungsauflage).
+  let besterVorlaeufer = null;
   for (let id = 1; id <= galaxie.anzahlSysteme; id++) {
     if (id === galaxie.heimatSystem) continue;
     const d = entfernung(seed, galaxie.heimatSystem, id);
     const abweichung = Math.abs(d - zielEinheiten);
     if (!bester || abweichung < bester.abweichung) bester = { id, d, abweichung };
+
+    const stern = sternFuer(seed, id);
+    if (stern.id === "b" && stern.masse >= SUPERNOVA.vorlaeuferMasseMin) {
+      if (!besterVorlaeufer || abweichung < besterVorlaeufer.abweichung) besterVorlaeufer = { id, d, abweichung };
+    }
   }
-  if (!bester) return null;
+  // Gibt es KEINEN echten Vorläufer in der ganzen Galaxie (bei heutiger
+  // Größe der Regelfall, siehe oben), fällt die Wahl auf den alten,
+  // sternunabhängigen Weg zurück -- eine Supernova ohne physikalisch
+  // passenden Stern bleibt möglich, statt das Ereignis ganz zu verlieren.
+  const gewaehlt = besterVorlaeufer || bester;
+  if (!gewaehlt) return null;
 
   const kollapsZeit = jetzt + jahreInMs(SUPERNOVA.jahreBisKollaps);
   return {
-    systemId: bester.id,
-    entfernung: bester.d,
+    systemId: gewaehlt.id,
+    entfernung: gewaehlt.d,
     kollapsZeit,
     flutZeit: kollapsZeit + jahreInMs(supernovaFlutJahre()),
     // "vorwarnung" -> "blitz" -> "flut". Der Phasenwechsel passiert in der

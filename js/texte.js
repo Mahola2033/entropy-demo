@@ -380,8 +380,15 @@ export const EN = {
   "Oranger Zwerg": "Orange Dwarf",
   "Gelber Zwerg": "Yellow Dwarf",
   "Weißgelber Stern": "Yellow-White Star",
+  // A-304: die heißen Hauptreihentypen, Weißer und Brauner Zwerg.
+  "Weißer Stern": "White Star",
+  "Blauweißer Stern": "Blue-White Star",
+  "Weißer Zwerg": "White Dwarf",
+  "Brauner Zwerg": "Brown Dwarf",
   "{name} ({klasse})": "{name} ({klasse})",
   "Leuchtkraft {wert} Sonnen": "Luminosity {wert} suns",
+  "Masse {wert} Sonnenmassen": "Mass {wert} solar masses",
+  "Doppelstern: + Begleiter ({typ}, {abstand} AE)": "Binary star: + companion ({typ}, {abstand} AU)",
   "Bewohnbare Zone dicht am Stern – der größte Teil des Systems ist Eis.":
     "Habitable zone hugs the star – most of the system is ice.",
   "Bewohnbare Zone eher sternnah, weiter Außenbereich.":

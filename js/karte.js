@@ -32,10 +32,10 @@
 // Eine geschlossene Ansicht darf keine Rechenzeit kosten -- eine Messung hat
 // der alten Galaxieansicht 4,5 ms pro Sekunde nachgewiesen, auch geschlossen.
 
-import { GALAXIE_REGELN, SPIELER_FRAKTION, TYP_SYMBOL } from "./data.js?v=0.9.60";
-import { systemPosition, systemName, sternFuer } from "./galaxie.js?v=0.9.60";
-import { flottePosition, schiffeText, flotteRestreichweite } from "./flotten.js?v=0.9.60";
-import { holeSystem, objektGesperrt } from "./systeme.js?v=0.9.60";
+import { GALAXIE_REGELN, SPIELER_FRAKTION, TYP_SYMBOL } from "./data.js?v=0.9.64";
+import { systemPosition, systemName, sternFuer } from "./galaxie.js?v=0.9.64";
+import { flottePosition, schiffeText, flotteRestreichweite } from "./flotten.js?v=0.9.64";
+import { holeSystem, objektGesperrt } from "./systeme.js?v=0.9.64";
 import {
   planetenVon,
   planetAn,
@@ -45,10 +45,10 @@ import {
   untersuchteOrbits,
   fraktionVon,
   fraktionById,
-} from "./state.js?v=0.9.60";
-import { stromFuer } from "./zufall.js?v=0.9.60";
-import { t, sprache } from "./sprache.js?v=0.9.60";
-import { listeAbgleichen, attributSetzen, textSetzen, fmtDauer } from "./ui.js?v=0.9.60";
+} from "./state.js?v=0.9.64";
+import { stromFuer } from "./zufall.js?v=0.9.64";
+import { t, sprache, gebietsschema } from "./sprache.js?v=0.9.64";
+import { listeAbgleichen, attributSetzen, textSetzen, fmtDauer } from "./ui.js?v=0.9.64";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -804,10 +804,27 @@ export function systemKarteZeichnen(svg, state, opts) {
 
   attributSetzen(svg.querySelector(".karte-sonne"), "fill", system.stern.farbe);
   attributSetzen(svg.querySelector(".karte-sonne-hof"), "fill", system.stern.farbe);
-  textSetzen(
-    svg.querySelector("[data-sonne] title"),
-    t("{name} ({klasse})", { name: t(system.stern.name), klasse: system.stern.spektral })
-  );
+  {
+    // A-304: Masse dazu, gegebenenfalls der Begleiter -- "nur das
+    // Nötigste" (Auftrag), dieselbe Zeile wie in js/ui.js (sternTitel),
+    // kein neues Layout.
+    const stern = system.stern;
+    const zeilen = [
+      t("{name} ({klasse})", { name: t(stern.name), klasse: stern.spektral }),
+      t("Masse {wert} Sonnenmassen", {
+        wert: stern.masse.toLocaleString(gebietsschema(), { maximumFractionDigits: 3 }),
+      }),
+    ];
+    if (stern.begleiter) {
+      zeilen.push(
+        t("Doppelstern: + Begleiter ({typ}, {abstand} AE)", {
+          typ: t(stern.begleiter.name),
+          abstand: stern.begleiter.abstandAE.toLocaleString(gebietsschema(), { maximumFractionDigits: 1 }),
+        })
+      );
+    }
+    textSetzen(svg.querySelector("[data-sonne] title"), zeilen.join("\n"));
+  }
 
   // Schlüssel mit Systemnummer davor: beim Systemwechsel passt kein einziger
   // Schlüssel mehr, listeAbgleichen räumt alles ab und baut neu -- genau das,

@@ -49,8 +49,8 @@ import {
   erstattungsQuote,
   VORKOMMEN_MELDESCHWELLE,
   VORKOMMEN_RATE_SPEC,
-} from "./data.js?v=0.9.60";
-import { VARIANTE } from "./variante.js?v=0.9.60";
+} from "./data.js?v=0.9.64";
+import { VARIANTE } from "./variante.js?v=0.9.64";
 import {
   effektiveRaten,
   angezeigteRate,
@@ -135,7 +135,7 @@ import {
   fossilReichweiteMs,
   fossilVerbrauchProStunde,
   foerderErgiebigkeit,
-} from "./state.js?v=0.9.60";
+} from "./state.js?v=0.9.64";
 import {
   bauStarten,
   forschungStarten,
@@ -212,7 +212,7 @@ import {
   routeStoppen,
   routeMindestbeladungSetzen,
   routeBeladungAnteil,
-} from "./simulation.js?v=0.9.60";
+} from "./simulation.js?v=0.9.64";
 import {
   flottePosition,
   reiseAnteil,
@@ -233,26 +233,26 @@ import {
   flotteSiedlerKapazitaet,
   flotteLadungAnteile,
   flotteTankAnteile,
-} from "./flotten.js?v=0.9.60";
-import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.60";
-import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.60";
-import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.60";
+} from "./flotten.js?v=0.9.64";
+import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.64";
+import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.64";
+import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.64";
 // Nur für den Neustart-Knopf im Abspann. Der Weg dorthin ist derselbe wie im
 // Testmodus (js/testmodus.js) -- ein zweiter Reset wäre eine zweite Wahrheit
 // darüber, was "neu anfangen" bedeutet.
-import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.60";
-import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.60";
-import { systemName, sternFuer } from "./galaxie.js?v=0.9.60";
+import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.64";
+import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.64";
+import { systemName, sternFuer } from "./galaxie.js?v=0.9.64";
 // Die beiden Karten. Sie holen sich von hier `listeAbgleichen` zurück -- ein
 // Ringtausch, der trägt, weil keine der beiden Dateien beim LADEN etwas aus
 // der anderen benutzt, sondern erst beim Zeichnen. Die Alternative wäre ein
 // zweiter Abgleich-Mechanismus in karte.js gewesen, und genau davor warnt
 // Prinzip 5.
-import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.60";
-import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.60";
-import { feedbackAdresse } from "./feedback.js?v=0.9.60";
-import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.60";
-import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.60";
+import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.64";
+import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.64";
+import { feedbackAdresse } from "./feedback.js?v=0.9.64";
+import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.64";
+import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.64";
 
 // UI-lokaler Regler-Zustand für die Flotten-Beladung/Tanken-Schieber --
 // bewusst NICHT Teil des Spielzustands. Nötig, weil render() auch von einem
@@ -7035,13 +7035,31 @@ function sternKurz(stern) {
 }
 
 function sternTitel(stern) {
-  return [
+  const zeilen = [
     t("{name} ({klasse})", { name: t(stern.name), klasse: stern.spektral }),
+    // A-304: Masse dazu, wo bisher nur Leuchtkraft stand -- "nur das
+    // Nötigste" (Auftrag), keine neue Kachel, kein neues Layout, nur diese
+    // eine Zeile mehr im ohnehin vorhandenen Tooltip.
+    t("Masse {wert} Sonnenmassen", {
+      wert: stern.masse.toLocaleString(gebietsschema(), { maximumFractionDigits: 3 }),
+    }),
     t("Leuchtkraft {wert} Sonnen", {
       wert: stern.leuchtkraft.toLocaleString(gebietsschema(), { maximumFractionDigits: 3 }),
     }),
     sternCharakter(stern.leuchtkraft),
-  ].join("\n");
+  ];
+  if (stern.begleiter) {
+    // Der Begleiter wirkt auf nichts (Zonen/Temperatur bleiben am
+    // Primärstern, N-2 entscheidet erst über seine Wirkung) -- hier steht
+    // er rein informativ, wie der Auftrag es verlangt.
+    zeilen.push(
+      t("Doppelstern: + Begleiter ({typ}, {abstand} AE)", {
+        typ: t(stern.begleiter.name),
+        abstand: stern.begleiter.abstandAE.toLocaleString(gebietsschema(), { maximumFractionDigits: 1 }),
+      })
+    );
+  }
+  return zeilen.join("\n");
 }
 
 // --- Auswählen: EIN Weg, zwei Bedienflächen -------------------------------
@@ -7686,16 +7704,52 @@ function galaxieZeileFuellen(state, li, eintrag, reichweite) {
   }
 }
 
-// Knöpfe für den Schnellversand. Nur sichtbar, wenn die jeweilige
-// KI-Forschung vorhanden ist -- vorher gibt es den Knopf gar nicht, statt
-// ihn ausgegraut anzubieten (er wäre sonst dauerhaft im Weg).
-function schnellversandKnoepfe(state, flotte, systemId) {
-  // Nur noch Sonden (A-021). Der Erkunder geht wieder über den
-  // Missionsdialog — die Begründung steht an SCHNELLVERSAND in simulation.js.
-  const arten = [{ art: "sonde", forschung: "sondenKi", label: () => t("Sonden losschicken") }];
-  let html = "";
-  for (const { art, forschung, label } of arten) {
-    if ((state.forschung[forschung] || 0) < 1) continue;
+// Nur noch Sonden (A-021). Der Erkunder geht wieder über den
+// Missionsdialog — die Begründung steht an SCHNELLVERSAND in simulation.js.
+// Eigene Konstante (A-260): das Gerüst unten braucht dieselbe Liste, um zu
+// wissen, welche Knöpfe es je Struktur erwarten darf.
+const SCHNELLVERSAND_ARTEN = [{ art: "sonde", forschung: "sondenKi", label: () => t("Sonden losschicken") }];
+
+// A-260: Prinzip 8a verlangt, dass ein Bedienelement nicht im Sekundentakt
+// neu gebaut wird -- hier stand es, weil `renderSystem` bis dahin
+// `statusEl.innerHTML` bei JEDEM Aufruf komplett ersetzt hat, inklusive der
+// Schnellversand-Knöpfe. Die Entfernung/Treibstoff-Zahlen ändern sich, während
+// eine Flotte fliegt, praktisch jeden Takt -- genau in der Ansicht, in der
+// man den Knopf drückt, verschwand der Knoten unter dem Zeiger, bevor `title`
+// zum Zeigen kam, und ein Klick zwischen zwei Takten konnte verlorengehen.
+//
+// Das Gerüst (Textspanne + Knopf-Container) wird jetzt EINMAL gebaut, wenn
+// `statusEl` in den "hat Flotte"-Modus wechselt (`dataset.geruest`) -- danach
+// laufen nur noch Werte über `textSetzen`/`attributSetzen` nach, nie mehr
+// `innerHTML`. Die Knöpfe selbst bekommen ihr eigenes, kleineres Gerüst
+// (welche `art`en überhaupt sichtbar sind, heute 0 oder 1 durch `sondenKi`)
+// und werden nur neu gebaut, wenn sich GENAU DAS ändert -- der Klick-Handler
+// hängt einmal am Container (Delegation), wie an der Objektliste im selben
+// Bereich (`renderSystem`, Kommentar dort zu `liste.dataset.verdrahtet`).
+function sondenStatusGeruest(statusEl) {
+  if (statusEl.dataset.geruest === "flotte") return;
+  statusEl.dataset.geruest = "flotte";
+  statusEl.innerHTML = `<span data-sonden-text></span><span data-schnellversand-knoepfe></span>`;
+}
+
+function schnellversandKnoepfeAktualisieren(state, root, flotte, systemId, container) {
+  const sichtbar = SCHNELLVERSAND_ARTEN.filter(({ forschung }) => (state.forschung[forschung] || 0) >= 1);
+  const struktur = sichtbar.map((a) => a.art).join(",");
+  if (container.dataset.struktur !== struktur) {
+    container.dataset.struktur = struktur;
+    container.innerHTML = sichtbar.map(({ art }) => ` <button data-schnellversand="${art}"></button>`).join("");
+    if (!container.dataset.verdrahtet) {
+      container.dataset.verdrahtet = "1";
+      container.addEventListener("click", (ereignis) => {
+        const knopf = ereignis.target.closest("button[data-schnellversand]");
+        if (!knopf || knopf.disabled) return;
+        schnellversandBefehlen(state, flotte, knopf.dataset.schnellversand, systemId);
+        render(state, root);
+      });
+    }
+  }
+  for (const { art, label } of sichtbar) {
+    const knopf = container.querySelector(`button[data-schnellversand="${art}"]`);
     const check = kannSchnellversand(state, flotte, art, systemId);
     const titel = check.ok
       ? t("{ziele} von {gesamt} Ziel(en) mit {schiffe} Schiff(en)", {
@@ -7724,9 +7778,10 @@ function schnellversandKnoepfe(state, flotte, systemId) {
             anzahl: check.ziele.length,
             sprit: fmt(Math.ceil(check.treibstoff)),
           });
-    html += ` <button data-schnellversand="${art}" ${check.ok ? "" : "disabled"} title="${titel}">${beschriftung}</button>`;
+    textSetzen(knopf, beschriftung);
+    attributSetzen(knopf, "title", titel);
+    knopf.disabled = !check.ok;
   }
-  return html;
 }
 
 function renderSystem(state, root, jetzt) {
@@ -7742,28 +7797,28 @@ function renderSystem(state, root, jetzt) {
   const statusEl = root.querySelector("#sonden-status");
 
   if (!flotte) {
+    // Zurück in den textContent-Modus: das Gerüst unten ist weg, die Markierung
+    // muss mit -- sonst überspringt sondenStatusGeruest beim nächsten Flotten-
+    // wechsel den Neubau und schreibt in Kinder, die es nicht mehr gibt.
+    delete statusEl.dataset.geruest;
     statusEl.textContent = t("Keine Flotte gewählt – stelle eine auf und wähle sie aus, um Befehle zu geben.");
   } else {
     const ziel = ortVonSystem(state, systemId, 1);
     const von = flottePosition(state, flotte, jetzt);
     const d = strecke(von, ziel);
-    statusEl.innerHTML =
+    sondenStatusGeruest(statusEl);
+    textSetzen(
+      statusEl.querySelector("[data-sonden-text]"),
       t("{flotte}: Entfernung {distanz} · rund {deuterium} Deuterium hin · {anBord} an Bord", {
-        // innerHTML, weil unten die Schnellversand-Knöpfe angehängt werden --
-        // der Name muss also entschärft sein.
-        flotte: htmlText(flotte.name),
+        flotte: flotte.name,
         distanz: d.toFixed(1),
         deuterium: fmt(treibstoffFuer(flotte, d)),
         anBord: fmt(flotte.treibstoff),
-      }) + schnellversandKnoepfe(state, flotte, systemId);
+      })
+    );
     // Schnellversand: erscheint erst mit der jeweiligen KI-Forschung. Der
     // Knopf sagt selbst, wie viele Ziele er abarbeiten würde.
-    statusEl.querySelectorAll("button[data-schnellversand]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        schnellversandBefehlen(state, flotte, btn.dataset.schnellversand, systemId);
-        render(state, root);
-      });
-    });
+    schnellversandKnoepfeAktualisieren(state, root, flotte, systemId, statusEl.querySelector("[data-schnellversand-knoepfe]"));
   }
   statusEl.classList.toggle("aktiv", !!flotte && !!flotte.abschnitt);
 
@@ -8050,11 +8105,13 @@ function affinitaetText(daten) {
 
 function slotDetail(state, objekt, gesperrt, eigen) {
   if (eigen) {
-    return eigen.typ === "kolonie"
-      ? t("deine Kolonie")
-      : eigen.typ === "heimat"
-      ? t("Heimatplanet")
-      : t("dein Außenposten");
+    const basis = eigen.typ === "kolonie" ? t("deine Kolonie") : eigen.typ === "heimat" ? t("Heimatplanet") : t("dein Außenposten");
+    // A-276: derselbe Rest-Hinweis wie im gesperrt-Zweig unten (dieselbe
+    // Übersetzung, kein neuer Text) -- ohne ihn hätte der neue Bergungs-
+    // Knopf in orbitAngebot keine sichtbare Erklärung, WAS er einsammelt
+    // (Prinzip 10a).
+    const rest = restLiegtAn(objekt) ? t(" · liegengeblieben: {rest} (bergbar)", { rest: buendelText(objekt.restErtrag) }) : "";
+    return `${basis}${rest}`;
   }
   if (gesperrt) {
     const ertrag = objekt.daten.ertrag
@@ -8151,26 +8208,45 @@ export function orbitAngebot(state, systemId, objekt, flotte, rueckkehrGewaehlt 
   const eigen = eigenerPlanetAn(state, systemId, objekt.orbit);
 
   if (eigen) {
-    if (!flotte || flotte.dockPlanet === eigen.id) return { eigen, hinweis: t("Stützpunkt") };
+    if (!flotte) return { eigen, hinweis: t("Stützpunkt") };
+    // A-276: Ein Rest (aufgegebene Piratenbasis, ein Haufen, der beim
+    // Gründen nicht mehr ins frische Lager passte) kann am eigenen Orbit
+    // liegen -- bisher unerreichbar, weil dieser Zweig immer vor der
+    // Rest-Prüfung zurückkehrte (dieselbe Sperre wie A-092, eine Ebene
+    // höher). `restLiegtAn` ist dieselbe Prüfung, die missionFuerObjekt für
+    // jeden anderen Orbit längst kennt; die Bergung selbst ist dieselbe
+    // Mission (Prinzip 5), kein neuer Weg.
+    const rest = restLiegtAn(objekt);
+    const bergungAktion = () => {
+      const check = kannMission(state, flotte, "bergung", systemId, objekt.orbit, rueckkehrGewaehlt);
+      return { typ: "mission", art: "bergung", label: missionLabel("bergung"), check, titel: check.ok ? "" : check.grund };
+    };
+
+    if (flotte.dockPlanet === eigen.id) {
+      return rest ? { eigen, aktionen: [bergungAktion()] } : { eigen, hinweis: t("Stützpunkt") };
+    }
     // PRINZIP 10a: Der Knopf war bis v0.61 immer aktiv und tat bei einer
     // leeren Flotte einfach nichts -- Tobis Meldung "bei Klick auf Anfliegen
     // passiert nichts". Es war kein verschluckter Klick, sondern ein Knopf,
     // der eine unmögliche Aktion anbot und den Grund verschwieg. Dieselbe
     // Prüfung, die der Befehl selbst durchläuft, entscheidet jetzt vorher.
     const check = kannBefehlen(state, flotte, ortVonPlanet(state, eigen));
-    return {
-      eigen,
-      aktionen: [
-        {
-          typ: "anfliegen",
-          art: "hafen",
-          planetId: eigen.id,
-          label: t("Anfliegen"),
-          check,
-          titel: check.ok ? t("Flotte hierher in den Hafen schicken") : check.grund,
-        },
-      ],
-    };
+    const aktionen = [
+      {
+        typ: "anfliegen",
+        art: "hafen",
+        planetId: eigen.id,
+        label: t("Anfliegen"),
+        check,
+        titel: check.ok ? t("Flotte hierher in den Hafen schicken") : check.grund,
+      },
+    ];
+    // Eine Flotte, die woanders liegt, braucht BEIDES: Anflug (um im Hafen
+    // anzudocken) UND Bergung (die Mission fliegt selbst hin, lädt, kommt
+    // wahlweise zurück) -- zwei unabhängige Wege zum selben Ziel, keiner
+    // ersetzt den anderen.
+    if (rest) aktionen.push(bergungAktion());
+    return { eigen, aktionen };
   }
   if (!flotte) return { hinweis: "–" };
   // A-092 -- HIER hing Tobis Deuterium fest. Die Zeile sperrte den ganzen

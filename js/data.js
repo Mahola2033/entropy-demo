@@ -19,7 +19,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.9.60";
+export const VERSION = "0.9.64";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von vollversion.mjs (bis A-272: uebernehmen.mjs) beim
@@ -66,7 +66,7 @@ export const DEMO_SAAT = 20269933;
 // wird an den anzeigenden Stellen, nicht hier. Einzige Ausnahme ist
 // voraussetzungenText() weiter unten -- die einzige Funktion in dieser Datei,
 // die Anzeigetext zusammensetzt.
-import { t } from "./sprache.js?v=0.9.60";
+import { t } from "./sprache.js?v=0.9.64";
 
 // A-164 (31.08.2026): Von 50 auf 125.000 (×2.500) -- die Maßstabsrunde.
 // Vorher skalierte EIN MASSSTAB Material, Menschen und Arbeitskraft
@@ -243,6 +243,12 @@ export const SUPERNOVA = {
   // genau die stetig wandernde Rate, die das Modell zerlegt. Also: aus, und
   // zum Erholungszeitpunkt wieder an. Ein Ereignis, zwei Abschnitte.
   ozonErholungJahre: 10,
+  // A-304 (23.09.2026): Kernkollaps braucht einen Vorläufer mit mindestens
+  // dieser Masse (Sonnenmassen) -- real modellabhängig zwischen 7,5 und 9,
+  // Konsens rund 8 (https://arxiv.org/abs/0908.0700, geprüft A-304). Nur der
+  // obere Teil des B-Sterne-Massebereichs (2,5-16 M☉, STERN_TYPEN.b) zählt
+  // also als echter Vorläufer, nicht jeder B-Stern.
+  vorlaeuferMasseMin: 8,
 };
 
 const CM_PRO_LJ = 9.4607e17;
@@ -1934,33 +1940,122 @@ export const BEZIEHUNG = {
 // 3,5 Sonnenleuchtkräften bei rund 1,9 AE. TRAPPIST-1 ist der reale Extremfall:
 // sieben Planeten innerhalb von 0,06 AE.
 //
-// Die heißen Klassen A/B/O fehlen bewusst. Sie sind zusammen unter einem
-// Prozent, leben nur einige hundert Millionen Jahre und wären reine
-// Vollständigkeit ohne Spielwirkung.
+// A-304 (23.09.2026): Die heißen Klassen A/B fehlten bis hierher bewusst --
+// "unter einem Prozent, reine Vollständigkeit ohne Spielwirkung" stand hier.
+// Das war richtig, bis die Sandbox einen echten Supernova-Vorläufer brauchte:
+// Kernkollaps setzt ≥ 8 Sonnenmassen voraus (O/B), und ohne B-Sterne gab es
+// in der ganzen Galaxie keinen einzigen Stern, der explodieren könnte. Dazu
+// kommen Weiße und Braune Zwerge (zusammen rund ein Sechstel aller Objekte
+// der Sonnenumgebung) und Doppelsterne (bis zu 70 % je nach Primärtyp).
 //
-// `leuchtkraft` ist ein Bereich, kein fester Wert -- wie die Masse bei den
-// Planetenklassen. Zwei rote Zwerge sind nicht derselbe Stern.
+// MASSE STATT NUR LEUCHTKRAFT: Jeder Stern bekommt jetzt ein Feld `masse`
+// (Sonnenmassen). Auf der Hauptreihe (`hauptreihe: true`, M bis B) wird NUR
+// die Masse gezogen -- die Leuchtkraft folgt daraus über die Masse-
+// Leuchtkraft-Beziehung (Lehrbuch: Duric, "Advanced Astrophysics", Cambridge
+// University Press 2004, S. 19 -- gegen die Originalquelle geprüft, A-304):
+//   L/L☉ = 0,23 · (M/M☉)^2,3   für M < 0,43
+//   L/L☉ =        (M/M☉)^4     für 0,43 ≤ M ≤ 2
+//   L/L☉ = 1,4 ·  (M/M☉)^3,5   für 2 < M ≤ 55
+// (siehe `leuchtkraftAusMasse`, js/galaxie.js). Weiße und Braune Zwerge
+// (`hauptreihe: false`) liegen NICHT auf dieser Kurve -- ihre Leuchtkraft
+// hängt real vom Alter/der Abkühlung ab, nicht von der Masse allein. Ihre
+// Masse UND Leuchtkraft werden deshalb je aus einem EIGENEN Bereich gezogen
+// (eigenes `leuchtkraft`-Feld, wie früher bei allen vier Typen).
+//
+// HÄUFIGKEITEN (Anteil als PRIMÄRSTERN eines Systems, Planungswerte 23.09.,
+// gegen Eric Mamajeks "Number Densities of Stars in the Solar Neighborhood"
+// geprüft, A-304: https://www.pas.rochester.edu/~emamajek/memo_star_dens.html
+// -- gibt M 72,5 % · K 12,9 % · G 4,1 % · F 3,1 % · A 0,6 % · B 0,04 % ·
+// Weißer Zwerg 5,9 %, inkl. Weißer Zwerge, ohne Braune Zwerge). **Eine
+// Abweichung übernommen:** der Entwurf nannte B mit 0,1 % -- das 2,5-fache
+// von Mamajeks 0,04 % und außerhalb der Toleranz, also gilt die Recherche.
+// Alle anderen Typen (M/K/G/F/A/Weißer Zwerg) lagen innerhalb der Toleranz
+// und blieben beim Planungswert -- G ist real ohnehin umstritten (4-8 % je
+// nach F/G-Grenze), der Entwurfswert 6 % liegt mittig. **Folge der
+// korrekten, selteneren B-Häufigkeit:** eine Galaxie mit 500 Systemen
+// enthält im Mittel weniger als einen B-Stern mit Masse ≥ 8 -- gemessen im
+// Ergebnis von A-304, siehe `supernovaAnlegen` (js/state.js) für den
+// Umgang damit.
+//
+// `leuchtkraft` bleibt bei allen Typen berechnet bzw. gezogen, nie fest --
+// wie die Masse bei den Planetenklassen. Zwei rote Zwerge sind nicht
+// derselbe Stern.
 export const STERN_TYPEN = {
   m: {
-    id: "m", name: "Roter Zwerg", spektral: "M", haeufigkeit: 76,
-    // Der volle M-Bereich reicht bis hinunter zu 0,0001 L☉. Hier steht der
-    // obere Teil davon: das sind die Zwerge, um die real Planeten gefunden
-    // werden (M0-M5). Bewusst gewählte Prämisse, keine gemessene Grenze.
-    leuchtkraft: [0.01, 0.08], farbe: "#ff8a5c",
+    id: "m", name: "Roter Zwerg", spektral: "M", haeufigkeit: 64, hauptreihe: true,
+    masse: [0.08, 0.6], farbe: "#ff8a5c",
   },
   k: {
-    id: "k", name: "Oranger Zwerg", spektral: "K", haeufigkeit: 12,
-    leuchtkraft: [0.12, 0.6], farbe: "#ffb877",
+    id: "k", name: "Oranger Zwerg", spektral: "K", haeufigkeit: 11, hauptreihe: true,
+    masse: [0.6, 0.9], farbe: "#ffb877",
   },
   g: {
-    id: "g", name: "Gelber Zwerg", spektral: "G", haeufigkeit: 8,
-    leuchtkraft: [0.7, 1.5], farbe: "#ffe9a8",
+    id: "g", name: "Gelber Zwerg", spektral: "G", haeufigkeit: 6, hauptreihe: true,
+    masse: [0.9, 1.1], farbe: "#ffe9a8",
   },
   f: {
-    id: "f", name: "Weißgelber Stern", spektral: "F", haeufigkeit: 4,
-    leuchtkraft: [1.6, 6], farbe: "#f2f4ff",
+    id: "f", name: "Weißgelber Stern", spektral: "F", haeufigkeit: 2, hauptreihe: true,
+    masse: [1.1, 1.5], farbe: "#f2f4ff",
+  },
+  a: {
+    id: "a", name: "Weißer Stern", spektral: "A", haeufigkeit: 0.8, hauptreihe: true,
+    masse: [1.5, 2.5], farbe: "#dce6ff",
+  },
+  b: {
+    id: "b", name: "Blauweißer Stern", spektral: "B", haeufigkeit: 0.04, hauptreihe: true,
+    masse: [2.5, 16], farbe: "#9fc2ff",
+  },
+  d: {
+    id: "d", name: "Weißer Zwerg", spektral: "D", haeufigkeit: 6, hauptreihe: false,
+    masse: [0.5, 1.0], leuchtkraft: [0.0001, 0.01], farbe: "#e3ecff",
+  },
+  lt: {
+    id: "lt", name: "Brauner Zwerg", spektral: "L/T", haeufigkeit: 10, hauptreihe: false,
+    masse: [0.013, 0.08], leuchtkraft: [0.000001, 0.0001], farbe: "#7a3b2e",
   },
 };
+
+// Eingefroren aus dem alten G-Leuchtkraft-Bereich (vor A-304, 0,7-1,5): Der
+// Heimatstern zieht seine Leuchtkraft weiterhin GENAU DARAUS (gleicher
+// Strom, gleiche Reihenfolge wie vor diesem Auftrag) -- sonst verschöbe die
+// neue Masse-Leuchtkraft-Beziehung die Zonen der Startwelt, und "die
+// Startwelt darf sich nicht ändern" (Auftrag, wörtlich). Die Masse wird
+// danach RÜCKWÄRTS aus der gezogenen Leuchtkraft hergeleitet (M = L^(1/4),
+// Umkehrung von L = M^4 im Bereich 0,43-2 oben -- der Heimatstern (G, 0,9-
+// 1,1 M☉) liegt darin).
+export const HEIMAT_LEUCHTKRAFT_BEREICH = [0.7, 1.5];
+
+// --- Doppelsterne (A-304) ---------------------------------------------
+// Anteil mit Begleiter je Primärtyp (○, Planungswert 23.09.) -- gegen
+// Duchêne & Kraus 2013 (ARA&A 51, "Stellar Multiplicity",
+// https://arxiv.org/abs/1303.3028) geprüft: Der Trend (steigt mit der
+// Primärmasse) und die Größenordnung stimmen für alle acht Typen innerhalb
+// der Toleranz, unverändert übernommen. B/A liegen real eher bei 50-70 %
+// als exakt bei den Entwurfswerten, aber innerhalb derselben Größenordnung.
+export const DOPPELSTERN_ANTEIL = {
+  b: 0.7, a: 0.6, f: 0.5, g: 0.45, k: 0.4, m: 0.27, d: 0.25, lt: 0.2,
+};
+
+// Massenverhältnis q = Begleitermasse / Primärmasse, gleichverteilt (○,
+// Auftrag) -- real eher massenabhängig (enge sonnenähnliche Paare häufen
+// sich bei q nahe 1, siehe Raghavan et al. 2010), aber als Vereinfachung für
+// Ebene 1 ausdrücklich zulässig (Forschungsbefund, nicht Teil des Auftrags-
+// Wortlauts).
+export const DOPPELSTERN_Q_BEREICH = [0.1, 1];
+
+// Unterhalb dieser Begleitermasse (M☉) gilt der Begleiter als Brauner
+// Zwerg -- unabhängig davon, in welchen Hauptreihen-Massebereich q·Masse
+// sonst fiele (Auftrag, wörtlich).
+export const DOPPELSTERN_BRAUNER_ZWERG_GRENZE = 0.08;
+
+// Abstand log-normal, Median 50 AE (○, Auftrag) -- bestätigt durch Raghavan
+// et al. 2010 (ApJS 190, 1): reale Median-Separation sonnenähnlicher
+// Doppelsterne ~35-54 AE. Die Streuung (Sigma im Log-Raum) steht NICHT im
+// Auftrag -- eigene, moderate Wahl der Umsetzung (σ=1 hält die meisten
+// Abstände zwischen rund 7 und 370 AE, ohne seltene sehr enge/weite Fälle
+// unmöglich zu machen).
+export const DOPPELSTERN_ABSTAND_MEDIAN_AE = 50;
+export const DOPPELSTERN_ABSTAND_SIGMA = 1;
 
 // Das Heimatsystem bekommt immer einen gelben Zwerg. Gleiche Denkweise wie bei
 // --- Namen für die eigene Heimatwelt (A-082) -------------------------------

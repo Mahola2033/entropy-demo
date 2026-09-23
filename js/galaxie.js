@@ -18,9 +18,15 @@ import {
   schluesselHaeufigkeit,
   STERN_TYPEN,
   HEIMAT_STERN,
-} from "./data.js?v=0.9.60";
-import { stromFuer, mischen, gewichtetWaehlen } from "./zufall.js?v=0.9.60";
-import { t } from "./sprache.js?v=0.9.60";
+  HEIMAT_LEUCHTKRAFT_BEREICH,
+  DOPPELSTERN_ANTEIL,
+  DOPPELSTERN_Q_BEREICH,
+  DOPPELSTERN_BRAUNER_ZWERG_GRENZE,
+  DOPPELSTERN_ABSTAND_MEDIAN_AE,
+  DOPPELSTERN_ABSTAND_SIGMA,
+} from "./data.js?v=0.9.64";
+import { stromFuer, mischen, gewichtetWaehlen } from "./zufall.js?v=0.9.64";
+import { t } from "./sprache.js?v=0.9.64";
 
 // Position eines Systems in der Galaxie-Ebene. Rein aus der Saat abgeleitet.
 export function systemPosition(seed, systemId) {
@@ -97,23 +103,134 @@ function roemisch(n) {
   return text;
 }
 
+// A-304: Masse-Leuchtkraft-Beziehung der Hauptreihe (M bis B) -- Quelle,
+// Herleitung und Prüfung gegen die Originalliteratur stehen an STERN_TYPEN
+// (js/data.js). Weiße und Braune Zwerge liegen nicht auf dieser Kurve und
+// gehen nie durch diese Funktion (siehe sternAusTyp).
+export function leuchtkraftAusMasse(masse) {
+  if (masse < 0.43) return 0.23 * Math.pow(masse, 2.3);
+  if (masse <= 2) return Math.pow(masse, 4);
+  return 1.4 * Math.pow(masse, 3.5);
+}
+
+function rund3(x) {
+  return Math.round(x * 1000) / 1000;
+}
+
+// Drei GÜLTIGE Stellen statt drei Nachkommastellen -- die Leuchtkraft
+// überspannt nach A-304 rund zehn Größenordnungen (Brauner Zwerg ~0,000001,
+// heller B-Stern >10.000 L☉). rund3() rundete jeden Wert unter 0,0005 auf
+// exakt 0 -- für Weiße und vor allem Braune Zwerge lag das IMMER im
+// Nullbereich, ihre Leuchtkraft wäre nie von 0 zu unterscheiden gewesen.
+function rundSignifikant(x, stellen = 3) {
+  if (x === 0) return 0;
+  const exponent = Math.floor(Math.log10(Math.abs(x)));
+  const faktor = Math.pow(10, stellen - 1 - exponent);
+  return Math.round(x * faktor) / faktor;
+}
+
+// Die sechs Hauptreihentypen, aufsteigend und lückenlos nach Masse --
+// Grundlage für hauptreihentypAusMasse (Begleiter-Klassifikation).
+const HAUPTREIHE_AUFSTEIGEND = ["m", "k", "g", "f", "a", "b"].map((id) => STERN_TYPEN[id]);
+
+// Welcher Hauptreihentyp passt zu dieser Masse? Nur für Begleiter gebraucht
+// (ein Primärstern hat schon seinen Typ, bevor die Masse gezogen wird) --
+// Weißer/Brauner Zwerg kommen hier nie heraus, dafür sorgt die eigene
+// Prüfung gegen DOPPELSTERN_BRAUNER_ZWERG_GRENZE vor dem Aufruf.
+function hauptreihentypAusMasse(masse) {
+  for (const typ of HAUPTREIHE_AUFSTEIGEND) {
+    if (masse <= typ.masse[1]) return typ;
+  }
+  return HAUPTREIHE_AUFSTEIGEND[HAUPTREIHE_AUFSTEIGEND.length - 1];
+}
+
+// Einen Stern EINES bestimmten Typs erzeugen. `vorgegebeneMasse`: für einen
+// Begleiter ist die Masse schon aus q · Primärmasse bekannt (siehe
+// begleiterFuer) -- nur dann entfällt der Massen-Zug. Auf der Hauptreihe
+// folgt die Leuchtkraft aus der Masse (kein weiterer Zufallszug); Weißer/
+// Brauner Zwerg ziehen sie aus ihrem eigenen, unabhängigen Bereich (A-304,
+// Auftrag: "Masse und Leuchtkraft werden dort je aus einem eigenen Bereich
+// gezogen").
+function sternAusTyp(typ, rng, vorgegebeneMasse = null) {
+  const masse = vorgegebeneMasse ?? rund3(typ.masse[0] + rng() * (typ.masse[1] - typ.masse[0]));
+  const leuchtkraft = typ.hauptreihe
+    ? rundSignifikant(leuchtkraftAusMasse(masse))
+    : rundSignifikant(typ.leuchtkraft[0] + rng() * (typ.leuchtkraft[1] - typ.leuchtkraft[0]));
+  return { ...typ, masse, leuchtkraft };
+}
+
+// Standardnormalverteilter Wert aus zwei gleichverteilten rng()-Werten
+// (Box-Muller) -- einzige Stelle in diesem Modul, die eine Normalverteilung
+// braucht (Doppelstern-Abstand, log-normal).
+function normalverteilt(rng) {
+  const u1 = Math.max(rng(), 1e-12); // 0 wäre log(0) -- Math.log(0) = -Infinity
+  const u2 = rng();
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+
+// Der Begleiter eines Doppelsterns, oder null (kein Begleiter). Drei
+// unabhängige Züge in fester Reihenfolge, wie überall in diesem Modul: (1)
+// hat er einen, nach dem typeigenen Anteil (DOPPELSTERN_ANTEIL) · (2)
+// Massenverhältnis q, daraus Masse und -- außer bei der Braunzwerg-Grenze --
+// Typ · (3) Abstand, log-normal um DOPPELSTERN_ABSTAND_MEDIAN_AE. A-304,
+// Auftrag: "Der Begleiter wirkt in diesem Auftrag auf nichts" -- Zonen und
+// Temperatur rechnen weiter nur mit dem Primärstern; die Bahnen mit echtem
+// Abstand sind N-2.
+function begleiterFuer(primaerTyp, primaerMasse, rng) {
+  const anteil = DOPPELSTERN_ANTEIL[primaerTyp.id] ?? 0;
+  if (rng() >= anteil) return null;
+
+  const [qMin, qMax] = DOPPELSTERN_Q_BEREICH;
+  const q = qMin + rng() * (qMax - qMin);
+  const begleiterMasse = rund3(q * primaerMasse);
+  const begleiterTyp =
+    begleiterMasse < DOPPELSTERN_BRAUNER_ZWERG_GRENZE ? STERN_TYPEN.lt : hauptreihentypAusMasse(begleiterMasse);
+  const stern = sternAusTyp(begleiterTyp, rng, begleiterMasse);
+
+  const abstandAE = Math.round(
+    Math.exp(Math.log(DOPPELSTERN_ABSTAND_MEDIAN_AE) + normalverteilt(rng) * DOPPELSTERN_ABSTAND_SIGMA) * 10
+  ) / 10;
+
+  return { ...stern, abstandAE };
+}
+
 // Der Stern eines Systems. Wie die Position: rein aus der Saat abgeleitet und
 // NIE gespeichert -- der Stern ist da, bevor jemand hinsieht.
 //
 // Eigener Zufallsstrom (anderer Faktor als bei systemPosition), damit Stern und
 // Position unabhängig voneinander sind und das Hinzufügen des einen die
 // bestehende Verteilung des anderen nicht verschiebt.
+//
+// SKALIERUNGSAUFLAGE (A-304, Tobi 23.09.): nichts hier läuft über alle
+// Systeme -- jeder Aufruf zieht genau EIN System aus seinem eigenen,
+// unabhängigen Zufallsstrom, wie schon vor diesem Auftrag. Kostenmessung
+// (systemGenerieren, das sternFuer aufruft) steht im Ergebnis von A-304.
 export function sternFuer(seed, systemId, istHeimat = false) {
   const rng = stromFuer(seed, systemId * 104729);
   const tabelle = Object.values(STERN_TYPEN).map((s) => ({ id: s.id, gewicht: s.haeufigkeit }));
   const gewaehlt = istHeimat
     ? STERN_TYPEN[HEIMAT_STERN]
     : STERN_TYPEN[gewichtetWaehlen(rng, tabelle).id];
-  // Auch das Heimatsystem zieht seine Leuchtkraft aus dem Bereich -- nur der
-  // Typ ist festgelegt, nicht der konkrete Stern.
-  const [min, max] = gewaehlt.leuchtkraft;
-  const leuchtkraft = Math.round((min + rng() * (max - min)) * 1000) / 1000;
-  return { ...gewaehlt, leuchtkraft };
+
+  let masse, leuchtkraft;
+  if (istHeimat) {
+    // A-304: Die Leuchtkraft wird GEZOGEN wie vor diesem Auftrag (gleicher
+    // Strom, gleiche Reihenfolge, derselbe Bereich HEIMAT_LEUCHTKRAFT_
+    // BEREICH) -- die Startwelt darf sich nicht verschieben. Die Masse folgt
+    // danach RÜCKWÄRTS aus der Leuchtkraft (Umkehrung von L = M^4).
+    const [min, max] = HEIMAT_LEUCHTKRAFT_BEREICH;
+    leuchtkraft = rund3(min + rng() * (max - min));
+    masse = rund3(Math.pow(leuchtkraft, 0.25));
+  } else {
+    const stern = sternAusTyp(gewaehlt, rng);
+    masse = stern.masse;
+    leuchtkraft = stern.leuchtkraft;
+  }
+
+  // Der Heimatstern bleibt einzeln (Auftrag, wörtlich) -- kein Begleiter-Zug,
+  // damit sich an seinem Zufallsstrom sonst nichts ändert.
+  const begleiter = istHeimat ? null : begleiterFuer(gewaehlt, masse, rng);
+  return { ...gewaehlt, masse, leuchtkraft, begleiter };
 }
 
 export function entfernung(seed, systemA, systemB) {

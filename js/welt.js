@@ -32,9 +32,9 @@ import {
   mengeSkaliert,
   GUERTEL_ZONEN_GEWICHTE,
   GUERTEL_WASSER_GEWICHTE,
-} from "./data.js?v=0.9.60";
-import { stromFuer, waehle, zwischen, mischen, gewichtetWaehlen } from "./zufall.js?v=0.9.60";
-import { sternFuer } from "./galaxie.js?v=0.9.60";
+} from "./data.js?v=0.9.64";
+import { stromFuer, waehle, zwischen, mischen, gewichtetWaehlen } from "./zufall.js?v=0.9.64";
+import { sternFuer } from "./galaxie.js?v=0.9.64";
 
 // Systeme können bis zu 50 Orbits haben -- römische Zahlen daher berechnen
 // statt aus einer Tabelle nehmen.

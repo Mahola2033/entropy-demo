@@ -28,6 +28,42 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.9.64",
+    de: [
+      "Die Sterne sind jetzt vollständig: Weiße und Blauweiße Sterne, Weiße und Braune Zwerge, dazu Doppelsterne. Jeder Stern trägt eine Masse; auf der Hauptreihe folgt seine Helligkeit realistisch daraus -- rote Zwerge sind im Schnitt dunkler als vorher, und es gibt jetzt Sterne, die als Vorläufer der Supernova infrage kommen.",
+    ],
+    en: [
+      "Stars are now complete: white and blue-white stars, white and brown dwarfs, and binary star systems. Every star has a mass; on the main sequence its brightness now follows realistically from that -- red dwarfs are on average dimmer than before, and there are now stars that could plausibly be the supernova's progenitor.",
+    ],
+  },
+  {
+    version: "0.9.63",
+    de: [
+      "Ein Rest, der an deinem eigenen Stützpunkt liegt (etwa von einer aufgegebenen Piratenbasis oder einem zu großen Rohstoffhaufen bei der Gründung), lässt sich jetzt bergen -- vorher blieb er dort unerreichbar liegen.",
+    ],
+    en: [
+      "Leftover material lying at your own base (e.g. from an abandoned pirate base, or a resource pile too large to fit when you founded it) can now be salvaged -- previously it just sat there, unreachable.",
+    ],
+  },
+  {
+    version: "0.9.62",
+    de: [
+      "Der Schnellversand-Knopf in der Galaxie-Ansicht wird jetzt nicht mehr jede Sekunde neu aufgebaut -- vorher konnte ein Klick darauf ins Leere gehen, und der Hinweistext (z. B. warum er gesperrt ist) kam nie zum Anzeigen.",
+    ],
+    en: [
+      "The quick-launch button in the Galaxy view no longer gets rebuilt every second -- previously a click on it could miss, and its tooltip (e.g. why it's disabled) never had a chance to show.",
+    ],
+  },
+  {
+    version: "0.9.61",
+    de: [
+      "Sondentechnik verkürzt jetzt tatsächlich die Flugzeit deiner Sonden um 10 % je Stufe, wie es schon immer versprochen hat -- vorher tat die Forschung nichts.",
+    ],
+    en: [
+      "Probe technology now actually shortens your probes' travel time by 10% per level, as promised -- previously the research had no effect.",
+    ],
+  },
+  {
     version: "0.9.60",
     de: [
       "Nur intern: Eine Balancing-Änderung am Wohnsektor (v0.9.59, nie veröffentlicht) ist zurückgenommen -- sie verfehlte ihr eigenes Ziel und hätte bestehende Spielstände sofort Bevölkerung gekostet. Für den Spieler ändert sich nichts.",
