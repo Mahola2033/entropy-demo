@@ -25,6 +25,9 @@ import {
   PLANETEN_KLASSEN,
   affinitaetVon,
   zusammensetzungVon,
+  STOFFE,
+  stoffeNachRessource,
+  stoffAnzeige,
   MASSE_RADIUS_EXPONENT,
   AFFINITAET_GUT,
   SYMBOLE,
@@ -52,8 +55,8 @@ import {
   VORKOMMEN_MELDESCHWELLE,
   VORKOMMEN_RATE_SPEC,
   ERDMASSE_T,
-} from "./data.js?v=0.9.73";
-import { VARIANTE } from "./variante.js?v=0.9.73";
+} from "./data.js?v=0.9.77";
+import { VARIANTE } from "./variante.js?v=0.9.77";
 import {
   effektiveRaten,
   angezeigteRate,
@@ -138,7 +141,7 @@ import {
   fossilReichweiteMs,
   fossilVerbrauchProStunde,
   foerderErgiebigkeit,
-} from "./state.js?v=0.9.73";
+} from "./state.js?v=0.9.77";
 import {
   bauStarten,
   forschungStarten,
@@ -215,7 +218,7 @@ import {
   routeStoppen,
   routeMindestbeladungSetzen,
   routeBeladungAnteil,
-} from "./simulation.js?v=0.9.73";
+} from "./simulation.js?v=0.9.77";
 import {
   flottePosition,
   reiseAnteil,
@@ -236,26 +239,26 @@ import {
   flotteSiedlerKapazitaet,
   flotteLadungAnteile,
   flotteTankAnteile,
-} from "./flotten.js?v=0.9.73";
-import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.73";
-import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.73";
-import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.73";
+} from "./flotten.js?v=0.9.77";
+import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.77";
+import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.77";
+import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.77";
 // Nur für den Neustart-Knopf im Abspann. Der Weg dorthin ist derselbe wie im
 // Testmodus (js/testmodus.js) -- ein zweiter Reset wäre eine zweite Wahrheit
 // darüber, was "neu anfangen" bedeutet.
-import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.73";
-import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.73";
-import { systemName, sternFuer } from "./galaxie.js?v=0.9.73";
+import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.77";
+import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.77";
+import { systemName, sternFuer } from "./galaxie.js?v=0.9.77";
 // Die beiden Karten. Sie holen sich von hier `listeAbgleichen` zurück -- ein
 // Ringtausch, der trägt, weil keine der beiden Dateien beim LADEN etwas aus
 // der anderen benutzt, sondern erst beim Zeichnen. Die Alternative wäre ein
 // zweiter Abgleich-Mechanismus in karte.js gewesen, und genau davor warnt
 // Prinzip 5.
-import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.73";
-import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.73";
-import { feedbackAdresse } from "./feedback.js?v=0.9.73";
-import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.73";
-import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.73";
+import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.77";
+import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.77";
+import { feedbackAdresse } from "./feedback.js?v=0.9.77";
+import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.77";
+import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.77";
 
 // UI-lokaler Regler-Zustand für die Flotten-Beladung/Tanken-Schieber --
 // bewusst NICHT Teil des Spielzustands. Nötig, weil render() auch von einem
@@ -8035,6 +8038,11 @@ function slotZeileFuellen(state, systemId, objekt, flotte, li) {
           fraktion: (fraktionById(state, fraktionVon(besetzer)) || {}).name || t("Unbekannt"),
         })
       : "",
+    // A-315: derselbe Stoff-Gesamtinhalt wie die Detailzeile, hier aber jeder
+    // Stoff einzeln (Definition von fertig, Abschnitt 3) -- zusammensetzungVon
+    // liefert `null` für Objekte ohne Zusammensetzung (Gefahr, Wrack, ...),
+    // dann liefert die Funktion "" und die Zeile fällt durch den Filter unten.
+    objekt.entdeckt ? zusammensetzungTooltip(objekt.daten) : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -8179,21 +8187,66 @@ function zwergplanetenText(zwergplaneten) {
 
 // A-307: Zusammensetzung eines Körpers -- Gesamtinhalt, dazu die oberste
 // erreichbare Schicht (Kruste, bei Riesen die Hülle). Kompakt, an derselben
-// Zeile wie abstandText/affinitaetText, keine neue Kachel. `wasser` ist noch
-// keine Ressource (N-5), deshalb der feste Ersatzsymbol.
+// Zeile wie abstandText/affinitaetText, keine neue Kachel. A-315: Stoffe mit
+// derselben Ressource (die fünf Metalle) erscheinen hier als EIN Posten --
+// jeder Stoff einzeln steht im Tooltip (zusammensetzungTooltip unten).
 function zusammensetzungText(daten) {
   const zus = zusammensetzungVon(daten);
   if (!zus) return "";
-  const symbol = (stoff) => (RESSOURCEN[stoff] ? RESSOURCEN[stoff].symbol : "💧");
   const zeile = (bezeichnung, stoffe) => {
-    const teile = Object.entries(stoffe)
+    const teile = Object.entries(stoffeNachRessource(stoffe))
       .filter(([, wert]) => wert > 0)
-      .map(([stoff, wert]) => `${symbol(stoff)} ${zehnerpotenzText(wert)} t`);
+      .map(([id, wert]) => `${stoffAnzeige(id).symbol} ${zehnerpotenzText(wert)} t`);
     return teile.length ? ` · ${bezeichnung}: ${teile.join(" · ")}` : "";
   };
   const oben = zus.schichten.kruste || zus.schichten.huelle;
   const obenName = zus.schichten.kruste ? t("Kruste") : t("Hülle");
   return `${zeile(obenName, oben ? oben.stoffe : {})}${zeile(t("gesamt"), zus.gesamt)}${mondeText(daten.monde)}${zwergplanetenText(daten.zwergplaneten)}`;
+}
+
+// A-315/A-316: derselbe Gesamtinhalt wie zusammensetzungText, aber jeder
+// Stoff einzeln (Definition von fertig, Abschnitt 3) -- für den
+// Zeilen-Tooltip (`title`, slotZeileFuellen). Die Regel steht im Katalog
+// (`STOFFE[stoff].teilVon`, Planungs-Vorgabe A-316), nicht hier: ein Stoff
+// erscheint als "davon" bei GENAU EINEM seiner Träger -- dem ersten aus
+// `teilVon`, der hier > 0 ist -- sonst als eigener Posten. Wichtig für
+// `zus.gesamt`: das ist die Summe ALLER Schichten in einem Dict, Wasser
+// (aus dem Eiskern) und Wasserstoff (aus der Hülle) eines Gasriesen stehen
+// dort deshalb NEBENEINANDER, obwohl keine einzelne Schicht beides trägt.
+// Ohne die Priorität hier würde dieselbe (schon zusammengezählte) Deuterium-
+// Menge doppelt angezeigt, einmal bei Wasser und einmal bei Wasserstoff
+// (Fund beim Bauen von A-316) -- mit ihr zeigt `gesamt` den Träger, der in
+// `teilVon` zuerst steht (Wasser vor Wasserstoff); Kruste/Hülle einzeln
+// zeigen ohnehin immer den echten, physikalischen Träger, weil dort nie
+// beide gleichzeitig vorkommen.
+function zusammensetzungDetailZeile(stoffe) {
+  const traeger = (stoff) => {
+    const liste = (STOFFE[stoff] && STOFFE[stoff].teilVon) || [];
+    return liste.find((id) => stoffe[id] > 0) || null;
+  };
+  const teile = [];
+  for (const [stoff, wert] of Object.entries(stoffe)) {
+    if (!(wert > 0) || traeger(stoff)) continue;
+    let text = t("{name}: {menge} t", { name: t(stoffAnzeige(stoff).name), menge: zehnerpotenzText(wert) });
+    const davon = Object.entries(stoffe)
+      .filter(([id, w]) => w > 0 && traeger(id) === stoff)
+      .map(([id, w]) => t("(davon {name}: {menge} t)", { name: t(STOFFE[id].name), menge: zehnerpotenzText(w) }));
+    teile.push(davon.length ? `${text} ${davon.join(" ")}` : text);
+  }
+  return teile.join(" · ");
+}
+
+function zusammensetzungTooltip(daten) {
+  const zus = zusammensetzungVon(daten);
+  if (!zus) return "";
+  const oben = zus.schichten.kruste || zus.schichten.huelle;
+  const obenName = zus.schichten.kruste ? t("Kruste") : t("Hülle");
+  const zeilen = [];
+  const obenText = oben ? zusammensetzungDetailZeile(oben.stoffe) : "";
+  if (obenText) zeilen.push(`${obenName}: ${obenText}`);
+  const gesamtText = zusammensetzungDetailZeile(zus.gesamt);
+  if (gesamtText) zeilen.push(`${t("gesamt")}: ${gesamtText}`);
+  return zeilen.join("\n");
 }
 
 // A-307: der eigene Planet (`state.planeten`) trägt `klasse`/`wasser`, aber

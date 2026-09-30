@@ -33,7 +33,6 @@ import {
   PIRATEN_NAMEN,
   SCHIRM_MINDESTVERSORGUNG,
   REST_BAGATELLE_SKALIERT,
-  ANTIMATERIE_ERNTE,
   BEVOELKERUNG,
   SUPERNOVA,
   jahreInMs,
@@ -53,7 +52,7 @@ import {
   bauzeitFuerLevel,
   forschungsAufwand,
   voraussetzungenText,
-} from "./data.js?v=0.9.73";
+} from "./data.js?v=0.9.77";
 import {
   effektiveRaten,
   bevoelkerungsWachstumsrate,
@@ -116,7 +115,7 @@ import {
   arbeitskraftDiebstahlAnteil,
   maxReichweite,
   handelsMindestFuer,
-} from "./state.js?v=0.9.73";
+} from "./state.js?v=0.9.77";
 import {
   ortVonPlanet,
   ortVonSystem,
@@ -136,9 +135,9 @@ import {
   schiffeGesamt,
   schiffeStaerke,
   schiffeText,
-} from "./flotten.js?v=0.9.73";
-import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.73";
-import { stromFuer, waehle } from "./zufall.js?v=0.9.73";
+} from "./flotten.js?v=0.9.77";
+import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.77";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.77";
 import {
   reichenAus,
   fehlende,
@@ -149,8 +148,8 @@ import {
   buendelText,
   formatZahl as fmt,
   name as resName,
-} from "./ressourcen.js?v=0.9.73";
-import { t } from "./sprache.js?v=0.9.73";
+} from "./ressourcen.js?v=0.9.77";
+import { t } from "./sprache.js?v=0.9.77";
 
 // Kurzform: Ressourcen in ein Planetenlager einlagern, begrenzt durch den
 // gemeinsamen Pool und etwaige Annahmeregeln. Gibt zurück, was nicht
@@ -171,7 +170,7 @@ function insLager(state, planet, buendel) {
     (resId) => aufnahmeGrenzeFuer(planet, resId)
   );
 }
-import { systemName, entfernung } from "./galaxie.js?v=0.9.73";
+import { systemName, entfernung } from "./galaxie.js?v=0.9.77";
 
 const MS_PRO_STUNDE = 1000 * 60 * 60;
 
@@ -1939,9 +1938,7 @@ export function besteBeuteImSystem(state, systemId, zeit) {
   for (const objekt of system.objekte) {
     if (objekt.typ === "anomalie" || objekt.typ === "gefahr") continue;
     if (objekt.benoetigt || objekt.verwertet) continue;
-    const offen = objekt.nachwachsend
-      ? offenerErtrag(state, objekt, zeit)
-      : objekt.restErtrag || ertragVon(state, objekt);
+    const offen = objekt.restErtrag || ertragVon(state, objekt);
     if (!offen) continue;
     const summe = Object.values(offen).reduce((a, b) => a + b, 0);
     if (summe < wirksameMindestBeute()) continue;
@@ -5453,7 +5450,7 @@ function missionAusfuehren(state, flotte, befehl, zeit) {
       forschungsmission(state, flotte, befehl);
       break;
     case "bergung":
-      bergung(state, flotte, befehl, zeit);
+      bergung(state, flotte, befehl);
       break;
     case "abbau":
       abbauMission(state, flotte, befehl);
@@ -5558,59 +5555,22 @@ function forschungsmission(state, flotte, befehl) {
   setzeOrbitZustand(state, befehl.zielSystem, befehl.zielOrbit, { verwertet: true });
 }
 
-// zeit ist die EREIGNISZEIT der Ankunft, nicht "jetzt" -- nachwachsende
-// Vorkommen rechnen damit, und bei Offline-Aufholung liegen die beiden weit
-// auseinander. Genau dieser Fehlertyp hat dieses Projekt schon dreimal
-// erwischt, deshalb steht er hier ausdrücklich in der Signatur.
-function bergung(state, flotte, befehl, zeit) {
+// A-317: nachwachsende Vorkommen (der Antimaterie-Gürtel an Riesenplaneten)
+// sind raus -- diese Funktion kennt seither nur noch zwei Fälle, nicht drei.
+function bergung(state, flotte, befehl) {
   const objekt = findeObjekt(state, befehl.zielSystem, befehl.zielOrbit);
   if (!objekt) return;
 
   // A-092: An einem VERSCHLOSSENEN Objekt ist ausschließlich bergbar, was
-  // hier liegt -- die Quelle darunter bleibt zu. Ohne diese Unterscheidung
-  // erntete eine Bergung am Antimaterie-Gürtel (verschlossen UND nachwachsend)
-  // den Gürtel, während die eigene Fracht daneben liegen bliebe: die Sperre
-  // wäre umgangen und der Nachlass trotzdem verloren.
+  // hier liegt -- die Quelle darunter bleibt zu.
   const nurRest = objektGesperrt(state, objekt);
-  const nachwachsend = objekt.nachwachsend && !nurRest;
-  const offen = nurRest
-    ? objekt.restErtrag
-    : objekt.nachwachsend
-    ? offenerErtrag(state, objekt, zeit)
-    : objekt.restErtrag || ertragVon(state, objekt);
+  const offen = nurRest ? objekt.restErtrag : objekt.restErtrag || ertragVon(state, objekt);
   if (!offen || Object.values(offen).every((m) => m <= 0)) return;
   const frei = frachtraumFrei(state, flotte);
   const gesamt = Object.values(offen).reduce((a, b) => a + b, 0);
 
-  // Nachwachsende Vorkommen kennen kein "erschöpft" und keinen Restertrag:
-  // ihr Füllstand steckt allein im Erntezeitpunkt. Wer die Hälfte mitnimmt,
-  // stellt die Uhr auf halb voll zurück -- so bleibt Teilernte korrekt, ohne
-  // einen zweiten Zustand danebenzuführen.
-  const uhrZurueckstellen = (genommen) => {
-    const voll = ertragVon(state, objekt);
-    const summeVoll = Object.values(voll).reduce((a, b) => a + b, 0);
-    const uebrig = Math.max(0, gesamt - genommen);
-    const vollzeitMs = MS_PRO_STUNDE / ANTIMATERIE_ERNTE.nachwachsenProStunde;
-    const anteilUebrig = summeVoll > 0 ? uebrig / summeVoll : 0;
-    setzeOrbitZustand(state, befehl.zielSystem, befehl.zielOrbit, {
-      geerntetZeit: zeit - anteilUebrig * vollzeitMs,
-    });
-  };
-
   if (gesamt <= frei) {
     hinzufuegen(flotte.ladung, offen);
-    if (nachwachsend) {
-      uhrZurueckstellen(gesamt);
-      meldungHinzufuegen(
-        state,
-        t("{objekt}: {fracht} geerntet – der Gürtel füllt sich wieder.", {
-          objekt: objekt.name,
-          fracht: buendelText(offen),
-        }),
-        null, herkunftVon(flotte)
-      );
-      return;
-    }
     // `verwertet` sagt "hier ist nichts mehr zu holen" und ist endgültig.
     // Am verschlossenen Objekt wäre das falsch: geräumt ist nur der Nachlass,
     // die Quelle war nie offen und muss es nach der Forschung noch werden.
@@ -5644,11 +5604,7 @@ function bergung(state, flotte, befehl, zeit) {
     rest[resId] = menge - geladen[resId];
   }
   hinzufuegen(flotte.ladung, geladen);
-  if (nachwachsend) {
-    uhrZurueckstellen(Object.values(geladen).reduce((a, b) => a + b, 0));
-  } else {
-    setzeOrbitZustand(state, befehl.zielSystem, befehl.zielOrbit, { restErtrag: rest });
-  }
+  setzeOrbitZustand(state, befehl.zielSystem, befehl.zielOrbit, { restErtrag: rest });
   meldungHinzufuegen(
     state,
     t("{objekt}: {geladen} geladen – {rest} bleiben liegen, Frachtraum voll.", {
@@ -5663,17 +5619,17 @@ function bergung(state, flotte, befehl, zeit) {
 // A-282: Das Abbauschiff -- foerdert an einem Asteroidenguertel, ohne dass
 // dort eine Kolonie steht.
 //
-// WARUM KEIN DRITTER FALL IN bergung() (Schritt 0, Bekannte Falle): Die
-// Funktion kennt "verschlossen" (nurRest) und "nachwachsend" (Zeit seit
-// geerntetZeit) -- der Guertelabbau ist keiner von beiden. Er markiert die
-// Quelle NIE als `verwertet` (die Ergiebigkeit faellt, wird aber nie 0,
-// exakt wie bei jeder Foerderanlage -- A-236) und haengt an keiner
-// Zeit-seit-Ernte-Rechnung, sondern an derselben Rate x Ergiebigkeit-Kette
-// wie eine Anlage. Ein dritter Fall haette beide bestehenden Zweige
-// verbogen, um eine voellig andere Vorkommens-Mechanik durchzuschleusen --
-// das ist der Fund, den Prinzip 5 hier verbietet. Wiederverwendet werden
-// stattdessen die Bausteine, die bergung() selbst benutzt: frachtraumFrei,
-// hinzufuegen, setzeOrbitZustand, meldungHinzufuegen.
+// WARUM KEIN EIGENER FALL IN bergung() (Schritt 0, Bekannte Falle): Die
+// Funktion kennt "verschlossen" (nurRest) und den Normalfall -- der
+// Guertelabbau ist keiner von beiden. Er markiert die Quelle NIE als
+// `verwertet` (die Ergiebigkeit faellt, wird aber nie 0, exakt wie bei jeder
+// Foerderanlage -- A-236) und haengt an keinem Rest-/Vorkommenszustand,
+// sondern an derselben Rate x Ergiebigkeit-Kette wie eine Anlage. Ein
+// zusaetzlicher Fall haette den bestehenden Zweig verbogen, um eine voellig
+// andere Vorkommens-Mechanik durchzuschleusen -- das ist der Fund, den
+// Prinzip 5 hier verbietet. Wiederverwendet werden stattdessen die
+// Bausteine, die bergung() selbst benutzt: frachtraumFrei, hinzufuegen,
+// setzeOrbitZustand, meldungHinzufuegen.
 //
 // WIE DER ERTRAG ENTSTEHT (keine zweite Ertragsformel): dieselbe Kette wie
 // eine Foerderanlage -- VORKOMMEN_RATE_SPEC (die {basis,faktor}-Kurve der
@@ -6114,23 +6070,11 @@ export function ertragVon(state, objekt) {
   return skalieren(objekt.daten.ertrag, bergungsFaktor(state));
 }
 
-// Wieviel liegt gerade da? Bei nachwachsenden Vorkommen (Antimaterie-Gürtel
-// an Riesenplaneten) hängt das an der Zeit seit der letzten Ernte.
-//
-// BEWUSST faul gerechnet statt als Ereignis: es gibt keinen Zeitpunkt, an dem
-// etwas passieren müsste -- der Gürtel füllt sich einfach. Dasselbe Muster wie
-// die Flottenposition, die auch nur bei Bedarf interpoliert wird. Ein
-// Nachwachs-Ereignis je Riesenplanet würde den Ereignisdeckel auffressen,
-// ohne dass irgendjemand etwas davon hätte.
-export function offenerErtrag(state, objekt, jetzt = spielzeitJetzt(state)) {
-  if (!objekt.nachwachsend) return objekt.restErtrag || ertragVon(state, objekt);
-
-  const voll = ertragVon(state, objekt);
-  if (!voll) return null;
-  if (!objekt.geerntetZeit) return voll; // noch nie angerührt
-  const vollzeitMs = MS_PRO_STUNDE / ANTIMATERIE_ERNTE.nachwachsenProStunde;
-  const anteil = Math.min(1, Math.max(0, (jetzt - objekt.geerntetZeit) / vollzeitMs));
-  return skalieren(voll, anteil);
+// Wieviel liegt gerade da? A-317: nachwachsende Vorkommen (der
+// Antimaterie-Gürtel an Riesenplaneten) sind raus -- nur noch Nachlass oder
+// das volle Vorkommen.
+export function offenerErtrag(state, objekt) {
+  return objekt.restErtrag || ertragVon(state, objekt);
 }
 
 export function missionFuerObjekt(state, objekt) {
@@ -6157,8 +6101,9 @@ export function missionFuerObjekt(state, objekt) {
   if (objektGesperrt(state, objekt)) return null;
   if (objekt.verwertet) return null;
   if (regel.zugriff === "forschung") return "forschung";
-  // Bergung nur, wenn tatsächlich ein Ertrag daliegt: Planeten tragen die
-  // Regel "bergung", aber nur Riesenplaneten haben einen Antimaterie-Gürtel.
+  // Bergung nur, wenn tatsächlich ein Ertrag daliegt. Planeten tragen die
+  // Regel "bergung", aber kein Planet hat seit A-317 einen eigenen Ertrag --
+  // die restLiegtAn-Prüfung oben deckt trotzdem einen alten `restErtrag` ab.
   if (regel.zugriff === "bergung") return objekt.daten.ertrag ? "bergung" : null;
   return null;
 }

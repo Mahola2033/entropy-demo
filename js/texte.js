@@ -82,6 +82,19 @@ export const EN = {
   "Was hier noch WARTET, kostet zusammen {buendel} – der laufende Auftrag ist bereits bezahlt und zählt nicht mit. Abgebucht wird erst, wenn ein Eintrag vorn steht.":
     "What's still WAITING here costs {buendel} together – the running order is already paid for and isn't included. Nothing is charged until an entry reaches the front.",
 
+  // --- Stoffkatalog (A-315, A-316) ------------------------------------------
+  Eisen: "Iron",
+  Nickel: "Nickel",
+  Aluminium: "Aluminum",
+  Titan: "Titanium",
+  Kupfer: "Copper",
+  Wasser: "Water",
+  Wasserstoff: "Hydrogen",
+  Helium: "Helium",
+  "Helium-3": "Helium-3",
+  "{name}: {menge} t": "{name}: {menge} t",
+  "(davon {name}: {menge} t)": "(of which {name}: {menge} t)",
+
   // --- Ressourcen ---------------------------------------------------------
   Metall: "Metal",
   Silizium: "Silicon",
@@ -315,8 +328,6 @@ export const EN = {
 
   // --- Planetenmodell (v0.24) ---------------------------------------------
   // Namen aus planetName(): abgeleitet aus Klasse, Zone und Wasservorrat.
-  "{objekt}: {fracht} geerntet – der Gürtel füllt sich wieder.":
-    "{objekt}: harvested {fracht} – the belt is refilling.",
   Lavawelt: "Lava World",
   Kleinwelt: "Dwarf World",
   "Mini-Neptun": "Mini-Neptune",

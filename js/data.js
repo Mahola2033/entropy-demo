@@ -19,7 +19,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.9.73";
+export const VERSION = "0.9.77";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von vollversion.mjs (bis A-272: uebernehmen.mjs) beim
@@ -66,7 +66,7 @@ export const DEMO_SAAT = 20269933;
 // wird an den anzeigenden Stellen, nicht hier. Einzige Ausnahme ist
 // voraussetzungenText() weiter unten -- die einzige Funktion in dieser Datei,
 // die Anzeigetext zusammensetzt.
-import { t } from "./sprache.js?v=0.9.73";
+import { t } from "./sprache.js?v=0.9.77";
 
 // A-164 (31.08.2026): Von 50 auf 125.000 (×2.500) -- die Maßstabsrunde.
 // Vorher skalierte EIN MASSSTAB Material, Menschen und Arbeitskraft
@@ -2502,31 +2502,13 @@ export function schwerkraftAus(masse, radius) {
   return masse / (radius * radius);
 }
 
-// Antimaterie-Ernte an Riesenplaneten.
-//
-// Der zweite, völlig andere Weg zu Antimaterie -- und der einzige, der nichts
-// kostet außer Hinkommen. Physikalisch: **Antiprotonen sammeln sich in den
-// Strahlungsgürteln von Planeten mit starkem Magnetfeld.** Auf der Erde 2011
-// nachgewiesen, bei einem Gasriesen mit seinem gewaltigen Feld ungleich
-// stärker. Sie entstehen laufend neu, wenn kosmische Strahlung auf die
-// Atmosphäre trifft.
-//
-// Daraus folgt die Spielregel von selbst: das Vorkommen ist NICHT erschöpfbar,
-// sondern wächst nach -- langsam. Man kann es nicht leerbaggern, nur zu oft
-// besuchen. Damit ist es das genaue Gegenstück zum Antimateriekollektor, der
-// Energie im Übermaß braucht, aber überall stehen kann.
-//
-// Je stärker das Magnetfeld, desto mehr sammelt sich: Gasriese > Eisriese >
-// Mini-Neptun.
-export const ANTIMATERIE_ERNTE = {
-  vorrat: { gasriese: 40, eisriese: 25, miniNeptun: 12 },
-  // Anteil des vollen Vorrats, der pro Stunde nachwächst -- 0,02 heißt: nach
-  // 50 Stunden ist ein leergeernteter Gürtel wieder voll.
-  nachwachsenProStunde: 0.02,
-  // Ohne die Technologie sieht man den Gürtel, kommt aber nicht heran --
-  // dasselbe Schlüssel-Muster wie bei tiefliegenden Vorkommen.
-  benoetigt: "antimaterietechnik",
-};
+// A-317: Antimaterie-Ernte an Riesenplaneten -- ENTFERNT (Tobi, Entscheidung
+// 19, 30.09.: "Beides raus"). Sie lag rund 10¹⁹-fach über dem realen Vorrat
+// (Erde ~160 ng Antiprotonen, PAMELA/Adriani 2011; Saturn Mikrogramm/Jahr) --
+// die Physik gibt der Natur kein nennenswertes Antimaterie-Vorkommen. Ersetzt
+// `A-298`. Antimaterie kommt seither nur noch aus dem Antimateriekollektor
+// (`BUILDINGS.antimateriekollektor`); `RESEARCH.antimaterietechnik` bleibt,
+// ihr Bonus gilt weiter dem Kollektor.
 
 export const SCHWERKRAFT = {
   bauAnteil: 0.6,      // Kosten × (1 + (g − 1) × bauAnteil)
@@ -2625,8 +2607,15 @@ const GEHALT_ROH = {
 };
 
 function gehaltAbleiten(roh) {
+  // A-315: fünf Metalle statt einem -- die Aufteilung in Ressourcen (welche
+  // davon `metall` wird) steht nicht hier, sondern im Stoffkatalog STOFFE
+  // unten, neben zusammensetzungVon.
   return {
-    metall: roh.fe + roh.ni + roh.al + roh.ti + roh.cu,
+    eisen: roh.fe,
+    nickel: roh.ni,
+    aluminium: roh.al,
+    titan: roh.ti,
+    kupfer: roh.cu,
     silizium: roh.si,
     iridium: roh.ir * 1e-6,
     uran: roh.u * 1e-6,
@@ -2703,6 +2692,52 @@ function deuteriumInWasser(wasserMasseT, dh) {
 }
 function deuteriumInHuelle(huelleMasseT, dh) {
   return huelleMasseT * H_ANTEIL_HUELLE * 2 * dh;
+}
+// A-316: Helium-Massenanteil Y der Hülle je Riesenklasse. Gasriese: Galileo/
+// von-Zahn-Interferometer 1998 ●. Eisriese: Uranus, Conrath 1987 (Voyager
+// Radio-Okkultation + IR) -- eigene Recherche bestätigt 0,262 ± 0,048 ○,
+// Auftragswert 0,26 unverändert übernommen (Abweichung < Unsicherheit).
+// Mini-Neptun: protosolar 0,27 ○ (Asplund 2009), gekappt auf 0,26, damit
+// H (0,74, H_ANTEIL_HUELLE) + He ≤ 1 bleibt (◆) -- beim Eisriesen trifft die
+// Kappung exakt (0,74 + 0,26 = 1, kein Rest), beim Gasriesen bleiben 2,2 %
+// der Hülle unbenannt (Kohlenstoff, Stickstoff, Sauerstoff …).
+const HELIUM_ANTEIL_HUELLE = { gasriese: 0.238, eisriese: 0.26, miniNeptun: 0.26 };
+// ³He/⁴He = 1,66·10⁻⁴ Teilchen (Mahaffy et al. 1998, Galileo-Massenspektrometer,
+// protosolarer Bestwert) ● -- eigene Recherche bestätigt exakt denselben Wert.
+// In Masse umgerechnet: × Isotopenmasse 3,016 / 4,003.
+const HELIUM3_ANTEIL_HELIUM = 1.66e-4 * (3.016 / 4.003);
+// Freier Wasserstoff, Helium und Helium-3 einer Hülle -- Deuterium bleibt
+// unverändert (Teilmenge des Wasserstoffs, Auftrag Abschnitt 1), Helium-3
+// ist Teilmenge des Heliums (STOFFE.helium3.teilVon).
+function huelleStoffe(huelleMasseT, dh, heliumAnteil) {
+  const heliumMasseT = huelleMasseT * heliumAnteil;
+  return {
+    wasserstoff: huelleMasseT * H_ANTEIL_HUELLE,
+    deuterium: deuteriumInHuelle(huelleMasseT, dh),
+    helium: heliumMasseT,
+    helium3: heliumMasseT * HELIUM3_ANTEIL_HELIUM,
+  };
+}
+// A-316: Helium-3 im Regolith einer Kleinwelt -- eingefangener Sternwind, wie
+// beim Erdmond: 0,026 t/km² (Fa & Jin 2007 ~6,5·10⁵ t auf 3,79·10⁷ km² ○,
+// Wittenberg 1986 bis 1,1·10⁶ t -- eigene Recherche bestätigt dieselbe
+// Größenordnung). Nur die Kleinwelt hat eine Oberfläche ohne Atmosphäre.
+// Über der Grenztemperatur gibt heißer Regolith das Helium wieder ab (◆) --
+// eigene Recherche fand dafür keinen belastbaren Schwellwert: die
+// Degassing-Literatur behandelt aktives Ausheizen zum Abbau (700-1000 °C),
+// nicht die passive Rückhaltung über geologische Zeit. Die 400-K-Prämisse
+// bleibt deshalb unverändert stehen. ⁴He/³He im Mondregolith 2.600-2.800 ○,
+// Mitte gewählt, damit auch hier die Teilmengen-Regel aus Abschnitt 1 gilt.
+export const REGOLITH_HELIUM3_T_PRO_KM2 = 0.026;
+export const REGOLITH_HELIUM3_GRENZE_K = 400;
+const HELIUM_ANTEIL_HELIUM3_REGOLITH = 2700;
+function regolithHelium3(daten, masseErdmassen) {
+  if (daten.klasse !== "kleinwelt") return null;
+  if (typeof daten.temperaturK !== "number" || daten.temperaturK > REGOLITH_HELIUM3_GRENZE_K) return null;
+  const radiusKm = radiusAusMasse(masseErdmassen) * ERDRADIUS_KM;
+  const oberflaecheKm2 = 4 * Math.PI * radiusKm * radiusKm;
+  const helium3MasseT = oberflaecheKm2 * REGOLITH_HELIUM3_T_PRO_KM2;
+  return { helium3: helium3MasseT, helium: helium3MasseT * HELIUM_ANTEIL_HELIUM3_REGOLITH };
 }
 function stoffeSkaliert(gehalt, masseT) {
   const out = {};
@@ -2823,6 +2858,62 @@ export const KOMETENWOLKE_OHNE_RIESEN_FAKTOR = 0.01;
 export const KOMETENWOLKE_WASSER_ANTEIL = 0.3;
 export const KOMETENWOLKE_DH_FAKTOR = 2;
 
+// --- A-315: Der Stoffkatalog -----------------------------------------------
+//
+// Jeder Stoff, der aus zusammensetzungVon kommen kann. `ressource`: welcher
+// HEUTIGEN Wirtschafts-Ressource der Stoff zugerechnet wird -- die EINZIGE
+// Brücke zwischen der Natur (dieser Katalog) und der Wirtschaft (RESSOURCEN
+// oben, Prinzip 5a). Ebene 2 ändert später nur diese Spalte, nicht die Natur.
+// `wasser`, `wasserstoff`, `helium`, `helium3` haben keine -- bleiben reiner
+// Natur-Inhalt (Tobis Entscheidung 18, 30.09.). `symbol`: für Stoffe MIT
+// Ressource dasselbe wie dort, für die übrigen ein eigenes (Prinzip 9).
+// `teilVon` (A-316, Planungs-Vorgabe): Liste der Stoffe, deren Tonnage diesen
+// hier schon einschließt -- die Anzeige zeigt ihn als "davon" bei dem ersten
+// Träger derselben Schicht, der > 0 ist, sonst als eigenen Posten (eine
+// Regel, ein Ort, Prinzip 5a). Deuterium steckt im Wasser ODER im
+// Wasserstoff der Hülle (nie beides in derselben Schicht, siehe Ergebnis
+// A-316); Helium-3 steckt im Helium.
+export const STOFFE = {
+  eisen: { name: "Eisen", symbol: RESSOURCEN.metall.symbol, ressource: "metall" },
+  nickel: { name: "Nickel", symbol: RESSOURCEN.metall.symbol, ressource: "metall" },
+  aluminium: { name: "Aluminium", symbol: RESSOURCEN.metall.symbol, ressource: "metall" },
+  titan: { name: "Titan", symbol: RESSOURCEN.metall.symbol, ressource: "metall" },
+  kupfer: { name: "Kupfer", symbol: RESSOURCEN.metall.symbol, ressource: "metall" },
+  silizium: { name: "Silizium", symbol: RESSOURCEN.silizium.symbol, ressource: "silizium" },
+  iridium: { name: "Iridium", symbol: RESSOURCEN.iridium.symbol, ressource: "iridium" },
+  uran: { name: "Uran", symbol: RESSOURCEN.uran.symbol, ressource: "uran" },
+  wasser: { name: "Wasser", symbol: "💧" },
+  deuterium: { name: "Deuterium", symbol: RESSOURCEN.deuterium.symbol, ressource: "deuterium", teilVon: ["wasser", "wasserstoff"] },
+  wasserstoff: { name: "Wasserstoff", symbol: "🫧" },
+  helium: { name: "Helium", symbol: "🎈" },
+  helium3: { name: "Helium-3", symbol: "🌟", teilVon: ["helium"] },
+};
+
+// Fasst eine Stoffliste (z. B. zusammensetzungVon(...).gesamt oder eine
+// einzelne Schicht) nach Ressource zusammen -- die fünf Metalle zu `metall`,
+// alles andere bleibt für sich. EIN Helfer für Anzeige (js/ui.js) UND Tests
+// (Prinzip 5a), nicht nachbauen. Ein Stoff ohne Katalogeintrag bleibt unter
+// seiner eigenen ID stehen, statt zu verschwinden (Prinzip 7).
+export function stoffeNachRessource(stoffe) {
+  const out = {};
+  for (const [stoff, wert] of Object.entries(stoffe)) {
+    const schluessel = (STOFFE[stoff] && STOFFE[stoff].ressource) || stoff;
+    out[schluessel] = (out[schluessel] || 0) + wert;
+  }
+  return out;
+}
+
+// Name und Symbol für EINEN Posten -- entweder ein Schlüssel aus
+// stoffeNachRessource (eine Ressourcen-ID oder, wie `wasser`, eine Stoff-ID
+// ohne Ressource) oder ein einzelner Stoff für den Tooltip. Kein
+// Katalogeintrag bricht nichts: der Name wird zur nackten ID, das Symbol zum
+// selben Ersatz wie bei einer unbekannten Ressource (Prinzip 7).
+export function stoffAnzeige(id) {
+  if (RESSOURCEN[id]) return { name: RESSOURCEN[id].name, symbol: RESSOURCEN[id].symbol };
+  if (STOFFE[id]) return { name: STOFFE[id].name, symbol: STOFFE[id].symbol };
+  return { name: id, symbol: UNBEKANNTE_RESSOURCEN.symbol };
+}
+
 // Masse × Gehalt je Schicht, für jeden Planeten, die Heimatwelt und (seit
 // A-308) jeden Gürtel (dieselbe Funktion, `daten.typ` spielt keine Rolle).
 // Reine Ableitung aus `klasse`, `masse`/`masseT`, `wasser` -- nichts wird
@@ -2905,11 +2996,13 @@ export function zusammensetzungVon(daten) {
       const krusteStoffe = stoffeSkaliert(gestein.krusteGehalt, krusteMineralT);
       krusteStoffe.wasser = (krusteStoffe.wasser || 0) + wasserMasseT;
       krusteStoffe.deuterium = (krusteStoffe.deuterium || 0) + deuteriumInWasser(wasserMasseT, DH_VSMOW);
+      const regolith = regolithHelium3(daten, masse);
+      if (regolith) Object.assign(krusteStoffe, regolith);
       schichten.kruste = { masseT: krusteMineralT + wasserMasseT, stoffe: krusteStoffe };
     } else if (klasse === "miniNeptun") {
       schichten.kern = schichtAus(masseT * 0.97, GANZE_ERDE_GEHALT);
       const huelleMasseT = masseT * 0.03;
-      schichten.huelle = { masseT: huelleMasseT, stoffe: { deuterium: deuteriumInHuelle(huelleMasseT, DH_RIESE.miniNeptun) } };
+      schichten.huelle = { masseT: huelleMasseT, stoffe: huelleStoffe(huelleMasseT, DH_RIESE.miniNeptun, HELIUM_ANTEIL_HUELLE.miniNeptun) };
     } else if (klasse === "eisriese") {
       schichten.kern = schichtAus(masseT * 0.20, GANZE_ERDE_GEHALT);
       const mantelMasseT = masseT * 0.65;
@@ -2918,7 +3011,7 @@ export function zusammensetzungVon(daten) {
         stoffe: { wasser: mantelMasseT, deuterium: deuteriumInWasser(mantelMasseT, DH_RIESE.eisriese) },
       };
       const huelleMasseT = masseT * 0.15;
-      schichten.huelle = { masseT: huelleMasseT, stoffe: { deuterium: deuteriumInHuelle(huelleMasseT, DH_RIESE.eisriese) } };
+      schichten.huelle = { masseT: huelleMasseT, stoffe: huelleStoffe(huelleMasseT, DH_RIESE.eisriese, HELIUM_ANTEIL_HUELLE.eisriese) };
     } else if (klasse === "gasriese") {
       // Kern 7 %: halb Gestein (ganze-Erde-Mix), halb Eis (Wasser) -- Auftrag
       // Abschnitt 3. Das Eis rechnet mit demselben D/H wie die Hülle desselben
@@ -2932,7 +3025,7 @@ export function zusammensetzungVon(daten) {
       kernStoffe.deuterium = (kernStoffe.deuterium || 0) + deuteriumInWasser(eisTeilT, DH_RIESE.gasriese);
       schichten.kern = { masseT: kernMasseT, stoffe: kernStoffe };
       const huelleMasseT = masseT * 0.93;
-      schichten.huelle = { masseT: huelleMasseT, stoffe: { deuterium: deuteriumInHuelle(huelleMasseT, DH_RIESE.gasriese) } };
+      schichten.huelle = { masseT: huelleMasseT, stoffe: huelleStoffe(huelleMasseT, DH_RIESE.gasriese, HELIUM_ANTEIL_HUELLE.gasriese) };
     } else {
       return null;
     }
@@ -3520,11 +3613,14 @@ export const SYSTEM_REGELN = {
 // Gewichte sind relativ -- eine seltene Ressource bekommt einfach ein
 // kleines Gewicht (z.B. gold: 5 neben metall: 60). Neue Ressource ergänzen
 // heisst: hier eine Zeile hinzufügen, sonst nichts.
+// A-317: die antimaterie-Zeile ist raus (Tobi, Entscheidung 19) -- KEINE
+// Ersatzzeile, keine Umgewichtung, 60/40/15 bleiben stehen. Der eine
+// `rng()`-Aufruf im Systemstrom (js/welt.js, Gürtelschleife) bleibt
+// unverändert, nur was er trifft, verschiebt sich (gewollt).
 export const VORKOMMEN_TABELLE = [
   { ressource: "metall", gewicht: 60, menge: { min: 600, max: 2000 } },
   { ressource: "silizium", gewicht: 40, menge: { min: 400, max: 1500 } },
   { ressource: "iridium", gewicht: 15, menge: { min: 150, max: 600 } },
-  { ressource: "antimaterie", gewicht: 3, menge: { min: 20, max: 90 } },
 ];
 
 // --- Galaxie --------------------------------------------------------------
@@ -3946,9 +4042,11 @@ export const ABWEHR = {
 export const OBJEKT_REGELN = {
   heimat: { aufdeckung: null, zugriff: null },
   leer: { aufdeckung: "sonde", zugriff: null },
-  // Planeten sind normalerweise nicht bergbar. Riesenplaneten tragen aber
-  // einen Antimaterie-Ertrag (siehe ANTIMATERIE_ERNTE) -- missionFuerObjekt
-  // bietet die Bergung deshalb nur an, wenn tatsächlich ein Ertrag daliegt.
+  // Planeten sind normalerweise nicht bergbar -- kein Planet trägt seit
+  // A-317 mehr einen Ertrag. `zugriff: "bergung"` bleibt trotzdem: ein alter
+  // Spielstand kann an einem Riesen-Orbit noch einen `restErtrag` tragen
+  // (Prinzip 7a), und missionFuerObjekt bietet die Bergung nur an, wenn
+  // tatsächlich etwas daliegt.
   planet: { aufdeckung: "sonde", zugriff: "bergung" },
   asteroiden: { aufdeckung: "sonde", zugriff: "bergung" },
   wrack: { aufdeckung: "sonde", zugriff: "bergung" },
@@ -4365,10 +4463,11 @@ export const VORKOMMEN_MELDESCHWELLE = 0.25;
 // nimmt das Schiff die IDENTISCHE {basis,faktor}-Kurve der Förderanlage,
 // die dieselbe Ressource fördert -- aus VORKOMMEN_GEBAEUDE abgeleitet, wie
 // VORKOMMEN_BASIS selbst, kein zweiter Katalog. Nur die fünf
-// VORKOMMEN_RESSOURCEN sind vertreten; ein Antimaterie-Haufen (siehe
-// VORKOMMEN_TABELLE, "Nicht anfassen" in A-282) hat hier bewusst KEINEN
-// Eintrag -- keine Förderanlage kennt diese Ressource, also kann auch das
-// Schiff dort nicht abbauen (kannMission verweigert es).
+// VORKOMMEN_RESSOURCEN sind vertreten. Antimaterie zieht `VORKOMMEN_TABELLE`
+// seit A-317 gar nicht mehr; träte sie dennoch an einem Objekt auf (z. B.
+// ein alter Spielstand), hätte sie hier bewusst KEINEN Eintrag -- keine
+// Förderanlage kennt diese Ressource, also kann auch das Schiff dort nicht
+// abbauen (kannMission verweigert es).
 export const VORKOMMEN_RATE_SPEC = {};
 for (const def of VORKOMMEN_GEBAEUDE) {
   for (const [resId, spec] of Object.entries(def.produktion)) {

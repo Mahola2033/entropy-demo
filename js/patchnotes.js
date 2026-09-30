@@ -28,6 +28,42 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.9.77",
+    de: [
+      "Nur intern: Die Roadmap im Development-Tab kannte die neuen Stoffe (v0.9.74–0.9.76) noch nicht -- unter „Bald” stand weiter der alte Stoffe-Punkt. Jetzt zeigt sie den aktuellen Stand: „Bald” nennt den nächsten Schritt der Galaxie-Sandbox, „Später” trägt neu, dass die Stoffe zu Rohstoffen werden.",
+    ],
+    en: [
+      "Internal only: the roadmap in the Development tab didn't yet know about the new materials (v0.9.74-0.9.76) -- \"Soon\" still listed the old materials item. It now shows the current state: \"Soon\" names the next step of the galaxy sandbox, \"Later\" newly carries that the materials become resources.",
+    ],
+  },
+  {
+    version: "0.9.76",
+    de: [
+      "Antimaterie kommt nicht mehr aus der Natur: Asteroidengürtel tragen keinen Antimaterie-Haufen mehr, und Riesenplaneten geben keine nachwachsende Ernte mehr her -- beides lag rund 10¹⁹-fach über dem, was die Physik der Natur zugesteht. Dein Antimateriekollektor bleibt unverändert die Quelle, ebenso Antimaterietechnik als sein Bonus. Ein alter Rest, der an einem dieser Orte noch liegt, bleibt bergbar.",
+    ],
+    en: [
+      "Antimatter no longer comes from nature: asteroid belts no longer carry an antimatter cache, and giant planets no longer regrow a harvest -- both sat about 10¹⁹ times above what physics actually grants nature. Your antimatter collector stays the source, unchanged, and antimatter tech still boosts it. A leftover cargo still sitting at either kind of spot remains salvageable.",
+    ],
+  },
+  {
+    version: "0.9.75",
+    de: [
+      "Die Hülle eines Gas- oder Eisriesen zeigt jetzt, woraus sie wirklich besteht: Wasserstoff und Helium statt nur Deuterium, dazu Helium-3 als seltene Beimengung. Eine kühle Kleinwelt trägt außerdem eine winzige Menge Helium-3 in ihrem Regolith, eingefangen aus dem Sternwind, wie beim Erdmond -- auf einem heißen Körper entweicht es wieder. Nichts davon ist bisher eine Ressource, das entscheidet erst die nächste Ebene.",
+    ],
+    en: [
+      "A gas or ice giant's envelope now shows what it's really made of: hydrogen and helium instead of just deuterium, plus helium-3 as a rare trace. A cool dwarf world also carries a tiny amount of helium-3 in its regolith, trapped from the stellar wind, just like Earth's Moon -- on a hot body it escapes again. None of this is a resource yet; that's for the next layer to decide.",
+    ],
+  },
+  {
+    version: "0.9.74",
+    de: [
+      "Die Natur unterscheidet jetzt fünf Metalle statt eines: Eisen, Nickel, Aluminium, Titan und Kupfer, jeweils mit ihrem eigenen Anteil in Kern, Mantel und Kruste. In der Wirtschaft bleibt daraus weiter genau eine Ressource, Metall -- das ändert erst die nächste Ebene. Die Zeile eines Planeten zeigt weiter nur die Summe, der Tooltip jetzt jeden Stoff einzeln mit Namen und Tonnen. Wasser trägt sein eigenes Symbol statt des bisherigen Platzhalters.",
+    ],
+    en: [
+      "Nature now tells apart five metals instead of one: iron, nickel, aluminum, titanium and copper, each with its own share of core, mantle and crust. The economy still turns all of that into exactly one resource, Metal -- only the next layer changes that. A planet's line still shows just the sum, its tooltip now names every substance individually, with name and tonnage. Water carries its own symbol instead of the previous placeholder.",
+    ],
+  },
+  {
     version: "0.9.73",
     de: [
       "Nur intern: Die Roadmap im Development-Tab nannte Monde, Zwergplaneten und Kometen noch unter „Bald”, obwohl N-4 (v0.9.70–0.9.72) sie längst gebaut hat -- der Punkt steht jetzt in den Patchnotes oben, nicht mehr im Ausblick. Unter „Später” neu: Monde und Zwergplaneten werden zu Zielen, die man anfliegen, fördern und besiedeln kann -- das kommt erst mit der nächsten Ebene.",
@@ -2445,7 +2481,7 @@ export const ROADMAP_PUNKTE = [
     de: "Bald",
     en: "Soon",
     punkte: [
-      { de: "Neue Stoffe: Metall teilt sich in Eisen, Aluminium, Kupfer und Titan, und Wasser wird ein eigener Rohstoff", en: "New materials: metal splits into iron, aluminium, copper and titanium, and water becomes its own resource" },
+      { de: "Die Galaxie wird weiter nach realem Vorbild gebaut, bevor die Imperien dazukommen", en: "The galaxy keeps being built closer to its real model, before the empires arrive" },
     ],
   },
   {
@@ -2458,6 +2494,7 @@ export const ROADMAP_PUNKTE = [
       { de: "Fremde Imperien werden unterschiedlich: manche wachsen, manche scheitern", en: "Foreign empires become different: some grow, some fail" },
       { de: "Ein Prioritäten-Fenster: Strom und Arbeitskraft von Hand verteilen", en: "A priority panel: assign power and workforce by hand" },
       { de: "Monde und Zwergplaneten werden Ziele: anfliegen, fördern, besiedeln", en: "Moons and dwarf planets become targets: fly to them, mine them, settle them" },
+      { de: "Die neuen Stoffe werden Rohstoffe: Eisen, Aluminium, Kupfer, Titan, Wasser und Helium-3 fördern", en: "The new materials become resources: mining iron, aluminium, copper, titanium, water and helium-3" },
     ],
   },
 ];

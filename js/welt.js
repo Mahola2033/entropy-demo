@@ -42,7 +42,6 @@ import {
   AEUSSERER_GUERTEL_FAKTOR_BEREICH,
   PLANETEN_KLASSEN,
   radiusAusMasse,
-  ANTIMATERIE_ERNTE,
   schwerkraftAus,
   planetName,
   taugtAlsStartwelt,
@@ -78,9 +77,9 @@ import {
   ZWERGPLANET_SUMME_MAX_ANTEIL,
   KOMETENWOLKE_MASSE_BEREICH_ERDMASSEN,
   KOMETENWOLKE_OHNE_RIESEN_FAKTOR,
-} from "./data.js?v=0.9.73";
-import { stromFuer, waehle, zwischen, gewichtetWaehlen, logGleichverteilt, poissonZug } from "./zufall.js?v=0.9.73";
-import { sternFuer, leuchtkraftAusMasse, bildungstypVon, rundSignifikant, normalverteilt } from "./galaxie.js?v=0.9.73";
+} from "./data.js?v=0.9.77";
+import { stromFuer, waehle, zwischen, gewichtetWaehlen, logGleichverteilt, poissonZug } from "./zufall.js?v=0.9.77";
+import { sternFuer, leuchtkraftAusMasse, bildungstypVon, rundSignifikant, normalverteilt } from "./galaxie.js?v=0.9.77";
 
 // Systeme können deutlich mehr als 50 Objekte tragen (die alte harte
 // Obergrenze ist mit A-305 gefallen) -- römische Zahlen daher berechnen
@@ -839,7 +838,6 @@ export function systemGenerieren(seed, systemId, optionen = {}) {
       entdeckt: roh.entdeckt ?? false,
       gefahr: roh.gefahr ?? false,
       benoetigt: roh.benoetigt ?? null,
-      nachwachsend: roh.nachwachsend ?? false,
       daten: roh.daten,
     })
   );
@@ -910,24 +908,23 @@ function mondeErzeugen(seed, systemId, index, { klasse, masse, abstandAE, temper
 
 // Ein Planet der inneren Kette oder der äußeren Körper -- Masse aus dem
 // Bereich der Klasse, Radius/Schwerkraft daraus abgeleitet, wie vor A-305.
+// A-317: kein Ertrag, keine Sperre, kein Nachwachsen mehr -- die
+// Antimaterie-Ernte an Riesenplaneten ist raus (Tobi, Entscheidung 19).
 function planetObjektBauen(rng, abstandAE, temperaturK, eig, seed, systemId, index, rahmenMasse) {
   const klasse = PLANETEN_KLASSEN[eig.klasse];
   const masse = klasse.masse[0] + rng() * (klasse.masse[1] - klasse.masse[0]);
   const radius = radiusAusMasse(masse);
   const schwerkraft = klasse.oberflaeche ? Math.round(schwerkraftAus(masse, radius) * 100) / 100 : klasse.schwerkraft;
-  const antimaterieVorrat = mengeSkaliert(ANTIMATERIE_ERNTE.vorrat[eig.klasse] || 0);
   const monde = mondeErzeugen(seed, systemId, index, { klasse: eig.klasse, masse, abstandAE, temperaturK, rahmenMasse });
   return {
     abstandAE,
     typ: "planet",
     bezeichnung: planetName(eig),
-    benoetigt: antimaterieVorrat ? { forschung: ANTIMATERIE_ERNTE.benoetigt } : null,
-    nachwachsend: antimaterieVorrat ? true : false,
+    benoetigt: null,
     daten: {
       ...eig,
       abstandAE: rundSignifikant(abstandAE, 4),
       temperaturK: Math.round(temperaturK),
-      ...(antimaterieVorrat ? { ertrag: { antimaterie: antimaterieVorrat } } : {}),
       kolonisierbar: klasse.oberflaeche && rng() < SYSTEM_REGELN.planetBesiedelbar,
       schwerkraft,
       masse: Math.round(masse * 100) / 100,

@@ -23,10 +23,10 @@
 // Wimpernschlag vorzuruecken, und der gibt dem Browser zwischendurch sein
 // Bild zurueck.
 
-import { vorspulenBisJetzt, vorspulenSchrittweise } from "./simulation.js?v=0.9.73";
-import { spielzeitJetzt, meldungHinzufuegen } from "./state.js?v=0.9.73";
-import { phase } from "./stockung.js?v=0.9.73";
-import { t } from "./sprache.js?v=0.9.73";
+import { vorspulenBisJetzt, vorspulenSchrittweise } from "./simulation.js?v=0.9.77";
+import { spielzeitJetzt, meldungHinzufuegen } from "./state.js?v=0.9.77";
+import { phase } from "./stockung.js?v=0.9.77";
+import { t } from "./sprache.js?v=0.9.77";
 
 // WIE VIEL EIN BLOCK RECHNEN DARF -- gemessen, nicht geschaetzt.
 //
