@@ -51,8 +51,9 @@ import {
   erstattungsQuote,
   VORKOMMEN_MELDESCHWELLE,
   VORKOMMEN_RATE_SPEC,
-} from "./data.js?v=0.9.69";
-import { VARIANTE } from "./variante.js?v=0.9.69";
+  ERDMASSE_T,
+} from "./data.js?v=0.9.73";
+import { VARIANTE } from "./variante.js?v=0.9.73";
 import {
   effektiveRaten,
   angezeigteRate,
@@ -137,7 +138,7 @@ import {
   fossilReichweiteMs,
   fossilVerbrauchProStunde,
   foerderErgiebigkeit,
-} from "./state.js?v=0.9.69";
+} from "./state.js?v=0.9.73";
 import {
   bauStarten,
   forschungStarten,
@@ -214,7 +215,7 @@ import {
   routeStoppen,
   routeMindestbeladungSetzen,
   routeBeladungAnteil,
-} from "./simulation.js?v=0.9.69";
+} from "./simulation.js?v=0.9.73";
 import {
   flottePosition,
   reiseAnteil,
@@ -235,26 +236,26 @@ import {
   flotteSiedlerKapazitaet,
   flotteLadungAnteile,
   flotteTankAnteile,
-} from "./flotten.js?v=0.9.69";
-import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.69";
-import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.69";
-import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.69";
+} from "./flotten.js?v=0.9.73";
+import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.73";
+import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.73";
+import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.73";
 // Nur für den Neustart-Knopf im Abspann. Der Weg dorthin ist derselbe wie im
 // Testmodus (js/testmodus.js) -- ein zweiter Reset wäre eine zweite Wahrheit
 // darüber, was "neu anfangen" bedeutet.
-import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.69";
-import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.69";
-import { systemName, sternFuer } from "./galaxie.js?v=0.9.69";
+import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.73";
+import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.73";
+import { systemName, sternFuer } from "./galaxie.js?v=0.9.73";
 // Die beiden Karten. Sie holen sich von hier `listeAbgleichen` zurück -- ein
 // Ringtausch, der trägt, weil keine der beiden Dateien beim LADEN etwas aus
 // der anderen benutzt, sondern erst beim Zeichnen. Die Alternative wäre ein
 // zweiter Abgleich-Mechanismus in karte.js gewesen, und genau davor warnt
 // Prinzip 5.
-import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.69";
-import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.69";
-import { feedbackAdresse } from "./feedback.js?v=0.9.69";
-import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.69";
-import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.69";
+import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.73";
+import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.73";
+import { feedbackAdresse } from "./feedback.js?v=0.9.73";
+import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.73";
+import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.73";
 
 // UI-lokaler Regler-Zustand für die Flotten-Beladung/Tanken-Schieber --
 // bewusst NICHT Teil des Spielzustands. Nötig, weil render() auch von einem
@@ -7065,6 +7066,20 @@ function sternTitel(stern) {
   return zeilen.join("\n");
 }
 
+// A-312: Kometenwolke -- eine Zeile, dort wo Stern und Systemdaten stehen
+// (Auftrag Abschnitt 3), keine neue Kachel, keine Orbitzeile. Jedes System
+// trägt eine (auch ohne Riesen, nur deutlich kleiner, Auftrag Abschnitt 2).
+function kometenwolkeText(kometenwolke) {
+  if (!kometenwolke || typeof kometenwolke.masseT !== "number") return "";
+  const erdmassen = kometenwolke.masseT / ERDMASSE_T;
+  const zus = zusammensetzungVon({ klasse: "kometenwolke", masseT: kometenwolke.masseT });
+  const wasser = zus ? zus.gesamt.wasser || 0 : 0;
+  return t("Kometenwolke {masse} M⊕ · Wasser {wasser} t", {
+    masse: erdmassen.toLocaleString(gebietsschema(), { maximumFractionDigits: 2 }),
+    wasser: zehnerpotenzText(wasser),
+  });
+}
+
 // --- Auswählen: EIN Weg, zwei Bedienflächen -------------------------------
 //
 // Liste und Karte bieten dieselben beiden Aktionen an, und das ist gewollt --
@@ -7797,6 +7812,7 @@ function renderSystem(state, root, jetzt) {
   const sternEl = root.querySelector("#system-stern");
   sternEl.innerHTML = sternKurz(system.stern);
   sternEl.title = sternTitel(system.stern);
+  textSetzen(root.querySelector("#system-kometenwolke"), kometenwolkeText(system.kometenwolke));
   const statusEl = root.querySelector("#sonden-status");
 
   if (!flotte) {
@@ -8132,6 +8148,35 @@ function zehnerpotenzText(wert) {
   return `${mantisse.toLocaleString(gebietsschema(), { maximumFractionDigits: 1 })}·10${hochzahlText(exp)}`;
 }
 
+// A-311: Monde stehen in derselben Zeile wie die Zusammensetzung (A-307) --
+// nur das Nötigste: Anzahl und der größte Mond (Masse, Eisanteil). Die volle
+// Zusammensetzung jedes einzelnen Mondes zeigt kein Tooltip (Auftrag: "die
+// Umsetzung wählt") -- dafür reicht diese eine Zahl, um zu sehen, dass hier
+// überhaupt etwas ist.
+function mondeText(monde) {
+  if (!monde || !monde.length) return "";
+  const groesster = monde.reduce((a, b) => (b.masseT > a.masseT ? b : a));
+  const eisProzent = Math.round((groesster.wasserAnteil || 0) * 100);
+  const anzahlText = monde.length === 1 ? t("1 Mond") : t("{n} Monde", { n: monde.length });
+  return ` · ${anzahlText} · ${t("größter {masse} t, {eis} % Eis", { masse: zehnerpotenzText(groesster.masseT), eis: eisProzent })}`;
+}
+
+// A-312: Zwergplaneten stehen in derselben Zeile wie die Zusammensetzung
+// ihres Gürtels -- nur Anzahl und der größte, wie bei den Monden (A-311).
+// Ihre eigene Zusammensetzung (Auftrag: derselbe Gehalt wie der Gürtel)
+// zeigt kein Tooltip, aus demselben Grund wie dort: die Umsetzung wählt.
+function zwergplanetenText(zwergplaneten) {
+  if (!zwergplaneten || !zwergplaneten.length) return "";
+  const groesster = Math.max(...zwergplaneten);
+  const anzahlText =
+    zwergplaneten.length === 1 ? t("davon 1 Zwergplanet") : t("davon {n} Zwergplaneten", { n: zwergplaneten.length });
+  const groessterText =
+    zwergplaneten.length === 1
+      ? t("{masse} t", { masse: zehnerpotenzText(groesster) })
+      : t("größter {masse} t", { masse: zehnerpotenzText(groesster) });
+  return ` · ${anzahlText}, ${groessterText}`;
+}
+
 // A-307: Zusammensetzung eines Körpers -- Gesamtinhalt, dazu die oberste
 // erreichbare Schicht (Kruste, bei Riesen die Hülle). Kompakt, an derselben
 // Zeile wie abstandText/affinitaetText, keine neue Kachel. `wasser` ist noch
@@ -8148,7 +8193,7 @@ function zusammensetzungText(daten) {
   };
   const oben = zus.schichten.kruste || zus.schichten.huelle;
   const obenName = zus.schichten.kruste ? t("Kruste") : t("Hülle");
-  return `${zeile(obenName, oben ? oben.stoffe : {})}${zeile(t("gesamt"), zus.gesamt)}`;
+  return `${zeile(obenName, oben ? oben.stoffe : {})}${zeile(t("gesamt"), zus.gesamt)}${mondeText(daten.monde)}${zwergplanetenText(daten.zwergplaneten)}`;
 }
 
 // A-307: der eigene Planet (`state.planeten`) trägt `klasse`/`wasser`, aber
@@ -8159,10 +8204,10 @@ function zusammensetzungText(daten) {
 function eigenZusammensetzungText(eigen) {
   if (!eigen.groesse) return "";
   const masse = Math.pow(eigen.groesse / 100, 1 / MASSE_RADIUS_EXPONENT);
-  return zusammensetzungText({ klasse: eigen.klasse, wasser: eigen.wasser, masse });
+  return zusammensetzungText({ klasse: eigen.klasse, wasser: eigen.wasser, masse, monde: eigen.monde });
 }
 
-function slotDetail(state, objekt, gesperrt, eigen) {
+export function slotDetail(state, objekt, gesperrt, eigen) {
   if (eigen) {
     const basis = eigen.typ === "kolonie" ? t("deine Kolonie") : eigen.typ === "heimat" ? t("Heimatplanet") : t("dein Außenposten");
     // A-307: die Heimatwelt läuft durch dieselbe Zusammensetzungsfunktion
@@ -8193,7 +8238,16 @@ function slotDetail(state, objekt, gesperrt, eigen) {
   switch (objekt.typ) {
     case "heimat": return t("Heimatplanet");
     case "planet": {
-      if (!objekt.daten.kolonisierbar) return `${t("nicht besiedelbar")} · ${abstandText(objekt.daten)}`;
+      if (!objekt.daten.kolonisierbar) {
+        // A-313: Riesen (nie besiedelbar) zeigten bisher weder Zusammensetzung
+        // noch Monde -- derselbe Aufruf wie im besiedelbar-Zweig unten, damit
+        // dieselbe `zusammensetzungText` gilt (Prinzip 5). OHNE affinitaetText:
+        // dessen "keine Landwirtschaft – muss versorgt werden" spricht von
+        // einer Kolonie, die es hier nie geben kann -- auf einem Riesen wäre
+        // das keine wahre Aussage, sondern eine über einen Fall, der nicht
+        // eintritt.
+        return `${t("nicht besiedelbar")} · ${abstandText(objekt.daten)}${zusammensetzungText(objekt.daten)}`;
+      }
       // Profil VOR der Koloniegründung zeigen. Seit die Planetenart hart
       // bestimmt, was es dort gibt (und ob überhaupt Nahrung wächst), wäre
       // eine Kolonie ohne diese Information ein Blindflug -- im schlimmsten

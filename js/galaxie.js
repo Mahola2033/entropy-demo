@@ -26,9 +26,9 @@ import {
   DOPPELSTERN_ABSTAND_SIGMA,
   DOPPELSTERN_WEISSER_ZWERG_ANTEIL,
   WEISSER_ZWERG_IFMR,
-} from "./data.js?v=0.9.69";
-import { stromFuer, mischen, gewichtetWaehlen } from "./zufall.js?v=0.9.69";
-import { t } from "./sprache.js?v=0.9.69";
+} from "./data.js?v=0.9.73";
+import { stromFuer, mischen, gewichtetWaehlen } from "./zufall.js?v=0.9.73";
+import { t } from "./sprache.js?v=0.9.73";
 
 // Position eines Systems in der Galaxie-Ebene. Rein aus der Saat abgeleitet.
 export function systemPosition(seed, systemId) {
@@ -176,9 +176,10 @@ function sternAusTyp(typ, rng, vorgegebeneMasse = null) {
 }
 
 // Standardnormalverteilter Wert aus zwei gleichverteilten rng()-Werten
-// (Box-Muller) -- einzige Stelle in diesem Modul, die eine Normalverteilung
-// braucht (Doppelstern-Abstand, log-normal).
-function normalverteilt(rng) {
+// (Box-Muller) -- ursprünglich für den Doppelstern-Abstand (log-normal)
+// gebraucht, seit A-311 auch für die Massenaufteilung der Scheibenmonde
+// (Prinzip 5: wiederverwenden statt ein zweites Box-Muller bauen).
+export function normalverteilt(rng) {
   const u1 = Math.max(rng(), 1e-12); // 0 wäre log(0) -- Math.log(0) = -Infinity
   const u2 = rng();
   return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);

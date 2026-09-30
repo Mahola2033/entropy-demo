@@ -55,9 +55,32 @@ import {
   GUERTEL_ZONEN_GEWICHTE,
   GUERTEL_WASSER_GEWICHTE,
   GUERTEL_MASSE_BEREICH,
-} from "./data.js?v=0.9.69";
-import { stromFuer, waehle, zwischen, gewichtetWaehlen, logGleichverteilt, poissonZug } from "./zufall.js?v=0.9.69";
-import { sternFuer, leuchtkraftAusMasse, bildungstypVon, rundSignifikant } from "./galaxie.js?v=0.9.69";
+  ERDMASSE_T,
+  WASSER_ANTEIL_KOERPER,
+  AE_KM,
+  SONNENMASSE_ERDMASSEN,
+  ERDRADIUS_KM,
+  MOND_STABILITAET_HILL_FAKTOR,
+  MOND_STABILITAET_RADIEN_FAKTOR,
+  MOND_RIESE_RADIUS_R_ERD,
+  MOND_SCHEIBE_Q_BEREICH,
+  MOND_SCHEIBE_ANZAHL_LAMBDA,
+  MOND_SCHEIBE_SIGMA,
+  MOND_SCHEIBE_EISANTEIL_MAX,
+  MOND_EIS_WARM_GRENZE_K,
+  MOND_EINSCHLAG_WAHRSCHEINLICHKEIT,
+  MOND_EINSCHLAG_VERHAELTNIS_BEREICH,
+  MOND_MINDESTMASSE_T,
+  ZWERGPLANET_F1_BEREICH,
+  ZWERGPLANET_R_BEREICH,
+  ZWERGPLANET_RUND_GRENZE_T,
+  ZWERGPLANET_MAX_ANZAHL,
+  ZWERGPLANET_SUMME_MAX_ANTEIL,
+  KOMETENWOLKE_MASSE_BEREICH_ERDMASSEN,
+  KOMETENWOLKE_OHNE_RIESEN_FAKTOR,
+} from "./data.js?v=0.9.73";
+import { stromFuer, waehle, zwischen, gewichtetWaehlen, logGleichverteilt, poissonZug } from "./zufall.js?v=0.9.73";
+import { sternFuer, leuchtkraftAusMasse, bildungstypVon, rundSignifikant, normalverteilt } from "./galaxie.js?v=0.9.73";
 
 // Systeme können deutlich mehr als 50 Objekte tragen (die alte harte
 // Obergrenze ist mit A-305 gefallen) -- römische Zahlen daher berechnen
@@ -117,21 +140,55 @@ function guertelStrom(seed, systemId, index) {
   return stromFuer(seed, systemId * 1601 + index);
 }
 
+// A-312: Zwergplaneten sind Teil ihres Gürtels, nicht zusätzlich (Tobis
+// Entscheidung 13, 30.09.). Reine Kernlogik, ohne eigenen Zufall -- `ziehung`
+// liefert die (i+1)-te Ziehung: i=0 der Anteil f1 des größten Körpers an der
+// Gürtelmasse, i>=1 das Verhältnis r zum Vorgänger. So bleiben die drei
+// Abbruchregeln (Rundgrenze, Summe, Anzahl) an EINER Stelle, geprüft ohne
+// echten Strom (Definition von fertig 1/2) UND von der echten Erzeugung
+// unten verwendet -- kein zweiter Ort, an dem sie abweichen könnten.
+export function zwergplanetenVon(guertelMasseT, art, ziehung) {
+  const rundGrenze = ZWERGPLANET_RUND_GRENZE_T[art];
+  const ergebnis = [];
+  let summe = 0;
+  let index = 0;
+  let kandidat = guertelMasseT * ziehung(index++);
+  while (ergebnis.length < ZWERGPLANET_MAX_ANZAHL) {
+    if (kandidat < rundGrenze) break;
+    if (summe + kandidat > guertelMasseT * ZWERGPLANET_SUMME_MAX_ANTEIL) break;
+    ergebnis.push(kandidat);
+    summe += kandidat;
+    kandidat = ergebnis[ergebnis.length - 1] * ziehung(index++);
+  }
+  return ergebnis;
+}
+
+function zwergplanetenZiehung(rng) {
+  return (i) =>
+    i === 0
+      ? logGleichverteilt(rng, ZWERGPLANET_F1_BEREICH[0], ZWERGPLANET_F1_BEREICH[1])
+      : ZWERGPLANET_R_BEREICH[0] + rng() * (ZWERGPLANET_R_BEREICH[1] - ZWERGPLANET_R_BEREICH[0]);
+}
+
 // `art` ("innerer"/"aeusserer", A-308) entscheidet nur das Massenband -- der
 // Zug selbst steht HINTER Klasse und Wasser im selben Strom, damit beide an
 // ihrem alten Wert bleiben (Auftrag, Bekannte Fallen: neue Züge nach den
-// bestehenden, sonst verschieben sie sich).
+// bestehenden, sonst verschieben sie sich). A-312: die Zwergplaneten stehen
+// HINTER `masseT`, aus demselben Grund (Bekannte Fallen).
 function guertelEigenschaften(seed, systemId, index, temperaturK, art) {
   const guertelRng = guertelStrom(seed, systemId, index);
   const zone = zoneVonTemperatur(temperaturK);
   const klasse = zieheGewichtet(guertelRng, GUERTEL_ZONEN_GEWICHTE[zone.name]);
   const wasser = zieheGewichtet(guertelRng, GUERTEL_WASSER_GEWICHTE[klasse]);
   const [minT, maxT] = GUERTEL_MASSE_BEREICH[art];
+  const masseT = logGleichverteilt(guertelRng, minT, maxT);
+  const zwergplaneten = zwergplanetenVon(masseT, art, zwergplanetenZiehung(guertelRng));
   return {
     klasse,
     zone: zone.name,
     wasser,
-    masseT: logGleichverteilt(guertelRng, minT, maxT),
+    masseT,
+    ...(zwergplaneten.length ? { zwergplaneten } : {}),
   };
 }
 
@@ -576,6 +633,10 @@ export function systemGenerieren(seed, systemId, optionen = {}) {
     const klasse = PLANETEN_KLASSEN[eig.klasse];
     const masse = heimatMasse(rng, klasse);
     const radius = radiusAusMasse(masse);
+    // Index 0: die Heimat wird vor der inneren Kette erzeugt.
+    const heimatMonde = mondeErzeugen(seed, systemId, natur.length, {
+      klasse: eig.klasse, masse, abstandAE: heimatAbstandAE, temperaturK, rahmenMasse: rahmen.masse,
+    });
     natur.push({
       abstandAE: heimatAbstandAE,
       typ: "heimat",
@@ -589,6 +650,7 @@ export function systemGenerieren(seed, systemId, optionen = {}) {
         schwerkraft: Math.round(schwerkraftAus(masse, radius) * 100) / 100,
         masse: Math.round(masse * 100) / 100,
         groesse: Math.round(radius * 100),
+        ...(heimatMonde.length ? { monde: heimatMonde } : {}),
       },
     });
   }
@@ -607,7 +669,7 @@ export function systemGenerieren(seed, systemId, optionen = {}) {
   for (const abstandAE of innereKette) {
     const temperaturK = temperaturVon(abstandAE, stern, zirkumbinaer);
     const eig = planetEigenschaften(rng, temperaturK, abstandAE >= rahmen.schneelinieAE);
-    natur.push(planetObjektBauen(rng, abstandAE, temperaturK, eig));
+    natur.push(planetObjektBauen(rng, abstandAE, temperaturK, eig, seed, systemId, natur.length, rahmen.masse));
   }
 
   for (const abstandAE of aussenKoerper.riesenPositionen) {
@@ -619,13 +681,13 @@ export function systemGenerieren(seed, systemId, optionen = {}) {
     // die Zahl, die die Anzeige zeigt).
     const zone = zoneVonTemperatur(temperaturK);
     const eig = { klasse: "gasriese", zone: zone.name, wasser: zieheGewichtet(rng, zone.wasser) };
-    natur.push(planetObjektBauen(rng, abstandAE, temperaturK, eig));
+    natur.push(planetObjektBauen(rng, abstandAE, temperaturK, eig, seed, systemId, natur.length, rahmen.masse));
   }
 
   for (const abstandAE of aussenKoerper.kaltePlaneten) {
     const temperaturK = temperaturVon(abstandAE, stern, zirkumbinaer);
     const eig = planetEigenschaften(rng, temperaturK, abstandAE >= rahmen.schneelinieAE);
-    natur.push(planetObjektBauen(rng, abstandAE, temperaturK, eig));
+    natur.push(planetObjektBauen(rng, abstandAE, temperaturK, eig, seed, systemId, natur.length, rahmen.masse));
   }
 
   // Schlösser vor reinen Beute-Objekten dürfen jede Technologie verlangen --
@@ -659,6 +721,21 @@ export function systemGenerieren(seed, systemId, optionen = {}) {
       },
     });
   });
+
+  // --- A-312: Kometenwolke -- eigener Strom (2017, Primzahl, kollidiert mit
+  // keiner anderen stromFuer-Kennung: sternFuer *104729, systemPosition
+  // *7919, guertelStrom *1601+Index, mondeStrom *2003+Index). Ausgelöst durch
+  // die NATUR vor dem Weiße-Zwerg-Filter (Bekannte Fallen: ein Riese, den ein
+  // Weißer Zwerg verschluckt hat, hat seine Kometen vorher trotzdem
+  // hinausgeschleudert -- `natur`, nicht `systemNatur`).
+  const hatRiese = natur.some(
+    (k) => k.typ === "planet" && (k.daten.klasse === "gasriese" || k.daten.klasse === "eisriese")
+  );
+  const kometenwolkeRng = stromFuer(seed, systemId * 2017);
+  const kometenwolkeErdmassen =
+    logGleichverteilt(kometenwolkeRng, KOMETENWOLKE_MASSE_BEREICH_ERDMASSEN[0], KOMETENWOLKE_MASSE_BEREICH_ERDMASSEN[1]) *
+    (hatRiese ? 1 : KOMETENWOLKE_OHNE_RIESEN_FAKTOR);
+  const kometenwolke = { masseT: kometenwolkeErdmassen * ERDMASSE_T };
 
   // --- Abschnitt 6: Weißer Zwerg -- Vorläufer-Planeten verschluckt/geweitet
   let systemNatur = natur;
@@ -767,17 +844,79 @@ export function systemGenerieren(seed, systemId, optionen = {}) {
     })
   );
 
-  return { systemId, orbitAnzahl, heimatOrbit, stern, objekte };
+  return { systemId, orbitAnzahl, heimatOrbit, stern, objekte, kometenwolke };
+}
+
+// A-311: Monde -- ein Planet oder die Heimat bekommt `daten.monde` (eine
+// Liste, innen nach außen), gezogen aus einem EIGENEN Strom je Körper, NIE
+// dem Systemstrom `rng` (Bekannte Fallen: ein neuer Zug darin verschöbe jede
+// Klasse, Masse und Sperre danach). 2003 ist eine Primzahl, in keiner
+// anderen stromFuer-Kennung dieses Projekts verwendet (sternFuer: *104729,
+// systemPosition: *7919, guertelStrom: *1601+Index, bahnRng: *953,
+// reicheRng: *1301). `index` ist die Stelle des Körpers in `natur` (vor dem
+// Sortieren) -- die Heimat hat Index 0.
+//
+// Die Stabilitätsprüfung selbst braucht keinen Zufall (reine Geometrie aus
+// Abstand, Massen und Radius) und läuft deshalb VOR dem Strom-Aufruf -- ein
+// instabiler Planet zieht gar nichts, spart also nichts an Reproduzierbarkeit
+// ein, verbraucht aber auch nichts, was später fehlen könnte.
+const MOND_RIESEN_KLASSEN = new Set(["gasriese", "eisriese"]);
+const MOND_EINSCHLAG_KLASSEN = new Set(["felswelt", "supererde", "kleinwelt", "miniNeptun"]);
+
+function mondeStabil(klasse, masse, abstandAE, rahmenMasse) {
+  const radiusRErd = MOND_RIESE_RADIUS_R_ERD[klasse] ?? radiusAusMasse(masse);
+  const aKm = abstandAE * AE_KM;
+  const sternMasseErd = rahmenMasse * SONNENMASSE_ERDMASSEN;
+  const hillRadiusKm = aKm * Math.cbrt(masse / (3 * sternMasseErd));
+  return MOND_STABILITAET_HILL_FAKTOR * hillRadiusKm >= MOND_STABILITAET_RADIEN_FAKTOR * radiusRErd * ERDRADIUS_KM;
+}
+
+function mondeErzeugen(seed, systemId, index, { klasse, masse, abstandAE, temperaturK, rahmenMasse }) {
+  if (!mondeStabil(klasse, masse, abstandAE, rahmenMasse)) return [];
+  const rng = stromFuer(seed, systemId * 2003 + index);
+  const masseT = masse * ERDMASSE_T;
+
+  if (MOND_RIESEN_KLASSEN.has(klasse)) {
+    const q = logGleichverteilt(rng, MOND_SCHEIBE_Q_BEREICH[0], MOND_SCHEIBE_Q_BEREICH[1]);
+    const gesamtMasseT = masseT * q;
+    const anzahl = 1 + poissonZug(rng, MOND_SCHEIBE_ANZAHL_LAMBDA);
+    const warm = temperaturK > MOND_EIS_WARM_GRENZE_K;
+    // Gewichte (log-normal) und Eisanteile werden VOR dem Filtern auf die
+    // Mindestmasse gezogen, in fester Reihenfolge -- sonst hinge die Anzahl
+    // der Züge (und damit jeder Zug danach) von der Mindestmasse ab.
+    const gewichte = Array.from({ length: anzahl }, () => Math.exp(MOND_SCHEIBE_SIGMA * normalverteilt(rng)));
+    const gewichtSumme = gewichte.reduce((a, b) => a + b, 0);
+    const wWerte = Array.from({ length: anzahl }, () => (warm ? WASSER_ANTEIL_KOERPER.trocken : rng() * MOND_SCHEIBE_EISANTEIL_MAX))
+      .sort((a, b) => a - b);
+    const monde = [];
+    for (let i = 0; i < anzahl; i++) {
+      const mondMasseT = gesamtMasseT * (gewichte[i] / gewichtSumme);
+      if (mondMasseT < MOND_MINDESTMASSE_T) continue;
+      monde.push({ klasse: "mondEis", masseT: mondMasseT, wasserAnteil: wWerte[i] });
+    }
+    return monde;
+  }
+
+  if (MOND_EINSCHLAG_KLASSEN.has(klasse)) {
+    if (rng() >= MOND_EINSCHLAG_WAHRSCHEINLICHKEIT) return [];
+    const verhaeltnis = logGleichverteilt(rng, MOND_EINSCHLAG_VERHAELTNIS_BEREICH[0], MOND_EINSCHLAG_VERHAELTNIS_BEREICH[1]);
+    const mondMasseT = masseT * verhaeltnis;
+    if (mondMasseT < MOND_MINDESTMASSE_T) return [];
+    return [{ klasse: "mondGestein", masseT: mondMasseT, wasserAnteil: WASSER_ANTEIL_KOERPER.trocken }];
+  }
+
+  return [];
 }
 
 // Ein Planet der inneren Kette oder der äußeren Körper -- Masse aus dem
 // Bereich der Klasse, Radius/Schwerkraft daraus abgeleitet, wie vor A-305.
-function planetObjektBauen(rng, abstandAE, temperaturK, eig) {
+function planetObjektBauen(rng, abstandAE, temperaturK, eig, seed, systemId, index, rahmenMasse) {
   const klasse = PLANETEN_KLASSEN[eig.klasse];
   const masse = klasse.masse[0] + rng() * (klasse.masse[1] - klasse.masse[0]);
   const radius = radiusAusMasse(masse);
   const schwerkraft = klasse.oberflaeche ? Math.round(schwerkraftAus(masse, radius) * 100) / 100 : klasse.schwerkraft;
   const antimaterieVorrat = mengeSkaliert(ANTIMATERIE_ERNTE.vorrat[eig.klasse] || 0);
+  const monde = mondeErzeugen(seed, systemId, index, { klasse: eig.klasse, masse, abstandAE, temperaturK, rahmenMasse });
   return {
     abstandAE,
     typ: "planet",
@@ -793,6 +932,7 @@ function planetObjektBauen(rng, abstandAE, temperaturK, eig) {
       schwerkraft,
       masse: Math.round(masse * 100) / 100,
       groesse: Math.round(radius * 100),
+      ...(monde.length ? { monde } : {}),
     },
   };
 }

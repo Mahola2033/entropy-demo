@@ -28,6 +28,42 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.9.73",
+    de: [
+      "Nur intern: Die Roadmap im Development-Tab nannte Monde, Zwergplaneten und Kometen noch unter „Bald”, obwohl N-4 (v0.9.70–0.9.72) sie längst gebaut hat -- der Punkt steht jetzt in den Patchnotes oben, nicht mehr im Ausblick. Unter „Später” neu: Monde und Zwergplaneten werden zu Zielen, die man anfliegen, fördern und besiedeln kann -- das kommt erst mit der nächsten Ebene.",
+    ],
+    en: [
+      "Internal only: the roadmap in the Development tab still listed moons, dwarf planets and comets under \"Soon\", even though N-4 (v0.9.70-0.9.72) had already built them -- that item now lives in the patch notes above, not the outlook. New under \"Later\": moons and dwarf planets become targets you can fly to, mine and settle -- that comes with the next layer.",
+    ],
+  },
+  {
+    version: "0.9.72",
+    de: [
+      "Asteroidengürtel können jetzt Zwergplaneten enthalten -- kleine runde Körper wie Ceres oder Pluto, aus derselben Masse wie der Gürtel um sie herum, nicht zusätzlich. Und jedes System trägt eine Kometenwolke am äußersten Rand, deutlich größer, wenn Gas- oder Eisriesen im System ihre Eisbrocken dorthin geschleudert haben.",
+    ],
+    en: [
+      "Asteroid belts can now contain dwarf planets -- small round bodies like Ceres or Pluto, made of the same mass as the belt around them, not extra. And every system carries a comet cloud at its outer edge, noticeably larger when gas or ice giants in the system have flung their ice out there.",
+    ],
+  },
+  {
+    version: "0.9.71",
+    de: [
+      "Gasriesen und Eisriesen zeigen jetzt ihre Zusammensetzung und ihre Monde -- Hülle (mit Deuterium), Gesamtinhalt und, falls vorhanden, Anzahl und größter Mond, genau wie bei jedem anderen Planeten. Sie waren nie besiedelbar; das bleibt so.",
+    ],
+    en: [
+      "Gas and ice giants now show their composition and their moons -- envelope (with deuterium), total content and, if any, moon count and the largest moon, just like any other planet. They were never colonizable; that stays the same.",
+    ],
+  },
+  {
+    version: "0.9.70",
+    de: [
+      "Planeten und deine Heimatwelt können jetzt Monde haben: Gasriesen und Eisriesen oft mehrere (bis zu einer Handvoll, in einer Scheibe entstanden wie Jupiters Galileische Monde), Gesteinswelten höchstens einen einzigen, aus einem Rieseneinschlag wie der Erdmond -- und selten. Ihre Zusammensetzung zeigt dieselbe Zeile wie die des Planeten: Anzahl und der größte Mond, mit Masse und Eisanteil. Sternnahe Planeten und heiße Jupiter verlieren ihre Monde an die Schwerkraft ihres Sterns, ganz ohne Sonderregel.",
+    ],
+    en: [
+      "Planets and your home world can now have moons: gas and ice giants often several (up to a handful, formed in a disc like Jupiter's Galilean moons), rocky worlds at most a single one, born from a giant impact like Earth's Moon -- and rarely. Their composition shows in the same line as the planet's: count and the largest moon, with mass and ice share. Planets close to their star, including hot Jupiters, lose their moons to their star's gravity, with no special rule needed.",
+    ],
+  },
+  {
     version: "0.9.69",
     de: [
       "Nur intern: Die Roadmap im Development-Tab folgte noch dem alten Plan -- Treibstoff, Tankstellen und unterschiedliche fremde Imperien standen unter „Bald”, obwohl sie seit der Neuausrichtung vom 23.09. als Mechanik geparkt sind. Jetzt zeigt sie den aktuellen Stand: „Bald” sind die nächsten Natur-Bausteine (Monde, Zwergplaneten, Kometen, neue Stoffe).",
@@ -2409,7 +2445,6 @@ export const ROADMAP_PUNKTE = [
     de: "Bald",
     en: "Soon",
     punkte: [
-      { de: "Die Natur wird vollständiger: Monde, Zwergplaneten und Kometen", en: "Nature becomes more complete: moons, dwarf planets and comets" },
       { de: "Neue Stoffe: Metall teilt sich in Eisen, Aluminium, Kupfer und Titan, und Wasser wird ein eigener Rohstoff", en: "New materials: metal splits into iron, aluminium, copper and titanium, and water becomes its own resource" },
     ],
   },
@@ -2422,6 +2457,7 @@ export const ROADMAP_PUNKTE = [
       { de: "Tankstellen unterwegs: Reichweite wird zu einem Netz, das man sich baut", en: "Fuel stations along the way: range becomes a network you build" },
       { de: "Fremde Imperien werden unterschiedlich: manche wachsen, manche scheitern", en: "Foreign empires become different: some grow, some fail" },
       { de: "Ein Prioritäten-Fenster: Strom und Arbeitskraft von Hand verteilen", en: "A priority panel: assign power and workforce by hand" },
+      { de: "Monde und Zwergplaneten werden Ziele: anfliegen, fördern, besiedeln", en: "Moons and dwarf planets become targets: fly to them, mine them, settle them" },
     ],
   },
 ];

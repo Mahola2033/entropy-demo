@@ -19,7 +19,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.9.69";
+export const VERSION = "0.9.73";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von vollversion.mjs (bis A-272: uebernehmen.mjs) beim
@@ -66,7 +66,7 @@ export const DEMO_SAAT = 20269933;
 // wird an den anzeigenden Stellen, nicht hier. Einzige Ausnahme ist
 // voraussetzungenText() weiter unten -- die einzige Funktion in dieser Datei,
 // die Anzeigetext zusammensetzt.
-import { t } from "./sprache.js?v=0.9.69";
+import { t } from "./sprache.js?v=0.9.73";
 
 // A-164 (31.08.2026): Von 50 auf 125.000 (×2.500) -- die Maßstabsrunde.
 // Vorher skalierte EIN MASSSTAB Material, Menschen und Arbeitskraft
@@ -2596,7 +2596,7 @@ export function affinitaetVon({ klasse, zone, wasser }) {
 // Entscheidung 8, 23.09.).
 //
 // Erdmasse in Tonnen -- Referenzgröße für jede Massenrechnung hier.
-const ERDMASSE_T = 5.972e21; // ●
+export const ERDMASSE_T = 5.972e21; // ●
 
 // Gehalt-Tabellen, Massenanteile (Ir/U in g/t, also ×1e-6). Metall = Fe + Ni
 // + Al + Ti + Cu (R-48 plus Nickel, siehe Auftrag Abschnitt 1) -- die
@@ -2649,6 +2649,9 @@ function mantelGehaltVon(krusteGehalt, kernFrac, krusteFrac) {
 }
 const MANTEL_FELSWELT = mantelGehaltVon(GEHALT.krusteKontinental, 0.325, 0.005);
 const MANTEL_KLEINWELT = mantelGehaltVon(GEHALT.krusteBasaltisch, 0.24, 0.03);
+// A-311: Einschlagmond -- Kern 2 %, Kruste 5 % (Basalt wie die Kleinwelt),
+// Mantel per Massenbilanz aus der BSE (Auftrag Abschnitt 3).
+const MANTEL_MONDGESTEIN = mantelGehaltVon(GEHALT.krusteBasaltisch, 0.02, 0.05);
 
 // "Ganze Erde", zu einem Gehalt gemischt (Kern 32,5 % + Kruste 0,5 % + Mantel
 // 67 %, wie Heimat/Felswelt) -- der Gesteinskern der Riesen hat laut Auftrag
@@ -2679,7 +2682,7 @@ const GEHALT_GUERTEL_M = gemischterGehalt([
 // Abschnitt 4). Nur Gesteinswelten -- bei den Riesen kommt Wasser/Deuterium
 // allein aus der Schichtstruktur (Hülle, Eismantel), `daten.wasser` wirkt
 // dort nur auf affinitaetVon/Anzeige, nicht auf die Zusammensetzung.
-const WASSER_ANTEIL_KOERPER = {
+export const WASSER_ANTEIL_KOERPER = {
   trocken: 1e-5, // Mars ○
   maessig: 2.3e-4, // Erde, Ozeane 1,4e18 t ●
   reich: 1e-2, // Ozeanwelt ◆ (Europa ~8 % ●, die Spanne ist real riesig)
@@ -2737,19 +2740,102 @@ export const GUERTEL_MASSE_BEREICH = {
   aeusserer: [1e19, 1e21],
 };
 
+// --- A-311: Monde -- Konstanten für die Erzeugung (js/welt.js) ------------
+//
+// Astronomische Einheiten, hier gebraucht für die Hill-Sphären-Stabilität.
+export const AE_KM = 1.496e8; // ●
+export const SONNENMASSE_ERDMASSEN = 332946; // ●
+export const ERDRADIUS_KM = 6371; // ●
+
+// Ein Mond hält sich nur innerhalb eines Teils der Hill-Sphäre (Domingos,
+// Winter & Yokoyama 2006, prograd, kreisförmig: 0,4895 ≈ 0,49 ○ -- Recherche
+// bestätigt den Auftragswert, keine Abweichung). Fällt er unter das
+// 20-fache des Planetenradius, hat der Planet keine Monde (Auftrag
+// Abschnitt 2, ◆ gewählte Prämisse). Ein einfacheres Ersatzkriterium für die
+// zusätzliche Gezeitenwirkung sternnaher Planeten (Barnes & O'Brien 2002,
+// Sasaki, Barnes & O'Brien 2012) hat die Recherche nicht ergeben -- der
+// Tidenverlust hängt von Zeit, Planeten-Q und Exzentrizität ab, nicht von
+// einer einzelnen geometrischen Schwelle. Die 20-R_p-Regel bleibt deshalb
+// unverändert.
+export const MOND_STABILITAET_HILL_FAKTOR = 0.49;
+export const MOND_STABILITAET_RADIEN_FAKTOR = 20;
+// Radius der Riesen NUR für die Stabilitätsregel oben -- nicht `groesse`
+// (das heutige R ∝ M^0,27 ist für Riesen zu klein, Faktor 2,4, siehe
+// Auftrag "Bekannte Fallen"). Jupiter 11,2 R⊕, Neptun/Uranus im Mittel
+// 3,9 R⊕, Mini-Neptun (2-10 M⊕) 2,5 R⊕ ○.
+export const MOND_RIESE_RADIUS_R_ERD = { gasriese: 11.2, eisriese: 3.9, miniNeptun: 2.5 };
+
+// Scheibenmonde (Gas-/Eisriesen): Gesamtmasse = Planetenmasse × q, q
+// log-gleichverteilt (Auftrag Abschnitt 1) ◆. Canup & Ward 2006 sagen ~1e-4
+// für alle Riesen voraus ● (Recherche bestätigt), Jupiter 2,07e-4, Saturn
+// 2,5e-4, Uranus 1,0e-4 ●.
+export const MOND_SCHEIBE_Q_BEREICH = [5e-5, 3e-4];
+// Anzahl = 1 + Poisson(3) ◆. Aufteilung log-normal, σ = 1,5 ◆.
+export const MOND_SCHEIBE_ANZAHL_LAMBDA = 3;
+export const MOND_SCHEIBE_SIGMA = 1.5;
+// Eisanteil w je Scheibenmond: gleichverteilt 0-0,55, aufsteigend sortiert
+// von innen nach außen (Auftrag Abschnitt 3) ◆.
+export const MOND_SCHEIBE_EISANTEIL_MAX = 0.55;
+// Warme Riesen (> 170 K, Auftrag Abschnitt 3 ◆): ihre Monde sind trocken.
+export const MOND_EIS_WARM_GRENZE_K = 170;
+
+// Einschlagmond (Gesteinswelten, Mini-Neptun): Wahrscheinlichkeit 0,08 ○
+// (Elser et al. 2011: gut 1 von 12 Gesteinsplaneten bekommt einen massiven
+// Mond -- Recherche bestätigt, keine Abweichung). Masse = Planet ×
+// Verhältnis, log-gleichverteilt (Auftrag Abschnitt 1) ◆.
+export const MOND_EINSCHLAG_WAHRSCHEINLICHKEIT = 0.08;
+export const MOND_EINSCHLAG_VERHAELTNIS_BEREICH = [1e-3, 3e-2];
+
+// Nur runde Monde: Mimas (kleinster runde Mond) hat 3,75e16 t ● -- darunter
+// entfällt ein gezogener Mond ganz (Auftrag Abschnitt 1).
+export const MOND_MINDESTMASSE_T = 3e16;
+
+// --- A-312: Zwergplaneten und Kometenwolke -- Konstanten (js/welt.js) -----
+//
+// Ein Zwergplanet ist Teil der Gürtelmasse, nicht zusätzlich (Tobis
+// Entscheidung 13, 30.09.). Größter Körper: Gürtelmasse × f1 ◆. Ceres trägt
+// 39 % des Hauptgürtels ●; Eris 3-30 % des Kuipergürtels, je nach
+// angenommener Kuipermasse ○.
+export const ZWERGPLANET_F1_BEREICH = [0.1, 0.4];
+// Jeder weitere Körper: Vorgänger × r ◆. Die realen Verhältnisse der
+// Kuiper-Zwerge (Eris/Pluto/Haumea/Makemake) liegen zwischen 0,3 und 0,8 ○.
+export const ZWERGPLANET_R_BEREICH = [0.3, 0.8];
+// Rund ab dieser Masse ◆: Ceres (9,4e17 t) ist rund, Vesta (2,6e17 t) knapp
+// nicht ● -- innerer Gürtel also zwischen beiden. Äußerer Gürtel: Eis wird
+// schon bei geringerer Masse rund, Mimas (3,75e16 t) ist rund ●.
+export const ZWERGPLANET_RUND_GRENZE_T = { innerer: 5e17, aeusserer: 5e16 };
+// Abbruch spätestens hier ◆: 15 Körper, oder wenn die Summe mehr als diesen
+// Anteil der Gürtelmasse trüge.
+export const ZWERGPLANET_MAX_ANZAHL = 15;
+export const ZWERGPLANET_SUMME_MAX_ANTEIL = 0.6;
+
+// Kometenwolke: Masse eines Systems mit mindestens einem Gas-/Eisriesen,
+// log-gleichverteilt in Erdmassen ◆ -- die Oortsche Wolke wird auf einige
+// Erdmassen geschätzt ○.
+export const KOMETENWOLKE_MASSE_BEREICH_ERDMASSEN = [0.5, 5];
+// Ohne Riesen bleibt kaum etwas übrig -- Faktor auf dieselbe Ziehung ◆
+// (Recherche zum genauen Anteil, auch durch Einfang aus dem Geburtshaufen,
+// ergab keine belastbare Zahl: Levison et al. 2010 ○).
+export const KOMETENWOLKE_OHNE_RIESEN_FAKTOR = 0.01;
+// Zusammensetzung: Staub mit dem Gehalt eines C-Gürtels (CI-Chondrit),
+// Wasser 30 % der Masse ◆ (67P/Rosetta: Staub zu Eis rund 1-4 ○). D/H das
+// Doppelte des Meerwassers ◆ (Oort-Kometen 1,5-3× ○, 67P 3,4× ●).
+export const KOMETENWOLKE_WASSER_ANTEIL = 0.3;
+export const KOMETENWOLKE_DH_FAKTOR = 2;
+
 // Masse × Gehalt je Schicht, für jeden Planeten, die Heimatwelt und (seit
 // A-308) jeden Gürtel (dieselbe Funktion, `daten.typ` spielt keine Rolle).
 // Reine Ableitung aus `klasse`, `masse`/`masseT`, `wasser` -- nichts wird
 // gespeichert. Unbekannte Klasse liefert `null`.
 export function zusammensetzungVon(daten) {
-  const { klasse, masse, masseT: guertelMasseT, wasser } = daten || {};
+  const { klasse, masse, masseT: koerperMasseT, wasser, wasserAnteil } = daten || {};
   const schichten = {};
   let masseT;
 
   const guertel = GUERTEL_GEHALT[klasse];
   if (guertel) {
-    if (typeof guertelMasseT !== "number") return null;
-    masseT = guertelMasseT;
+    if (typeof koerperMasseT !== "number") return null;
+    masseT = koerperMasseT;
     const wasserFrac = guertel.wasserfaehig ? (GUERTEL_WASSER_ANTEIL[wasser] ?? GUERTEL_WASSER_ANTEIL.trocken) : 0;
     const wasserMasseT = masseT * wasserFrac;
     const stoffe = stoffeSkaliert(guertel.gehalt, masseT - wasserMasseT);
@@ -2758,6 +2844,51 @@ export function zusammensetzungVon(daten) {
       stoffe.deuterium = (stoffe.deuterium || 0) + deuteriumInWasser(wasserMasseT, DH_VSMOW);
     }
     schichten.gesamt = { masseT, stoffe };
+  } else if (klasse === "kometenwolke") {
+    // A-312: eine Schicht `gesamt`, wie ein Gürtel -- Staub mit dem Gehalt
+    // eines C-Gürtels (CI-Chondrit), Wasser 30 % der Masse, D/H das Doppelte
+    // des Meerwassers (Auftrag Abschnitt 2). Die Wolke selbst ist nicht
+    // gespeichert, nur `system.kometenwolke.masseT` (js/welt.js).
+    if (typeof koerperMasseT !== "number") return null;
+    masseT = koerperMasseT;
+    const wasserMasseT = masseT * KOMETENWOLKE_WASSER_ANTEIL;
+    const stoffe = stoffeSkaliert(GEHALT.guertelC, masseT - wasserMasseT);
+    stoffe.wasser = (stoffe.wasser || 0) + wasserMasseT;
+    stoffe.deuterium = (stoffe.deuterium || 0) + deuteriumInWasser(wasserMasseT, DH_VSMOW * KOMETENWOLKE_DH_FAKTOR);
+    schichten.gesamt = { masseT, stoffe };
+  } else if (klasse === "mondGestein" || klasse === "mondEis") {
+    // A-311: wie ein Gürtel bekommt ein Mond seine Masse direkt in Tonnen
+    // (`masseT`), keine Erdmassen-Fraktion -- er ist selbst nicht gespeichert,
+    // nur seine Elterndaten (`daten.monde`), siehe js/welt.js.
+    if (typeof koerperMasseT !== "number") return null;
+    masseT = koerperMasseT;
+    const w = typeof wasserAnteil === "number" ? wasserAnteil : 0;
+    if (klasse === "mondGestein") {
+      // Kern 2 %, Kruste 5 % (Basalt), Mantel per Massenbilanz -- Wasser wie
+      // ein trockener Gesteinskörper, in der Kruste (Auftrag Abschnitt 3).
+      const kernFrac = 0.02;
+      const krusteFrac = 0.05;
+      const mantelFrac = 1 - kernFrac - krusteFrac - w;
+      schichten.kern = schichtAus(masseT * kernFrac, GEHALT.kernErdartig);
+      schichten.mantel = schichtAus(masseT * mantelFrac, MANTEL_MONDGESTEIN);
+      const krusteMineralT = masseT * krusteFrac;
+      const wasserMasseT = masseT * w;
+      const krusteStoffe = stoffeSkaliert(GEHALT.krusteBasaltisch, krusteMineralT);
+      krusteStoffe.wasser = (krusteStoffe.wasser || 0) + wasserMasseT;
+      krusteStoffe.deuterium = (krusteStoffe.deuterium || 0) + deuteriumInWasser(wasserMasseT, DH_VSMOW);
+      schichten.kruste = { masseT: krusteMineralT + wasserMasseT, stoffe: krusteStoffe };
+    } else {
+      // mondEis: Kern = Gesteinskörper (ganze-Erde-Mix, wie der Gesteinskern
+      // der Riesen), Masse × (1 − w). Kruste = reines Eis, Masse × w -- es
+      // liegt außen (Auftrag Abschnitt 3: "Ganymed ist ein Gesteinskörper
+      // unter einer Eisschale").
+      schichten.kern = schichtAus(masseT * (1 - w), GANZE_ERDE_GEHALT);
+      const wasserMasseT = masseT * w;
+      schichten.kruste = {
+        masseT: wasserMasseT,
+        stoffe: { wasser: wasserMasseT, deuterium: deuteriumInWasser(wasserMasseT, DH_VSMOW) },
+      };
+    }
   } else {
     if (typeof masse !== "number") return null;
     masseT = masse * ERDMASSE_T;
