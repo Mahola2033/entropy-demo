@@ -24,9 +24,11 @@ import {
   DOPPELSTERN_BRAUNER_ZWERG_GRENZE,
   DOPPELSTERN_ABSTAND_MEDIAN_AE,
   DOPPELSTERN_ABSTAND_SIGMA,
-} from "./data.js?v=0.9.64";
-import { stromFuer, mischen, gewichtetWaehlen } from "./zufall.js?v=0.9.64";
-import { t } from "./sprache.js?v=0.9.64";
+  DOPPELSTERN_WEISSER_ZWERG_ANTEIL,
+  WEISSER_ZWERG_IFMR,
+} from "./data.js?v=0.9.69";
+import { stromFuer, mischen, gewichtetWaehlen } from "./zufall.js?v=0.9.69";
+import { t } from "./sprache.js?v=0.9.69";
 
 // Position eines Systems in der Galaxie-Ebene. Rein aus der Saat abgeleitet.
 export function systemPosition(seed, systemId) {
@@ -122,7 +124,7 @@ function rund3(x) {
 // heller B-Stern >10.000 L☉). rund3() rundete jeden Wert unter 0,0005 auf
 // exakt 0 -- für Weiße und vor allem Braune Zwerge lag das IMMER im
 // Nullbereich, ihre Leuchtkraft wäre nie von 0 zu unterscheiden gewesen.
-function rundSignifikant(x, stellen = 3) {
+export function rundSignifikant(x, stellen = 3) {
   if (x === 0) return 0;
   const exponent = Math.floor(Math.log10(Math.abs(x)));
   const faktor = Math.pow(10, stellen - 1 - exponent);
@@ -142,6 +144,20 @@ function hauptreihentypAusMasse(masse) {
     if (masse <= typ.masse[1]) return typ;
   }
   return HAUPTREIHE_AUFSTEIGEND[HAUPTREIHE_AUFSTEIGEND.length - 1];
+}
+
+// A-305: Welcher Hauptreihentyp GÄBE einem Stern dieser Masse seine
+// Planetenstatistik (innere Kette, Riesenanteil -- siehe INNERE_KETTE_LAMBDA/
+// RIESEN_ANTEIL in data.js)? Dieselbe Massen-zu-Typ-Zuordnung wie bei einem
+// Doppelstern-Begleiter (hauptreihentypAusMasse), nur unter einem eigenen
+// Namen exportiert: hier geht es nicht um den Sterntyp selbst, sondern um die
+// "Bildungsmasse" M_b eines Systems -- bei einem Weißen Zwerg ist das die
+// Masse seines Vorläufers (siehe sternFuer/WEISSER_ZWERG_IFMR), bei einem
+// zirkumbinären Planetensystem die Summe M1+M2 (siehe welt.js). Unter der
+// Braunzwerg-Grenze exakt dieselbe Ausnahme wie beim Begleiter -- ein System,
+// das nie eine Hauptreihenmasse hatte, bekommt nie einen Hauptreihentyp.
+export function bildungstypVon(masse) {
+  return masse < DOPPELSTERN_BRAUNER_ZWERG_GRENZE ? STERN_TYPEN.lt : hauptreihentypAusMasse(masse);
 }
 
 // Einen Stern EINES bestimmten Typs erzeugen. `vorgegebeneMasse`: für einen
@@ -176,22 +192,60 @@ function normalverteilt(rng) {
 // Auftrag: "Der Begleiter wirkt in diesem Auftrag auf nichts" -- Zonen und
 // Temperatur rechnen weiter nur mit dem Primärstern; die Bahnen mit echtem
 // Abstand sind N-2.
+// A-305, Nachtrag aus A-304: mit DOPPELSTERN_WEISSER_ZWERG_ANTEIL ist der
+// Begleiter ein bereits entwickelter Weißer Zwerg statt eines Hauptreihen-
+// oder Braunzwerg-Partners (real: Sirius B, Procyon B) -- ein Fall, den die
+// reine Massenzuordnung unten nie treffen konnte, weil sie jede Masse einem
+// Hauptreihentyp zuschlägt. Physik-Bedingung: sein Vorläufer war schwerer als
+// der Primärstern (sonst wäre der Primärstern zuerst gestorben) -- deshalb
+// M_WD gleichverteilt im Schnitt aus dem Weißer-Zwerg-Massebereich und dem,
+// was ein Vorläufer schwerer als `primaerMasse` per IFMR ergäbe. Ist dieser
+// Schnitt leer (primaerMasse liegt schon über der Grenze, ab der überhaupt
+// ein Weißer Zwerg im zulässigen Massebereich herauskäme), gibt es hier
+// keinen -- der Aufrufer fällt auf die normale Massenzuordnung zurück.
+function weisserZwergBegleiter(primaerMasse, rng) {
+  const [minWD, maxWD] = STERN_TYPEN.d.masse;
+  const untergrenze = Math.max(minWD, WEISSER_ZWERG_IFMR.steigung * primaerMasse + WEISSER_ZWERG_IFMR.achsenabschnitt);
+  if (untergrenze > maxWD) return null;
+  const masse = rund3(untergrenze + rng() * (maxWD - untergrenze));
+  return sternAusTyp(STERN_TYPEN.d, rng, masse);
+}
+
 function begleiterFuer(primaerTyp, primaerMasse, rng) {
   const anteil = DOPPELSTERN_ANTEIL[primaerTyp.id] ?? 0;
   if (rng() >= anteil) return null;
 
-  const [qMin, qMax] = DOPPELSTERN_Q_BEREICH;
-  const q = qMin + rng() * (qMax - qMin);
-  const begleiterMasse = rund3(q * primaerMasse);
-  const begleiterTyp =
-    begleiterMasse < DOPPELSTERN_BRAUNER_ZWERG_GRENZE ? STERN_TYPEN.lt : hauptreihentypAusMasse(begleiterMasse);
-  const stern = sternAusTyp(begleiterTyp, rng, begleiterMasse);
+  const istWD = rng() < DOPPELSTERN_WEISSER_ZWERG_ANTEIL;
+  const stern =
+    (istWD && weisserZwergBegleiter(primaerMasse, rng)) ||
+    (() => {
+      const [qMin, qMax] = DOPPELSTERN_Q_BEREICH;
+      const q = qMin + rng() * (qMax - qMin);
+      const begleiterMasse = rund3(q * primaerMasse);
+      const begleiterTyp =
+        begleiterMasse < DOPPELSTERN_BRAUNER_ZWERG_GRENZE ? STERN_TYPEN.lt : hauptreihentypAusMasse(begleiterMasse);
+      return sternAusTyp(begleiterTyp, rng, begleiterMasse);
+    })();
 
-  const abstandAE = Math.round(
-    Math.exp(Math.log(DOPPELSTERN_ABSTAND_MEDIAN_AE) + normalverteilt(rng) * DOPPELSTERN_ABSTAND_SIGMA) * 10
-  ) / 10;
+  // A-305, GEFUNDENER FEHLER: `Math.round(x*10)/10` (eine Nachkommastelle)
+  // rundete jeden Abstand unter 0,05 AE auf exakt 0 -- seit die Streuung mit
+  // A-304s Nachtrag von σ=1 auf σ≈3,45 gewachsen ist (siehe
+  // DOPPELSTERN_ABSTAND_SIGMA), kommen solche Abstände real vor (rund 13 %
+  // aller Paare liegen unter 1 AE). Ein Begleiterabstand von exakt 0 macht
+  // in A-305 die komplette Stabilitätsrechnung (holmanWiegertSTyp/PTyp, s=0)
+  // kollabieren -- dieselbe Falle wie bei der Leuchtkraft in A-304, behoben
+  // mit demselben Werkzeug: `rundSignifikant` (drei GÜLTIGE Stellen statt
+  // drei Nachkommastellen).
+  const abstandAE = rundSignifikant(
+    Math.exp(Math.log(DOPPELSTERN_ABSTAND_MEDIAN_AE) + normalverteilt(rng) * DOPPELSTERN_ABSTAND_SIGMA)
+  );
 
-  return { ...stern, abstandAE };
+  // A-305, Nachtrag aus A-304: Exzentrizität des Begleiters, gleichverteilt
+  // 0-0,8 -- enge Paare sind über die Zeit gezeitenbedingt zirkularisiert
+  // (Raghavan 2010, Moe & Di Stefano 2017), deshalb e=0 unter 0,1 AE.
+  const e = abstandAE < 0.1 ? 0 : rund3(rng() * 0.8);
+
+  return { ...stern, abstandAE, e };
 }
 
 // Der Stern eines Systems. Wie die Position: rein aus der Saat abgeleitet und

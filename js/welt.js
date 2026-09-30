@@ -4,8 +4,10 @@
 // würfelt nichts aus, sie deckt auf.
 // Grundsatz 2: Entdecken und Verwerten sind getrennt. Manche Objekte sieht
 // man, kommt aber ohne Schlüsseltechnologie nicht heran.
-// Grundsatz 3: Systeme sind nicht gerastert -- Größe und Zusammensetzung
-// werden aus Bereichen und Wahrscheinlichkeiten gezogen (SYSTEM_REGELN).
+// Grundsatz 3 (A-305): Systeme sind nicht gerastert -- jeder Körper trägt
+// einen echten Abstand in AE, aus realen Verteilungen gezogen (Sterntyp,
+// Schneelinie, Kepler). Die Orbitnummer ist seither der RANG nach Abstand
+// (1 = innerstes Objekt), keine gewürfelte Platzzahl mehr.
 // Grundsatz 4: Welche Schlüssel ein System hergibt, entscheidet die Galaxie
 // (js/galaxie.js), nicht das System selbst. Ketten laufen daher über
 // Systemgrenzen hinweg.
@@ -18,7 +20,26 @@ import {
   SYSTEM_REGELN,
   VORKOMMEN_TABELLE,
   ENTDECKBARE_FORSCHUNGEN,
-  orbitZone,
+  zoneVonTemperatur,
+  gleichgewichtstemperatur,
+  keplerAchse,
+  schneelinieAE,
+  zoneAbstandBand,
+  vorlaeuferMasseVon,
+  holmanWiegertSTyp,
+  holmanWiegertPTyp,
+  SCHEIBE_AUSSENKANTE_AE_PRO_MASSE,
+  INNENKANTE_PERIODE_TAGE_BEREICH,
+  ABSTAND_VERHAELTNIS_BEREICH,
+  INNERE_KETTE_LAMBDA,
+  RIESEN_ANTEIL,
+  HEISSER_JUPITER_ANTEIL,
+  HEISSER_JUPITER_PERIODE_TAGE_BEREICH,
+  KALTE_PLANETEN_LAMBDA,
+  INNERER_GUERTEL_CHANCE,
+  INNERER_GUERTEL_FAKTOR_BEREICH,
+  AEUSSERER_GUERTEL_CHANCE,
+  AEUSSERER_GUERTEL_FAKTOR_BEREICH,
   PLANETEN_KLASSEN,
   radiusAusMasse,
   ANTIMATERIE_ERNTE,
@@ -28,17 +49,21 @@ import {
   STARTWELT,
   STARTSCHWIERIGKEIT,
   STARTSCHWIERIGKEIT_VORGABE,
+  START,
   techStufe,
   mengeSkaliert,
   GUERTEL_ZONEN_GEWICHTE,
   GUERTEL_WASSER_GEWICHTE,
-} from "./data.js?v=0.9.64";
-import { stromFuer, waehle, zwischen, mischen, gewichtetWaehlen } from "./zufall.js?v=0.9.64";
-import { sternFuer } from "./galaxie.js?v=0.9.64";
+  GUERTEL_MASSE_BEREICH,
+} from "./data.js?v=0.9.69";
+import { stromFuer, waehle, zwischen, gewichtetWaehlen, logGleichverteilt, poissonZug } from "./zufall.js?v=0.9.69";
+import { sternFuer, leuchtkraftAusMasse, bildungstypVon, rundSignifikant } from "./galaxie.js?v=0.9.69";
 
-// Systeme können bis zu 50 Orbits haben -- römische Zahlen daher berechnen
+// Systeme können deutlich mehr als 50 Objekte tragen (die alte harte
+// Obergrenze ist mit A-305 gefallen) -- römische Zahlen daher berechnen
 // statt aus einer Tabelle nehmen.
 const ROEMISCH_PAARE = [
+  [1000, "M"], [900, "CM"], [500, "D"], [400, "CD"],
   [100, "C"], [90, "XC"], [50, "L"], [40, "XL"],
   [10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"],
 ];
@@ -55,13 +80,6 @@ function roemisch(zahl) {
   return out;
 }
 
-// Zieht die drei Eigenschaften eines Planeten passend zum Sternabstand:
-// Massenklasse, Zone und Wasservorrat. Der sichtbare Name wird daraus
-// abgeleitet (planetName), nicht gewürfelt -- eine Wüstenwelt und eine
-// Ozeanwelt sind dieselbe Klasse mit unterschiedlichem Wasserstand.
-//
-// Die Gewichte stehen als Tabelle in data.js (ORBIT_ZONEN); hier steht nur,
-// wie gezogen wird, damit Inhalt und Mechanik getrennt bleiben.
 function zieheGewichtet(rng, gewichte) {
   const tabelle = Object.entries(gewichte)
     .filter(([, gewicht]) => gewicht > 0)
@@ -69,10 +87,20 @@ function zieheGewichtet(rng, gewichte) {
   return gewichtetWaehlen(rng, tabelle).wert;
 }
 
-export function planetEigenschaften(rng, orbit, orbitAnzahl, leuchtkraft = 1) {
-  const zone = orbitZone(orbit, orbitAnzahl, leuchtkraft);
+// A-305: Klasse/Zone/Wasser eines Planeten folgen jetzt aus seiner echten
+// Gleichgewichtstemperatur (zoneVonTemperatur), nicht mehr aus seinem Rang.
+// `eisrieseErlaubt` ist die eine harte Regel aus dem Auftrag: ein Eisriese
+// entsteht nur jenseits der Bildungs-Schneelinie -- ein Aufrufer diesseits
+// davon (z.B. ein Planet der inneren Kette, der durch einen sehr
+// leuchtschwachen Stern trotzdem "kalt" gemessen wird) bekommt die
+// Gewichtstabelle ohne diesen Eintrag.
+function planetEigenschaften(rng, temperaturK, eisrieseErlaubt) {
+  const zone = zoneVonTemperatur(temperaturK);
+  const klassen = eisrieseErlaubt ? zone.klassen : Object.fromEntries(
+    Object.entries(zone.klassen).filter(([klasse]) => klasse !== "eisriese")
+  );
   return {
-    klasse: zieheGewichtet(rng, zone.klassen),
+    klasse: zieheGewichtet(rng, klassen),
     zone: zone.name,
     wasser: zieheGewichtet(rng, zone.wasser),
   };
@@ -80,30 +108,30 @@ export function planetEigenschaften(rng, orbit, orbitAnzahl, leuchtkraft = 1) {
 
 // A-274: Ein eigener Strom je Gürtel-Objekt, NIE der Strom des Systems
 // (`rng` in systemGenerieren) -- Prinzip 1, die Zusammensetzung liegt fest,
-// bevor jemand hinsieht, und darf beim Hinzufügen keine bestehende Ziehung
-// (Haufen, Wracks, Gefahren) verschieben. Muster wie systemName/sternFuer
-// (js/galaxie.js): ein eigener Faktor, hier zusätzlich mit dem Orbit
-// verrechnet, weil es EIN Strom je Objekt ist, nicht je System. 353 ist eine
-// Primzahl über dem größten Orbit (SYSTEM_REGELN.orbits.max = 50) und in
-// keiner anderen stromFuer-Kennung dieses Projekts verwendet -- die Summe
-// ist deshalb für jedes (systemId, orbit)-Paar eindeutig.
-function guertelStrom(seed, systemId, orbit) {
-  return stromFuer(seed, systemId * 353 + orbit);
+// bevor jemand hinsieht. A-305: es gibt jetzt höchstens zwei Gürtel je
+// System (innerer/äußerer, siehe guertelPositionenBauen) -- die Kennung ist
+// deshalb ein fester Index (0/1) statt der früheren Orbitnummer, mit einem
+// eigenen Faktor (1601, eine Primzahl, in keiner anderen stromFuer-Kennung
+// dieses Projekts verwendet), damit sie mit keinem anderen Strom kollidiert.
+function guertelStrom(seed, systemId, index) {
+  return stromFuer(seed, systemId * 1601 + index);
 }
 
-// Zusammensetzung eines Asteroidengürtels (Entwurf 3.2/3.3): Typ C/S/M nach
-// Zone gewichtet (außen mehr C, wie in der Realität), Wasseranteil nach Typ
-// gewichtet (C ist die wasserreiche Sorte). Die Zone selbst kommt weiterhin
-// aus derselben deterministischen Funktion wie bei Planeten -- keine zweite
-// Zonenrechnung.
-function guertelEigenschaften(seed, systemId, orbit, orbitAnzahl, leuchtkraft) {
-  const guertelRng = guertelStrom(seed, systemId, orbit);
-  const zone = orbitZone(orbit, orbitAnzahl, leuchtkraft);
+// `art` ("innerer"/"aeusserer", A-308) entscheidet nur das Massenband -- der
+// Zug selbst steht HINTER Klasse und Wasser im selben Strom, damit beide an
+// ihrem alten Wert bleiben (Auftrag, Bekannte Fallen: neue Züge nach den
+// bestehenden, sonst verschieben sie sich).
+function guertelEigenschaften(seed, systemId, index, temperaturK, art) {
+  const guertelRng = guertelStrom(seed, systemId, index);
+  const zone = zoneVonTemperatur(temperaturK);
   const klasse = zieheGewichtet(guertelRng, GUERTEL_ZONEN_GEWICHTE[zone.name]);
+  const wasser = zieheGewichtet(guertelRng, GUERTEL_WASSER_GEWICHTE[klasse]);
+  const [minT, maxT] = GUERTEL_MASSE_BEREICH[art];
   return {
     klasse,
     zone: zone.name,
-    wasser: zieheGewichtet(guertelRng, GUERTEL_WASSER_GEWICHTE[klasse]),
+    wasser,
+    masseT: logGleichverteilt(guertelRng, minT, maxT),
   };
 }
 
@@ -176,6 +204,339 @@ function neuesObjekt(systemId, orbit, felder) {
   );
 }
 
+function logR(rng) {
+  return logGleichverteilt(rng, ABSTAND_VERHAELTNIS_BEREICH[0], ABSTAND_VERHAELTNIS_BEREICH[1]);
+}
+
+// --- Abschnitt 1: der Rahmen je Stern (A-305) ------------------------------
+//
+// Bildungsmasse M_b und Bildungsleuchtkraft L_b sind die Größen, aus denen
+// das ganze System gebaut wird -- bei einem Hauptreihenstern oder Braunen
+// Zwerg sind das seine eigene Masse/Leuchtkraft, bei einem Weißen Zwerg die
+// seines Vorläufers (Abschnitt 6: "Das System wird mit M_b = M_i erzeugt").
+// Sie unterscheiden sich bewusst von der AKTUELLEN Leuchtkraft (stern.leuchtkraft),
+// die für die HEUTIGE Temperatur/Zone jedes Körpers gebraucht wird (Abschnitt 3).
+function bildungsGroessenVon(sternObjekt) {
+  if (sternObjekt.id === "d") {
+    const mi = vorlaeuferMasseVon(sternObjekt.masse);
+    return { masse: mi, leuchtkraft: leuchtkraftAusMasse(mi), typ: bildungstypVon(mi) };
+  }
+  return { masse: sternObjekt.masse, leuchtkraft: sternObjekt.leuchtkraft, typ: bildungstypVon(sternObjekt.masse) };
+}
+
+// Der komplette Rahmen eines Systems: Bildungsmasse/-leuchtkraft, Innen-/
+// Außenkante, Schneelinie, Bildungstyp (für die Tabellen in data.js) -- und
+// bei einem Doppelstern, ob die Planeten um den Primärstern (S-Typ) oder um
+// beide (P-Typ) kreisen (Abschnitt 5, Holman & Wiegert 1999).
+//
+// EIGENE ENTSCHEIDUNG (nicht im Auftrag spezifiziert): für μ und die
+// Bildungsgrößen der P-Typ-Summe wird durchgängig die BILDUNGSMASSE beider
+// Sterne verwendet (bei einem Weißen Zwerg also M_i), nicht die heutige --
+// die dynamische Struktur eines Systems (welche Planeten wo stabil sind)
+// wurde in der Bildungszeit angelegt, in derselben Epoche wie die Planeten
+// selbst. Das betrifft nur den seltenen Fall eines Weißen Zwergs mit
+// Begleiter in einem S/P-Typ-Grenzfall.
+function systemRahmen(sternObjekt, bahnRng) {
+  const primaer = bildungsGroessenVon(sternObjekt);
+
+  if (!sternObjekt.begleiter) {
+    const periodeTage = logGleichverteilt(bahnRng, INNENKANTE_PERIODE_TAGE_BEREICH[0], INNENKANTE_PERIODE_TAGE_BEREICH[1]);
+    return {
+      doppelsternModus: "keine",
+      masse: primaer.masse,
+      leuchtkraft: primaer.leuchtkraft,
+      typ: primaer.typ,
+      innenkanteAE: keplerAchse(primaer.masse, periodeTage / 365.25),
+      aussenkanteAE: SCHEIBE_AUSSENKANTE_AE_PRO_MASSE * primaer.masse,
+      schneelinieAE: schneelinieAE(primaer.leuchtkraft),
+    };
+  }
+
+  const begleiter = sternObjekt.begleiter;
+  const begleiterMasseBildung = begleiter.id === "d" ? vorlaeuferMasseVon(begleiter.masse) : begleiter.masse;
+  const begleiterLeuchtkraftBildung = begleiter.id === "d" ? leuchtkraftAusMasse(begleiterMasseBildung) : begleiter.leuchtkraft;
+  const s = begleiter.abstandAE;
+  const mu = begleiterMasseBildung / (primaer.masse + begleiterMasseBildung);
+  const e = begleiter.e || 0;
+  const aKrit = holmanWiegertSTyp(s, mu, e);
+  const innenkante20Tage = keplerAchse(primaer.masse, 20 / 365.25);
+
+  if (aKrit > innenkante20Tage) {
+    // S-Typ: Planeten kreisen um den Primärstern allein, wie im Einzelstern-
+    // Fall -- nur die Außenkante wird zusätzlich von der Stabilitätsgrenze
+    // gedeckelt.
+    const periodeTage = logGleichverteilt(bahnRng, INNENKANTE_PERIODE_TAGE_BEREICH[0], INNENKANTE_PERIODE_TAGE_BEREICH[1]);
+    return {
+      doppelsternModus: "s",
+      masse: primaer.masse,
+      leuchtkraft: primaer.leuchtkraft,
+      typ: primaer.typ,
+      innenkanteAE: keplerAchse(primaer.masse, periodeTage / 365.25),
+      aussenkanteAE: Math.min(SCHEIBE_AUSSENKANTE_AE_PRO_MASSE * primaer.masse, aKrit),
+      schneelinieAE: schneelinieAE(primaer.leuchtkraft),
+    };
+  }
+
+  // P-Typ (zirkumbinär): die Innenkante ist die Stabilitätsgrenze selbst,
+  // kein Zufallszug -- die Scheibe konnte innerhalb von a_cb gar nicht
+  // existieren.
+  const mBildung = primaer.masse + begleiterMasseBildung;
+  const lBildung = primaer.leuchtkraft + begleiterLeuchtkraftBildung;
+  const aCb = holmanWiegertPTyp(s, mu, e);
+  return {
+    doppelsternModus: "p",
+    masse: mBildung,
+    leuchtkraft: lBildung,
+    typ: bildungstypVon(mBildung),
+    innenkanteAE: aCb,
+    aussenkanteAE: SCHEIBE_AUSSENKANTE_AE_PRO_MASSE * mBildung,
+    schneelinieAE: schneelinieAE(lBildung),
+  };
+}
+
+// Die HEUTIGE Gleichgewichtstemperatur eines Körpers an seinem Abstand --
+// getrennt von der Bildungsleuchtkraft im Rahmen, weil sie bei einem Weißen
+// Zwerg eine ganz andere (winzige) Zahl ist (Abschnitt 6). `zirkumbinaer`
+// verwendet die Summe der AKTUELLEN Leuchtkräfte beider Sterne (Abschnitt 3:
+// "L = L₁ + L₂"), sonst zählt der Primärstern plus, wenn vorhanden, der
+// Begleiter-Term über dessen eigenen (aktuellen) Abstand.
+function temperaturVon(abstandAE, sternObjekt, zirkumbinaer) {
+  if (zirkumbinaer) {
+    const lAktuell = sternObjekt.leuchtkraft + (sternObjekt.begleiter ? sternObjekt.begleiter.leuchtkraft : 0);
+    return gleichgewichtstemperatur(abstandAE, lAktuell, null);
+  }
+  return gleichgewichtstemperatur(abstandAE, sternObjekt.leuchtkraft, sternObjekt.begleiter);
+}
+
+// --- Abschnitt 2: die innere Kette (vor der Schneelinie) -------------------
+//
+// Ohne Heimat: eine einfache Kette ab der Innenkante, jeder weitere Körper
+// mit frischem Abstandsverhältnis r nach außen, bis Schneelinie oder
+// Außenkante erreicht ist.
+//
+// Mit Heimat: EIGENE ENTSCHEIDUNG (nicht im Auftrag spezifiziert, wie die
+// "λ-1 weiteren" Planeten sich auf innen/außen verteilen) -- abwechselnd
+// zuerst nach innen, dann nach außen versucht, jede Richtung schließt sich
+// permanent, sobald ihre Grenze (Innenkante bzw. Schneelinie) erreicht ist;
+// die verbleibende Anzahl geht dann vollständig in die noch offene Richtung.
+//
+// ZWEITE EIGENE ENTSCHEIDUNG, aus einem gefundenen Konflikt (nicht im
+// Auftrag angesprochen): `START.sichtbarePlaneten` (data.js) verlangt von
+// JEDEM neuen Spiel zwei sichtbare Planeten im Heimatsystem -- eine
+// Zusicherung aus der Zeit vor A-305, "sonst hinge der Spielstart am
+// Zufall". Der reine Poisson-Zug (λ_g = 1,5) liefert das in gemessen rund
+// 56 % der Fälle NICHT (P(X<=1) für λ=1,5). Da dieser Auftrag ausdrücklich
+// NICHTS an der Mechanik ändern soll ("Mechaniken selbst werden nicht
+// angefasst") und `neuesSpiel` diese Zusicherung voraussetzt, bekommt NUR
+// die innere Kette der Heimat einen Mindestwert von
+// `START.sichtbarePlaneten` zusätzlichen Planeten (statt `λ-1`) -- der
+// Poisson-Zug bleibt die Obergrenze, wenn er höher ausfällt. Das ändert die
+// Statistik nur am EINEN Heimatsystem je Galaxie, nicht an der Galaxie
+// insgesamt.
+function innereKetteBauen(bahnRng, rahmen, heimatAbstandAE) {
+  const lambda = INNERE_KETTE_LAMBDA[rahmen.typ.id] ?? 1;
+  const positionen = [];
+
+  if (heimatAbstandAE == null) {
+    let anzahl = poissonZug(bahnRng, lambda);
+    let pos = null;
+    for (let i = 0; i < anzahl; i++) {
+      const kandidat = pos === null ? rahmen.innenkanteAE : pos * logR(bahnRng);
+      if (kandidat >= rahmen.schneelinieAE || kandidat >= rahmen.aussenkanteAE) break;
+      positionen.push(kandidat);
+      pos = kandidat;
+    }
+    return positionen;
+  }
+
+  let rest = Math.max(START.sichtbarePlaneten, poissonZug(bahnRng, lambda) - 1);
+  let innen = heimatAbstandAE;
+  let aussen = heimatAbstandAE;
+  let innenOffen = true;
+  let aussenOffen = true;
+  let versucheInnenZuerst = true;
+  while (rest > 0 && (innenOffen || aussenOffen)) {
+    let platziert = false;
+    const richtungen = versucheInnenZuerst ? ["innen", "aussen"] : ["aussen", "innen"];
+    for (const richtung of richtungen) {
+      if (platziert) break;
+      if (richtung === "innen" && innenOffen) {
+        const kandidat = innen / logR(bahnRng);
+        if (kandidat < rahmen.innenkanteAE) innenOffen = false;
+        else {
+          innen = kandidat;
+          positionen.push(kandidat);
+          platziert = true;
+        }
+      } else if (richtung === "aussen" && aussenOffen) {
+        const kandidat = aussen * logR(bahnRng);
+        if (kandidat >= rahmen.schneelinieAE) aussenOffen = false;
+        else {
+          aussen = kandidat;
+          positionen.push(kandidat);
+          platziert = true;
+        }
+      }
+    }
+    if (platziert) {
+      rest--;
+      versucheInnenZuerst = !versucheInnenZuerst;
+    }
+  }
+  return positionen;
+}
+
+// --- Abschnitt 2: Riesen, heißer Jupiter, weitere kalte Planeten -----------
+//
+// GEFUNDENER FEHLER, hier behoben: Die äußeren Körper starteten immer an der
+// Schneelinie, ohne zu prüfen, ob die Innenkante SELBST schon weiter außen
+// liegt. Das trifft normalerweise nie zu (die Innenkante folgt aus einer
+// kurzen Umlaufzeit, die Schneelinie liegt für jeden halbwegs leuchtkräftigen
+// Stern viel weiter außen) -- außer bei einem sehr leuchtschwachen Stern
+// (Brauner Zwerg: Schneelinie oft unter 0,03 AE) ODER einem P-Typ-
+// Doppelstern, dessen Innenkante die Stabilitätsgrenze a_cb ist und mit der
+// Leuchtkraft nichts zu tun hat. `aussenStart` ist deshalb das Maximum aus
+// beidem -- kein Körper, egal welcher Kette, entsteht innerhalb der
+// Innenkante.
+function aeussereKoerperBauen(bahnRng, rahmen) {
+  const aussenStart = Math.max(rahmen.schneelinieAE, rahmen.innenkanteAE);
+  const riesenChance = RIESEN_ANTEIL[rahmen.typ.id] ?? 0;
+  const hatRiese = bahnRng() < riesenChance;
+  const riesenPositionen = [];
+  let hatHeisserJupiter = false;
+  let jenseitsDerRiesen = aussenStart;
+
+  if (hatRiese) {
+    const anzahlRiesen = bahnRng() < 0.5 ? 1 : 2;
+    let pos = aussenStart;
+    for (let i = 0; i < anzahlRiesen; i++) {
+      pos = pos * logR(bahnRng);
+      if (pos >= rahmen.aussenkanteAE) break;
+      riesenPositionen.push(pos);
+    }
+    if (riesenPositionen.length) jenseitsDerRiesen = Math.max(...riesenPositionen);
+
+    if (riesenPositionen.length && bahnRng() < HEISSER_JUPITER_ANTEIL) {
+      const periodeTage = logGleichverteilt(bahnRng, HEISSER_JUPITER_PERIODE_TAGE_BEREICH[0], HEISSER_JUPITER_PERIODE_TAGE_BEREICH[1]);
+      const migrierteAE = keplerAchse(rahmen.masse, periodeTage / 365.25);
+      // GEFUNDENER FEHLER, hier behoben -- aber NUR für P-Typ relevant: Bei
+      // einem zirkumbinären System ist die Innenkante die Stabilitätsgrenze
+      // a_cb (Abschnitt 5), eine Umlaufbahn dort ist dynamisch unmöglich
+      // (Holman & Wiegert 1999), kein bloß unwahrscheinlicher Fall -- ein
+      // heißer Jupiter, der dort hin migrieren würde, hätte diese Zone nie
+      // durchquert. Bei einem Einzelstern oder S-Typ hat die Innenkante
+      // dagegen KEINE solche Bedeutung (sie markiert nur, wo die
+      // ungestörte Scheibe begann) -- dort darf ein heißer Jupiter beliebig
+      // nah an seinen Stern migrieren, wie die Definition von fertig es
+      // vorsieht (Vergleichswert 1 % bei G).
+      if (rahmen.doppelsternModus !== "p" || migrierteAE >= rahmen.innenkanteAE) {
+        riesenPositionen[0] = migrierteAE;
+        hatHeisserJupiter = true;
+      }
+    }
+  }
+
+  const kaltePlaneten = [];
+  let rest = poissonZug(bahnRng, KALTE_PLANETEN_LAMBDA);
+  let pos = jenseitsDerRiesen;
+  for (let i = 0; i < rest; i++) {
+    const kandidat = pos * logR(bahnRng);
+    if (kandidat >= rahmen.aussenkanteAE) break;
+    kaltePlaneten.push(kandidat);
+    pos = kandidat;
+  }
+
+  return { riesenPositionen, kaltePlaneten, hatHeisserJupiter, jenseitsDerRiesen };
+}
+
+// --- Abschnitt 4: die Gürtel ------------------------------------------------
+// Innerer Gürtel nur bei einem Riesen ohne heißen Jupiter, außerhalb des
+// äußersten inneren Planeten. Äußerer Gürtel bei bzw. ohne Planeten (dann
+// log-gleichverteilt zwischen Schneelinie und Außenkante). Beide entfallen,
+// wenn ihre gewürfelte Position die Außenkante überschreitet.
+// A-308: liefert seit hier {abstandAE, art}, nicht mehr die nackte Zahl --
+// der Index in dieser Liste ist NICHT "innen/außen" (fehlt der innere
+// Gürtel, trägt der äußere den Index 0), die Art muss also ausdrücklich
+// mitreisen (Auftrag, Bekannte Fallen).
+function guertelPositionenBauen(bahnRng, rahmen, innereKette, aussenKoerper) {
+  const { riesenPositionen, hatHeisserJupiter, kaltePlaneten, jenseitsDerRiesen } = aussenKoerper;
+  const positionen = [];
+
+  if (riesenPositionen.length && !hatHeisserJupiter && bahnRng() < INNERER_GUERTEL_CHANCE) {
+    const [fMin, fMax] = INNERER_GUERTEL_FAKTOR_BEREICH;
+    const faktor = fMin + bahnRng() * (fMax - fMin);
+    const kandidat = riesenPositionen[0] * faktor;
+    const aeusserstesInneres = innereKette.length ? Math.max(...innereKette) : rahmen.innenkanteAE;
+    if (kandidat > aeusserstesInneres && kandidat < rahmen.aussenkanteAE) positionen.push({ abstandAE: kandidat, art: "innerer" });
+  }
+
+  if (bahnRng() < AEUSSERER_GUERTEL_CHANCE) {
+    const [fMin, fMax] = AEUSSERER_GUERTEL_FAKTOR_BEREICH;
+    // Referenz ist die vor-Migration-Position (jenseitsDerRiesen), NIE die
+    // eines heißen Jupiters: der ist nach innen gewandert, das äußere
+    // Trümmerfeld hat davon nichts gemerkt (Abschnitt 8, aeussereKoerperBauen).
+    const aeusserstePosition = kaltePlaneten.length ? kaltePlaneten[kaltePlaneten.length - 1] : jenseitsDerRiesen;
+    const kandidat =
+      riesenPositionen.length || kaltePlaneten.length
+        ? aeusserstePosition * (fMin + bahnRng() * (fMax - fMin))
+        : logGleichverteilt(bahnRng, Math.max(rahmen.schneelinieAE, rahmen.innenkanteAE), rahmen.aussenkanteAE);
+    if (kandidat < rahmen.aussenkanteAE) positionen.push({ abstandAE: kandidat, art: "aeusserer" });
+  }
+
+  return positionen;
+}
+
+// --- Abschnitt 8: Heimat -----------------------------------------------
+// Ihr Abstand wird ZUERST gewählt, log-gleichverteilt im AE-Band ihrer
+// Zielzone (STARTSCHWIERIGKEIT) -- die innere Kette wird danach von ihr aus
+// gebaut (innereKetteBauen mit heimatAbstandAE).
+function heimatAbstandWaehlen(rng, rahmen, zielZone) {
+  const [min, max] = zoneAbstandBand(zielZone, rahmen.leuchtkraft);
+  const unten = Math.max(min, rahmen.innenkanteAE);
+  const oben = Math.min(Number.isFinite(max) ? max : rahmen.schneelinieAE, rahmen.schneelinieAE);
+  if (unten >= oben) {
+    // Notnagel: der Heimatstern ist immer ein einzelner Gelber Zwerg in
+    // einem engen, sonnenähnlichen Leuchtkraftband (HEIMAT_LEUCHTKRAFT_BEREICH)
+    // -- dieser Fall ist gemessen (A-305-Ergebnis) nie eingetreten, bleibt
+    // aber als Absicherung stehen, statt mit min>oben zu werfen.
+    return Math.sqrt(Math.max(rahmen.innenkanteAE, 1e-6) * rahmen.schneelinieAE);
+  }
+  return logGleichverteilt(rng, unten, oben);
+}
+
+// Die Heimatwelt ist ein PLANET wie jeder andere -- mit Klasse, Zone und
+// Wasser. Gezogen wird so lange, bis die Kombination als Startwelt taugt.
+// Das ist bewusst eine BEDINGTE Ziehung und keine feste Vorgabe: Klasse und
+// Wasserstand variieren weiterhin, nur eben innerhalb dessen, was bewohnbar
+// ist.
+function heimatEigenschaften(rng, temperaturK, zielWasser) {
+  const masseFuer = (g) => Math.pow(g, 1 / 0.46);
+  const bandTauglich = (klasseId) => {
+    const k = PLANETEN_KLASSEN[klasseId];
+    return k.masse[0] <= masseFuer(STARTWELT.schwerkraftMax) && k.masse[1] >= masseFuer(STARTWELT.schwerkraftMin);
+  };
+  const zone = zoneVonTemperatur(temperaturK);
+
+  for (let versuch = 0; versuch < 25; versuch++) {
+    const klasse = zieheGewichtet(rng, zone.klassen);
+    const eig = { klasse, zone: zone.name, wasser: zielWasser };
+    if (taugtAlsStartwelt(eig) && bandTauglich(klasse)) return eig;
+  }
+  // Notnagel für den Fall, dass die Zone gar nichts Bewohnbares zulässt.
+  return { klasse: "felswelt", zone: "habitabel", wasser: "maessig" };
+}
+
+// Die Masse der Heimatwelt, eingegrenzt auf das Schwerkraftband aus
+// STARTWELT (Korrelation −0,88 mit dem Spielfortschritt, siehe
+// taugtAlsStartwelt).
+function heimatMasse(rng, klasse) {
+  const masseFuer = (g) => Math.pow(g, 1 / 0.46);
+  const unten = Math.max(klasse.masse[0], masseFuer(STARTWELT.schwerkraftMin));
+  const oben = Math.min(klasse.masse[1], masseFuer(STARTWELT.schwerkraftMax));
+  if (unten > oben) return Math.min(klasse.masse[1], Math.max(klasse.masse[0], masseFuer(1)));
+  return unten + rng() * (oben - unten);
+}
+
 /**
  * Erzeugt ein System.
  * @param seed        Galaxie-Saat
@@ -184,318 +545,254 @@ function neuesObjekt(systemId, orbit, felder) {
  *                      schwierigkeit } -- `schwierigkeit` (A-190) wirkt nur,
  *                      wenn istHeimat gesetzt ist; siehe STARTSCHWIERIGKEIT.
  */
-// Wo im System liegt die Heimatwelt? Bis v0.42 war das schlicht der mittlere
-// Drittelbereich der Orbits -- eine Faustregel, die meistens in der
-// bewohnbaren Zone landete und manchmal eben nicht.
-//
-// Seit A-190 zielt die Wahl auf EINE feste Zone -- die, die die gewählte
-// Startschwierigkeit vorschreibt (STARTSCHWIERIGKEIT in data.js). Zone
-// "äußer" ist NIE ein Ziel und kommt in dieser Tabelle deshalb gar nicht vor:
-// rund 28 % der so erzeugten Startwelten waren nachweislich unspielbar
-// (Energiedeckung 0 % zur Halbzeit, kein Schirm möglich -- gemessen über 18
-// Welten mit tests/arena.mjs). Tobis Satz dazu ist wörtlich und ohne
-// Ermessensspielraum: „Wenn es wirklich unmöglich gibt schließen wir diese
-// komplett aus."
-function heimatOrbitWaehlen(rng, orbitAnzahl, leuchtkraft, zielZone) {
-  const passend = [];
-  for (let orbit = 1; orbit <= orbitAnzahl; orbit++) {
-    if (orbitZone(orbit, orbitAnzahl, leuchtkraft).name === zielZone) passend.push(orbit);
-  }
-  if (passend.length) return waehle(rng, passend);
-  // Die Zielzone kommt in diesem System gar nicht vor (sehr leuchtschwacher
-  // oder sehr heller Stern verschiebt die thermische Lage). Dieselbe
-  // Faustregel wie vor A-190 -- aber NIE Zone äußer: ausgerechnet ein sehr
-  // leuchtschwacher Stern schiebt dieselbe Orbit-Position genau dorthin.
-  // `heimatEigenschaften` sichert die Bewohnbarkeit danach über ihre eigenen
-  // Eigenschaften ab, notfalls mit ihrem eigenen Notnagel.
-  for (let versuch = 0; versuch < 20; versuch++) {
-    const orbit = zwischen(rng, Math.max(1, Math.floor(orbitAnzahl * 0.3)), Math.ceil(orbitAnzahl * 0.7));
-    if (orbitZone(orbit, orbitAnzahl, leuchtkraft).name !== "äußer") return orbit;
-  }
-  return Math.max(1, Math.floor(orbitAnzahl * 0.3));
-}
-
-// Die Heimatwelt ist ein PLANET wie jeder andere -- mit Klasse, Zone und
-// Wasser. Bis v0.42 wurde sie ohne diese Eigenschaften angelegt und war damit
-// stiller Generalist: affinitaetFaktor liefert für einen fehlenden Eintrag 1,
-// also konnte sie alles gleich gut. Fremde Imperien trugen dagegen die echte
-// Klasse ihres Planeten samt echter Nullen und spielten dadurch ein anderes,
-// härteres Spiel als der Spieler.
-//
-// Gezogen wird so lange, bis die Kombination als Startwelt taugt. Das ist
-// bewusst eine BEDINGTE Ziehung und keine feste Vorgabe: Klasse und
-// Wasserstand variieren weiterhin, nur eben innerhalb dessen, was bewohnbar
-// ist. `node tests/welten.mjs` misst über diese Menge eine Ertragsspanne von
-// 1,06× -- die Welten unterscheiden sich also darin, WAS sie gut können, nicht
-// darin, wie schnell man vorankommt.
-// Die Masse der Heimatwelt, eingegrenzt auf das Schwerkraftband aus
-// STARTWELT. Das ist die Stellschraube, an der der Schwierigkeitsgrad
-// tatsächlich hängt (Korrelation −0,88, siehe taugtAlsStartwelt) -- alles
-// andere an einer Welt bestimmt ihren Charakter, nicht ihr Tempo.
-//
-// Gezogen wird aus dem Schnitt von Klassenbereich und Band, damit die Masse
-// weiterhin variiert. Liegt die Klasse ganz außerhalb (eine Supererde ist
-// nie leicht genug), wird der nächstgelegene Rand genommen -- die Klasse
-// selbst hat heimatEigenschaften vorher schon als bewohnbar bestätigt.
-function heimatMasse(rng, klasse) {
-  // g = M^0.46 (Radius folgt der Masse) -- nach M aufgelöst gibt das die
-  // Massengrenzen, die zum Schwerkraftband gehören.
-  const masseFuer = (g) => Math.pow(g, 1 / 0.46);
-  const unten = Math.max(klasse.masse[0], masseFuer(STARTWELT.schwerkraftMin));
-  const oben = Math.min(klasse.masse[1], masseFuer(STARTWELT.schwerkraftMax));
-  if (unten > oben) return Math.min(klasse.masse[1], Math.max(klasse.masse[0], masseFuer(1)));
-  return unten + rng() * (oben - unten);
-}
-
-// Seit A-190 stehen Zone UND Wasser fest -- `zielWasser` kommt von der
-// gewählten Startschwierigkeit, die Zone steckt schon im übergebenen Orbit
-// (heimatOrbitWaehlen hat ihn danach ausgesucht). Nur die KLASSE variiert
-// noch, gezogen aus der Gewichtstabelle der Zone, bis eine Kombination sowohl
-// nahrungstauglich (taugtAlsStartwelt) als auch im Schwerkraftband liegt.
-function heimatEigenschaften(rng, orbit, orbitAnzahl, leuchtkraft, zielWasser) {
-  // Kann diese Klasse überhaupt eine Masse im Schwerkraftband haben? Eine
-  // Supererde ist auch am unteren Rand ihres Bereichs noch zu schwer.
-  const masseFuer = (g) => Math.pow(g, 1 / 0.46);
-  const bandTauglich = (klasseId) => {
-    const k = PLANETEN_KLASSEN[klasseId];
-    return k.masse[0] <= masseFuer(STARTWELT.schwerkraftMax) && k.masse[1] >= masseFuer(STARTWELT.schwerkraftMin);
-  };
-  const zone = orbitZone(orbit, orbitAnzahl, leuchtkraft);
-
-  for (let versuch = 0; versuch < 25; versuch++) {
-    const klasse = zieheGewichtet(rng, zone.klassen);
-    const eig = { klasse, zone: zone.name, wasser: zielWasser };
-    if (taugtAlsStartwelt(eig) && bandTauglich(klasse)) return eig;
-  }
-  // Notnagel für den Fall, dass die Zone (oder, im seltenen Fall aus
-  // heimatOrbitWaehlens eigenem Notnagel, eine ganz andere Zone) gar nichts
-  // Bewohnbares zulässt. Lieber eine bescheidene Welt als eine, auf der man
-  // verhungert -- zufällig dieselbe Kombination wie die Stufe "Normal".
-  return { klasse: "felswelt", zone: "habitabel", wasser: "maessig" };
-}
-
 export function systemGenerieren(seed, systemId, optionen = {}) {
   const { schluessel = [], istHeimat = false, heimatName = "Heimatwelt", schwierigkeit = STARTSCHWIERIGKEIT_VORGABE } = optionen;
   const rng = stromFuer(seed, systemId);
+  // A-305: eigene Zufallsströme für die Bahnen -- der Natur (Planeten,
+  // Gürtel) und getrennt davon der Reiche-Schicht (Anomalien, Wracks,
+  // Strukturen, Gefahren, leere Plätze). 953 und 1301 sind Primzahlen, die in
+  // keiner anderen stromFuer-Kennung dieses Projekts vorkommen (sternFuer:
+  // *104729, systemPosition: *7919, guertelStrom: *1601+Index) -- derselbe
+  // Kollisionsschutz wie beim bestehenden Muster.
+  const bahnRng = stromFuer(seed, systemId * 953);
+  const reicheRng = stromFuer(seed, systemId * 1301);
 
-  // Der Stern kommt aus einem eigenen Zufallsstrom (galaxie.js) und wird nicht
-  // aus `rng` gezogen. Sonst hätte das Hinzufügen der Sterne jede bestehende
-  // Welt neu gewürfelt -- eine Weltgenerierung darf sich nicht verschieben,
-  // nur weil eine neue Eigenschaft dazukommt.
   const stern = sternFuer(seed, systemId, istHeimat);
+  const rahmen = systemRahmen(stern, bahnRng);
+  const zirkumbinaer = rahmen.doppelsternModus === "p";
 
   // A-190: eine unbekannte Stufe (z.B. aus einem älteren Aufruf) fällt auf
   // Normal zurück, statt mit `undefined.zone` zu werfen.
   const ziel = STARTSCHWIERIGKEIT[schwierigkeit] || STARTSCHWIERIGKEIT[STARTSCHWIERIGKEIT_VORGABE];
 
-  const orbitAnzahl = ausBereich(rng, SYSTEM_REGELN.orbits);
-  const heimatOrbit = istHeimat ? heimatOrbitWaehlen(rng, orbitAnzahl, stern.leuchtkraft, ziel.zone) : null;
+  // --- Natur: Heimat, innere Kette, Riesen, kalte Planeten, Gürtel --------
+  const natur = [];
+  let heimatAbstandAE = null;
 
-  const freieOrbits = mischen(
-    rng,
-    Array.from({ length: orbitAnzahl }, (_, i) => i + 1).filter((o) => o !== heimatOrbit)
-  );
-
-  const objekte = [];
   if (istHeimat) {
-    // Die Heimatwelt bekommt dieselben drei Eigenschaften wie jeder andere
-    // Planet -- nur eingeschränkt auf das, was bewohnbar ist. Ohne diese Daten
-    // war sie ein Generalist, der alles gleich gut konnte (siehe
-    // heimatEigenschaften).
-    const eig = heimatEigenschaften(rng, heimatOrbit, orbitAnzahl, stern.leuchtkraft, ziel.wasser);
+    heimatAbstandAE = heimatAbstandWaehlen(bahnRng, rahmen, ziel.zone);
+    const temperaturK = temperaturVon(heimatAbstandAE, stern, zirkumbinaer);
+    const eig = heimatEigenschaften(rng, temperaturK, ziel.wasser);
     const klasse = PLANETEN_KLASSEN[eig.klasse];
     const masse = heimatMasse(rng, klasse);
     const radius = radiusAusMasse(masse);
-    objekte.push(
-      neuesObjekt(systemId, heimatOrbit, {
-        typ: "heimat",
-        bezeichnung: heimatName,
-        entdeckt: true,
-        daten: {
-          ...eig,
-          kolonisierbar: true,
-          schwerkraft: Math.round(schwerkraftAus(masse, radius) * 100) / 100,
-          masse: Math.round(masse * 100) / 100,
-          groesse: Math.round(radius * 100),
-        },
-      })
-    );
+    natur.push({
+      abstandAE: heimatAbstandAE,
+      typ: "heimat",
+      bezeichnung: heimatName,
+      entdeckt: true,
+      daten: {
+        ...eig,
+        abstandAE: rundSignifikant(heimatAbstandAE, 4),
+        temperaturK: Math.round(temperaturK),
+        kolonisierbar: true,
+        schwerkraft: Math.round(schwerkraftAus(masse, radius) * 100) / 100,
+        masse: Math.round(masse * 100) / 100,
+        groesse: Math.round(radius * 100),
+      },
+    });
   }
 
-  let budget = Math.min(SYSTEM_REGELN.maxObjekte, freieOrbits.length) - (istHeimat ? 1 : 0);
-  const nimmOrbit = () => (budget-- > 0 ? freieOrbits.pop() : null);
+  // EIGENE ENTSCHEIDUNG: das Heimatsystem baut seine innere Kette immer,
+  // auch wenn derselbe Zug (unabhängig von der Heimatplatzierung) einen
+  // heißen Jupiter ergäbe -- die Heimat braucht ihre Nachbarschaft in jedem
+  // Fall. Für alle anderen Systeme gilt der Auftrag wörtlich: ein heißer
+  // Jupiter hat keine innere Kette.
+  const aussenKoerper = aeussereKoerperBauen(bahnRng, rahmen);
+  const innereKette =
+    !aussenKoerper.hatHeisserJupiter || istHeimat
+      ? innereKetteBauen(bahnRng, rahmen, heimatAbstandAE)
+      : [];
 
-  // --- Anomalien: vergeben die Schlüssel, die die Galaxie hier vorsieht ----
-  // Ein Schloss davor darf nur eine Technologie STRENG niedrigerer Stufe
-  // sein -- egal, in welchem System diese zu finden ist.
-  const sortierteSchluessel = [...schluessel].sort((a, b) => techStufe(a) - techStufe(b));
-
-  for (const techId of sortierteSchluessel) {
-    const orbit = nimmOrbit();
-    if (!orbit) break;
-
-    const stufe = techStufe(techId);
-    const moeglicheSchloesser = ENTDECKBARE_FORSCHUNGEN.filter((t) => techStufe(t) < stufe);
-    const gesperrt = moeglicheSchloesser.length > 0 && rng() < 0.5;
-
-    objekte.push(
-      neuesObjekt(systemId, orbit, {
-        typ: "anomalie",
-        bezeichnung: waehle(rng, ANOMALIE_ARTEN),
-        benoetigt: gesperrt ? { forschung: waehle(rng, moeglicheSchloesser) } : null,
-        daten: { forschung: techId },
-      })
-    );
+  for (const abstandAE of innereKette) {
+    const temperaturK = temperaturVon(abstandAE, stern, zirkumbinaer);
+    const eig = planetEigenschaften(rng, temperaturK, abstandAE >= rahmen.schneelinieAE);
+    natur.push(planetObjektBauen(rng, abstandAE, temperaturK, eig));
   }
 
-  // Zugabe: Anomalien ohne neue Technologie (geben Material).
-  for (let i = 0; i < ausBereich(rng, SYSTEM_REGELN.vorkommen.anomalieExtra); i++) {
-    const orbit = nimmOrbit();
-    if (!orbit) break;
-    objekte.push(
-      neuesObjekt(systemId, orbit, { typ: "anomalie", bezeichnung: waehle(rng, ANOMALIE_ARTEN), daten: {} })
-    );
+  for (const abstandAE of aussenKoerper.riesenPositionen) {
+    const temperaturK = temperaturVon(abstandAE, stern, zirkumbinaer);
+    // Riesen kommen nur noch über diesen Zug (RIESEN_ANTEIL), nicht mehr über
+    // die zonengewichtete Klassenziehung -- die Klasse steht deshalb fest
+    // ("gasriese"), aber der Wasserstand wird weiterhin aus der Zonentabelle
+    // gezogen (wirkt auf affinitaetVon ohnehin nicht, siehe def.gas, ist aber
+    // die Zahl, die die Anzeige zeigt).
+    const zone = zoneVonTemperatur(temperaturK);
+    const eig = { klasse: "gasriese", zone: zone.name, wasser: zieheGewichtet(rng, zone.wasser) };
+    natur.push(planetObjektBauen(rng, abstandAE, temperaturK, eig));
+  }
+
+  for (const abstandAE of aussenKoerper.kaltePlaneten) {
+    const temperaturK = temperaturVon(abstandAE, stern, zirkumbinaer);
+    const eig = planetEigenschaften(rng, temperaturK, abstandAE >= rahmen.schneelinieAE);
+    natur.push(planetObjektBauen(rng, abstandAE, temperaturK, eig));
   }
 
   // Schlösser vor reinen Beute-Objekten dürfen jede Technologie verlangen --
   // sie vergeben selbst keine Schlüssel, können also keinen Kreis bilden.
   const vielleichtGesperrt = () =>
-    rng() < SYSTEM_REGELN.anteilGesperrt
-      ? { forschung: waehle(rng, ENTDECKBARE_FORSCHUNGEN) }
-      : null;
+    rng() < SYSTEM_REGELN.anteilGesperrt ? { forschung: waehle(rng, ENTDECKBARE_FORSCHUNGEN) } : null;
 
-  // --- Planeten -----------------------------------------------------------
-  for (let i = 0; i < ausBereich(rng, SYSTEM_REGELN.vorkommen.planet); i++) {
-    const orbit = nimmOrbit();
-    if (!orbit) break;
-    // Drei Eigenschaften statt einer Art aus einer Liste. Der Name ist das
-    // Ergebnis, nicht die Grundlage.
-    const eig = planetEigenschaften(rng, orbit, orbitAnzahl, stern.leuchtkraft);
-    const klasse = PLANETEN_KLASSEN[eig.klasse];
-    // Masse aus dem Bereich der Klasse ziehen, Radius daraus ableiten,
-    // Schwerkraft aus beidem rechnen. Dadurch hat jeder Planet seine eigene
-    // Schwerkraft statt eines festen Klassenwerts -- und `groesse` ist keine
-    // tote Zahl mehr, sondern der Radius in Hundertsteln Erdradien.
-    // Welten ohne Boden behalten den Klassenwert: dort landet ohnehin niemand.
-    const masse = klasse.masse[0] + rng() * (klasse.masse[1] - klasse.masse[0]);
-    const radius = radiusAusMasse(masse);
-    const schwerkraft = klasse.oberflaeche
-      ? Math.round(schwerkraftAus(masse, radius) * 100) / 100
-      : klasse.schwerkraft;
-    const antimaterieVorrat = mengeSkaliert(ANTIMATERIE_ERNTE.vorrat[eig.klasse] || 0);
-    // Besiedelbar heißt: es gibt festen Boden. Eine Kleinwelt ohne haltbare
-    // Atmosphäre ist besiedelbar (Kuppeln), aber nie terraformbar -- das sind
-    // zwei verschiedene Fragen.
-    objekte.push(
-      neuesObjekt(systemId, orbit, {
-        typ: "planet",
-        bezeichnung: planetName(eig),
-        // Riesenplaneten tragen einen Antimaterie-Gürtel. Er ist nicht
-        // erschöpfbar, sondern wächst nach -- siehe ANTIMATERIE_ERNTE.
-        benoetigt: antimaterieVorrat ? { forschung: ANTIMATERIE_ERNTE.benoetigt } : null,
-        nachwachsend: antimaterieVorrat ? true : false,
-        daten: {
-          ...eig,
-          ...(antimaterieVorrat ? { ertrag: { antimaterie: antimaterieVorrat } } : {}),
-          kolonisierbar: klasse.oberflaeche && rng() < SYSTEM_REGELN.planetBesiedelbar,
-          schwerkraft,
-          masse: Math.round(masse * 100) / 100,
-          // Radius in Hundertsteln Erdradien -- derselbe Zahlenbereich wie die
-          // frühere bedeutungslose "groesse", jetzt mit physikalischem Inhalt.
-          groesse: Math.round(radius * 100),
-        },
-      })
-    );
-  }
-
-  // --- Vorkommen ----------------------------------------------------------
-  for (let i = 0; i < ausBereich(rng, SYSTEM_REGELN.vorkommen.asteroiden); i++) {
-    const orbit = nimmOrbit();
-    if (!orbit) break;
+  const guertelPositionen = guertelPositionenBauen(bahnRng, rahmen, innereKette, aussenKoerper);
+  // Zusammensetzung (guertelEigenschaften) und Vorkommen (VORKOMMEN_TABELLE)
+  // wie vor A-305 -- das ändert erst N-3. Der Haufen-Anteil (Ressource,
+  // Menge, Sperre) kommt weiter aus dem Systemstrom `rng`, in der Reihenfolge
+  // der jetzt nach Abstand noch ungeordneten Gürtel-Liste.
+  guertelPositionen.forEach(({ abstandAE, art }, index) => {
+    const temperaturK = temperaturVon(abstandAE, stern, zirkumbinaer);
+    const eig = guertelEigenschaften(seed, systemId, index, temperaturK, art);
     const eintrag = gewichtetWaehlen(rng, VORKOMMEN_TABELLE);
     const sperre = vielleichtGesperrt();
     const menge = zwischen(rng, eintrag.menge.min, eintrag.menge.max) * (sperre ? 2.5 : 1);
-    // A-274: die Zusammensetzung (Typ, Zone, Wasser) kommt aus einem EIGENEN
-    // Strom (guertelEigenschaften) -- der Haufen oben ist unverändert aus dem
-    // Systemstrom `rng` gezogen, in genau der Reihenfolge wie vor dieser
-    // Runde. Kein zusätzlicher Aufruf von `rng()` hier: sonst verschöbe sich
-    // jede Ziehung danach (Wracks, Strukturen, Gefahren) in jeder
-    // bestehenden Galaxie.
-    const eig = guertelEigenschaften(seed, systemId, orbit, orbitAnzahl, stern.leuchtkraft);
-    objekte.push(
-      neuesObjekt(systemId, orbit, {
-        typ: "asteroiden",
-        bezeichnung: sperre ? "Tiefliegendes Vorkommen" : "Asteroidengürtel",
-        benoetigt: sperre,
-        daten: {
-          ertrag: { [eintrag.ressource]: Math.round(menge) },
-          ...eig,
-          // Kein eigener Körper mit Masse/Radius -- die Schwerkraft ist
-          // direkt 0 (Entwurf 3.3), nicht über schwerkraftAus gerechnet.
-          schwerkraft: 0,
-          kolonisierbar: true,
-        },
-      })
-    );
+    natur.push({
+      abstandAE,
+      typ: "asteroiden",
+      bezeichnung: sperre ? "Tiefliegendes Vorkommen" : "Asteroidengürtel",
+      benoetigt: sperre,
+      daten: {
+        ertrag: { [eintrag.ressource]: Math.round(menge) },
+        ...eig,
+        abstandAE: rundSignifikant(abstandAE, 4),
+        temperaturK: Math.round(temperaturK),
+        schwerkraft: 0,
+        kolonisierbar: true,
+      },
+    });
+  });
+
+  // --- Abschnitt 6: Weißer Zwerg -- Vorläufer-Planeten verschluckt/geweitet
+  let systemNatur = natur;
+  if (stern.id === "d") {
+    const mi = vorlaeuferMasseVon(stern.masse);
+    const weitung = mi / stern.masse;
+    const SCHLUCK_GRENZE_AE = 3;
+    systemNatur = natur
+      .filter((k) => k.abstandAE >= SCHLUCK_GRENZE_AE || k.typ === "heimat")
+      .map((k) => {
+        if (k.typ === "heimat") return k; // die Heimat ist nie ein Weißer Zwerg (HEIMAT_STERN = "g")
+        const abstandAE = k.abstandAE * weitung;
+        const temperaturK = temperaturVon(abstandAE, stern, zirkumbinaer);
+        return {
+          ...k,
+          abstandAE,
+          daten: { ...k.daten, abstandAE: rundSignifikant(abstandAE, 4), temperaturK: Math.round(temperaturK) },
+        };
+      });
   }
 
-  // --- Wracks -------------------------------------------------------------
+  // --- Reiche-Schicht: Anomalien, Wracks, Strukturen, Gefahren, leere Plätze
+  const reiche = [];
+  const reicheAbstandWaehlen = () => logGleichverteilt(reicheRng, rahmen.innenkanteAE, rahmen.aussenkanteAE);
+
+  const sortierteSchluessel = [...schluessel].sort((a, b) => techStufe(a) - techStufe(b));
+  for (const techId of sortierteSchluessel) {
+    const stufe = techStufe(techId);
+    const moeglicheSchloesser = ENTDECKBARE_FORSCHUNGEN.filter((t) => techStufe(t) < stufe);
+    const gesperrt = moeglicheSchloesser.length > 0 && rng() < 0.5;
+    reiche.push({
+      abstandAE: reicheAbstandWaehlen(),
+      typ: "anomalie",
+      bezeichnung: waehle(rng, ANOMALIE_ARTEN),
+      benoetigt: gesperrt ? { forschung: waehle(rng, moeglicheSchloesser) } : null,
+      daten: { forschung: techId },
+    });
+  }
+
+  for (let i = 0; i < ausBereich(rng, SYSTEM_REGELN.vorkommen.anomalieExtra); i++) {
+    reiche.push({
+      abstandAE: reicheAbstandWaehlen(),
+      typ: "anomalie",
+      bezeichnung: waehle(rng, ANOMALIE_ARTEN),
+      daten: {},
+    });
+  }
+
   for (let i = 0; i < ausBereich(rng, SYSTEM_REGELN.vorkommen.wrack); i++) {
-    const orbit = nimmOrbit();
-    if (!orbit) break;
-    objekte.push(
-      neuesObjekt(systemId, orbit, {
-        typ: "wrack",
-        bezeichnung: waehle(rng, WRACK_ARTEN),
-        daten: { ertrag: { metall: mengeSkaliert(zwischen(rng, 300, 1200)), silizium: mengeSkaliert(zwischen(rng, 150, 700)) } },
-      })
-    );
+    reiche.push({
+      abstandAE: reicheAbstandWaehlen(),
+      typ: "wrack",
+      bezeichnung: waehle(rng, WRACK_ARTEN),
+      daten: { ertrag: { metall: mengeSkaliert(zwischen(rng, 300, 1200)), silizium: mengeSkaliert(zwischen(rng, 150, 700)) } },
+    });
   }
 
-  // --- Strukturen (immer verschlossen) ------------------------------------
   for (let i = 0; i < ausBereich(rng, SYSTEM_REGELN.vorkommen.struktur); i++) {
-    const orbit = nimmOrbit();
-    if (!orbit) break;
-    objekte.push(
-      neuesObjekt(systemId, orbit, {
-        typ: "struktur",
-        bezeichnung: waehle(rng, STRUKTUR_ARTEN),
-        benoetigt: { forschung: waehle(rng, ENTDECKBARE_FORSCHUNGEN) },
-        daten: {
-          ertrag: { metall: mengeSkaliert(zwischen(rng, 1500, 4000)), silizium: mengeSkaliert(zwischen(rng, 1200, 3000)) },
-        },
-      })
-    );
+    reiche.push({
+      abstandAE: reicheAbstandWaehlen(),
+      typ: "struktur",
+      bezeichnung: waehle(rng, STRUKTUR_ARTEN),
+      benoetigt: { forschung: waehle(rng, ENTDECKBARE_FORSCHUNGEN) },
+      daten: { ertrag: { metall: mengeSkaliert(zwischen(rng, 1500, 4000)), silizium: mengeSkaliert(zwischen(rng, 1200, 3000)) } },
+    });
   }
 
-  // --- Gefahren -------------------------------------------------------------
-  // Piraten kämpfen mit denselben Schiffen wie der Spieler -- keine eigene
-  // "Monster"-Statuszeile, sondern eine echte kleine Flotte (siehe
-  // simulation.js kampfRundeAusfuehren, das keinen Unterschied zwischen Spieler-
-  // und Gefahren-Seite macht). Für den ersten Wurf bewusst bei der
-  // Weltgenerierung fest verankert, nicht dynamisch -- "lebendig machen"
-  // (nachbauen, verstärken) ist später ein neues Ereignis auf denselben
-  // Daten, kein Umbau.
   for (let i = 0; i < ausBereich(rng, SYSTEM_REGELN.vorkommen.gefahr); i++) {
-    const orbit = nimmOrbit();
-    if (!orbit) break;
-    objekte.push(
-      neuesObjekt(systemId, orbit, {
-        typ: "gefahr",
-        bezeichnung: waehle(rng, GEFAHR_ARTEN),
-        gefahr: true,
-        daten: {
-          flotte: { kriegsschiff: zwischen(rng, 2, 7) },
-          ertrag: { metall: mengeSkaliert(zwischen(rng, 800, 3000)), silizium: mengeSkaliert(zwischen(rng, 400, 1800)) },
-        },
-      })
-    );
+    reiche.push({
+      abstandAE: reicheAbstandWaehlen(),
+      typ: "gefahr",
+      bezeichnung: waehle(rng, GEFAHR_ARTEN),
+      gefahr: true,
+      daten: {
+        flotte: { kriegsschiff: zwischen(rng, 2, 7) },
+        ertrag: { metall: mengeSkaliert(zwischen(rng, 800, 3000)), silizium: mengeSkaliert(zwischen(rng, 400, 1800)) },
+      },
+    });
   }
 
-  for (const orbit of freieOrbits) {
-    objekte.push(neuesObjekt(systemId, orbit, { typ: "leer", bezeichnung: "Leerer Orbit" }));
+  // Platzhalter der Reiche-Schicht (Tobi 29.09., Leere Orbits (b)): keine
+  // Natur, aber der Bauplatz, auf dem Piraten gründen (simulation.js).
+  for (let i = 0; i < ausBereich(rng, SYSTEM_REGELN.vorkommen.leer); i++) {
+    reiche.push({ abstandAE: reicheAbstandWaehlen(), typ: "leer", bezeichnung: "Leerer Orbit", daten: {} });
   }
 
-  objekte.sort((a, b) => a.orbit - b.orbit);
+  // Auch die Anomalien/Wracks/Strukturen/Gefahren/leeren Plätze eines
+  // S-Typ-Doppelsterns bleiben innerhalb der Stabilitätsgrenze (a_krit steckt
+  // schon in rahmen.aussenkanteAE, siehe systemRahmen).
+
+  // --- Abschnitt 8: Rang nach Abstand -------------------------------------
+  const alle = [...systemNatur, ...reiche].sort((a, b) => a.abstandAE - b.abstandAE);
+  const orbitAnzahl = alle.length;
+  const heimatEintrag = alle.find((o) => o.typ === "heimat");
+  const heimatOrbit = heimatEintrag ? alle.indexOf(heimatEintrag) + 1 : null;
+
+  const objekte = alle.map((roh, index) =>
+    neuesObjekt(systemId, index + 1, {
+      typ: roh.typ,
+      bezeichnung: roh.bezeichnung,
+      entdeckt: roh.entdeckt ?? false,
+      gefahr: roh.gefahr ?? false,
+      benoetigt: roh.benoetigt ?? null,
+      nachwachsend: roh.nachwachsend ?? false,
+      daten: roh.daten,
+    })
+  );
+
   return { systemId, orbitAnzahl, heimatOrbit, stern, objekte };
+}
+
+// Ein Planet der inneren Kette oder der äußeren Körper -- Masse aus dem
+// Bereich der Klasse, Radius/Schwerkraft daraus abgeleitet, wie vor A-305.
+function planetObjektBauen(rng, abstandAE, temperaturK, eig) {
+  const klasse = PLANETEN_KLASSEN[eig.klasse];
+  const masse = klasse.masse[0] + rng() * (klasse.masse[1] - klasse.masse[0]);
+  const radius = radiusAusMasse(masse);
+  const schwerkraft = klasse.oberflaeche ? Math.round(schwerkraftAus(masse, radius) * 100) / 100 : klasse.schwerkraft;
+  const antimaterieVorrat = mengeSkaliert(ANTIMATERIE_ERNTE.vorrat[eig.klasse] || 0);
+  return {
+    abstandAE,
+    typ: "planet",
+    bezeichnung: planetName(eig),
+    benoetigt: antimaterieVorrat ? { forschung: ANTIMATERIE_ERNTE.benoetigt } : null,
+    nachwachsend: antimaterieVorrat ? true : false,
+    daten: {
+      ...eig,
+      abstandAE: rundSignifikant(abstandAE, 4),
+      temperaturK: Math.round(temperaturK),
+      ...(antimaterieVorrat ? { ertrag: { antimaterie: antimaterieVorrat } } : {}),
+      kolonisierbar: klasse.oberflaeche && rng() < SYSTEM_REGELN.planetBesiedelbar,
+      schwerkraft,
+      masse: Math.round(masse * 100) / 100,
+      groesse: Math.round(radius * 100),
+    },
+  };
 }

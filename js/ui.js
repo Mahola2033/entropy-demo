@@ -24,6 +24,8 @@ import {
   STAND,
   PLANETEN_KLASSEN,
   affinitaetVon,
+  zusammensetzungVon,
+  MASSE_RADIUS_EXPONENT,
   AFFINITAET_GUT,
   SYMBOLE,
   TYP_SYMBOL,
@@ -49,8 +51,8 @@ import {
   erstattungsQuote,
   VORKOMMEN_MELDESCHWELLE,
   VORKOMMEN_RATE_SPEC,
-} from "./data.js?v=0.9.64";
-import { VARIANTE } from "./variante.js?v=0.9.64";
+} from "./data.js?v=0.9.69";
+import { VARIANTE } from "./variante.js?v=0.9.69";
 import {
   effektiveRaten,
   angezeigteRate,
@@ -135,7 +137,7 @@ import {
   fossilReichweiteMs,
   fossilVerbrauchProStunde,
   foerderErgiebigkeit,
-} from "./state.js?v=0.9.64";
+} from "./state.js?v=0.9.69";
 import {
   bauStarten,
   forschungStarten,
@@ -212,7 +214,7 @@ import {
   routeStoppen,
   routeMindestbeladungSetzen,
   routeBeladungAnteil,
-} from "./simulation.js?v=0.9.64";
+} from "./simulation.js?v=0.9.69";
 import {
   flottePosition,
   reiseAnteil,
@@ -233,26 +235,26 @@ import {
   flotteSiedlerKapazitaet,
   flotteLadungAnteile,
   flotteTankAnteile,
-} from "./flotten.js?v=0.9.64";
-import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.64";
-import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.64";
-import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.64";
+} from "./flotten.js?v=0.9.69";
+import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.69";
+import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.69";
+import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.69";
 // Nur für den Neustart-Knopf im Abspann. Der Weg dorthin ist derselbe wie im
 // Testmodus (js/testmodus.js) -- ein zweiter Reset wäre eine zweite Wahrheit
 // darüber, was "neu anfangen" bedeutet.
-import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.64";
-import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.64";
-import { systemName, sternFuer } from "./galaxie.js?v=0.9.64";
+import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.69";
+import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.69";
+import { systemName, sternFuer } from "./galaxie.js?v=0.9.69";
 // Die beiden Karten. Sie holen sich von hier `listeAbgleichen` zurück -- ein
 // Ringtausch, der trägt, weil keine der beiden Dateien beim LADEN etwas aus
 // der anderen benutzt, sondern erst beim Zeichnen. Die Alternative wäre ein
 // zweiter Abgleich-Mechanismus in karte.js gewesen, und genau davor warnt
 // Prinzip 5.
-import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.64";
-import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.64";
-import { feedbackAdresse } from "./feedback.js?v=0.9.64";
-import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.64";
-import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.64";
+import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.69";
+import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.69";
+import { feedbackAdresse } from "./feedback.js?v=0.9.69";
+import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.69";
+import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.69";
 
 // UI-lokaler Regler-Zustand für die Flotten-Beladung/Tanken-Schieber --
 // bewusst NICHT Teil des Spielzustands. Nötig, weil render() auch von einem
@@ -7049,13 +7051,14 @@ function sternTitel(stern) {
     sternCharakter(stern.leuchtkraft),
   ];
   if (stern.begleiter) {
-    // Der Begleiter wirkt auf nichts (Zonen/Temperatur bleiben am
-    // Primärstern, N-2 entscheidet erst über seine Wirkung) -- hier steht
-    // er rein informativ, wie der Auftrag es verlangt.
+    // Seit A-305 wirkt der Begleiter wirklich (Stabilitätsgrenze, zweiter
+    // Temperatur-Term) -- die Exzentrizität ist die eine Zahl davon, die
+    // noch nicht irgendwo steht ("nur das Nötigste", Auftrag Abschnitt 9).
     zeilen.push(
-      t("Doppelstern: + Begleiter ({typ}, {abstand} AE)", {
+      t("Doppelstern: + Begleiter ({typ}, {abstand} AE, e={exzentrizitaet})", {
         typ: t(stern.begleiter.name),
         abstand: stern.begleiter.abstandAE.toLocaleString(gebietsschema(), { maximumFractionDigits: 1 }),
+        exzentrizitaet: (stern.begleiter.e || 0).toLocaleString(gebietsschema(), { maximumFractionDigits: 2 }),
       })
     );
   }
@@ -8055,6 +8058,18 @@ function slotZeileFuellen(state, systemId, objekt, flotte, li) {
   return li;
 }
 
+// A-305, Abschnitt 9: "Wo heute Klasse, Zone und Wasser eines Körpers
+// stehen, kommen Abstand und Temperatur dazu." Reine Ergänzung derselben
+// Zeile, keine neue Kachel -- nur Natur-Objekte (Planet/Gürtel) tragen
+// `daten.abstandAE`, die Reiche-Schicht (Anomalie, Wrack, ...) nicht.
+function abstandText(daten) {
+  if (!daten || typeof daten.abstandAE !== "number") return "";
+  return t("{abstand} AE · {temperatur} K", {
+    abstand: daten.abstandAE.toLocaleString(gebietsschema(), { maximumFractionDigits: 2 }),
+    temperatur: Math.round(daten.temperaturK),
+  });
+}
+
 // Kurzprofil einer Planetenart: was sie gut kann und was ihr ganz fehlt.
 // Bewusst knapp -- nur die Enden der Skala, die Mitte trägt keine Entscheidung.
 function affinitaetText(daten) {
@@ -8103,15 +8118,64 @@ function affinitaetText(daten) {
   return teile.length ? ` · ${teile.join(" · ")}` : "";
 }
 
+// A-307: Zehnerpotenz-Formatierung für die Zusammensetzung -- die Mengen
+// reichen bis 10²². `toLocaleString` liefert dafür nichts Lesbares, kein
+// anderer Rohstofftext im Spiel war bisher so groß.
+const HOCHZAHLEN = ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"];
+function hochzahlText(n) {
+  return String(n).split("").map((z) => (z === "-" ? "⁻" : HOCHZAHLEN[Number(z)])).join("");
+}
+function zehnerpotenzText(wert) {
+  if (!wert) return "0";
+  const exp = Math.floor(Math.log10(Math.abs(wert)));
+  const mantisse = wert / Math.pow(10, exp);
+  return `${mantisse.toLocaleString(gebietsschema(), { maximumFractionDigits: 1 })}·10${hochzahlText(exp)}`;
+}
+
+// A-307: Zusammensetzung eines Körpers -- Gesamtinhalt, dazu die oberste
+// erreichbare Schicht (Kruste, bei Riesen die Hülle). Kompakt, an derselben
+// Zeile wie abstandText/affinitaetText, keine neue Kachel. `wasser` ist noch
+// keine Ressource (N-5), deshalb der feste Ersatzsymbol.
+function zusammensetzungText(daten) {
+  const zus = zusammensetzungVon(daten);
+  if (!zus) return "";
+  const symbol = (stoff) => (RESSOURCEN[stoff] ? RESSOURCEN[stoff].symbol : "💧");
+  const zeile = (bezeichnung, stoffe) => {
+    const teile = Object.entries(stoffe)
+      .filter(([, wert]) => wert > 0)
+      .map(([stoff, wert]) => `${symbol(stoff)} ${zehnerpotenzText(wert)} t`);
+    return teile.length ? ` · ${bezeichnung}: ${teile.join(" · ")}` : "";
+  };
+  const oben = zus.schichten.kruste || zus.schichten.huelle;
+  const obenName = zus.schichten.kruste ? t("Kruste") : t("Hülle");
+  return `${zeile(obenName, oben ? oben.stoffe : {})}${zeile(t("gesamt"), zus.gesamt)}`;
+}
+
+// A-307: der eigene Planet (`state.planeten`) trägt `klasse`/`wasser`, aber
+// NICHT `masse` -- nur `groesse` (= Radius × 100, siehe `neuerPlanet`,
+// state.js). `masse` gehört nicht doppelt gespeichert (Prinzip 1, "ableiten
+// statt speichern"), sondern folgt aus derselben Beziehung, mit der er
+// entstand (radiusAusMasse, data.js): Radius = Masse^0,27, hier umgekehrt.
+function eigenZusammensetzungText(eigen) {
+  if (!eigen.groesse) return "";
+  const masse = Math.pow(eigen.groesse / 100, 1 / MASSE_RADIUS_EXPONENT);
+  return zusammensetzungText({ klasse: eigen.klasse, wasser: eigen.wasser, masse });
+}
+
 function slotDetail(state, objekt, gesperrt, eigen) {
   if (eigen) {
     const basis = eigen.typ === "kolonie" ? t("deine Kolonie") : eigen.typ === "heimat" ? t("Heimatplanet") : t("dein Außenposten");
+    // A-307: die Heimatwelt läuft durch dieselbe Zusammensetzungsfunktion
+    // wie jeder andere Planet -- sie hängt hier an, weil eine eigene Welt
+    // (anders als ein fremder Planet/Gürtel unten) nie über den switch-Zweig
+    // "heimat"/"planet" läuft, sondern immer über diesen eigen-Zweig.
+    const zusammensetzung = eigen.typ === "heimat" ? eigenZusammensetzungText(eigen) : "";
     // A-276: derselbe Rest-Hinweis wie im gesperrt-Zweig unten (dieselbe
     // Übersetzung, kein neuer Text) -- ohne ihn hätte der neue Bergungs-
     // Knopf in orbitAngebot keine sichtbare Erklärung, WAS er einsammelt
     // (Prinzip 10a).
     const rest = restLiegtAn(objekt) ? t(" · liegengeblieben: {rest} (bergbar)", { rest: buendelText(objekt.restErtrag) }) : "";
-    return `${basis}${rest}`;
+    return `${basis}${zusammensetzung}${rest}`;
   }
   if (gesperrt) {
     const ertrag = objekt.daten.ertrag
@@ -8129,13 +8193,16 @@ function slotDetail(state, objekt, gesperrt, eigen) {
   switch (objekt.typ) {
     case "heimat": return t("Heimatplanet");
     case "planet": {
-      if (!objekt.daten.kolonisierbar) return t("nicht besiedelbar");
+      if (!objekt.daten.kolonisierbar) return `${t("nicht besiedelbar")} · ${abstandText(objekt.daten)}`;
       // Profil VOR der Koloniegründung zeigen. Seit die Planetenart hart
       // bestimmt, was es dort gibt (und ob überhaupt Nahrung wächst), wäre
       // eine Kolonie ohne diese Information ein Blindflug -- im schlimmsten
       // Fall verhungern die Siedler auf einer Welt ohne Landwirtschaft.
       return (
-        t("besiedelbar · {radius} Erdradien", { radius: (objekt.daten.groesse / 100).toLocaleString(gebietsschema(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }) + affinitaetText(objekt.daten)
+        t("besiedelbar · {radius} Erdradien", { radius: (objekt.daten.groesse / 100).toLocaleString(gebietsschema(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }) })
+        + ` · ${abstandText(objekt.daten)}`
+        + affinitaetText(objekt.daten)
+        + zusammensetzungText(objekt.daten)
       );
     }
     case "gefahr": {
@@ -8167,8 +8234,11 @@ function slotDetail(state, objekt, gesperrt, eigen) {
         : objekt.restErtrag
         ? t("Rest: {rest} – Frachtraum reichte nicht", { rest: buendelText(objekt.restErtrag) })
         : t("Ertrag: {ertrag}", { ertrag: buendelText(offenerErtrag(state, objekt)) });
-      if (!objekt.daten.kolonisierbar) return haufenTeil;
-      return `${haufenTeil} · ${t("besiedelbar")}${affinitaetText(objekt.daten)}`;
+      if (!objekt.daten.kolonisierbar) return `${haufenTeil} · ${abstandText(objekt.daten)}`;
+      // A-307: liefert bis A-308 `null` (Gürtel sind keine der drei
+      // Gesteinsklassen), zusammensetzungText also noch leer -- derselbe
+      // Aufruf wie beim Planeten, damit A-308 hier nichts nachziehen muss.
+      return `${haufenTeil} · ${t("besiedelbar")} · ${abstandText(objekt.daten)}${affinitaetText(objekt.daten)}${zusammensetzungText(objekt.daten)}`;
     }
     default:
       if (objekt.verwertet) return t("verwertet");

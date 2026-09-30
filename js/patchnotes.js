@@ -28,6 +28,51 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.9.69",
+    de: [
+      "Nur intern: Die Roadmap im Development-Tab folgte noch dem alten Plan -- Treibstoff, Tankstellen und unterschiedliche fremde Imperien standen unter „Bald”, obwohl sie seit der Neuausrichtung vom 23.09. als Mechanik geparkt sind. Jetzt zeigt sie den aktuellen Stand: „Bald” sind die nächsten Natur-Bausteine (Monde, Zwergplaneten, Kometen, neue Stoffe).",
+    ],
+    en: [
+      "Internal only: the roadmap in the Development tab still followed the old plan -- fuel, fuel stations and differing foreign empires were listed under \"Soon\", even though the 23.09. realignment parked them as mechanics. It now shows the current plan: \"Soon\" covers the next nature building blocks (moons, dwarf planets, comets, new materials).",
+    ],
+  },
+  {
+    version: "0.9.68",
+    de: [
+      "Asteroidengürtel tragen jetzt eine echte Masse und zeigen wie Planeten, woraus sie bestehen -- Metall, Iridium, Uran und (außer beim seltenen metallreichen Typ) Wasser und Deuterium, in Tonnen. Ein Gürtel ist undifferenziert, deshalb gibt es hier nur den Gesamtinhalt, keine Schichten. Was davon fördermöglich ist, ändert sich dadurch noch nicht.",
+    ],
+    en: [
+      "Asteroid belts now carry a real mass and, like planets, show what they're made of -- metal, iridium, uranium and (except for the rare metal-rich type) water and deuterium, in tons. A belt is undifferentiated, so there's just the total content, no layers. What's actually mineable doesn't change yet.",
+    ],
+  },
+  {
+    version: "0.9.67",
+    de: [
+      "Planeten und deine Heimatwelt zeigen jetzt, woraus sie wirklich bestehen: Kern, Mantel, Kruste (oder bei Gasriesen die Hülle), in Tonnen je Stoff -- vom Metall über Iridium und Uran bis zu Wasser und Deuterium. Das ist der volle Gesamtinhalt der Welt, nicht das, was du heute schon abbauen kannst -- was davon fördermöglich ist, kommt später.",
+    ],
+    en: [
+      "Planets and your home world now show what they're actually made of: core, mantle, crust (or the envelope on gas giants), in tons per material -- metal, iridium and uranium through to water and deuterium. This is the world's full bulk content, not what you can already mine today -- how much of it is reachable comes later.",
+    ],
+  },
+  {
+    version: "0.9.66",
+    de: [
+      "Nur intern: Unser internes Messwerkzeug `npm run zustand` liest jetzt auch die Archivdateien der Planung mit (Rückfragen, offene Aufträge), damit die Kennzahlen darin stimmen, sobald diese Dateien wachsen. Für den Spieler ändert sich nichts.",
+    ],
+    en: [
+      "Internal only: our internal `npm run zustand` state-check tool now also reads the planning team's archive files (past questions, open tasks), so its counts stay accurate as those files grow. Nothing changes for players.",
+    ],
+  },
+  {
+    version: "0.9.65",
+    de: [
+      "Systeme sind jetzt keine gewürfelte Platzzahl mehr: jeder Planet und Gürtel trägt einen echten Abstand zu seinem Stern (angezeigt in AE und Kelvin), und wie viele Planeten und Gürtel es gibt, folgt aus der Physik des jeweiligen Sterns statt aus festen Bereichen. Systeme sind dadurch im Schnitt kleiner und leerer -- aber ehrlicher: manche Sterne haben kaum Planeten, andere viele, ganz wie es die Sternmasse hergibt. Doppelsterne wirken jetzt wirklich auf ihre Planeten (Stabilität, Temperatur), und ihre Exzentrizität steht mit im Sterninfo-Fenster.",
+    ],
+    en: [
+      "Systems no longer have a randomly rolled slot count: every planet and belt carries a real distance from its star (shown in AU and Kelvin), and how many planets and belts a system has follows from that star's actual physics instead of a fixed range. Systems are on average smaller and emptier now -- but more honest: some stars barely have planets, others have many, exactly as their stellar mass implies. Binary stars now genuinely affect their planets (stability, temperature), and their eccentricity is shown in the star info panel.",
+    ],
+  },
+  {
     version: "0.9.64",
     de: [
       "Die Sterne sind jetzt vollständig: Weiße und Blauweiße Sterne, Weiße und Braune Zwerge, dazu Doppelsterne. Jeder Stern trägt eine Masse; auf der Hauptreihe folgt seine Helligkeit realistisch daraus -- rote Zwerge sind im Schnitt dunkler als vorher, und es gibt jetzt Sterne, die als Vorläufer der Supernova infrage kommen.",
@@ -2364,9 +2409,8 @@ export const ROADMAP_PUNKTE = [
     de: "Bald",
     en: "Soon",
     punkte: [
-      { de: "Treibstoff zählt die Masse: Was du lädst, kostet Reichweite — und nicht jedes Ziel ist von überall erreichbar", en: "Fuel counts the mass: what you load costs range — and not every destination is reachable from anywhere" },
-      { de: "Tankstellen unterwegs: Reichweite wird zu einem Netz, das man sich baut", en: "Fuel stations along the way: range becomes a network you build" },
-      { de: "Fremde Imperien werden unterschiedlich: manche wachsen, manche scheitern", en: "Foreign empires become different: some grow, some fail" },
+      { de: "Die Natur wird vollständiger: Monde, Zwergplaneten und Kometen", en: "Nature becomes more complete: moons, dwarf planets and comets" },
+      { de: "Neue Stoffe: Metall teilt sich in Eisen, Aluminium, Kupfer und Titan, und Wasser wird ein eigener Rohstoff", en: "New materials: metal splits into iron, aluminium, copper and titanium, and water becomes its own resource" },
     ],
   },
   {
@@ -2374,6 +2418,9 @@ export const ROADMAP_PUNKTE = [
     de: "Später",
     en: "Later",
     punkte: [
+      { de: "Treibstoff zählt die Masse: Was du lädst, kostet Reichweite — und nicht jedes Ziel ist von überall erreichbar", en: "Fuel counts the mass: what you load costs range — and not every destination is reachable from anywhere" },
+      { de: "Tankstellen unterwegs: Reichweite wird zu einem Netz, das man sich baut", en: "Fuel stations along the way: range becomes a network you build" },
+      { de: "Fremde Imperien werden unterschiedlich: manche wachsen, manche scheitern", en: "Foreign empires become different: some grow, some fail" },
       { de: "Ein Prioritäten-Fenster: Strom und Arbeitskraft von Hand verteilen", en: "A priority panel: assign power and workforce by hand" },
     ],
   },

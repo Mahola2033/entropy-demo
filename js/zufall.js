@@ -44,3 +44,26 @@ export function gewichtetWaehlen(rng, tabelle) {
   }
   return tabelle[tabelle.length - 1];
 }
+
+// A-305: log-gleichverteilt zwischen min und max -- für Größen, die über
+// Größenordnungen streuen (Abstände, Umlaufzeiten). Anders als `zwischen()`
+// (linear, für kleine Ganzzahlbereiche) gibt jede Größenordnung gleich viel
+// Gewicht, nicht jeder Absolutwert.
+export function logGleichverteilt(rng, min, max) {
+  return Math.exp(Math.log(min) + rng() * (Math.log(max) - Math.log(min)));
+}
+
+// A-305: Poisson-verteilte Ganzzahl, Mittelwert lambda (Knuth-Algorithmus).
+// Für die kleinen Lambdas dieses Projekts (< 3) genügt die einfache Form --
+// keine Optimierung für große Lambda nötig.
+export function poissonZug(rng, lambda) {
+  if (lambda <= 0) return 0;
+  const grenze = Math.exp(-lambda);
+  let k = 0;
+  let p = 1;
+  do {
+    k++;
+    p *= rng();
+  } while (p > grenze);
+  return k - 1;
+}

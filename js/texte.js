@@ -388,7 +388,7 @@ export const EN = {
   "{name} ({klasse})": "{name} ({klasse})",
   "Leuchtkraft {wert} Sonnen": "Luminosity {wert} suns",
   "Masse {wert} Sonnenmassen": "Mass {wert} solar masses",
-  "Doppelstern: + Begleiter ({typ}, {abstand} AE)": "Binary star: + companion ({typ}, {abstand} AU)",
+  "Doppelstern: + Begleiter ({typ}, {abstand} AE, e={exzentrizitaet})": "Binary star: + companion ({typ}, {abstand} AU, e={exzentrizitaet})",
   "Bewohnbare Zone dicht am Stern – der größte Teil des Systems ist Eis.":
     "Habitable zone hugs the star – most of the system is ice.",
   "Bewohnbare Zone eher sternnah, weiter Außenbereich.":
@@ -1262,6 +1262,10 @@ export const EN = {
   "dein Außenposten": "your outpost",
   "nicht besiedelbar": "not colonizable",
   "besiedelbar · {radius} Erdradien": "colonizable · {radius} Earth radii",
+  "{abstand} AE · {temperatur} K": "{abstand} AU · {temperatur} K",
+  Kruste: "Crust",
+  Hülle: "Envelope",
+  gesamt: "total",
   besiedelbar: "colonizable",
   besiegt: "defeated",
   "besiegt · Rest liegt noch: {rest}": "defeated · still lying here: {rest}",

@@ -19,7 +19,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.9.64";
+export const VERSION = "0.9.69";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von vollversion.mjs (bis A-272: uebernehmen.mjs) beim
@@ -66,7 +66,7 @@ export const DEMO_SAAT = 20269933;
 // wird an den anzeigenden Stellen, nicht hier. Einzige Ausnahme ist
 // voraussetzungenText() weiter unten -- die einzige Funktion in dieser Datei,
 // die Anzeigetext zusammensetzt.
-import { t } from "./sprache.js?v=0.9.64";
+import { t } from "./sprache.js?v=0.9.69";
 
 // A-164 (31.08.2026): Von 50 auf 125.000 (×2.500) -- die Maßstabsrunde.
 // Vorher skalierte EIN MASSSTAB Material, Menschen und Arbeitskraft
@@ -2050,12 +2050,43 @@ export const DOPPELSTERN_BRAUNER_ZWERG_GRENZE = 0.08;
 
 // Abstand log-normal, Median 50 AE (○, Auftrag) -- bestätigt durch Raghavan
 // et al. 2010 (ApJS 190, 1): reale Median-Separation sonnenähnlicher
-// Doppelsterne ~35-54 AE. Die Streuung (Sigma im Log-Raum) steht NICHT im
-// Auftrag -- eigene, moderate Wahl der Umsetzung (σ=1 hält die meisten
-// Abstände zwischen rund 7 und 370 AE, ohne seltene sehr enge/weite Fälle
-// unmöglich zu machen).
+// Doppelsterne ~35-54 AE.
 export const DOPPELSTERN_ABSTAND_MEDIAN_AE = 50;
-export const DOPPELSTERN_ABSTAND_SIGMA = 1;
+// A-305, Nachtrag aus A-304 (dort war Sigma=1 eine eigene, ungeprüfte Wahl der
+// Umsetzung, zu schmal): Raghavan 2010 misst die Periodenverteilung
+// log-normal mit σ ≈ 2,28 Dex in log₁₀(Tage); über Keplers drittem Gesetz
+// (a ∝ P^(2/3)) wird daraus σ_a ≈ 2,28 · ⅔ ≈ 1,52 in log₁₀(AE), also
+// 1,5 · ln 10 ≈ 3,45 im natürlichen Logarithmus, den `normalverteilt()`
+// (galaxie.js) verwendet. ○: die Dex-zu-AE-Umrechnung ist eine Näherung
+// (Keplers Gesetz gilt exakt nur bei fester Gesamtmasse), der Median bleibt
+// unverändert bei 50 AE. Folge (gemessen, A-305-Ergebnis): rund 13 % der
+// Paare enger als 1 AE, 19 % weiter als 1000 AE.
+export const DOPPELSTERN_ABSTAND_SIGMA = 1.5 * Math.LN10;
+
+// A-305, Nachtrag aus A-304: mit dieser Wahrscheinlichkeit ist ein Begleiter
+// bereits ein entwickelter Weißer Zwerg statt eines Hauptreihen-/
+// Braunzwerg-Partners (real: Sirius B, Procyon B). ○, Plausibilität der
+// Planung: 35 % Doppelstern-Anteil (grober Schnitt über DOPPELSTERN_ANTEIL)
+// × 5 % ≈ 1,75 % aller Systeme; bei 6 % Weißen Zwergen als Primärstern
+// (STERN_TYPEN.d.haeufigkeit) wären damit rund 23 % aller Weißen Zwerge in
+// einem Paar -- die Größenordnung der lokalen Zählung (Recherche A-305: rund
+// 4 % Untergrenze für "Sirius-artige" Systeme, real z.T. höher, da viele
+// WD-Begleiter unentdeckt bleiben).
+export const DOPPELSTERN_WEISSER_ZWERG_ANTEIL = 0.05;
+
+// A-305: Anfangs-End-Massenbeziehung (Kalirai et al. 2008, ApJ 676, 594) --
+// M_final = steigung · M_initial + achsenabschnitt, Sonnenmassen. Recherche
+// bestätigt Koeffizienten und Form; Cummings et al. 2018 (ApJ 866, 21) ist
+// moderner und nichtlinear, aber komplexer -- für Ebene 1 bleibt die lineare
+// Form die im Auftrag genannte.
+export const WEISSER_ZWERG_IFMR = { steigung: 0.109, achsenabschnitt: 0.394 };
+
+// Kehrwert der IFMR: die Masse des Vorläufersterns aus der heutigen
+// Weißer-Zwerg-Masse. Bei 0,5-1,0 M☉ (STERN_TYPEN.d.masse) ergibt das
+// 0,97-5,56 M☉ -- vom Roten Zwerg bis in den B-Stern-Bereich.
+export function vorlaeuferMasseVon(mWeisserZwerg) {
+  return (mWeisserZwerg - WEISSER_ZWERG_IFMR.achsenabschnitt) / WEISSER_ZWERG_IFMR.steigung;
+}
 
 // Das Heimatsystem bekommt immer einen gelben Zwerg. Gleiche Denkweise wie bei
 // --- Namen für die eigene Heimatwelt (A-082) -------------------------------
@@ -2090,66 +2121,177 @@ export const HEIMATWELT_NAMEN = [
 // hängen. Ein roter Zwerg als Startsystem wäre eine andere Anfangspartie.
 export const HEIMAT_STERN = "g";
 
-// Wie stark ein Stern die Zonen im System verschiebt.
-//
-// Zwei Dinge ziehen hier gegeneinander, und beide sind real:
-//  - Die habitable Zone wandert mit √L nach außen (siehe oben).
-//  - Die protoplanetare Scheibe skaliert mit dem Stern, das SYSTEM selbst ist
-//    um einen leuchtschwachen Stern also kompakter (TRAPPIST-1).
-//
-// Würde man nur das erste einsetzen, wäre um einen roten Zwerg alles Eis;
-// würde man beides voll gegeneinander rechnen, hätte der Sterntyp überhaupt
-// keine Wirkung. Deshalb: die RÄNDER des Systems folgen dem Stern (0 bleibt 0,
-// 1 bleibt 1), das Temperaturgefälle INNEN wird gestaucht bzw. gedehnt.
-//
-// Technisch eine Potenz auf die relative Orbitlage, Exponent L^¼. Sie ist
-// monoton und hält die Endpunkte fest -- jedes System behält damit eine heiße
-// Innenzone und einen kalten Rand, nur die Anteile verschieben sich.
-// ◆ Der Exponent ist eine gewählte Prämisse, keine gemessene Größe.
-export const STERN_ZONEN_EXPONENT = 0.25;
+// --- Bahnen mit echtem Abstand (A-305) ---------------------------------
+// Ersetzt die alte Rang-basierte Zonenrechnung (sternWarp/orbitLage/
+// orbitZone, bis 24.09.2026): Jeder Körper trägt jetzt einen echten Abstand
+// in AE, die Zone folgt aus seiner Gleichgewichtstemperatur. Formeln und
+// Konstanten hier sind reine Funktionen physikalischer Größen (wie
+// radiusAusMasse/schwerkraftAus oben); die WÜRFELNDE Erzeugung eines Systems
+// (Anzahl Planeten, Reihenfolge, Zufallsströme) steht in welt.js.
 
-export function sternWarp(leuchtkraft) {
-  return Math.pow(leuchtkraft > 0 ? leuchtkraft : 1, STERN_ZONEN_EXPONENT);
+// Gleichgewichtstemperatur bei Albedo 0, T = 278 K · (L/a²)^¼ (●). Ein
+// Doppelstern-Begleiter trägt mit seiner EIGENEN Distanz `s` (nicht der
+// Distanz des Planeten zu ihm -- eine bewusste Vereinfachung, ◆, der
+// Begleiter ist meist um Größenordnungen weiter weg als der Planet vom
+// Primärstern) einen zweiten Term bei: T = 278 K · (L₁/a² + L₂/s²)^¼.
+export function gleichgewichtstemperatur(abstandAE, leuchtkraft, begleiter = null) {
+  // Abstand 0 UND Leuchtkraft 0 wäre 0/0 = NaN -- kein Stern und kein Ort
+  // ergeben zusammen keine sinnvolle Temperatur, aber auch keinen Absturz.
+  const primaerTerm = abstandAE === 0 && leuchtkraft === 0 ? 0 : leuchtkraft / (abstandAE * abstandAE);
+  const begleiterTerm =
+    begleiter && !(begleiter.abstandAE === 0 && begleiter.leuchtkraft === 0)
+      ? begleiter.leuchtkraft / (begleiter.abstandAE * begleiter.abstandAE)
+      : 0;
+  return 278 * Math.pow(primaerTerm + begleiterTerm, 0.25);
+}
+
+// Kepler dritter Satz, a in AE: a = (M · P²)^⅓, P in Jahren, M in
+// Sonnenmassen (●, Zweikörperproblem um den Systemschwerpunkt vereinfacht auf
+// die Gesamtmasse -- Standardnäherung für einen Planeten vernachlässigbarer
+// Masse).
+export function keplerAchse(masseSonnenmassen, periodeJahre) {
+  return Math.pow(masseSonnenmassen * periodeJahre * periodeJahre, 1 / 3);
+}
+
+// Schneelinie der Bildung: 2,7 AE · √L_Bildung (Hayashi, ●; bei M-Zwergen ○,
+// siehe Auftrag A-305 Abschnitt 1 -- ihre Vorhauptreihenphase war leuchtkräftiger,
+// die reale Schneelinie lag in der Bildungszeit weiter außen als die heutige
+// Leuchtkraft nahelegt).
+export const SCHNEELINIE_AE_PRO_WURZEL_L = 2.7;
+
+export function schneelinieAE(leuchtkraftBildung) {
+  return SCHNEELINIE_AE_PRO_WURZEL_L * Math.sqrt(leuchtkraftBildung);
+}
+
+// Außenkante der Scheibe: 30 AE · M_Bildung (◆, Sonne: Neptun bei 30 AE).
+export const SCHEIBE_AUSSENKANTE_AE_PRO_MASSE = 30;
+
+// Innerste Planetenperiode einer kompakten inneren Kette, log-gleichverteilt
+// in Tagen. ○ (Kepler-Multiplanetensysteme) -- A-305-Recherche (arXiv:2207.10068,
+// "Edge of the Multis"): die bias-korrigierte reale Verteilung peakt eher bei
+// ~10 Tagen als bei 2-6 Tagen; Bereich deshalb gegenüber dem Entwurfswert
+// [2, 20] auf [2, 25] geweitet (geometrisches Mittel ~7,1 Tage statt ~6,3),
+// die untere Grenze bleibt (auch sehr enge innerste Planeten kommen real vor).
+export const INNENKANTE_PERIODE_TAGE_BEREICH = [2, 25];
+
+// Abstandsverhältnis benachbarter Körper, log-gleichverteilt (○, Kepler-
+// Mehrfachsysteme; Sonnensystem 1,4-2,0, eine Lücke 3,4 -- A-305-Recherche,
+// Fabrycky et al. 2014: Modus knapp außerhalb der 3:2-Resonanz, Bereich
+// plausibel für kompakte Systeme).
+export const ABSTAND_VERHAELTNIS_BEREICH = [1.2, 2.0];
+
+// Mittlere Anzahl Planeten der inneren (kompakten) Kette, Poisson-Mittel je
+// Bildungstyp (○/◆ -- A-305-Recherche: Trend bestätigt, u.a. Mulders et al.,
+// Dressing & Charbonneau für M-Zwerge; die genauen Werte sind eine Design-
+// Interpolation zwischen den Typen, kein direkt abgelesener Literaturwert).
+export const INNERE_KETTE_LAMBDA = { m: 2.5, k: 1.5, g: 1.5, f: 1.5, a: 1.0, b: 0.5, lt: 1.0 };
+
+// Anteil der Systeme mit mindestens einem Gasriesen, je Bildungstyp (○; B ◆
+// zu selten für eine verlässliche Messung). A-305-Recherche (Johnson et al.
+// 2010, "planet-metallicity correlation"): Trend und Größenordnung bestätigt
+// (~3 % M-Zwerge, ~8-14 % FGK, ~14 % "retired A stars" >1,5 M☉) -- der
+// Entwurfswert für A (20 %) lag über der Literatur, auf 15 % gesenkt.
+export const RIESEN_ANTEIL = { m: 0.03, k: 0.06, g: 0.10, f: 0.14, a: 0.15, b: 0.02, lt: 0 };
+
+// In diesem Anteil der Systeme MIT Riesen wandert der erste nach innen
+// (○, ergibt bei G rund 1 % aller Systeme -- A-305-Recherche: Wright et al.
+// 2012 (RV) 1,2±0,38 %, Howard et al. 2012 (Kepler-Transits) ~0,5 %, der
+// Entwurfswert liegt dazwischen, bestätigt).
+export const HEISSER_JUPITER_ANTEIL = 0.10;
+export const HEISSER_JUPITER_PERIODE_TAGE_BEREICH = [3, 10];
+
+// Weitere kalte Planeten jenseits der Riesen, Poisson-Mittel (○, Cassan et
+// al. 2012: ~1,6 Planeten/Stern bei 0,5-10 AE INKLUSIVE Riesen -- 1,0 für den
+// Rest nach Abzug der separat gewürfelten Riesen ist damit plausibel,
+// A-305-Recherche, nicht auf die zweite Nachkommastelle verifizierbar).
+export const KALTE_PLANETEN_LAMBDA = 1.0;
+
+// Gürtel: 0-2 je System (○). Innerer Gürtel nur bei einem Riesen (kein
+// heißer Jupiter), 50 % ◆, bei 0,4-0,6 × dessen Abstand (Hauptgürtel 2,7 AE
+// vor Jupiter 5,2 AE, ●). Äußerer Gürtel 60 % ◆ bei 1,3-1,7 × Abstand des
+// äußersten Planeten (Kuiper-Gürtel 30-50 AE hinter Neptun, ●) -- 60 % ist
+// höher als die real BEOBACHTETE Trümmerscheiben-Rate (A-305-Recherche,
+// Montesinos et al. 2016: 20±7 %, DEBRIS-Teilstichprobe 17,1±2,3 %, beide
+// nah am Entwurfswert 20-30 %), weil ein Kuiper-Gürtel wie unserer von außen
+// unsichtbar wäre -- die echte Rate liegt darüber, 60 % bleibt die gewählte,
+// nicht mehr zu hinterfragende Prämisse.
+export const INNERER_GUERTEL_CHANCE = 0.5;
+export const INNERER_GUERTEL_FAKTOR_BEREICH = [0.4, 0.6];
+export const AEUSSERER_GUERTEL_CHANCE = 0.6;
+export const AEUSSERER_GUERTEL_FAKTOR_BEREICH = [1.3, 1.7];
+
+// Holman & Wiegert 1999 (AJ 117, 621), Stabilitätsgrenzen um einen
+// Doppelstern -- ● (A-305-Recherche: S-Typ-Koeffizienten exakt bestätigt,
+// P-Typ-Koeffizienten stimmen mit der häufiger zitierten Fassung überein; ein
+// widersprüchliches Sekundärzitat existiert, hier die verbreitetere Fassung
+// übernommen). μ = M₂/(M₁+M₂), e = Exzentrizität des Begleiters.
+export function holmanWiegertSTyp(s, mu, e) {
+  return s * (0.464 - 0.38 * mu - 0.631 * e + 0.586 * mu * e + 0.15 * e * e - 0.198 * mu * e * e);
+}
+export function holmanWiegertPTyp(s, mu, e) {
+  return (
+    s *
+    (1.6 + 5.1 * e - 2.22 * e * e + 4.12 * mu - 4.27 * e * mu - 5.09 * mu * mu + 4.61 * e * e * mu * mu)
+  );
 }
 
 // --- Orbitzonen -------------------------------------------------------
-// Ein Orbit ist vor allem ABSTAND ZUM STERN, und der entscheidet über die
-// Temperatur: innen heiß, außen kalt, dazwischen die habitable Zone, in der
-// flüssiges Wasser möglich ist.
+// Die Zone eines Körpers folgt aus seiner Gleichgewichtstemperatur, nicht
+// mehr aus seinem Rang im System (bis A-305: orbitLage/orbitZone). `minK` ist
+// die untere Temperaturgrenze der Zone -- Zonen werden der Reihe nach
+// (heißeste zuerst) geprüft, die erste, deren Grenze die Temperatur noch
+// erreicht, gewinnt. Die Grenzen sind aus der Tabelle in AE · √L
+// zurückgerechnet (T = 278 K · (L/a²)^¼ bei a = Grenze · √L): heiß < 0,5,
+// warm 0,5-0,95, habitabel 0,95-1,67 (konservative habitable Zone, Kopparapu
+// 2013, ○), kalt 1,67-2,7, äußer > 2,7 (● Schneelinie, Hayashi).
 //
-// Bis v0.22 war die Orbitnummer physikalisch bedeutungslos -- sie steuerte nur
-// die Flugzeit innerhalb des Systems, und Planetenarten wurden gleichverteilt
-// gewürfelt. Ein Eisplanet konnte direkt am Stern liegen.
-//
-// `bis` ist die relative Position im System (0 = innerster Orbit, 1 = äußerster).
-// Die Zonen werden der Reihe nach geprüft, die erste passende gewinnt.
-// `arten` ist eine Gewichtstabelle wie VORKOMMEN_TABELLE -- eine seltene Art
-// ist schlicht eine niedrige Zahl.
-//
-// Gasriesen stehen bewusst nur außen. Es gibt reale "heiße Jupiter" dicht an
-// ihrem Stern, aber die sind dorthin gewandert und in der Minderheit; für die
-// Zwecke des Spiels ist die Vereinfachung ehrlicher als die Ausnahme.
-// Je Zone: welche Massenklassen dort entstehen und wieviel Wasser sie tragen.
-// Riesenplaneten stehen bewusst nur außen -- reale "heiße Jupiter" sind dorthin
-// gewandert und in der Minderheit. Der Wasseranteil steigt nach außen, weil
-// jenseits der Frostgrenze flüchtige Stoffe als Eis vorliegen.
+// `klassen` je Zone: `gasriese` ist gestrichen (Riesen kommen nur noch über
+// den eigenen Zug in welt.js, RIESEN_ANTEIL), `eisriese` bleibt, gilt aber
+// nur für Körper jenseits der Bildungs-Schneelinie (welt.js prüft das beim
+// Ziehen). Der Wasseranteil steigt nach außen, weil jenseits der Frostgrenze
+// flüchtige Stoffe als Eis vorliegen.
 export const ORBIT_ZONEN = [
-  { bis: 0.20, name: "heiß",
+  { minK: 393, name: "heiß",
     klassen: { kleinwelt: 3, felswelt: 5, supererde: 2 },
     wasser: { trocken: 8, maessig: 2, reich: 0 } },
-  { bis: 0.45, name: "warm",
+  { minK: 285, name: "warm",
     klassen: { kleinwelt: 2, felswelt: 5, supererde: 3 },
     wasser: { trocken: 5, maessig: 4, reich: 1 } },
-  { bis: 0.60, name: "habitabel",
+  { minK: 215, name: "habitabel",
     klassen: { kleinwelt: 2, felswelt: 6, supererde: 2 },
     wasser: { trocken: 2, maessig: 4, reich: 4 } },
-  { bis: 0.80, name: "kalt",
+  { minK: 169, name: "kalt",
     klassen: { kleinwelt: 3, felswelt: 3, supererde: 1, miniNeptun: 1, eisriese: 2 },
     wasser: { trocken: 1, maessig: 3, reich: 6 } },
-  { bis: 1.01, name: "äußer",
-    klassen: { kleinwelt: 3, felswelt: 1, miniNeptun: 2, eisriese: 3, gasriese: 4 },
+  { minK: 0, name: "äußer",
+    klassen: { kleinwelt: 3, felswelt: 1, miniNeptun: 2, eisriese: 3 },
     wasser: { trocken: 0, maessig: 2, reich: 8 } },
 ];
+
+export function zoneVonTemperatur(temperaturK) {
+  return ORBIT_ZONEN.find((z) => temperaturK >= z.minK) || ORBIT_ZONEN[ORBIT_ZONEN.length - 1];
+}
+
+// Umkehrung von gleichgewichtstemperatur() bei einem Einzelstern (kein
+// Begleiter-Term): a = 278² · √L / T² -- aufgelöst nach T = 278·(L/a²)^¼.
+export function abstandAusTemperatur(temperaturK, leuchtkraft) {
+  return (278 * 278 * Math.sqrt(leuchtkraft)) / (temperaturK * temperaturK);
+}
+
+// Das AE-Band einer benannten Zone um einen gegebenen Stern -- für die
+// Heimatwelt (welt.js): sie zielt auf eine feste Zone (STARTSCHWIERIGKEIT),
+// keinen Rang. `[0, Infinity)` an den offenen Rändern der Tabelle (heiß nach
+// innen, äußer nach außen).
+export function zoneAbstandBand(zoneName, leuchtkraft) {
+  const i = ORBIT_ZONEN.findIndex((z) => z.name === zoneName);
+  if (i < 0) return null;
+  const heisseGrenzeK = i > 0 ? ORBIT_ZONEN[i - 1].minK : Infinity;
+  const kalteGrenzeK = ORBIT_ZONEN[i].minK;
+  return [
+    Number.isFinite(heisseGrenzeK) ? abstandAusTemperatur(heisseGrenzeK, leuchtkraft) : 0,
+    kalteGrenzeK > 0 ? abstandAusTemperatur(kalteGrenzeK, leuchtkraft) : Infinity,
+  ];
+}
 
 // Solarertrag je Orbit-Zone (A-055). Die Zone steht am Planeten und kommt
 // aus derselben thermischen Lage wie Klasse und Wasser -- eine zweite
@@ -2175,25 +2317,6 @@ export function solarLageFaktor(planet) {
   if (planet && typeof planet.solarZonenFaktor === "number") return planet.solarZonenFaktor;
   const faktor = planet && planet.zone ? SOLAR_ZONEN_FAKTOR[planet.zone] : undefined;
   return faktor === undefined ? 1 : faktor;
-}
-
-// Relative Lage eines Orbits im System, 0 (innen) bis 1 (außen).
-export function orbitLage(orbit, orbitAnzahl) {
-  if (!orbitAnzahl || orbitAnzahl <= 1) return 0.5;
-  return Math.min(1, Math.max(0, (orbit - 1) / (orbitAnzahl - 1)));
-}
-
-// Die Lage, die für die Temperatur zählt: die geometrische Lage im System,
-// verzerrt durch die Leuchtkraft des Sterns. Ohne Stern (oder mit einem
-// sonnengleichen) ist sie identisch mit orbitLage -- deshalb ist der Parameter
-// optional und alle älteren Aufrufer bleiben gültig.
-export function orbitLageThermisch(orbit, orbitAnzahl, leuchtkraft = 1) {
-  return Math.pow(orbitLage(orbit, orbitAnzahl), sternWarp(leuchtkraft));
-}
-
-export function orbitZone(orbit, orbitAnzahl, leuchtkraft = 1) {
-  const lage = orbitLageThermisch(orbit, orbitAnzahl, leuchtkraft);
-  return ORBIT_ZONEN.find((z) => lage < z.bis) || ORBIT_ZONEN[ORBIT_ZONEN.length - 1];
 }
 
 // --- Planetenmodell ---------------------------------------------------
@@ -2462,6 +2585,235 @@ export function affinitaetVon({ klasse, zone, wasser }) {
     : 0;
 
   return out;
+}
+
+// --- A-307: Zusammensetzung der Planeten — Masse × Gehalt je Schicht -------
+//
+// Ebene 1: eine reine Funktion, nichts gespeichert. Sie liefert den GESAMTEN
+// Inhalt eines Körpers (Kern, Mantel, Kruste, Hülle) in Tonnen je Stoff --
+// nicht das Vorkommen, das die Wirtschaft heute sieht (`vollesVorkommen`,
+// unverändert). Was davon förderbar ist, entscheidet Ebene 2 (Tobis
+// Entscheidung 8, 23.09.).
+//
+// Erdmasse in Tonnen -- Referenzgröße für jede Massenrechnung hier.
+const ERDMASSE_T = 5.972e21; // ●
+
+// Gehalt-Tabellen, Massenanteile (Ir/U in g/t, also ×1e-6). Metall = Fe + Ni
+// + Al + Ti + Cu (R-48 plus Nickel, siehe Auftrag Abschnitt 1) -- die
+// Aufteilung in einzelne Ressourcen ist N-5, nicht hier.
+const GEHALT_ROH = {
+  // McDonough 2003 ○ (Si im Kern 2-7 % umstritten, hier die Mitte 6 %).
+  kernErdartig: { fe: 0.855, ni: 0.052, al: 0, ti: 0, cu: 125e-6, si: 0.06, ir: 2.6, u: 0 },
+  // McDonough & Sun 1995 ● -- Rechengröße für den Mantel, siehe mantelGehaltVon.
+  silikaterde: { fe: 0.0626, ni: 0.00196, al: 0.0235, ti: 0.0012, cu: 30e-6, si: 0.210, ir: 0.0032, u: 0.0203 },
+  // Rudnick & Gao 2003 ● (aus Oxiden umgerechnet).
+  krusteKontinental: { fe: 0.0522, ni: 59e-6, al: 0.0815, ti: 0.0043, cu: 27e-6, si: 0.283, ir: 0.000037, u: 1.3 },
+  // Mars-Kruste ○.
+  krusteBasaltisch: { fe: 0.14, ni: 300e-6, al: 0.057, ti: 0.005, cu: 50e-6, si: 0.23, ir: 0.0001, u: 0.2 },
+  // A-308: Gürtel sind undifferenziert, ihr Gehalt kommt direkt aus der
+  // Meteoritenklasse, nicht aus Kern/Mantel/Kruste.
+  // Lodders 2003 ● (CI-Chondrit).
+  guertelC: { fe: 0.185, ni: 0.0108, al: 0.0085, ti: 0.00044, cu: 131e-6, si: 0.107, ir: 0.46, u: 0.0081 },
+  // Wasson & Kallemeyn 1988 ○ (gewöhnlicher Chondrit, H/L-Mittel).
+  guertelS: { fe: 0.25, ni: 0.014, al: 0.011, ti: 0.0006, cu: 90e-6, si: 0.175, ir: 0.6, u: 0.013 },
+  // Der EISENMETEORIT-Anteil von M (○; Ir-Spanne real 0,01-60, hier die
+  // Mitte 2). Kein Silizium, kein Uran -- ein reiner Metallkern hatte die
+  // lithophilen Elemente nie (dieselbe Physik wie PLANETEN_KLASSEN.guertelM).
+  // Wird unten MIT guertelS zu GEHALT.guertelM gemischt (60/40, Auftrag
+  // Abschnitt 2) -- Metallanteil ◆ (Psyche 30-60 % ○).
+  guertelEisenmeteorit: { fe: 0.91, ni: 0.08, al: 0, ti: 0, cu: 150e-6, si: 0, ir: 2, u: 0 },
+};
+
+function gehaltAbleiten(roh) {
+  return {
+    metall: roh.fe + roh.ni + roh.al + roh.ti + roh.cu,
+    silizium: roh.si,
+    iridium: roh.ir * 1e-6,
+    uran: roh.u * 1e-6,
+  };
+}
+const GEHALT = Object.fromEntries(Object.entries(GEHALT_ROH).map(([id, roh]) => [id, gehaltAbleiten(roh)]));
+
+// Der Mantel wird NICHT nachgeschlagen, er folgt aus der Massenbilanz: die
+// Silikaterde (BSE) enthält die Kruste schon. Rechnete man sie stattdessen
+// direkt als Mantelgehalt, zählte die Kruste doppelt (Auftrag Abschnitt 2:
+// Uran der ganzen Erde kam so auf 0,020 g/t statt ● 0,014).
+function mantelGehaltVon(krusteGehalt, kernFrac, krusteFrac) {
+  const bse = GEHALT.silikaterde;
+  const mantelFrac = 1 - kernFrac - krusteFrac;
+  const out = {};
+  for (const stoff of Object.keys(bse)) {
+    out[stoff] = (bse[stoff] * (1 - kernFrac) - krusteGehalt[stoff] * krusteFrac) / mantelFrac;
+  }
+  return out;
+}
+const MANTEL_FELSWELT = mantelGehaltVon(GEHALT.krusteKontinental, 0.325, 0.005);
+const MANTEL_KLEINWELT = mantelGehaltVon(GEHALT.krusteBasaltisch, 0.24, 0.03);
+
+// "Ganze Erde", zu einem Gehalt gemischt (Kern 32,5 % + Kruste 0,5 % + Mantel
+// 67 %, wie Heimat/Felswelt) -- der Gesteinskern der Riesen hat laut Auftrag
+// (Abschnitt 3) diese Mischung und zählt dabei als EINE Schicht `kern`.
+function gemischterGehalt(teile) {
+  const out = {};
+  for (const { anteil, gehalt } of teile) {
+    for (const [stoff, wert] of Object.entries(gehalt)) {
+      out[stoff] = (out[stoff] || 0) + wert * anteil;
+    }
+  }
+  return out;
+}
+const GANZE_ERDE_GEHALT = gemischterGehalt([
+  { anteil: 0.325, gehalt: GEHALT.kernErdartig },
+  { anteil: 0.005, gehalt: GEHALT.krusteKontinental },
+  { anteil: 0.670, gehalt: MANTEL_FELSWELT },
+]);
+
+// A-308: der M-Gürtel ist 60 % Eisenmeteorit + 40 % S-Material (Auftrag
+// Abschnitt 2) -- dieselbe Mischtechnik wie beim Gesteinskern der Riesen.
+const GEHALT_GUERTEL_M = gemischterGehalt([
+  { anteil: 0.6, gehalt: GEHALT.guertelEisenmeteorit },
+  { anteil: 0.4, gehalt: GEHALT.guertelS },
+]);
+
+// Wasseranteil der GANZEN Körpermasse, nach `daten.wasser` (Auftrag
+// Abschnitt 4). Nur Gesteinswelten -- bei den Riesen kommt Wasser/Deuterium
+// allein aus der Schichtstruktur (Hülle, Eismantel), `daten.wasser` wirkt
+// dort nur auf affinitaetVon/Anzeige, nicht auf die Zusammensetzung.
+const WASSER_ANTEIL_KOERPER = {
+  trocken: 1e-5, // Mars ○
+  maessig: 2.3e-4, // Erde, Ozeane 1,4e18 t ●
+  reich: 1e-2, // Ozeanwelt ◆ (Europa ~8 % ●, die Spanne ist real riesig)
+};
+// D im Meerwasser (VSMOW ●): H-Anteil des Wassers 0,1119 × 2 × D/H 1,558e-4.
+const DH_VSMOW = 1.558e-4;
+// D/H der Riesen -- Gasriese: Jupiter/Galileo ●. Eisriese: Uranus/Neptun,
+// Herschel ●. Mini-Neptun: protosolar ●. Eisriese-Eismantel rechnet mit
+// demselben D/H wie seine Hülle (Auftrag Abschnitt 3).
+const DH_RIESE = { gasriese: 2.6e-5, eisriese: 4.4e-5, miniNeptun: 2.0e-5 };
+// H-Massenanteil des Wasserstoffs in der Hülle (H/He) ●.
+const H_ANTEIL_HUELLE = 0.74;
+// H-Massenanteil des Wassers (H2O) ●.
+const H_ANTEIL_WASSER = 0.1119;
+
+function deuteriumInWasser(wasserMasseT, dh) {
+  return wasserMasseT * H_ANTEIL_WASSER * 2 * dh;
+}
+function deuteriumInHuelle(huelleMasseT, dh) {
+  return huelleMasseT * H_ANTEIL_HUELLE * 2 * dh;
+}
+function stoffeSkaliert(gehalt, masseT) {
+  const out = {};
+  for (const [stoff, anteil] of Object.entries(gehalt)) out[stoff] = anteil * masseT;
+  return out;
+}
+function schichtAus(masseT, gehalt) {
+  return { masseT, stoffe: stoffeSkaliert(gehalt, masseT) };
+}
+
+// Schichten je Klasse (Massenanteile des Körpers, Auftrag Abschnitt 3).
+const GESTEINSWELT = {
+  felswelt: { kernFrac: 0.325, krusteFrac: 0.005, krusteGehalt: GEHALT.krusteKontinental, mantelGehalt: MANTEL_FELSWELT },
+  supererde: { kernFrac: 0.325, krusteFrac: 0.005, krusteGehalt: GEHALT.krusteKontinental, mantelGehalt: MANTEL_FELSWELT },
+  kleinwelt: { kernFrac: 0.24, krusteFrac: 0.03, krusteGehalt: GEHALT.krusteBasaltisch, mantelGehalt: MANTEL_KLEINWELT },
+};
+
+// A-308: ein Gürtel ist undifferenziert -- eine Schicht `gesamt`, ihr Gehalt
+// kommt direkt aus der Meteoritenklasse. Nur C und S tragen Wasser (M hat
+// keins, siehe Auftrag Abschnitt 2); `wasserfaehig: false` erzwingt das auch
+// dann, wenn `daten.wasser` (aus GUERTEL_WASSER_GEWICHTE) etwas anderes sagt.
+const GUERTEL_GEHALT = {
+  guertelC: { gehalt: GEHALT.guertelC, wasserfaehig: true },
+  guertelS: { gehalt: GEHALT.guertelS, wasserfaehig: true },
+  guertelM: { gehalt: GEHALT_GUERTEL_M, wasserfaehig: false },
+};
+// Wasseranteil der GANZEN Gürtelmasse (Auftrag Abschnitt 2) ◆ -- die übrigen
+// Gehalte gelten für die trockene Restmasse, nicht für die ganze Masse (anders
+// als bei den Gesteinswelten in A-307, wo das Wasser dem Mantel entnommen wird).
+const GUERTEL_WASSER_ANTEIL = { trocken: 0.01, maessig: 0.10, reich: 0.30 };
+// Gürtelmasse, log-gleichverteilt (Auftrag Abschnitt 1) ◆. Innerer Gürtel:
+// Hauptgürtel 2,4·10¹⁸ t ● als Anker. Äußerer: Kuipergürtel 6·10¹⁹-6·10²⁰ t ○.
+export const GUERTEL_MASSE_BEREICH = {
+  innerer: [1e17, 1e19],
+  aeusserer: [1e19, 1e21],
+};
+
+// Masse × Gehalt je Schicht, für jeden Planeten, die Heimatwelt und (seit
+// A-308) jeden Gürtel (dieselbe Funktion, `daten.typ` spielt keine Rolle).
+// Reine Ableitung aus `klasse`, `masse`/`masseT`, `wasser` -- nichts wird
+// gespeichert. Unbekannte Klasse liefert `null`.
+export function zusammensetzungVon(daten) {
+  const { klasse, masse, masseT: guertelMasseT, wasser } = daten || {};
+  const schichten = {};
+  let masseT;
+
+  const guertel = GUERTEL_GEHALT[klasse];
+  if (guertel) {
+    if (typeof guertelMasseT !== "number") return null;
+    masseT = guertelMasseT;
+    const wasserFrac = guertel.wasserfaehig ? (GUERTEL_WASSER_ANTEIL[wasser] ?? GUERTEL_WASSER_ANTEIL.trocken) : 0;
+    const wasserMasseT = masseT * wasserFrac;
+    const stoffe = stoffeSkaliert(guertel.gehalt, masseT - wasserMasseT);
+    if (wasserMasseT > 0) {
+      stoffe.wasser = (stoffe.wasser || 0) + wasserMasseT;
+      stoffe.deuterium = (stoffe.deuterium || 0) + deuteriumInWasser(wasserMasseT, DH_VSMOW);
+    }
+    schichten.gesamt = { masseT, stoffe };
+  } else {
+    if (typeof masse !== "number") return null;
+    masseT = masse * ERDMASSE_T;
+
+    const gestein = GESTEINSWELT[klasse];
+    if (gestein) {
+      const wasserFrac = (WASSER_ANTEIL_KOERPER[wasser] ?? WASSER_ANTEIL_KOERPER.trocken);
+      const mantelFrac = 1 - gestein.kernFrac - gestein.krusteFrac - wasserFrac;
+      schichten.kern = schichtAus(masseT * gestein.kernFrac, GEHALT.kernErdartig);
+      schichten.mantel = schichtAus(masseT * mantelFrac, gestein.mantelGehalt);
+
+      const krusteMineralT = masseT * gestein.krusteFrac;
+      const wasserMasseT = masseT * wasserFrac;
+      const krusteStoffe = stoffeSkaliert(gestein.krusteGehalt, krusteMineralT);
+      krusteStoffe.wasser = (krusteStoffe.wasser || 0) + wasserMasseT;
+      krusteStoffe.deuterium = (krusteStoffe.deuterium || 0) + deuteriumInWasser(wasserMasseT, DH_VSMOW);
+      schichten.kruste = { masseT: krusteMineralT + wasserMasseT, stoffe: krusteStoffe };
+    } else if (klasse === "miniNeptun") {
+      schichten.kern = schichtAus(masseT * 0.97, GANZE_ERDE_GEHALT);
+      const huelleMasseT = masseT * 0.03;
+      schichten.huelle = { masseT: huelleMasseT, stoffe: { deuterium: deuteriumInHuelle(huelleMasseT, DH_RIESE.miniNeptun) } };
+    } else if (klasse === "eisriese") {
+      schichten.kern = schichtAus(masseT * 0.20, GANZE_ERDE_GEHALT);
+      const mantelMasseT = masseT * 0.65;
+      schichten.mantel = {
+        masseT: mantelMasseT,
+        stoffe: { wasser: mantelMasseT, deuterium: deuteriumInWasser(mantelMasseT, DH_RIESE.eisriese) },
+      };
+      const huelleMasseT = masseT * 0.15;
+      schichten.huelle = { masseT: huelleMasseT, stoffe: { deuterium: deuteriumInHuelle(huelleMasseT, DH_RIESE.eisriese) } };
+    } else if (klasse === "gasriese") {
+      // Kern 7 %: halb Gestein (ganze-Erde-Mix), halb Eis (Wasser) -- Auftrag
+      // Abschnitt 3. Das Eis rechnet mit demselben D/H wie die Hülle desselben
+      // Körpers (dieselbe Herleitung wie beim Eisriesen-Eismantel, dort mit
+      // dessen eigenem D/H; nicht im Auftrag ausgeschrieben, aber konsequent).
+      const kernMasseT = masseT * 0.07;
+      const gesteinTeilT = kernMasseT / 2;
+      const eisTeilT = kernMasseT / 2;
+      const kernStoffe = stoffeSkaliert(GANZE_ERDE_GEHALT, gesteinTeilT);
+      kernStoffe.wasser = (kernStoffe.wasser || 0) + eisTeilT;
+      kernStoffe.deuterium = (kernStoffe.deuterium || 0) + deuteriumInWasser(eisTeilT, DH_RIESE.gasriese);
+      schichten.kern = { masseT: kernMasseT, stoffe: kernStoffe };
+      const huelleMasseT = masseT * 0.93;
+      schichten.huelle = { masseT: huelleMasseT, stoffe: { deuterium: deuteriumInHuelle(huelleMasseT, DH_RIESE.gasriese) } };
+    } else {
+      return null;
+    }
+  }
+
+  const gesamt = {};
+  for (const schicht of Object.values(schichten)) {
+    for (const [stoff, wert] of Object.entries(schicht.stoffe)) {
+      gesamt[stoff] = (gesamt[stoff] || 0) + wert;
+    }
+  }
+  return { masseT, schichten, gesamt };
 }
 
 // Der sichtbare Name. Klasse und Wasserstand stehen im Tooltip -- angezeigt
@@ -3007,20 +3359,25 @@ export function voraussetzungenText(id) {
 // Zusammensetzung werden aus Bereichen und Wahrscheinlichkeiten gezogen.
 // Alles hier ist Stellschraube -- Balancing gehört in diese Tabelle, nicht
 // in den Generator.
+// A-305: `orbits` (Wertebereich der Orbitanzahl) und `maxObjekte` (harte
+// Obergrenze) entfallen -- die Zahl der Natur-Objekte (Planeten, Gürtel)
+// folgt jetzt aus der Physik (Sterntyp, Schneelinie, Poisson-Züge), nicht aus
+// einer gewürfelten Platzzahl. `orbitAnzahl` ist seither schlicht die Zahl
+// der tatsächlich erzeugten Objekte (Natur + Reiche-Schicht), siehe welt.js.
+// `vorkommen.planet` und `vorkommen.asteroiden` entfallen aus demselben
+// Grund. Neu: `vorkommen.leer` -- die Reiche-Schicht braucht weiterhin ein
+// paar Platzhalter-Plätze (Tobi 29.09., Leere Orbits (b)): 2-4 je System,
+// auf denen wie bisher Piraten gründen, nicht mehr 17,5 im Mittel.
 export const SYSTEM_REGELN = {
-  // Wie viele Orbitpositionen das System überhaupt hat.
-  orbits: { min: 12, max: 50 },
-  // Harte Obergrenze an belegten Positionen.
-  maxObjekte: 50,
   // Wie viele Objekte je Art vorkommen. hartesMax gilt zusätzlich.
   vorkommen: {
-    planet: { min: 3, max: 7, hartesMax: 12 },
-    asteroiden: { min: 2, max: 8 },
     wrack: { min: 0, max: 5 },
     struktur: { min: 0, max: 3 },
     gefahr: { min: 0, max: 4 },
     // Anomalien ergeben sich aus den benötigten Technologien, plus Zugabe.
     anomalieExtra: { min: 0, max: 2 },
+    // Platzhalter der Reiche-Schicht (A-305) -- keine Natur, siehe welt.js.
+    leer: { min: 2, max: 4 },
   },
   // Wahrscheinlichkeit, dass ein Planet besiedelbar ist.
   planetBesiedelbar: 0.7,
