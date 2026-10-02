@@ -22,9 +22,9 @@
 // hier stehen dürfen, sind die, die aus der Physik folgen und deshalb fest
 // sind: der Zeitmaßstab und die Frist.
 
-import { t } from "./sprache.js?v=0.9.77";
-import { feedbackAdresse } from "./feedback.js?v=0.9.77";
-import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.77";
+import { t } from "./sprache.js?v=0.9.78";
+import { feedbackAdresse } from "./feedback.js?v=0.9.78";
+import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.78";
 
 export function handbuchAbschnitte() {
   return [

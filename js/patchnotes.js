@@ -28,6 +28,15 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.9.78",
+    de: [
+      "Die Welt wird beim Erzeugen jetzt in zwei getrennten Schichten gewürfelt: die Natur (Sterne, Planeten, Riesen, Gürtel, Monde) und alles, was Reiche hinterlassen (Anomalien, Wracks, Strukturen, Gefahren, leere Plätze). Planeten, Gürtel und Heimatwelt bleiben bei gleicher Saat genau, wie sie waren -- aber Wracks, Strukturen, Gefahren und Anomalien können jetzt an anderen Orten liegen und andere Namen und Mengen tragen. Dein Spielstand ist davon nicht betroffen: er lädt wie zuvor. Wer in einem alten Stand ein bestimmtes Wrack oder einen Piratenposten im Kopf hat, findet an seinem Orbit unter Umständen etwas anderes. Der Sinn: künftig kann die eine Schicht wachsen, ohne die andere zu verschieben.",
+    ],
+    en: [
+      "The world is now rolled in two separate layers when it's generated: nature (stars, planets, giants, belts, moons) and everything that empires leave behind (anomalies, wrecks, structures, hazards, empty slots). With the same seed, planets, belts and your home world stay exactly as they were -- but wrecks, structures, hazards and anomalies may now sit in different places and carry different names and amounts. Your save isn't affected: it loads as before. If you remember a particular wreck or pirate outpost in an old save, its orbit may now hold something else. The point: from now on one layer can grow without shifting the other.",
+    ],
+  },
+  {
     version: "0.9.77",
     de: [
       "Nur intern: Die Roadmap im Development-Tab kannte die neuen Stoffe (v0.9.74–0.9.76) noch nicht -- unter „Bald” stand weiter der alte Stoffe-Punkt. Jetzt zeigt sie den aktuellen Stand: „Bald” nennt den nächsten Schritt der Galaxie-Sandbox, „Später” trägt neu, dass die Stoffe zu Rohstoffen werden.",

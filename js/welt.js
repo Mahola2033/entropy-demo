@@ -49,8 +49,6 @@ import {
   STARTSCHWIERIGKEIT,
   STARTSCHWIERIGKEIT_VORGABE,
   START,
-  techStufe,
-  mengeSkaliert,
   GUERTEL_ZONEN_GEWICHTE,
   GUERTEL_WASSER_GEWICHTE,
   GUERTEL_MASSE_BEREICH,
@@ -77,9 +75,17 @@ import {
   ZWERGPLANET_SUMME_MAX_ANTEIL,
   KOMETENWOLKE_MASSE_BEREICH_ERDMASSEN,
   KOMETENWOLKE_OHNE_RIESEN_FAKTOR,
-} from "./data.js?v=0.9.77";
-import { stromFuer, waehle, zwischen, gewichtetWaehlen, logGleichverteilt, poissonZug } from "./zufall.js?v=0.9.77";
-import { sternFuer, leuchtkraftAusMasse, bildungstypVon, rundSignifikant, normalverteilt } from "./galaxie.js?v=0.9.77";
+} from "./data.js?v=0.9.78";
+import { stromFuer, waehle, zwischen, gewichtetWaehlen, logGleichverteilt, poissonZug } from "./zufall.js?v=0.9.78";
+import {
+  reicheOrteGenerieren,
+  WRACK_ARTEN,
+  ANOMALIE_ARTEN,
+  STRUKTUR_ARTEN,
+  GEFAHR_ARTEN,
+  LEERER_ORBIT,
+} from "./reiche-orte.js?v=0.9.78";
+import { sternFuer, leuchtkraftAusMasse, bildungstypVon, rundSignifikant, normalverteilt } from "./galaxie.js?v=0.9.78";
 
 // Systeme können deutlich mehr als 50 Objekte tragen (die alte harte
 // Obergrenze ist mit A-305 gefallen) -- römische Zahlen daher berechnen
@@ -200,23 +206,10 @@ const PLANETEN_ARTEN = [
   // Klassen ohne Oberfläche tragen ihren Klassennamen
   "Mini-Neptun", "Eisriese", "Gasriese",
 ];
-const WRACK_ARTEN = [
-  "Havarierter Frachter", "Ausgebranntes Kolonieschiff",
-  "Zerschossener Geleitkreuzer", "Treibende Bergungsplattform",
-];
-const ANOMALIE_ARTEN = [
-  "Fremdartige Signalboje", "Verlassene Forschungsstation",
-  "Kristalline Struktur unbekannten Ursprungs", "Stillgelegter Sondenschwarm",
-];
-const STRUKTUR_ARTEN = [
-  "Versiegelter Monolith", "Fremdartiger Resonanzkörper", "Verschlossene Artefaktkammer",
-];
-const GEFAHR_ARTEN = [
-  "Piratenaußenposten", "Dichtes Trümmerfeld",
-  "Instabile Strahlungszone", "Automatisierte Abwehrdrohnen",
-];
+// WRACK_ARTEN, ANOMALIE_ARTEN, STRUKTUR_ARTEN, GEFAHR_ARTEN und LEERER_ORBIT
+// (die Reiche-Schicht) wohnen seit A-319 in js/reiche-orte.js.
 // Bezeichnungen, die nicht aus einer der Listen oben stammen.
-const SONSTIGE_ARTEN = ["Heimatwelt", "Tiefliegendes Vorkommen", "Asteroidengürtel", "Leerer Orbit"];
+const SONSTIGE_ARTEN = ["Heimatwelt", "Tiefliegendes Vorkommen", "Asteroidengürtel", LEERER_ORBIT];
 
 // Alle Bezeichnungen, die die Weltgenerierung in einen Spielstand schreibt.
 //
@@ -235,11 +228,6 @@ export const BEZEICHNUNGEN = [
   ...GEFAHR_ARTEN,
   ...SONSTIGE_ARTEN,
 ];
-
-function ausBereich(rng, bereich) {
-  const n = zwischen(rng, bereich.min, bereich.max);
-  return bereich.hartesMax ? Math.min(n, bereich.hartesMax) : n;
-}
 
 function orbitName(systemId, orbit) {
   return `${systemId}-${roemisch(orbit)}`;
@@ -604,14 +592,13 @@ function heimatMasse(rng, klasse) {
 export function systemGenerieren(seed, systemId, optionen = {}) {
   const { schluessel = [], istHeimat = false, heimatName = "Heimatwelt", schwierigkeit = STARTSCHWIERIGKEIT_VORGABE } = optionen;
   const rng = stromFuer(seed, systemId);
-  // A-305: eigene Zufallsströme für die Bahnen -- der Natur (Planeten,
-  // Gürtel) und getrennt davon der Reiche-Schicht (Anomalien, Wracks,
-  // Strukturen, Gefahren, leere Plätze). 953 und 1301 sind Primzahlen, die in
-  // keiner anderen stromFuer-Kennung dieses Projekts vorkommen (sternFuer:
-  // *104729, systemPosition: *7919, guertelStrom: *1601+Index) -- derselbe
-  // Kollisionsschutz wie beim bestehenden Muster.
+  // A-305: eigener Zufallsstrom für die Bahnen der Natur (Planeten, Gürtel).
+  // 953 ist eine Primzahl, die in keiner anderen stromFuer-Kennung dieses
+  // Projekts vorkommt (sternFuer: *104729, systemPosition: *7919,
+  // guertelStrom: *1601+Index) -- derselbe Kollisionsschutz wie beim
+  // bestehenden Muster. Die Reiche-Schicht hat seit A-319 ihre eigenen Ströme
+  // (js/reiche-orte.js, *3571 + Art).
   const bahnRng = stromFuer(seed, systemId * 953);
-  const reicheRng = stromFuer(seed, systemId * 1301);
 
   const stern = sternFuer(seed, systemId, istHeimat);
   const rahmen = systemRahmen(stern, bahnRng);
@@ -757,73 +744,15 @@ export function systemGenerieren(seed, systemId, optionen = {}) {
   }
 
   // --- Reiche-Schicht: Anomalien, Wracks, Strukturen, Gefahren, leere Plätze
-  const reiche = [];
-  const reicheAbstandWaehlen = () => logGleichverteilt(reicheRng, rahmen.innenkanteAE, rahmen.aussenkanteAE);
-
-  const sortierteSchluessel = [...schluessel].sort((a, b) => techStufe(a) - techStufe(b));
-  for (const techId of sortierteSchluessel) {
-    const stufe = techStufe(techId);
-    const moeglicheSchloesser = ENTDECKBARE_FORSCHUNGEN.filter((t) => techStufe(t) < stufe);
-    const gesperrt = moeglicheSchloesser.length > 0 && rng() < 0.5;
-    reiche.push({
-      abstandAE: reicheAbstandWaehlen(),
-      typ: "anomalie",
-      bezeichnung: waehle(rng, ANOMALIE_ARTEN),
-      benoetigt: gesperrt ? { forschung: waehle(rng, moeglicheSchloesser) } : null,
-      daten: { forschung: techId },
-    });
-  }
-
-  for (let i = 0; i < ausBereich(rng, SYSTEM_REGELN.vorkommen.anomalieExtra); i++) {
-    reiche.push({
-      abstandAE: reicheAbstandWaehlen(),
-      typ: "anomalie",
-      bezeichnung: waehle(rng, ANOMALIE_ARTEN),
-      daten: {},
-    });
-  }
-
-  for (let i = 0; i < ausBereich(rng, SYSTEM_REGELN.vorkommen.wrack); i++) {
-    reiche.push({
-      abstandAE: reicheAbstandWaehlen(),
-      typ: "wrack",
-      bezeichnung: waehle(rng, WRACK_ARTEN),
-      daten: { ertrag: { metall: mengeSkaliert(zwischen(rng, 300, 1200)), silizium: mengeSkaliert(zwischen(rng, 150, 700)) } },
-    });
-  }
-
-  for (let i = 0; i < ausBereich(rng, SYSTEM_REGELN.vorkommen.struktur); i++) {
-    reiche.push({
-      abstandAE: reicheAbstandWaehlen(),
-      typ: "struktur",
-      bezeichnung: waehle(rng, STRUKTUR_ARTEN),
-      benoetigt: { forschung: waehle(rng, ENTDECKBARE_FORSCHUNGEN) },
-      daten: { ertrag: { metall: mengeSkaliert(zwischen(rng, 1500, 4000)), silizium: mengeSkaliert(zwischen(rng, 1200, 3000)) } },
-    });
-  }
-
-  for (let i = 0; i < ausBereich(rng, SYSTEM_REGELN.vorkommen.gefahr); i++) {
-    reiche.push({
-      abstandAE: reicheAbstandWaehlen(),
-      typ: "gefahr",
-      bezeichnung: waehle(rng, GEFAHR_ARTEN),
-      gefahr: true,
-      daten: {
-        flotte: { kriegsschiff: zwischen(rng, 2, 7) },
-        ertrag: { metall: mengeSkaliert(zwischen(rng, 800, 3000)), silizium: mengeSkaliert(zwischen(rng, 400, 1800)) },
-      },
-    });
-  }
-
-  // Platzhalter der Reiche-Schicht (Tobi 29.09., Leere Orbits (b)): keine
-  // Natur, aber der Bauplatz, auf dem Piraten gründen (simulation.js).
-  for (let i = 0; i < ausBereich(rng, SYSTEM_REGELN.vorkommen.leer); i++) {
-    reiche.push({ abstandAE: reicheAbstandWaehlen(), typ: "leer", bezeichnung: "Leerer Orbit", daten: {} });
-  }
-
-  // Auch die Anomalien/Wracks/Strukturen/Gefahren/leeren Plätze eines
+  // A-319: eigenes Modul, je Art ein eigener Strom -- kein Zug der Natur
+  // verschiebt sie mehr, und sie zieht nichts aus `rng`. Die Reiche entstehen
+  // nach dem Weißen-Zwerg-Filter und werden nicht mitgeweitet; auch die eines
   // S-Typ-Doppelsterns bleiben innerhalb der Stabilitätsgrenze (a_krit steckt
   // schon in rahmen.aussenkanteAE, siehe systemRahmen).
+  const reiche = reicheOrteGenerieren(seed, systemId, {
+    innenkanteAE: rahmen.innenkanteAE,
+    aussenkanteAE: rahmen.aussenkanteAE,
+  }, schluessel);
 
   // --- Abschnitt 8: Rang nach Abstand -------------------------------------
   const alle = [...systemNatur, ...reiche].sort((a, b) => a.abstandAE - b.abstandAE);
@@ -851,7 +780,7 @@ export function systemGenerieren(seed, systemId, optionen = {}) {
 // Klasse, Masse und Sperre danach). 2003 ist eine Primzahl, in keiner
 // anderen stromFuer-Kennung dieses Projekts verwendet (sternFuer: *104729,
 // systemPosition: *7919, guertelStrom: *1601+Index, bahnRng: *953,
-// reicheRng: *1301). `index` ist die Stelle des Körpers in `natur` (vor dem
+// Reiche-Schicht: *3571+Art). `index` ist die Stelle des Körpers in `natur` (vor dem
 // Sortieren) -- die Heimat hat Index 0.
 //
 // Die Stabilitätsprüfung selbst braucht keinen Zufall (reine Geometrie aus

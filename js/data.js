@@ -19,7 +19,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.9.77";
+export const VERSION = "0.9.78";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von vollversion.mjs (bis A-272: uebernehmen.mjs) beim
@@ -66,7 +66,7 @@ export const DEMO_SAAT = 20269933;
 // wird an den anzeigenden Stellen, nicht hier. Einzige Ausnahme ist
 // voraussetzungenText() weiter unten -- die einzige Funktion in dieser Datei,
 // die Anzeigetext zusammensetzt.
-import { t } from "./sprache.js?v=0.9.77";
+import { t } from "./sprache.js?v=0.9.78";
 
 // A-164 (31.08.2026): Von 50 auf 125.000 (×2.500) -- die Maßstabsrunde.
 // Vorher skalierte EIN MASSSTAB Material, Menschen und Arbeitskraft
@@ -3593,14 +3593,15 @@ export function voraussetzungenText(id) {
 // paar Platzhalter-Plätze (Tobi 29.09., Leere Orbits (b)): 2-4 je System,
 // auf denen wie bisher Piraten gründen, nicht mehr 17,5 im Mittel.
 export const SYSTEM_REGELN = {
-  // Wie viele Objekte je Art vorkommen. hartesMax gilt zusätzlich.
+  // Wie viele Objekte je Art vorkommen (nur noch die Reiche-Schicht, gezogen in
+  // js/reiche-orte.js, je Art aus einem eigenen Strom). hartesMax gilt zusätzlich.
   vorkommen: {
     wrack: { min: 0, max: 5 },
     struktur: { min: 0, max: 3 },
     gefahr: { min: 0, max: 4 },
     // Anomalien ergeben sich aus den benötigten Technologien, plus Zugabe.
     anomalieExtra: { min: 0, max: 2 },
-    // Platzhalter der Reiche-Schicht (A-305) -- keine Natur, siehe welt.js.
+    // Platzhalter der Reiche-Schicht (A-305) -- keine Natur, siehe reiche-orte.js.
     leer: { min: 2, max: 4 },
   },
   // Wahrscheinlichkeit, dass ein Planet besiedelbar ist.
