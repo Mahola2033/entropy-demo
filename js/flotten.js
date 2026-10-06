@@ -9,16 +9,16 @@
 // Ereignis in vorspulenBisJetzt läuft. Die Position wird nur bei Bedarf
 // interpoliert -- für die Anzeige und im Moment des Umleitens.
 
-import { SCHIFFE, FLOTTE, RESEARCH, SONDE, unterlichtSekundenProEinheit } from "./data.js?v=0.9.78";
-import { systemPosition, entfernung } from "./galaxie.js?v=0.9.78";
+import { SCHIFFE, FLOTTE, RESEARCH, SONDE, unterlichtSekundenProEinheit } from "./data.js?v=0.9.93";
+import { systemPosition, entfernung } from "./galaxie.js?v=0.9.93";
 // Zugriff dieser Datei auf state.js: Zugehörigkeit (fraktionVon/planetenVon)
 // und seit A-133 der Forschungsstand einer Fraktion (forschungVon). Beides
 // hier nachzubauen wäre dieselbe Grenze an zwei Stellen -- genau das Muster,
 // an dem das Produktionsmodell in v0.18 einmal auseinandergelaufen ist. Kein
 // Kreis: state.js kennt flotten.js nicht.
-import { planetenVon, fraktionVon, forschungVon } from "./state.js?v=0.9.78";
-import { SPIELER_FRAKTION } from "./data.js?v=0.9.78";
-import { t } from "./sprache.js?v=0.9.78";
+import { planetenVon, fraktionVon, forschungVon } from "./state.js?v=0.9.93";
+import { SPIELER_FRAKTION } from "./data.js?v=0.9.93";
+import { t } from "./sprache.js?v=0.9.93";
 
 // --- Position -------------------------------------------------------------
 // Ein Ort ist immer { x, y, systemId|null, orbit|null }.
@@ -273,7 +273,7 @@ export function schiffeText(schiffe) {
 // --- Kampfwerte -------------------------------------------------------
 // Arbeitet auf einer reinen { schiffId: anzahl }-Zuordnung, nicht auf einem
 // echten Flotten-Objekt -- damit taugt dieselbe Funktion für Spieler UND
-// Gefahren-Objekte (die ihre eigene kleine "Flotte" nur als daten.flotte
+// bewachte Orte (die ihre eigene kleine "Flotte" nur als daten.flotte
 // mitbringen). Kein Sonderfall für welche Seite gerade dran ist.
 export function schiffeStaerke(schiffe, schadenKarte = {}) {
   let hp = 0;

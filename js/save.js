@@ -11,12 +11,12 @@ import {
   speicherbarerVersatz,
   spielDatum,
   vollerFossilVorrat,
-} from "./state.js?v=0.9.78";
-import { piratenWeltStart, botWeltStart, piratenNamenNachziehen } from "./simulation.js?v=0.9.78";
-import { notausgangLoeschen } from "./aufholen.js?v=0.9.78";
-import { DEMO_SAAT, VERSION } from "./data.js?v=0.9.78";
-import { t } from "./sprache.js?v=0.9.78";
-import { startschwierigkeit } from "./schwierigkeit.js?v=0.9.78";
+} from "./state.js?v=0.9.93";
+import { piratenWeltStart, botWeltStart, piratenNamenNachziehen } from "./simulation.js?v=0.9.93";
+import { notausgangLoeschen } from "./aufholen.js?v=0.9.93";
+import { DEMO_SAAT, VERSION } from "./data.js?v=0.9.93";
+import { t } from "./sprache.js?v=0.9.93";
+import { startschwierigkeit } from "./schwierigkeit.js?v=0.9.93";
 
 const STORAGE_KEY = "entropy-save";
 
@@ -26,8 +26,10 @@ const STORAGE_KEY = "entropy-save";
 // lautloser Totalverlust. Die Kennung im Namen sagt, woher der Stand stammt.
 const SICHERUNG_PRAEFIX = "entropy-save-alt-";
 
-// Eine neue Welt besteht aus mehr als dem Spieler: alle Piratengruppen der
-// Galaxie werden mit angelegt, damit die Welt AUCH OHNE SPIELER läuft. Das
+// Eine neue Welt besteht aus mehr als dem Spieler: die Piratengruppen in
+// Reichweite einer Basis (Spieler oder Bot, A-321) werden mit angelegt, damit
+// die Welt AUCH OHNE SPIELER läuft; die übrigen erwachen, wenn eine Basis
+// ihre Reichweite zu ihnen vorrückt. Das
 // ist Tobis Vorgabe ("mit null, einem oder hundert Spielern") und gleichzeitig
 // die Voraussetzung dafür, eine Galaxie im Schnelldurchlauf beobachten zu
 // können -- siehe tests/weltlauf.mjs.

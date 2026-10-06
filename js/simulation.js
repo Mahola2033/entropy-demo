@@ -20,7 +20,6 @@ import {
   LOGISTIKNETZ,
   PIRAT,
   BOT,
-  FRAKTIONS_ARTEN,
   KAMPF,
   REPARATUR,
   RUECKBAU,
@@ -30,7 +29,9 @@ import {
   BAUWARTESCHLANGE_MAX,
   HANDEL,
   SCHROTT_ANTEIL,
+  schrottVon,
   PIRATEN_NAMEN,
+  STAATSFORMEN,
   SCHIRM_MINDESTVERSORGUNG,
   REST_BAGATELLE_SKALIERT,
   BEVOELKERUNG,
@@ -45,14 +46,13 @@ import {
   ABBAUSCHIFF_DAUER_STUNDEN,
   rate,
 
-  taugtAlsStartwelt,
   REICHWEITE,
   mengeSkaliert,
   kostenFuerLevel,
   bauzeitFuerLevel,
   forschungsAufwand,
   voraussetzungenText,
-} from "./data.js?v=0.9.78";
+} from "./data.js?v=0.9.93";
 import {
   effektiveRaten,
   bevoelkerungsWachstumsrate,
@@ -114,8 +114,9 @@ import {
   beziehungZu,
   arbeitskraftDiebstahlAnteil,
   maxReichweite,
+  reichweiteVon,
   handelsMindestFuer,
-} from "./state.js?v=0.9.78";
+} from "./state.js?v=0.9.93";
 import {
   ortVonPlanet,
   ortVonSystem,
@@ -135,9 +136,10 @@ import {
   schiffeGesamt,
   schiffeStaerke,
   schiffeText,
-} from "./flotten.js?v=0.9.78";
-import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.78";
-import { stromFuer, waehle } from "./zufall.js?v=0.9.78";
+} from "./flotten.js?v=0.9.93";
+import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.93";
+import { reicheHeimaten, heimatPlanetVon } from "./welt.js?v=0.9.93";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.93";
 import {
   reichenAus,
   fehlende,
@@ -148,8 +150,8 @@ import {
   buendelText,
   formatZahl as fmt,
   name as resName,
-} from "./ressourcen.js?v=0.9.78";
-import { t } from "./sprache.js?v=0.9.78";
+} from "./ressourcen.js?v=0.9.93";
+import { t } from "./sprache.js?v=0.9.93";
 
 // Kurzform: Ressourcen in ein Planetenlager einlagern, begrenzt durch den
 // gemeinsamen Pool und etwaige Annahmeregeln. Gibt zurück, was nicht
@@ -170,7 +172,7 @@ function insLager(state, planet, buendel) {
     (resId) => aufnahmeGrenzeFuer(planet, resId)
   );
 }
-import { systemName, entfernung } from "./galaxie.js?v=0.9.78";
+import { systemName, entfernung, systemPosition, positionsAbstand } from "./galaxie.js?v=0.9.93";
 
 const MS_PRO_STUNDE = 1000 * 60 * 60;
 
@@ -847,6 +849,10 @@ function ereignisBauen(state, zeit, art, entitaet) {
         zeit,
         ausfuehren: (t) => {
           state.naechsteBandenPruefung = t + PIRAT.gruendung.taktMs;
+          // Netz unter den Auslösern (A-321): idempotent, kostet nichts, wenn
+          // nichts schläft -- fängt ab, was kein Auslöser gemeldet hat (alter
+          // Stand, Testmodus-Sprung).
+          bandenWecken(state, t, { grund: "wache" });
           piratenNeugruendung(state, t);
         },
         planeten: null,
@@ -1771,26 +1777,90 @@ function bauAbschliessen(state, planet, zeit) {
 // Bergung läuft über dieselbe Missionsmechanik wie beim Spieler. Es kommt kein
 // einziges Parallelsystem dazu -- das ist Prinzip 5 in Reinform.
 //
-// WANN eine Gruppe entsteht: BEIM WELTSTART, alle auf einmal, unabhängig vom
-// Spieler.
+// WANN eine Gruppe entsteht (A-321): WENN IHR SYSTEM IN REICHWEITE EINER BASIS
+// LIEGT -- einer Basis des Spielers oder eines Bots, mit der Reichweite ihrer
+// Fraktion (reichweiteVon). Der Piratenposten ist die Welt und existiert
+// ohnehin aus der Saat (Prinzip 1); die Bande ist der Akteur darauf, und ein
+// Akteur, den niemand sehen und der niemanden sehen kann, braucht keine
+// Rechenzeit. Eine Bande handelt nur im eigenen System (besteBeuteImSystem,
+// piratenZiel), breitet sich nur über Splitter und Umzug aus -- und die wählen
+// kein System mit schlafendem Piratenposten (piratenZielsystem).
 //
-// Eine frühere Fassung erweckte sie erst bei Entdeckung -- aus Sparsamkeit,
-// und das war falsch. Es hätte Prinzip 1 auf den Kopf gestellt ("die Welt
-// beginnt zu existieren, wenn du hinsiehst") und Tobis eigentliche Vorgabe
-// verfehlt: **das Spiel soll ohne Spieler funktionieren, mit einem und mit
-// hundert.** Eine Galaxie, die man im Schnelldurchlauf laufen lassen und beim
-// Sich-Entwickeln zusehen kann, ist genau der Punkt -- und faul abgeleitete
-// Gruppen kann man nicht beim Handeln beobachten.
+// Die Vorgabe "das Spiel soll ohne Spieler funktionieren, mit einem und mit
+// hundert" gilt weiter, und sie ist der Grund, warum nicht nur der Spieler
+// Banden weckt: auch Bot-Basen tun es, mit derselben Regel. Wer eine Galaxie
+// im Schnelldurchlauf laufen lässt, sieht Banden und Bots aufeinandertreffen.
+// Eine frühere Fassung erweckte erst bei Entdeckung -- das war falsch, weil
+// dann nur der Spieler Banden weckte und die Bots nie auf Piraten trafen.
 //
-// Bezahlbar ist das erst seit dem Skalierungsumbau in v0.32: gemessen tragen
-// 551 Planeten und 450 Flotten den 414-fachen Echtzeitfaktor.
+// Warum nicht alle beim Weltstart (bis v0.9.79): bei 500 Systemen waren das
+// rund 970 Banden, in jedem bewachten Ort eine, und fast die gesamte Rechenzeit
+// (erste Spielstunde bei 2.000 Systemen: 785 s, B-47) und der Platz im
+// Spielstand (2,96 kB je System, B-45) gehörten ihnen. In Reichweite sind es
+// bei jeder Galaxiegröße um die 50, weil die Sternendichte konstant ist und
+// die Zahl der Startwelten fest.
+//
+// AUSLÖSER, alle rufen bandenWecken mit der EREIGNISZEIT ihres Anlasses
+// (Prinzip 16): der Weltstart (diese Funktion), jede neue Basis
+// (stuetzpunktGruenden), jede abgeschlossene Antriebsforschung
+// (forschungAbschliessen, botForschungSchritt) und als Netz die stündliche
+// Bandenprüfung (Ereignis "banden").
 export function piratenWeltStart(state, zeit = state.letzterTick) {
-  for (let systemId = 1; systemId <= state.galaxie.anzahlSysteme; systemId++) {
-    const system = holeSystem(state, systemId);
-    for (const objekt of system.objekte) {
-      if (objekt.typ === "gefahr") piratenErwecken(state, systemId, objekt, zeit);
+  return bandenWecken(state, zeit, { grund: "weltstart" });
+}
+
+// Schläft dieser Piratenposten noch? Dieselbe Frage stellen piratenErwecken
+// (wecken?) und piratenZielsystem (Ziel meiden?). Eine besiegte oder
+// verlassener Posten (verteidigerBesiegt) schläft nie wieder. Ein Wächter-Relikt
+// schläft nie: es erwacht nicht zu einer Bande (A-329), es trägt seine Flotte nur
+// als Daten und als Verteidiger.
+function postenSchlaeft(state, objekt) {
+  if (!objekt || objekt.typ !== "piratenposten" || objekt.verteidigerBesiegt) return false;
+  return !(objekt.fraktionId && fraktionById(state, objekt.fraktionId));
+}
+
+// Weckt jeden schlafenden Piratenposten im Umkreis der Basen nicht-piratischer
+// Fraktionen -- idempotent: ein zweiter Aufruf findet nichts mehr zu tun.
+//   fraktionId  nur die Basen dieser Fraktion (Antriebsforschung)
+//   systemId    nur die Basen in diesem System (neue Basis)
+//   grund       Stichwort für state.messung.wecken (nur Messläufe)
+// Reihenfolge: nach Systemnummer, dann Objektreihenfolge -- Fraktionsnummern
+// und Bandennamen hängen an ihr (piratenName), bei gleicher Saat bleibt der
+// Lauf wiederholbar. Die Suche zieht erst die Position aller Systeme (rein
+// aus der Saat, billig) und generiert (holeSystem) nur die im Umkreis.
+// Gibt die Zahl der geweckten Banden zurück.
+export function bandenWecken(state, zeit, { fraktionId = null, systemId = null, grund = "netz" } = {}) {
+  // Werkzeug-Schalter wie `weltUeberfallAus` (A-209): nie vom Spiel gesetzt, nur
+  // von tests/hilfen.js -- eine Testwelt ohne Piraten bleibt ohne, auch wenn die
+  // stündliche Bandenprüfung läuft oder eine Basis dazukommt.
+  if (state.bandenWeckenAus) return 0;
+  const seed = state.galaxie.seed;
+  const quellen = new Map();
+  for (const planet of state.planeten) {
+    const fraktion = fraktionVon(planet);
+    if (fraktionId !== null && fraktion !== fraktionId) continue;
+    if (systemId !== null && planet.systemId !== systemId) continue;
+    const f = fraktionById(state, fraktion);
+    if (f && f.art === "pirat") continue;
+    const radius = reichweiteVon(state, fraktion);
+    const schluessel = planet.systemId * 1e6 + radius;
+    if (!quellen.has(schluessel)) quellen.set(schluessel, { pos: systemPosition(seed, planet.systemId), radius });
+  }
+  if (quellen.size === 0) return 0;
+
+  const orte = [...quellen.values()];
+  let geweckt = 0;
+  for (let id = 1; id <= state.galaxie.anzahlSysteme; id++) {
+    const pos = systemPosition(seed, id);
+    if (!orte.some((q) => positionsAbstand(pos, q.pos) <= q.radius)) continue;
+    for (const objekt of holeSystem(state, id).objekte) {
+      if (objekt.typ === "piratenposten" && piratenErwecken(state, id, objekt, zeit)) geweckt++;
     }
   }
+  if (geweckt > 0 && state.messung && state.messung.wecken) {
+    state.messung.wecken[grund] = (state.messung.wecken[grund] || 0) + geweckt;
+  }
+  return geweckt;
 }
 
 // Einen Bandennamen ziehen -- deterministisch aus dem Weltseed (A-031).
@@ -1808,6 +1878,46 @@ export function piratenWeltStart(state, zeit = state.letzterTick) {
 // Was der Name leisten muss, ist auch ohne Eindeutigkeit erfüllt: eine
 // Angriffsmeldung soll sich nach einem ANGREIFER lesen und nicht nach einem
 // Wetterbericht. Wo genau er zuschlägt, sagt die Meldung ohnehin dazu.
+// A-330: der Name eines fremden Imperiums: "<Staatsform> von <Heimatsystem>",
+// z. B. "Union von Altair". Die Staatsform kommt aus einer kleinen Tabelle
+// neutraler Wörter (STAATSFORMEN, data.js), gezogen aus einem EIGENEN Strom
+// je Heimatsystem -- nie aus einem Strom der Welt (Prinzip 1: ein Zug dort
+// verschöbe jede Welt). 4099 ist eine Primzahl, in keiner anderen
+// stromFuer-Kennung dieses Projekts verwendet (Liste im Kopf von
+// js/reiche-orte.js, dazu 2029 für die Riesenstrahlung, A-327); die Saat wird
+// zusätzlich maskiert, damit `systemId * 4099` mit keiner anderen Kennung
+// zusammenfallen kann. Der Systemname ist eindeutig (systemName, js/galaxie.js),
+// damit ist es der Name des Imperiums auch; er steht im Stand an
+// `fraktion.name` und läuft wie ein Piratenname durch t().
+const IMPERIUM_NAME_PRIMZAHL = 4099;
+const IMPERIUM_NAME_SAAT_MASKE = 0x3c6ef372;
+export function imperiumName(seed, systemId) {
+  const rng = stromFuer((seed ^ IMPERIUM_NAME_SAAT_MASKE) >>> 0, systemId * IMPERIUM_NAME_PRIMZAHL);
+  return t("{form} von {system}", { form: t(waehle(rng, STAATSFORMEN)), system: systemName(seed, systemId) });
+}
+
+// A-332: der Name des Reiches mit diesem Index (0 = Spieler, 1 bis 6 = die Bots in
+// der Reihenfolge von `reicheHeimaten`): derselbe Name, den `botWeltStart` der
+// Fraktion gibt, gerechnet aus der Saat -- er braucht keinen Stand. Gibt es den
+// Eintrag nicht (eine kleine Testgalaxie), steht "Reich n".
+export function reichName(seed, reichIndex) {
+  if (reichIndex === 0) return t("dein Imperium");
+  const heimat = reicheHeimaten(seed)[reichIndex];
+  return heimat ? imperiumName(seed, heimat.systemId) : t("Reich {n}", { n: reichIndex + 1 });
+}
+
+// A-333: die Fraktion des Reiches mit diesem Index (0 = Spieler, 1 bis 6 = die Bots
+// in der Reihenfolge von `reicheHeimaten`) -- das Gegenstück zu `reichName`, aber
+// im Stand: das Reich, dessen Heimatplanet im Heimatsystem des Eintrags steht.
+// `null`, wenn es dieses Reich in diesem Stand nicht gibt (eine kleine Testgalaxie).
+export function reichFraktionId(state, reichIndex) {
+  if (reichIndex === 0) return SPIELER_FRAKTION;
+  const heimat = reicheHeimaten(state.galaxie.seed)[reichIndex];
+  if (!heimat) return null;
+  const planet = state.planeten.find((p) => p.typ === "heimat" && p.systemId === heimat.systemId);
+  return planet ? fraktionVon(planet) : null;
+}
+
 export function piratenName(state, nummer) {
   const rng = stromFuer(state.galaxie ? state.galaxie.seed : 0, nummer + 7919);
   const name = t(waehle(rng, PIRATEN_NAMEN));
@@ -1834,8 +1944,7 @@ export function piratenNamenNachziehen(state) {
 }
 
 function piratenErwecken(state, systemId, objekt, zeit) {
-  if (!objekt || objekt.typ !== "gefahr" || objekt.verteidigerBesiegt) return null;
-  if (objekt.fraktionId && fraktionById(state, objekt.fraktionId)) return null;
+  if (!postenSchlaeft(state, objekt)) return null;
 
   const id = `pirat-${state.naechsteFraktionId++}`;
   // Der Name ist der der BANDE, nicht der des Felsens, auf dem sie sitzt.
@@ -1891,6 +2000,13 @@ function piratenErwecken(state, systemId, objekt, zeit) {
   fraktion.flotteId = flotte.id;
   fraktion.naechsterSchritt = zeit + PIRAT.taktMs;
 
+  // A-333: ein Posten der Saat ist die Abspaltung eines Reiches -- die Bande trägt
+  // dessen Fraktion als Herkunft, DASSELBE Feld wie die Abtrünnigen einer
+  // Neugründung (piratenNeugruendung: die Fraktion, aus der sie hervorgehen).
+  // Keine Wirkung: weder Beziehung noch Verhalten ändern sich (Ebene 2).
+  const herkunft = Number.isInteger(objekt.daten.herkunft) ? reichFraktionId(state, objekt.daten.herkunft) : null;
+  if (herkunft) fraktion.herkunft = herkunft;
+
   setzeOrbitZustand(state, systemId, objekt.orbit, { fraktionId: id });
   return fraktion;
 }
@@ -1936,7 +2052,7 @@ export function besteBeuteImSystem(state, systemId, zeit) {
   const system = holeSystem(state, systemId);
   let bestes = null;
   for (const objekt of system.objekte) {
-    if (objekt.typ === "anomalie" || objekt.typ === "gefahr") continue;
+    if (objekt.typ === "anomalie" || objekt.bewacht) continue;
     if (objekt.benoetigt || objekt.verwertet) continue;
     const offen = objekt.restErtrag || ertragVon(state, objekt);
     if (!offen) continue;
@@ -2629,8 +2745,13 @@ function piratenZielsystem(state, vonSystemId) {
     if (bestes && d >= bestes.entfernung) continue;
     // Lohnt sich das Ziel überhaupt? Ein leeres System wäre ein Todesurteil.
     const system = holeSystem(state, id);
+    // Kein System mit schlafendem Piratenposten (A-321): sonst weckte jeder Splitter
+    // die Nachbarschaft, die ganze Galaxie wäre nach einigen Tagen wach, und
+    // zwei Banden säßen im selben System (die Neugründung vermeidet das
+    // ausdrücklich). Liegt es in Reichweite einer Basis, schläft dort nichts.
+    if (system.objekte.some((o) => postenSchlaeft(state, o))) continue;
     const frei = system.objekte.find(
-      (o) => o.typ !== "anomalie" && o.typ !== "gefahr" && !o.verwertet && !o.benoetigt && ertragVon(state, o)
+      (o) => o.typ !== "anomalie" && !o.bewacht && !o.verwertet && !o.benoetigt && ertragVon(state, o)
     );
     if (!frei) continue;
     bestes = { systemId: id, entfernung: d, orbit: frei.orbit };
@@ -2962,35 +3083,34 @@ function beuteVonFlotte(state, angreifer, opfer, zeit) {
 // Ursprung, aus dem sie hervorgehen. Und sie ist der Grund, warum ein
 // Weltlauf ohne Spieler überhaupt etwas zeigen kann.
 export function botWeltStart(state, zeit = state.letzterTick) {
-  const belegt = new Set(state.planeten.map((p) => `${p.systemId}:${p.orbit}`));
   const besetzteSysteme = new Set(state.planeten.map((p) => p.systemId));
   // Schon bevoelkert? Dann nicht noch einmal -- der Weltstart ist einmalig.
   if (Object.values(state.fraktionen).some((f) => f.art === "bot")) return 0;
   let gesetzt = 0;
 
-  for (let systemId = 1; systemId <= state.galaxie.anzahlSysteme && gesetzt < BOT.anzahl; systemId++) {
+  // WO die Imperien stehen, entscheidet reicheHeimaten (js/welt.js) -- eine
+  // Stelle, rein aus der Saat (A-331); die Auswahlregel (kolonisierbar,
+  // taugtAlsStartwelt, Spielersystem uebersprungen) steht nur dort. Hier bleibt
+  // der Schutz des Zustands: ein System, in dem schon etwas steht, wird nicht
+  // noch einmal besetzt.
+  //
+  // Warum taugtAlsStartwelt ueberhaupt gilt: eine Startwelt muss ihre
+  // Bevoelkerung ernaehren koennen. Vorher wurde die erste besiedelbare Welt
+  // genommen, egal ob dort etwas waechst. Auf rund zwei Dritteln aller
+  // bewohnbaren Kombinationen waechst nichts -- gemessen am 2026-08-16 stand
+  // deshalb die Mehrheit der Bots nach 24 h mit leerem Nahrungslager und
+  // schrumpfender Bevoelkerung da, und ihre Farm meldete "Nahrung gibt es hier
+  // nicht". Das sah nach schwacher KI aus, war aber eine unmoegliche
+  // Ausgangslage.
+  for (const eintrag of reicheHeimaten(state.galaxie.seed)) {
+    if (eintrag.spieler || gesetzt >= BOT.anzahl) continue;
+    const systemId = eintrag.systemId;
     if (besetzteSysteme.has(systemId)) continue;
-    const system = holeSystem(state, systemId);
-    // DIESELBE Bedingung, die auch für die Heimatwelt des Spielers gilt: eine
-    // Startwelt muss ihre Bevölkerung ernähren können (taugtAlsStartwelt).
-    //
-    // Vorher wurde die erste besiedelbare Welt genommen, egal ob dort etwas
-    // wächst. Auf rund zwei Dritteln aller bewohnbaren Kombinationen wächst
-    // nichts -- gemessen am 2026-08-16 stand deshalb die Mehrheit der Bots
-    // nach 24 h mit leerem Nahrungslager und schrumpfender Bevölkerung da, und
-    // ihre Farm meldete "Nahrung gibt es hier nicht". Das sah nach schwacher
-    // KI aus, war aber eine unmögliche Ausgangslage.
-    const heimat = system.objekte.find(
-      (o) =>
-        o.typ === "planet" &&
-        o.daten.kolonisierbar &&
-        taugtAlsStartwelt(o.daten) &&
-        !belegt.has(`${systemId}:${o.orbit}`)
-    );
+    const heimat = heimatPlanetVon(holeSystem(state, systemId), eintrag);
     if (!heimat) continue;
 
     const id = `bot-${state.naechsteFraktionId++}`;
-    const fraktion = neueFraktion({ id, art: "bot", name: `${FRAKTIONS_ARTEN.bot.name} ${gesetzt + 1}` });
+    const fraktion = neueFraktion({ id, art: "bot", name: imperiumName(state.galaxie.seed, systemId) });
     state.fraktionen[id] = fraktion;
     planFraktionNeu(state, fraktion);
 
@@ -3022,7 +3142,6 @@ export function botWeltStart(state, zeit = state.letzterTick) {
     welt.letzterTick = zeit;
     state.planeten.push(welt);
     planPlanetNeu(state, welt);
-    belegt.add(`${systemId}:${heimat.orbit}`);
     besetzteSysteme.add(systemId);
 
     fraktion.basisPlanet = welt.id;
@@ -3412,7 +3531,9 @@ function botForschungWahl(state, welt) {
 // bliebe bis zum nächsten Takt unentdeckt liegen.
 function botForschungSchritt(state, fraktion, welt, zeit) {
   let queue = fraktion.forschungsQueue;
+  let antriebFertig = false;
   while (queue && forschungFertig(queue)) {
+    if (queue.forschungId === "antriebstechnik") antriebFertig = true;
     // Additiv-Absicherung: ein Spielstand von vor A-133 kennt `forschung`
     // an der Fraktion noch nicht -- kann aber auch keine Queue haben, deren
     // Weg ausschließlich über forschungStarten (unten) neu entsteht. Diese
@@ -3424,6 +3545,8 @@ function botForschungSchritt(state, fraktion, welt, zeit) {
     fraktion.forschungsQueue = naechster ? neueForschungsQueue(naechster, zeit) : null;
     queue = fraktion.forschungsQueue;
   }
+  // Dieselbe Reichweitenregel wie beim Spieler (A-321, Prinzip 0b).
+  if (antriebFertig) bandenWecken(state, zeit, { fraktionId: fraktion.id, grund: "antrieb" });
 
   if (fraktion.forschungsQueue) return; // läuft schon etwas
 
@@ -3884,6 +4007,8 @@ function forschungAbschliessen(state, zeit) {
   if (!forschungFertig(queue)) return;
 
   state.forschung[queue.forschungId] = queue.zielLevel;
+  // Mehr Antrieb, mehr Reichweite: was dort schlief, erwacht (A-321).
+  if (queue.forschungId === "antriebstechnik") bandenWecken(state, zeit, { fraktionId: SPIELER_FRAKTION, grund: "antrieb" });
   meldungHinzufuegen(
     state,
     t("{tech} Stufe {stufe} abgeschlossen.", { tech: t(RESEARCH[queue.forschungId].name), stufe: queue.zielLevel })
@@ -4556,7 +4681,7 @@ export function flotteAufloesen(state, flotte) {
 
 // Wie flotteAufloesen, aber OHNE Hafenpflicht -- für den Fall, dass eine
 // Flotte mitten in der Simulation ihr letztes Schiff verliert (Kolonieschiff
-// bei Gründung, letzte Sonde an einer Gefahr) und dadurch nirgendwo mehr
+// bei Gründung, letzte Sonde an einem bewachten Ort) und dadurch nirgendwo mehr
 // andocken kann. Rettet Restfracht/-treibstoff zum Heimatplaneten, statt sie
 // zusammen mit der Flotte verschwinden zu lassen.
 // Eine Flotte ohne Schiffe hört auf zu existieren -- sie fliegt NICHT mehr
@@ -4598,17 +4723,6 @@ function flotteLeerAufloesen(state, flotte) {
   );
   planFlotteEntfernt(state, flotte);
   state.flotten = state.flotten.filter((f) => f.id !== flotte.id);
-}
-
-// Was von einem Schiff übrigbleibt: Anteil seiner Baukosten. Ein Wrack gibt
-// nie den vollen Wert zurück -- sonst wäre Verlust folgenlos.
-function schrottVon(schiffId, anzahl = 1) {
-  const rest = {};
-  for (const [resId, betrag] of Object.entries(SCHIFFE[schiffId].kosten)) {
-    const menge = Math.floor(betrag * anzahl * SCHROTT_ANTEIL);
-    if (menge > 0) rest[resId] = menge;
-  }
-  return rest;
 }
 
 // Legt Material an einem Ort ab, wo es später geborgen werden kann. Nutzt
@@ -5492,9 +5606,9 @@ function aufdecken(state, flotte, befehl, zeit) {
   }
 
   // Aufdecken ist sicher, wie bei jedem anderen Objekt -- "der Gegner ist
-  // vorher bekannt" gilt jetzt auch für Gefahren. Verluste entstehen erst,
+  // vorher bekannt" gilt auch für bewachte Orte. Verluste entstehen erst,
   // wenn tatsächlich eine Militärmission fliegt (siehe militaerStarten).
-  if (objekt.typ === "gefahr") {
+  if (objekt.bewacht) {
     const staerke = schiffeStaerke(objekt.daten.flotte || {});
     meldungHinzufuegen(
       state,
@@ -5560,6 +5674,8 @@ function forschungsmission(state, flotte, befehl) {
 function bergung(state, flotte, befehl) {
   const objekt = findeObjekt(state, befehl.zielSystem, befehl.zielOrbit);
   if (!objekt) return;
+  // A-329: dieselbe Grenze wie in kannMission, falls ein Befehl sie umgangen hat.
+  if (objekt.bewacht && !objekt.verteidigerBesiegt) return;
 
   // A-092: An einem VERSCHLOSSENEN Objekt ist ausschließlich bergbar, was
   // hier liegt -- die Quelle darunter bleibt zu.
@@ -5804,7 +5920,7 @@ function militaerStarten(state, flotte, befehl, zeit) {
 // (eine zweite Flotte eintreffen, eine neue Rückzugsschwelle greifen),
 // was bei einem Ein-Tick-Ergebnis strukturell unmöglich wäre.
 // Die Verteidigerseite eines Gefechts kann ZWEIERLEI sein: ein Orbit-Objekt
-// (die klassische Gefahr) oder eine FLOTTE (Beutezug, später PvP). Die
+// (ein bewachter Ort) oder eine FLOTTE (Beutezug, später PvP). Die
 // Kampfauflösung selbst war immer schon generisch -- sie nimmt zwei Seiten
 // {schiffId: anzahl} entgegen. Objektgebunden war nur die Buchführung.
 //
@@ -5841,7 +5957,7 @@ function kampfRundeAusfuehren(state, flotte, zeit) {
     });
   }
 
-  // Eigene Verluste hinterlassen ein Trümmerfeld am Kampfort. Bisher waren
+  // Eigene Verluste hinterlassen Schrott am Kampfort. Bisher waren
   // zerstörte eigene Schiffe ersatzlos weg -- das widersprach der Grundregel,
   // dass nichts einfach verschwindet, und es ist genau das Material, von dem
   // Bergung (und später Scavenger) leben soll. Die Verluste liefert
@@ -6050,6 +6166,10 @@ function stuetzpunktGruenden(state, flotte, befehl, typ, zeit) {
   }
   state.planeten.push(planet);
   planPlanetNeu(state, planet);
+  // Eine neue Basis rückt ihre Reichweite vor: was dort schlief, erwacht zur
+  // Zeit der Gründung (A-321, Prinzip 16). Piraten gründen über
+  // piratenNiederlassung und wecken nichts.
+  bandenWecken(state, zeit, { fraktionId: fraktionVon(planet), systemId: planet.systemId, grund: "basis" });
 
   meldungHinzufuegen(
     state,
@@ -6082,10 +6202,10 @@ export function missionFuerObjekt(state, objekt) {
   if (!objekt.entdeckt) {
     return regel.aufdeckung === "erkunder" ? "erkundung" : regel.aufdeckung ? "sonde" : null;
   }
-  // Gefahr ist ein Sonderfall: "Verteidiger besiegt" und "Beute abgeholt"
+  // Ein bewachter Ort (Piratenposten, Wächter-Relikt) ist ein Sonderfall: "Verteidiger besiegt" und "Beute abgeholt"
   // sind getrennte Zustände (siehe beuteVerladen). Solange noch Beute
   // liegt, ist die Folgemission eine normale Bergung, kein erneuter Angriff.
-  if (objekt.typ === "gefahr") {
+  if (objekt.bewacht) {
     if (!objekt.verteidigerBesiegt) return "militaer";
     return restLiegtAn(objekt) ? "bergung" : null;
   }
@@ -6116,6 +6236,12 @@ export function missionFuerObjekt(state, objekt) {
 export function kannMission(state, flotte, missionsart, systemId, orbit, rueckkehr = false) {
   const objekt = findeObjekt(state, systemId, orbit);
   if (!objekt) return { ok: false, grund: t("Unbekanntes Ziel.") };
+  // A-329: ein bewachter Ort (auch ein Wächter-Relikt mit Ertrag und ohne
+  // Schloss) gibt nichts her, solange seine Flotte steht -- sonst wäre die
+  // Bergung Gratis-Beute an den Verteidigern vorbei.
+  if (missionsart === "bergung" && objekt.bewacht && !objekt.verteidigerBesiegt) {
+    return { ok: false, grund: t("Bewacht – erst die Flotte besiegen.") };
+  }
 
   const schiffId = MISSIONS_SCHIFF[missionsart];
   if (schiffId && (flotte.schiffe[schiffId] || 0) < 1) {

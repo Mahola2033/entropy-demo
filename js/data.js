@@ -19,7 +19,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.9.78";
+export const VERSION = "0.9.93";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von vollversion.mjs (bis A-272: uebernehmen.mjs) beim
@@ -66,7 +66,7 @@ export const DEMO_SAAT = 20269933;
 // wird an den anzeigenden Stellen, nicht hier. Einzige Ausnahme ist
 // voraussetzungenText() weiter unten -- die einzige Funktion in dieser Datei,
 // die Anzeigetext zusammensetzt.
-import { t } from "./sprache.js?v=0.9.78";
+import { t } from "./sprache.js?v=0.9.93";
 
 // A-164 (31.08.2026): Von 50 auf 125.000 (×2.500) -- die Maßstabsrunde.
 // Vorher skalierte EIN MASSSTAB Material, Menschen und Arbeitskraft
@@ -196,6 +196,19 @@ export const SPRUNGROUTEN = {
   anteilLicht: 0.05,
 };
 
+// Das Alter der Raumfahrt in Jahren (A-332): wie lange ein Reich unterlichtschnell
+// braucht, um seine Startreichweite zu vermessen -- GERECHNET, nicht gesetzt.
+// REICHWEITE.basis (30 Einheiten) × LJ_PRO_EINHEIT (0,4 Lj) = 12 Lj; bei
+// SPRUNGROUTEN.anteilLicht = 0,05 sind das 12 / 0,05 = 240 Jahre. Der erste Flug in
+// ein System ist unterlichtschnell (Anker setzt, wer ankommt); die Reichweite, die
+// ein Reich beim Start hat, ist also das, was es in dieser Zeit erflogen hat. Ändert
+// sich eine der drei Zahlen, zieht das Alter mit -- darum eine Funktion und keine
+// Konstante, die beim Laden einmal eingefroren würde. Wirklichkeit liefert keine
+// Zahl für Interstellarflug; die Herleitung ist eine Rechnung, keine Messung (○).
+export function alterRaumfahrtJahre() {
+  return Math.round((REICHWEITE.basis * LJ_PRO_EINHEIT) / SPRUNGROUTEN.anteilLicht);
+}
+
 // Echtzeitsekunden, die eine Galaxie-Einheit im Unterlichtflug kostet.
 // Gerechnet statt gesetzt: ändert sich der Zeitmaßstab oder die Eichung,
 // zieht diese Zahl mit.
@@ -247,7 +260,10 @@ export const SUPERNOVA = {
   // dieser Masse (Sonnenmassen) -- real modellabhängig zwischen 7,5 und 9,
   // Konsens rund 8 (https://arxiv.org/abs/0908.0700, geprüft A-304). Nur der
   // obere Teil des B-Sterne-Massebereichs (2,5-16 M☉, STERN_TYPEN.b) zählt
-  // also als echter Vorläufer, nicht jeder B-Stern.
+  // also als echter Vorläufer, nicht jeder B-Stern. A-325: das Zielsystem der
+  // Supernova (`supernovaSystemFuer`, js/galaxie.js) trägt einen Stern mit
+  // einer Masse von dieser Grenze bis zur oberen Grenze des B-Bereichs; diese
+  // Zahl ist also die UNTERE Grenze der gezogenen Masse.
   vorlaeuferMasseMin: 8,
 };
 
@@ -669,6 +685,33 @@ export const PIRATEN_NAMEN = [
 
 export const SCHROTT_ANTEIL = 0.3;
 
+// Wie viele Erstflug-Versuche in ein neues System scheitern (A-332, ○). Ein
+// Versuch scheitert mit dieser Wahrscheinlichkeit und wird wiederholt, bis einer
+// gelingt: die Zahl der Wracks je erreichtem System ist damit geometrisch
+// verteilt, ihr Mittel p / (1 − p) -- bei 0,5 genau 1. Herleitung: Marsmissionen
+// aller Länder seit 1960, 26 von 46 gescheitert (58 %) ●; seit 2000 1 von 12
+// (8 %) ●. Ein Erstflug unterlichtschnell über Jahrzehnte ins Unbekannte ist
+// technisch ungleich schwerer, die Raumfahrt aber 240 Jahre reifer
+// (alterRaumfahrtJahre): gesetzt wird der frühe Wert. Für Interstellarflug
+// liefert die Wirklichkeit keine Zahl; Gameplay ist NICHT der Grund für 0,5.
+export const WRACK_VERLUST_JE_ERSTFLUG = 0.5;
+
+// Was von einem Schiff übrigbleibt: Anteil seiner Baukosten. Ein Wrack gibt
+// nie den vollen Wert zurück -- sonst wäre Verlust folgenlos. Die EINE Stelle
+// dieser Rechnung (A-326): die Verschrottung und der Verlust im Kampf
+// (js/simulation.js) und der Ertrag eines Wracks in der Reiche-Schicht
+// (js/reiche-orte.js) lesen sie; ein geänderter SCHROTT_ANTEIL ändert alle
+// gemeinsam. Die Baukosten in SCHIFFE stehen schon in Spielmengen (MASSSTAB),
+// hier wird nichts noch einmal skaliert.
+export function schrottVon(schiffId, anzahl = 1) {
+  const rest = {};
+  for (const [resId, betrag] of Object.entries(SCHIFFE[schiffId].kosten)) {
+    const menge = Math.floor(betrag * anzahl * SCHROTT_ANTEIL);
+    if (menge > 0) rest[resId] = menge;
+  }
+  return rest;
+}
+
 // Ab welcher Menge sich ein Ueberrest ueberhaupt lohnt (A-022).
 //
 // Die Fortsetzung derselben Regel eine Zeile hoeher: Ueberreste werden
@@ -818,8 +861,15 @@ export const SYMBOLE = {
 // ALLE Symbole hier liegen.
 export const TYP_SYMBOL = {
   heimat: "🏠", planet: "🪐", asteroiden: "🪨", wrack: "🛰️",
-  anomalie: "✦", struktur: "◈", gefahr: "☢", leer: "·",
+  anomalie: "✦", struktur: "◈", piratenposten: "☠️", leer: "·",
 };
+// A-329: ein Wächter-Relikt ist eine Struktur, die ihre Flotte noch trägt; es
+// bekommt sein eigenes Symbol, eine Zeile (Prinzip 9). Beide Ansichten (Karte
+// und Orbitliste) fragen hier, nicht in TYP_SYMBOL allein.
+export const WAECHTER_RELIKT_SYMBOL = "🛸";
+export function objektSymbol(objekt) {
+  return objekt.typ === "struktur" && objekt.bewacht ? WAECHTER_RELIKT_SYMBOL : TYP_SYMBOL[objekt.typ];
+}
 
 export const LAGER_RESSOURCEN = Object.values(RESSOURCEN)
   .filter((r) => r.art === "lager")
@@ -1522,6 +1572,8 @@ export const FRAKTIONS_ARTEN = {
   // Räuber leben könnten -- und niemanden, aus dem sie hervorgehen.
   bot: {
     id: "bot",
+    // Der ARTNAME, nicht der Name einer Fraktion (A-330): jedes fremde Imperium
+    // trägt "<Staatsform> von <Heimatsystem>" (imperiumName, js/simulation.js).
     name: "Fremdes Imperium",
     nutzt: { bevoelkerung: true, energie: true, forschung: true, kolonisieren: true, handel: true },
     grenzen: {},
@@ -1536,7 +1588,7 @@ export const SPIELER_FRAKTION = "spieler";
 
 // Piratengruppen (Etappe 1, v0.34).
 //
-// Eine Gruppe ist kein Gefahrenobjekt mehr, das zufällig wächst, sondern ein
+// Eine Gruppe ist kein Objekt mehr, das zufällig wächst, sondern ein
 // AKTEUR MIT BEDARF: sie will größer werden, holt sich dafür Material und
 // baut daraus Schiffe. Bleibt der Nachschub aus, schrumpft sie -- bis auf
 // null, und dann ist sie weg.
@@ -1590,7 +1642,7 @@ export const PIRAT = {
   // ist der fehlende Unterhalt, nicht das Alter (Prinzip 13a).
   verfallProTakt: 1,
   // Startausstattung einer frisch erweckten Gruppe: sie übernimmt die Flotte,
-  // die im Gefahrenobjekt steht, und bekommt etwas Material dazu.
+  // die im Piratenposten steht, und bekommt etwas Material dazu.
   startVorrat: { metall: 600, silizium: 200 },
 
   // --- Weltraubzug (A-208) ----------------------------------------------
@@ -1973,9 +2025,13 @@ export const BEZIEHUNG = {
 // und blieben beim Planungswert -- G ist real ohnehin umstritten (4-8 % je
 // nach F/G-Grenze), der Entwurfswert 6 % liegt mittig. **Folge der
 // korrekten, selteneren B-Häufigkeit:** eine Galaxie mit 500 Systemen
-// enthält im Mittel weniger als einen B-Stern mit Masse ≥ 8 -- gemessen im
-// Ergebnis von A-304, siehe `supernovaAnlegen` (js/state.js) für den
-// Umgang damit.
+// enthält im Mittel weniger als einen B-Stern mit Masse ≥ 8 (500 Systeme: 12 %
+// der Galaxien haben einen, 2.000: rund 39 %, A-323) -- gemessen im
+// Ergebnis von A-304. Damit die Supernova nicht davon abhängt, ob so ein
+// Stern zufällig irgendwo steht, ist A-325 den anderen Weg gegangen: das
+// SZENARIO wählt den Ort (das System im Zielabstand, `supernovaSystemFuer` in
+// js/galaxie.js) und `sternFuer` gibt dort einen B-Stern mit Masse 8 bis 16.
+// Alle anderen B-Sterne bleiben natürliche Sterne dieser Häufigkeit.
 //
 // `leuchtkraft` bleibt bei allen Typen berechnet bzw. gezogen, nie fest --
 // wie die Masse bei den Planetenklassen. Zwei rote Zwerge sind nicht
@@ -2825,6 +2881,133 @@ export const MOND_EINSCHLAG_VERHAELTNIS_BEREICH = [1e-3, 3e-2];
 // entfällt ein gezogener Mond ganz (Auftrag Abschnitt 1).
 export const MOND_MINDESTMASSE_T = 3e16;
 
+// --- A-327: Strahlungsgürtel der Riesen -- Konstanten (js/welt.js) ---------
+//
+// Der Gürtel ist die Teilchenfalle des Magnetfelds eines Riesen; eine Zone
+// mit tödlicher Dosis gibt es nur dort, nicht als freien Fleck im System
+// (Prinzip 0c). Zwei Zahlen je Gas-/Eisriese: das magnetische Moment (in
+// Erdeinheiten) und die Dosisleistung an einem festen Bezugsabstand.
+//
+// MOMENT. Die Wirklichkeit gibt vier Punkte, kein Gesetz ○ (magnetisches
+// Moment in Erdmomenten ●, Erdmasse in M⊕ ●):
+//   Jupiter ~20.000 (318 M⊕) · Saturn ~600 (95) · Uranus ~50 (14,5) · Neptun ~25 (17,1)
+// Es folgt NICHT monoton der Masse (Neptun ist schwerer als Uranus und
+// schwächer) -- deshalb kein einziges Gesetz über beide Klassen.
+//   Gasriese: Potenzgesetz durch Saturn und Jupiter, Moment ∝ Masse^k mit
+//     k = ln(20000/600) / ln(318/95) = 2,90 ◆ (zwei Punkte, keine Prüfung
+//     des Exponenten möglich; auch über 318 M⊕ hinaus und unter 95 M⊕
+//     fortgesetzt -- ein Gasriese von 50-400 M⊕ liegt damit zwischen ~90 und
+//     ~39.000 Erdmomenten).
+//   Eisriese: KEINE Abhängigkeit von der Masse (Uranus und Neptun
+//     widersprächen jeder). Log-gleichverteilt zwischen den beiden
+//     gemessenen Werten, 25 bis 50 ○ -- der Eisriese zieht dafür EINEN
+//     Wert aus einem eigenen Strom (RIESE_STRAHLUNG_STROM_PRIMZAHL).
+// Saturn trägt trotz 600 Erdfeldern kaum Strahlung am Mond: seine Ringe
+// verschlucken die Teilchen ○. Das Gesetz oben kennt keine Ringe; was daraus
+// folgt (Ringe als Eigenschaft), ist Ebene 2.
+export const RIESE_MOMENT_ANKER = {
+  jupiter: { masse: 318, moment: 20000 }, // ●
+  saturn: { masse: 95, moment: 600 }, // ●
+};
+export const RIESE_MOMENT_EXPONENT = Math.log(RIESE_MOMENT_ANKER.jupiter.moment / RIESE_MOMENT_ANKER.saturn.moment) /
+  Math.log(RIESE_MOMENT_ANKER.jupiter.masse / RIESE_MOMENT_ANKER.saturn.masse); // ◆
+export const EISRIESE_MOMENT_BEREICH = [25, 50]; // ○ Neptun, Uranus
+
+// DOSIS. Bezug: der Abstand von Europa zu Jupiter, 671.000 km = 9,4
+// Jupiterradien ●. Dort misst Galileo rund 5 Sv je Tag ○ (Europa-Oberfläche;
+// Io, näher, ein Mehrfaches; Ganymed ~0,08, Kallisto ~0,0001 Sv/d). Für
+// einen anderen Riesen gilt derselbe Bezug in SEINEN Radien, die Feldstärke
+// dort ∝ Moment / Radius³ (Dipol) ◆, die Dosis proportional zur Feldstärke ◆
+// -- die Teilchenzahl in der Falle skaliert in Wirklichkeit eher stärker
+// (Quellen, Ringe, Monde als Senke), das ist die Ungewissheit. Radius je
+// Klasse: MOND_RIESE_RADIUS_R_ERD (ein Gasriese zwischen 50 und 400 M⊕
+// bleibt beim Radius von ~1 Jupiter ○, Plateau).
+// Akutdosis ●: ~1 Sv erste Strahlenkrankheit, ~4,5 Sv LD50 ohne Behandlung --
+// 5 Sv je Tag sind also binnen eines Tages tödlich.
+export const RIESE_DOSIS_BEZUG_RADIEN = 9.4; // ● (Europa)
+export const RIESE_DOSIS_JUPITER_SV_TAG = 5; // ○ (Galileo, Europa)
+export const RIESE_DOSIS_JUPITER_RADIUS_R_ERD = MOND_RIESE_RADIUS_R_ERD.gasriese;
+// Eigener Strom für den Eisriesen-Wert. 2029 ist eine Primzahl, in keiner
+// anderen Kennung verwendet; der Strom hängt zusätzlich an einer Maske der
+// Saat, weil `systemId * 2029 + index` mit `systemId * 2003 + index` (Monde)
+// zusammenfallen kann (z. B. System 78 Index 0 und System 77 Index 1).
+export const RIESE_STRAHLUNG_STROM_PRIMZAHL = 2029;
+export const RIESE_STRAHLUNG_SAAT_MASKE = 0x5ad5e1f3;
+
+// Reine Funktion aus Klasse, Masse (Erdmassen) und, nur beim Eisriesen, einem
+// Zug `u` in [0, 1) aus dem eigenen Strom. Andere Klassen: `null`.
+export function riesenStrahlungVon(klasse, masse, u = 0) {
+  let moment;
+  if (klasse === "gasriese") {
+    moment = RIESE_MOMENT_ANKER.jupiter.moment *
+      Math.pow(masse / RIESE_MOMENT_ANKER.jupiter.masse, RIESE_MOMENT_EXPONENT);
+  } else if (klasse === "eisriese") {
+    const [min, max] = EISRIESE_MOMENT_BEREICH;
+    moment = min * Math.pow(max / min, u);
+  } else {
+    return null;
+  }
+  const radius = MOND_RIESE_RADIUS_R_ERD[klasse];
+  const dosis = RIESE_DOSIS_JUPITER_SV_TAG *
+    (moment / RIESE_MOMENT_ANKER.jupiter.moment) *
+    Math.pow(RIESE_DOSIS_JUPITER_RADIUS_R_ERD / radius, 3);
+  return { moment, dosisSvTag: dosis };
+}
+
+// --- A-328: Gürtel tragen ihre Dichte -- Konstanten (js/welt.js) -----------
+//
+// Ein Gürtel hat bis hierher nur EINEN Abstand (`abstandAE`) und eine Masse.
+// Seine Dichte folgt aus drei Dingen: der Ausdehnung (Innen-/Außenkante,
+// Dicke), der Zahl der Körper über einer Mindestgröße und daraus dem mittleren
+// Abstand zweier Körper. Alles reine Funktion von Masse, Lage und Art -- kein
+// Zug aus einem Strom (Prinzip 1), die Gürtel bleiben, wie sie waren.
+//
+// AUSDEHNUNG, relativ zum Bahnradius (Gürtel gleicher Art sehen aus jedem
+// Abstand gleich aus ◆):
+//   innerer ← Hauptgürtel ●: 2,2 bis 3,2 AE um 2,7 AE → Breite 1,0/2,7 = 0,37.
+//     Dicke 0,6 AE (±1σ bei Bahnneigungen von rund 10° ○) → 0,6/2,7 = 0,22.
+//   äußerer ← Kuipergürtel ●: 30 bis 50 AE um 40 AE → Breite 20/40 = 0,50.
+//     Dicke: Neigungen der heißen Population bis ~15° und mehr ○ → 0,30 ◆.
+// Volumen = π (außen² − innen²) · Dicke. Hauptgürtel: π (3,2² − 2,2²) · 0,6
+// = 10,2 AE³ ○ (Überschlag der Planung: "rund 10 AE³").
+export const GUERTEL_AUSDEHNUNG_RELATIV = {
+  innerer: { breite: 0.37, dicke: 0.22 },
+  aeusserer: { breite: 0.5, dicke: 0.3 },
+};
+
+// KÖRPERZAHL. Im Hauptgürtel rund 1,1 bis 1,9 Millionen Körper über 1 km ●
+// (Tedesco & Desert 2002 aus IRAS ~1,2 Mio.; Gladman 2009: ~1,9 Mio. -- aus der
+// Erinnerung genannt, der Umsetzer hat die Spanne nicht gegen das Original
+// geprüft ○); Mitte 1,5 Mio. bei der Hauptgürtelmasse 2,4·10¹⁸ t ● (Anker von
+// GUERTEL_MASSE_BEREICH). Ein Gürtel gleicher Größenverteilung trägt mit seiner
+// Masse proportional mehr Körper ◆: Zahl = 1,5·10⁶ · Masse / 2,4·10¹⁸ t. Die
+// Gleichheit der Verteilung ist die Annahme; im Kuipergürtel ist sie falsch
+// (mehr kleine Körper je Masse, ○), die Zahl dort also eher zu klein und der
+// Abstand eher zu groß.
+export const GUERTEL_KOERPER_MINDESTGROESSE_KM = 1; // ●
+export const GUERTEL_KOERPER_ANKER = { zahl: 1.5e6, masseT: 2.4e18 };
+
+// Mittlerer Abstand zweier Körper: Kubikwurzel aus Volumen je Körper.
+export function guertelKoerperAbstandKm(innenkanteAE, aussenkanteAE, dickeAE, koerperZahl) {
+  const volumenKm3 = Math.PI * (aussenkanteAE ** 2 - innenkanteAE ** 2) * dickeAE * AE_KM ** 3;
+  return Math.cbrt(volumenKm3 / koerperZahl);
+}
+
+export function guertelAusdehnungVon(masseT, abstandAE, art) {
+  const { breite, dicke } = GUERTEL_AUSDEHNUNG_RELATIV[art];
+  const innenkanteAE = abstandAE * (1 - breite / 2);
+  const aussenkanteAE = abstandAE * (1 + breite / 2);
+  const dickeAE = abstandAE * dicke;
+  const koerperZahl = GUERTEL_KOERPER_ANKER.zahl * (masseT / GUERTEL_KOERPER_ANKER.masseT);
+  return {
+    innenkanteAE,
+    aussenkanteAE,
+    dickeAE,
+    koerperZahl,
+    koerperAbstandKm: guertelKoerperAbstandKm(innenkanteAE, aussenkanteAE, dickeAE, koerperZahl),
+  };
+}
+
 // --- A-312: Zwergplaneten und Kometenwolke -- Konstanten (js/welt.js) -----
 //
 // Ein Zwergplanet ist Teil der Gürtelmasse, nicht zusätzlich (Tobis
@@ -3137,6 +3320,48 @@ export function taugtAlsStartwelt({ klasse, zone, wasser, schwerkraft }) {
   return true;
 }
 
+// --- A-330: der Lebensraum eines Volkes ------------------------------------
+//
+// Ein Volk ist an die Welt gekoppelt, auf der es lebt (KONZEPT-CONTENT.md M8,
+// Tobi 25.08.: "Die Spezies ist an deinen Heimatplaneten gekoppelt ... Nur eben
+// Presets"). Die Kennung ist deshalb eine FUNKTION der Heimatwelt, nichts
+// Gewürfeltes und nichts Gespeichertes: dieselbe Funktion für ein fremdes
+// Imperium und für den Spieler (Prinzip 0b). Sie hat in diesem Stand KEINE
+// Anzeige und keine Wirkung (Doktrinen, Boni, Spionage: Ebene 2, R-49/R-65).
+//
+// Die fünf Presets aus M8 und was an der Welt sie prägt (Herleitung, Prinzip 17):
+//   tiefenvolk   Schwerkraft: eine Supererde oder eine Welt über dem Band, das eine
+//                Zivilisation verträgt (STARTWELT.schwerkraftMax) -- wer unter hoher
+//                Schwerkraft lebt, wird von ihr geformt (Belter-Effekt, umgekehrt).
+//   randsiedler  Größe und Abstand: eine Kleinwelt (kaum Schwerkraft, keine
+//                Atmosphäre) oder eine Welt jenseits der Habitablen Zone (Zone kalt
+//                oder äußer): wenig Sonne, wenig Boden, lange Wege.
+//   ozeanvolk    flüssiges Wasser: wasserreich UND in der Zone, in der es flüssig
+//                bleibt (habitabel oder warm). Jenseits davon ist "wasserreich" Eis.
+//   kesselwelt   Hitze: Zone warm oder heiß, über der Habitablen Zone.
+//   terraner     der Rest der Felswelten: habitabel, trocken oder mäßig feucht.
+// Die Reihenfolge ist die Rangfolge, in der die Welt den Ausschlag gibt (zuerst die
+// Schwerkraft, die sich nicht wegbauen lässt, dann die Größe, dann das Wasser, dann
+// die Sonne). Klassen ohne Boden (Mini-Neptun, Eis-/Gasriese) und Gürtel tragen
+// kein Volk: Nichttreffer, `null`.
+export const LEBENSRAUM_KENNUNGEN = ["terraner", "tiefenvolk", "randsiedler", "kesselwelt", "ozeanvolk"];
+const LEBENSRAUM_KLASSEN = new Set(["kleinwelt", "felswelt", "supererde"]);
+
+export function lebensraumVon({ klasse, zone, wasser, schwerkraft }) {
+  if (!LEBENSRAUM_KLASSEN.has(klasse)) return null;
+  if (klasse === "supererde" || (typeof schwerkraft === "number" && schwerkraft > STARTWELT.schwerkraftMax)) return "tiefenvolk";
+  if (klasse === "kleinwelt") return "randsiedler";
+  if (wasser === "reich" && (zone === "habitabel" || zone === "warm")) return "ozeanvolk";
+  if (zone === "warm" || zone === "heiß") return "kesselwelt";
+  if (zone === "kalt" || zone === "äußer") return "randsiedler";
+  return "terraner";
+}
+
+// Die Staatsform im Namen eines fremden Imperiums: neutrale Wörter, die nichts
+// über Verhalten verraten (R-49 3a: keine Anzeige, die die Wesensart nennt --
+// kein "Hegemonie", kein "Handelshaus"). Der Name ist "<Staatsform> von <Heimatsystem>".
+export const STAATSFORMEN = ["Union", "Republik", "Konföderation", "Bund", "Gemeinschaft", "Liga"];
+
 // --- Handelsbereitschaft (v0.67) -------------------------------------------
 // Tobis Vorgabe: **der Wille zu kaufen und zu verkaufen hängt an der
 // Beziehung.** Wer zu schlecht über dich denkt, verkauft dir nichts mehr --
@@ -3419,7 +3644,7 @@ export const RESEARCH = {
   erkunderKi: {
     id: "erkunderKi",
     name: "Erkunder-KI",
-    beschreibung: "Dasselbe für Erkunder: ein Klick deckt alle komplexen Ziele im System auf -- Anomalien, Strukturen, Gefahren.",
+    beschreibung: "Dasselbe für Erkunder: ein Klick deckt alle komplexen Ziele im System auf -- Anomalien, Strukturen, Piratenaußenposten.",
     baseCost: { metall: 1600, silizium: 1300 },
     costFactor: 1.4,
     buildTimeDivisor: 1.2,
@@ -3594,11 +3819,18 @@ export function voraussetzungenText(id) {
 // auf denen wie bisher Piraten gründen, nicht mehr 17,5 im Mittel.
 export const SYSTEM_REGELN = {
   // Wie viele Objekte je Art vorkommen (nur noch die Reiche-Schicht, gezogen in
-  // js/reiche-orte.js, je Art aus einem eigenen Strom). hartesMax gilt zusätzlich.
+  // js/reiche-orte.js, je Art aus einem eigenen Strom). Die Anzahl wird je Art einmal
+  // gleichverteilt aus min..max gezogen (A-320), der Mittelwert ist also (min+max)/2.
+  // hartesMax gilt zusätzlich.
   vorkommen: {
-    wrack: { min: 0, max: 5 },
-    struktur: { min: 0, max: 3 },
-    gefahr: { min: 0, max: 4 },
+    // Wracks stehen hier NICHT mehr: ihre Zahl folgt aus WRACK_VERLUST_JE_ERSTFLUG
+    // und liegt nur in den Zonen der Reiche (A-332, js/reiche-orte.js).
+    // Würfe der früheren Kategorie "Gefahr" (A-329): nur der Piratenposten wird ein
+    // Eintrag (und nur in einer Zone, A-333); Strahlungszone und Trümmerfeld sind Natur
+    // (A-327/A-328), die Drohnen sind Wächter-Relikte an Ursprungs-Orten (A-334) --
+    // alle drei Würfe werden gezogen und verworfen, damit die Posten bleiben, wo sie
+    // waren. Der Mittelwert der Würfe bleibt 2.
+    bewacht: { min: 0, max: 4 },
     // Anomalien ergeben sich aus den benötigten Technologien, plus Zugabe.
     anomalieExtra: { min: 0, max: 2 },
     // Platzhalter der Reiche-Schicht (A-305) -- keine Natur, siehe reiche-orte.js.
@@ -3635,7 +3867,7 @@ const DICHTE_SYSTEME = 80;
 const DICHTE_RADIUS = 120;
 
 export const GALAXIE_REGELN = {
-  anzahlSysteme: 500,
+  anzahlSysteme: 2000,
 
   // Der Streuradius wird GERECHNET, nicht gesetzt -- und das ist der
   // eigentliche Punkt: die Sternendichte muss konstant bleiben, egal wie groß
@@ -3654,9 +3886,52 @@ export const GALAXIE_REGELN = {
   // Wie viele Systeme eine Schlüsseltechnologie hergeben -- gestaffelt nach
   // Tiefenstufe im Forschungsbaum. Flache Schlüssel liegen häufig herum,
   // tiefe sind selten. Reine Stellschraube.
+  //
+  // Diese Zahlen gelten für SCHLUESSEL_BEZUG_SYSTEME (500) Systeme; die
+  // tatsächliche Zahl rechnet schluesselHaeufigkeit() daraus (A-322).
   schluesselHaeufigkeit: { 1: 6, 2: 3, 3: 1 },
   standardHaeufigkeit: 2,
 };
+
+// --- Ursprungs-Orte (A-334) -------------------------------------------------
+// Strukturen und Wächter-Relikte sind Hinterlassenschaften früherer
+// Zivilisationen und liegen nur an Orten, an denen eine war. Wie viele es gab,
+// weiß die Wirklichkeit nicht (Drake-Gleichung: Größenordnungen Unsicherheit,
+// ○): das Spiel setzt die Dichte, die Welt wird dafür nicht verbogen
+// (Prinzip 0c). ENTSCHEIDUNG, nicht Ausführung (Tobi, 06.10.2026, R-70
+// Frage 2 (a)): ein Ort je 100 Systeme.
+export const URSPRUNG_SYSTEME_JE_ORT = 100;
+// Mittlere Zahl der Relikte je Ort (Tobi, R-70: Absicht 3 bis 6). Gezogen wird
+// je System einzeln (Poisson-artig), nicht je Ort fest -- siehe js/ursprungs-orte.js.
+export const URSPRUNG_RELIKTE_JE_ORT = 4.5;
+// Anteil der Wächter-Relikte an den Relikten: gemessen vor A-334 an 4 Saaten × 500
+// Systemen, 988 Wächter zu 3.092 Strukturen, also 24 % -- gesetzt wird ein Viertel.
+export const URSPRUNG_WAECHTER_ANTEIL = 0.25;
+// Alter der Relikte (○, die Wirklichkeit schweigt): von 5.000 Jahren, klar über den
+// jungen Spuren der Reiche (A-332, bis alterRaumfahrtJahre() = 240), bis 5 Millionen,
+// log-gleichverteilt (jede Größenordnung gleich oft). Die Obergrenze ist nicht das,
+// was Metall im Weltraum aushält (die Voyager-Datenplatte soll rund 1 Mrd. Jahre
+// halten, ○), sondern was ein Ort der Saat plausibel hat. Die Relikte EINES Ortes
+// liegen in einem Zeitalter: Streuung um das Alter des Ortes um ±10 %.
+export const URSPRUNG_ALTER_MIN_JAHRE = 5000;
+export const URSPRUNG_ALTER_MAX_JAHRE = 5000000;
+export const URSPRUNG_ALTER_STREUUNG = 0.1;
+// Sterndichte je Flächeneinheit, abgeleitet aus dem Bezugspunkt der Galaxie
+// (80 Systeme auf Radius 120) -- unabhängig von `anzahlSysteme`, weil der Radius
+// mit √N wächst. Die Zellen der Ursprungs-Orte hängen daran, nicht an der Größe.
+export const STERNDICHTE = DICHTE_SYSTEME / (Math.PI * DICHTE_RADIUS * DICHTE_RADIUS);
+
+// Auf wie viele Systeme sich die Zahlen in GALAXIE_REGELN.schluesselHaeufigkeit
+// und standardHaeufigkeit beziehen. Die Dichte der Schlüssel ist wie die der
+// Sterne eine Größe JE FLÄCHE: der Radius wächst mit √N, und bliebe die Zahl
+// der Schlüssel-Orte fest, läge der nächste Schlüssel im Mittel weiter weg --
+// gemessen (8 Saaten, weitester nächster Schlüssel je Technologie vom
+// Heimatsystem, Einheiten der Karte): 500 Systeme Mittel ~310, 2.000 Systeme
+// mit unveränderter Zahl ~690, 4.000 ~570; mit der Zahl mal N/500 bleibt es bei
+// allen Größen um die 310. Als Ableitung statt als zweite Zahl kann die Wegstrecke
+// zu den tiefen Schlüsseln nicht mehr stillschweigend mit der Galaxie wachsen
+// (derselbe Gedanke wie beim Radius).
+export const SCHLUESSEL_BEZUG_SYSTEME = 500;
 
 // Reichweite: gemessen ab der NÄCHSTGELEGENEN eigenen Basis. Außenposten
 // verschieben damit den Messpunkt -- Nähe zu eigenem Besitz wird dadurch
@@ -3733,7 +4008,7 @@ export const SCHIFFE = {
     id: "erkunder",
     werftAb: 2,
     name: "Erkunder",
-    beschreibung: "Bemanntes Aufklärungsschiff. Nötig für komplexe Ziele – Anomalien, Strukturen, Gefahren.",
+    beschreibung: "Bemanntes Aufklärungsschiff. Nötig für komplexe Ziele – Anomalien, Strukturen, Piratenaußenposten.",
     kosten: { metall: 500, silizium: 350, elektronik: 70 },
     bauzeitSek: 200,
     verbraucht: false,
@@ -3862,7 +4137,7 @@ export const SCHIFFE = {
     // (Muster A-233: die interne ID bleibt, der Umfang ist die Prosa).
     name: "Fregatte",
     beschreibung:
-      "Bewaffnetes Schiff. Einziger Schiffstyp, der Gefahren-Objekte angreifen kann. Verstecken kann es sich nicht: jedes Schiff strahlt seine Abwärme gegen einen drei Grad über dem absoluten Nullpunkt kalten Hintergrund ab. Wer im System ist, ist sichtbar.",
+      "Bewaffnetes Schiff. Einziger Schiffstyp, der bewachte Ziele angreifen kann. Verstecken kann es sich nicht: jedes Schiff strahlt seine Abwärme gegen einen drei Grad über dem absoluten Nullpunkt kalten Hintergrund ab. Wer im System ist, ist sichtbar.",
     kosten: { metall: 900, silizium: 500, elektronik: 140 },
     tank: 600,
     bauzeitSek: 280,
@@ -4053,7 +4328,7 @@ export const OBJEKT_REGELN = {
   wrack: { aufdeckung: "sonde", zugriff: "bergung" },
   anomalie: { aufdeckung: "erkunder", zugriff: "forschung" },
   struktur: { aufdeckung: "erkunder", zugriff: "bergung" },
-  gefahr: { aufdeckung: "erkunder", zugriff: "militaer" },
+  piratenposten: { aufdeckung: "erkunder", zugriff: "militaer" },
 };
 
 // Welches Schiff erfüllt welche Missionsart?
@@ -4159,10 +4434,14 @@ export const SONDE = {
   kostenProEntfernung: 0.05,
 };
 
-// Wie viele Systeme geben eine bestimmte Schlüsseltechnologie her?
+// Wie viele Systeme geben eine bestimmte Schlüsseltechnologie her? Wächst mit
+// der Galaxie (A-322): die Zahlen der Tabelle gelten für SCHLUESSEL_BEZUG_SYSTEME
+// Systeme, bei 500 kommt exakt die Tabelle heraus. Eine Technologie hat in jeder
+// Größe mindestens einen Schlüssel-Ort.
 export function schluesselHaeufigkeit(forschungId) {
   const stufe = techStufe(forschungId);
-  return GALAXIE_REGELN.schluesselHaeufigkeit[stufe] ?? GALAXIE_REGELN.standardHaeufigkeit;
+  const bezug = GALAXIE_REGELN.schluesselHaeufigkeit[stufe] ?? GALAXIE_REGELN.standardHaeufigkeit;
+  return Math.max(1, Math.round((bezug * GALAXIE_REGELN.anzahlSysteme) / SCHLUESSEL_BEZUG_SYSTEME));
 }
 
 // --- Kosten & Zeiten ------------------------------------------------------

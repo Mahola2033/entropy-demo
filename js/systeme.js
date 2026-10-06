@@ -5,8 +5,8 @@
 // Orbit die Flags entdeckt/verwertet. Dadurch bleibt der Spielstand klein,
 // egal wie groß die Galaxie ist.
 
-import { systemGenerieren } from "./welt.js?v=0.9.78";
-import { schluesselImSystem, systemName } from "./galaxie.js?v=0.9.78";
+import { systemGenerieren, heimatenVergessen } from "./welt.js?v=0.9.93";
+import { schluesselImSystem, systemName } from "./galaxie.js?v=0.9.93";
 
 // Laufzeit-Zwischenspeicher, wird nicht gespeichert.
 const cache = new Map();
@@ -129,6 +129,7 @@ export function findeObjekt(state, systemId, orbit) {
 // Nach einem Spielstand-Reset muss der Zwischenspeicher weg.
 export function cacheLeeren() {
   cache.clear();
+  heimatenVergessen(); // A-331: die Heimaten der Reiche sind aus der Saat gerechnet und gemerkt
 }
 
 // --- Verschlossen, und was das NICHT betrifft (A-092) ---------------------

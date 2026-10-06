@@ -26,11 +26,11 @@ import {
   REICHWEITE,
   START,
   FRAKTIONS_ARTEN,
+  lebensraumVon,
   SPIELER_FRAKTION,
   HEIMATWELT_NAMEN,
   BEZIEHUNG,
   SUPERNOVA,
-  LJ_PRO_EINHEIT,
   ZEIT,
   spieltage,
   supernovaFlutJahre,
@@ -50,18 +50,18 @@ import {
   VORKOMMEN_RESSOURCEN,
   ARBEITSKRAFT_LEERLAUF,
   DROSSELUNG,
-} from "./data.js?v=0.9.78";
-import { VARIANTE } from "./variante.js?v=0.9.78";
-import { stromFuer, waehle } from "./zufall.js?v=0.9.78";
-import { systemGenerieren } from "./welt.js?v=0.9.78";
+} from "./data.js?v=0.9.93";
+import { VARIANTE } from "./variante.js?v=0.9.93";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.93";
+import { systemGenerieren } from "./welt.js?v=0.9.93";
 // A-082: eigener Zufallsstrom für den Heimatweltnamen. Die Kennung ist eine
 // beliebige feste Zahl -- wichtig ist nur, dass sie keiner Systemkennung in
 // die Quere kommt und sich nie wieder ändert (sonst hieße jede bestehende
 // Partie beim nächsten Laden anders).
 const HEIMATWELT_NAMEN_KENNUNG = 900001;
-import { galaxiePlanen, entfernung, schluesselImSystem, sternFuer } from "./galaxie.js?v=0.9.78";
-import { skalieren } from "./ressourcen.js?v=0.9.78";
-import { t } from "./sprache.js?v=0.9.78";
+import { galaxiePlanen, entfernung, schluesselImSystem, supernovaSystemFuer } from "./galaxie.js?v=0.9.93";
+import { skalieren } from "./ressourcen.js?v=0.9.93";
+import { t } from "./sprache.js?v=0.9.93";
 
 // v0.28: Sterntypen verschieben die Orbitzonen -- dieselbe Saat erzeugt jetzt
 // andere Planeten. Ein alter Spielstand trüge Fortschritt zu Orbits, in denen
@@ -101,7 +101,48 @@ import { t } from "./sprache.js?v=0.9.78";
 // Reine Umbenennung an jeder Stelle, die einen der zwölf alten Namen als
 // Schlüssel oder Wert trägt -- siehe js/save.js MIGRATIONEN[35] für die
 // vollständige Liste der Stellen.
-export const SAVE_VERSION = 36;
+// 36 -> 37 (A-323, 04.10.2026): die Galaxie wächst von 500 auf 2.000 Systeme.
+// `systemPosition` liest den Streuradius aus GALAXIE_REGELN, nicht aus dem
+// Stand -- ein 500er-Stand, mit Radius 600 geladen, hätte alle Entfernungen
+// still verdoppelt. Es gibt bewusst KEIN Kettenglied (js/save.js): die Welt
+// lässt sich nicht umrechnen, ein alter Stand wird gesichert und verworfen.
+// 37 -> 38 (A-325, 04.10.2026): das Zielsystem der Supernova trägt jetzt immer
+// einen Vorläufer als Stern. Ein Stand der Version 37 hat in diesem System
+// einen anderen Stern (und damit andere Zonen und Planeten) gespeichert --
+// derselbe Grund und derselbe Weg wie bei 36 -> 37: gesichert und verworfen.
+// 38 -> 39 (A-326, 04.10.2026): ein Wrack ist ein Schiff, sein Ertrag ist Baukosten × SCHROTT_ANTEIL
+// (auch Elektronik). Ein Stand der Version 38 trägt Wracks mit dem alten, gewürfelten
+// Ertrag -- sichern und verwerfen wie bei 36 -> 37 und 37 -> 38, kein Kettenglied.
+// 39 -> 40 (A-327, 06.10.2026): jeder Gas- und Eisriese trägt Magnetmoment und
+// Dosisleistung (daten.magnetmomentErd, daten.dosisSvTag). Ein Stand der Version
+// 39 trägt Riesen ohne diese Felder -- sichern und verwerfen wie bei 36 -> 37,
+// 37 -> 38 und 38 -> 39, kein Kettenglied.
+// 40 -> 41 (A-328, 06.10.2026): jeder Gürtel trägt Ausdehnung, Körperzahl und
+// mittleren Körperabstand (daten.innenkanteAE ... koerperAbstandKm). Ein Stand der
+// Version 40 trägt Gürtel ohne diese Felder -- sichern und verwerfen wie bei 39 -> 40,
+// kein Kettenglied.
+// 41 -> 42 (A-329, 06.10.2026): die Kategorie "Gefahr" gibt es nicht mehr -- der Typ
+// "gefahr" und das Flag "gefahr" sind "piratenposten" und "bewacht", Strahlungszonen
+// und Trümmerfelder sind keine Orte mehr, Drohnen sind Strukturen. Ein Stand der
+// Version 41 trägt Orbits, Namen und Besiegt-Flags der alten Orte -- sichern und
+// verwerfen wie bei 40 -> 41, kein Kettenglied.
+// 42 -> 43 (A-330, 06.10.2026): ein fremdes Imperium trägt "<Staatsform> von <Heimatsystem>"
+// statt "Fremdes Imperium n" im Namen der Fraktion. Der Name steht im Stand: ein Stand der
+// Version 42 trüge die alten Namen -- sichern und verwerfen wie bei 41 -> 42, kein Kettenglied.
+// 43 -> 44 (A-332, 06.10.2026): Wracks gibt es nur noch in den Zonen der Reiche, mit Herkunft
+// und Alter (daten.herkunft, daten.alterJahre); Frachter-, Kolonieschiff-, Geleitkreuzer- und
+// Bergungsplattform-Wracks entfallen, die Orbitnummern verschieben sich. Ein Stand der Version
+// 43 trägt Orbits, Namen und Bergungs-Flags der alten Wracks -- sichern und verwerfen wie
+// bei 42 -> 43, kein Kettenglied.
+// 44 -> 45 (A-333, 06.10.2026): Piratenposten gibt es nur noch in den Zonen der Reiche, mit
+// Herkunft und Alter (daten.herkunft, daten.alterJahre), und eine erwachte Bande trägt
+// fraktion.herkunft. Ein Stand der Version 44 trägt Posten, Banden und Orbitnummern der alten
+// Verteilung -- sichern und verwerfen wie bei 43 -> 44, kein Kettenglied.
+// 45 -> 46 (A-334, 06.10.2026): Strukturen und Wächter-Relikte liegen nur noch an Ursprungs-Orten
+// und tragen daten.ursprung und daten.alterJahre. Ein Stand der Version 45 trägt Strukturen,
+// Wächter und Orbitnummern der alten Streuung (rund 4.000 je 2.000 Systeme) -- sichern und
+// verwerfen wie bei 44 -> 45, kein Kettenglied.
+export const SAVE_VERSION = 46;
 
 function startRessourcen(voll) {
   const res = {};
@@ -670,6 +711,17 @@ export function fraktionVon(objekt) {
 
 export function planetenVon(state, fraktionId = SPIELER_FRAKTION) {
   return state.planeten.filter((p) => fraktionVon(p) === fraktionId);
+}
+
+// A-330: der Lebensraum einer Fraktion, abgeleitet aus ihrer Heimatwelt -- für ein
+// fremdes Imperium und für den Spieler durch dieselbe Funktion (Prinzip 0b,
+// lebensraumVon in data.js). Nicht gespeichert (Ableitbares wird nicht
+// gespeichert) und nirgends angezeigt: die Anzeige kommt mit der Spionage (R-65).
+// `null`, wenn die Fraktion keine Heimatwelt hat (Piraten) oder die Welt kein Volk
+// trägt.
+export function lebensraumDerFraktion(state, fraktionId = SPIELER_FRAKTION) {
+  const heimat = planetenVon(state, fraktionId).find((p) => p.typ === "heimat");
+  return heimat ? lebensraumVon(heimat) : null;
 }
 
 export function flottenVon(state, fraktionId = SPIELER_FRAKTION) {
@@ -2993,8 +3045,17 @@ export function flottenImHafen(state, planetId) {
 // --- Reichweite -----------------------------------------------------------
 // Antriebstechnik ist bewusst nicht entdeckungsabhängig: Reichweite muss
 // immer erweiterbar bleiben, sonst könnte ein ferner Schlüssel aussperren.
+//
+// A-321: die Reichweite gehört der Fraktion, nicht nur dem Spieler -- ein Bot
+// mit Antriebstechnik reicht weiter als einer ohne (Prinzip 0b). Die Piraten-
+// banden erwachen in der Reichweite einer Basis, Spieler wie Bot, mit derselben
+// Formel. `maxReichweite` ist die des Spielers, unverändert.
+export function reichweiteVon(state, fraktionId) {
+  return REICHWEITE.basis + (forschungVon(state, fraktionId).antriebstechnik || 0) * REICHWEITE.proAntriebsstufe;
+}
+
 export function maxReichweite(state) {
-  return REICHWEITE.basis + (state.forschung.antriebstechnik || 0) * REICHWEITE.proAntriebsstufe;
+  return reichweiteVon(state, SPIELER_FRAKTION);
 }
 
 // Nächstgelegener eigener Stützpunkt -- Außenposten zählen mit. Dadurch wird
@@ -3034,41 +3095,22 @@ export function naechsteBasis(state, systemId, fraktionId = SPIELER_FRAKTION) {
 // Was zählt, ist eine echte Aufdeckung: `entdeckt` setzt nur eine Erkundungs-
 // oder Bergungsmission.
 // --- Supernova (v0.70) -----------------------------------------------------
-// Sucht den Stern, der in der vorgesehenen Entfernung steht, und legt die
+// Legt die Supernova an: das System in der vorgesehenen Entfernung, und die
 // beiden Termine fest. Beide Zeiten sind GERECHNET:
 //   Kollaps  aus der Vorwarnung, die die Neutrinomessung hergibt
 //   Flut     aus t ≈ L²/D, also aus der Entfernung selbst
 // Wer die Entfernung in data.js ändert, verschiebt damit automatisch die
 // zweite Frist -- niemand muss zwei Zahlen von Hand im Gleichklang halten.
+// A-325: das System kommt aus `supernovaSystemFuer` (js/galaxie.js) -- das dem
+// Zielabstand nächste -- und trägt dort einen Vorläufer als Stern
+// (`sternFuer`). Es gibt keine Sternsuche mehr: die Entfernung, die hier steht
+// und angezeigt wird, ist die, nach der Blitz und Flut rechnen. Vor A-325
+// wählte die Funktion einen zufällig vorhandenen Vorläufer irgendwo in der
+// Galaxie (A-304), im Median ~195 Lj statt 29 Lj entfernt.
 export function supernovaAnlegen(seed, galaxie, jetzt) {
-  const zielEinheiten = SUPERNOVA.entfernungLj / LJ_PRO_EINHEIT;
-  let bester = null;
-  // A-304: bevorzugt wird ein System, dessen Stern ein ECHTER Vorläufer ist
-  // (B-Stern, Masse >= SUPERNOVA.vorlaeuferMasseMin) -- vor A-304 gab es in
-  // der ganzen Galaxie keinen einzigen Stern, der explodieren könnte, jetzt
-  // schon, aber selten: bei 500 Systemen und ~0,04 % B-Häufigkeit (STERN_
-  // TYPEN.b, gegen die reale Sternzählung geprüft) enthält eine Galaxie im
-  // Mittel weniger als einen. `besterVorlaeufer` läuft deshalb NUR über den
-  // Fund, nicht über eine zweite eigene Suche -- dieselbe Schleife, ein Feld
-  // mehr geprüft, keine neue Größenordnung (Skalierungsauflage).
-  let besterVorlaeufer = null;
-  for (let id = 1; id <= galaxie.anzahlSysteme; id++) {
-    if (id === galaxie.heimatSystem) continue;
-    const d = entfernung(seed, galaxie.heimatSystem, id);
-    const abweichung = Math.abs(d - zielEinheiten);
-    if (!bester || abweichung < bester.abweichung) bester = { id, d, abweichung };
-
-    const stern = sternFuer(seed, id);
-    if (stern.id === "b" && stern.masse >= SUPERNOVA.vorlaeuferMasseMin) {
-      if (!besterVorlaeufer || abweichung < besterVorlaeufer.abweichung) besterVorlaeufer = { id, d, abweichung };
-    }
-  }
-  // Gibt es KEINEN echten Vorläufer in der ganzen Galaxie (bei heutiger
-  // Größe der Regelfall, siehe oben), fällt die Wahl auf den alten,
-  // sternunabhängigen Weg zurück -- eine Supernova ohne physikalisch
-  // passenden Stern bleibt möglich, statt das Ereignis ganz zu verlieren.
-  const gewaehlt = besterVorlaeufer || bester;
-  if (!gewaehlt) return null;
+  const zielId = supernovaSystemFuer(seed);
+  if (zielId === null) return null;
+  const gewaehlt = { id: zielId, d: entfernung(seed, galaxie.heimatSystem, zielId) };
 
   const kollapsZeit = jetzt + jahreInMs(SUPERNOVA.jahreBisKollaps);
   return {

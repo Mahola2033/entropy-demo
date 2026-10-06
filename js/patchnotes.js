@@ -28,6 +28,141 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.9.93",
+    de: [
+      "Strukturen und Wächter gibt es nur noch an wenigen Orten, an denen früher jemand war. Ein solcher Ursprungs-Ort liegt im Mittel bei jedem hundertsten System; rund um ihn trägt etwa jedes siebzehnte System ein Relikt, im Mittel viereinhalb je Ort, drei Viertel Strukturen und ein Viertel Wächter. Jedes Relikt nennt sein Alter und seinen Ursprung -- \"etwa 41.000 Jahre alt · Ursprungs-Ort 12\" --, und die Relikte eines Ortes sind aus demselben Zeitalter: zwischen 5.000 und 5 Millionen Jahre alt. In deiner Nachbarschaft liegt dadurch meist keines mehr; wer Beute sucht, muss einen Ursprungs-Ort finden. Starte ein neues Spiel -- ein alter Spielstand wird beim Laden gesichert und verworfen. Die Orbitnummern verschieben sich, weil weit weniger Orte im System liegen.",
+    ],
+    en: [
+      "Structures and guardians now only exist at a few places where someone once was. Such an origin site lies near one in a hundred systems on average; around it roughly one system in seventeen carries a relic, four and a half per site on average, three quarters structures and one quarter guardians. Every relic names its age and its origin -- \"about 41,000 years old · Origin site 12\" -- and the relics of one site are from the same era: between 5,000 and 5 million years old. In your neighbourhood there is now usually none left; whoever looks for loot has to find an origin site. Start a new game -- an old save is backed up and discarded on loading. The orbit numbers change because far fewer places lie in a system.",
+    ],
+  },
+  {
+    version: "0.9.92",
+    de: [
+      "Piratenaußenposten gibt es nur noch in der Umgebung der Reiche, als Abtrünnige eines bestimmten Imperiums: jeder Posten kommt aus dem Reich, in dessen Nähe er liegt, und trägt sein Alter -- \"Abtrünnige aus Union von Altair, seit etwa 140 Jahren\". Erwacht eine Bande, weiß sie, woher sie stammt. Rund um deine Heimat liegen so viele Posten wie bisher; in der übrigen Galaxie gibt es keine Banden mehr. Starte ein neues Spiel -- ein alter Spielstand wird beim Laden gesichert und verworfen. Die Orbitnummern verschieben sich, weil weniger Orte im System liegen.",
+    ],
+    en: [
+      "Pirate outposts now only exist in the surroundings of the empires, as renegades of a particular empire: every outpost comes from the empire it lies near and carries its age -- \"Renegades from Union of Altair, for about 140 years\". When a gang wakes, it knows where it comes from. Around your home there are as many outposts as before; in the rest of the galaxy there are no gangs any more. Start a new game -- an old save is backed up and discarded on loading. The orbit numbers change because fewer places lie in a system.",
+    ],
+  },
+  {
+    version: "0.9.91",
+    de: [
+      "Wracks gibt es nur noch rund um die Heimaten der Reiche, mit Herkunft und Alter; die Galaxie dazwischen ist leer. Jedes Wrack ist ein havarierter Erkunder -- das Schiff, das als Erstes in ein unbekanntes System fliegt -- und zeigt, aus welchem Reich er kam und wie lange er schon dort liegt. Wie weit ein Reich gekommen ist, folgt aus dem Alter der Raumfahrt: 240 Jahre mit einem Zwanzigstel der Lichtgeschwindigkeit sind 12 Lichtjahre. Starte ein neues Spiel -- ein alter Spielstand wird beim Laden gesichert und verworfen. Wracks von Frachtern, Kolonieschiffen, Kreuzern und Bergungsplattformen gibt es nicht mehr; ein Startgebiet ohne jedes Wrack ist möglich. Die Orbitnummern verschieben sich, weil weit weniger Orte im System liegen.",
+    ],
+    en: [
+      "Wrecks now only lie around the home worlds of the empires, with an origin and an age; the galaxy in between is empty. Every wreck is a crippled explorer -- the ship that is first to fly into an unknown system -- and shows which empire it came from and how long it has been lying there. How far an empire got follows from the age of spaceflight: 240 years at one twentieth of the speed of light make 12 light years. Start a new game -- an old save is backed up and discarded on loading. Wrecks of freighters, colony ships, cruisers and salvage platforms no longer exist; a starting area without any wreck is possible. The orbit numbers change because far fewer places lie in a system.",
+    ],
+  },
+  {
+    version: "0.9.90",
+    de: [
+      "Nur intern: Wo die sieben Heimaten der Reiche stehen -- deine und die der sechs fremden Imperien --, steht jetzt an einer einzigen Stelle und ist allein aus der Saat gerechnet, bevor ein Spieler hinsieht. Das bereitet die Spuren der Reiche vor, die um diese Heimaten liegen werden. Für dich ändert sich nichts: Welt, Heimaten und Reihenfolge der Imperien bleiben, wie sie waren.",
+    ],
+    en: [
+      "Internal only: where the seven home worlds of the empires stand -- yours and those of the six foreign empires -- is now decided in a single place and calculated from the seed alone, before anyone looks. This prepares the traces of the empires that will lie around these home worlds. Nothing changes for you: the world, the home worlds and the order of the empires stay as they were.",
+    ],
+  },
+  {
+    version: "0.9.89",
+    de: [
+      "Fremde Imperien haben jetzt eigene Namen: statt \"Fremdes Imperium 3\" heißen sie zum Beispiel \"Union von Altair\" -- eine Staatsform und das Heimatsystem. Starte ein neues Spiel -- ein alter Spielstand wird beim Laden gesichert und verworfen. Die Welt, die Heimaten und die Reihenfolge der Imperien bleiben, wie sie waren.",
+    ],
+    en: [
+      "Foreign empires now have names of their own: instead of \"Foreign Empire 3\" they are called, for example, \"Union of Altair\" -- a form of state and the home system. Start a new game -- an old save is backed up and discarded on loading. The world, the home worlds and the order of the empires stay as they were.",
+    ],
+  },
+  {
+    version: "0.9.88",
+    de: [
+      "Die Gefahren sind aufgelöst: Piratenaußenposten und Wächter-Relikte lösen die Gefahren ab; Strahlungszonen und Trümmerfelder gibt es nicht mehr als Orte. Banden erwachen nur noch aus Piratenaußenposten. Die Abwehrdrohnen sind jetzt ein Relikt -- ein Abwehrdrohnen-Schwarm, der seine Flotte trägt und nie zu einer Bande wird; er lässt sich nur bergen, wenn man die Flotte besiegt hat. Wo ein Gefecht bevorsteht, steht jetzt \"bewacht\" statt \"gefährlich\". Strahlung und Trümmer sind dafür Natur: Riesen tragen ihren Strahlungsgürtel, Gürtel ihre Dichte. Dadurch erwachen am Anfang nur noch etwa ein Viertel so viele Banden wie bisher. Starte ein neues Spiel -- ein alter Spielstand wird beim Laden gesichert und verworfen. Orte und Namen der Außenposten und Drohnen bleiben, wo sie waren; weil weniger Orte im System liegen, ändern sich die Orbitnummern (\"1-XII\").",
+    ],
+    en: [
+      "The hazards are dissolved: pirate outposts and guardian relics replace the hazards; radiation zones and debris fields no longer exist as places. Gangs now only wake from pirate outposts. The defense drones are now a relic -- a defense drone swarm that carries its fleet and never becomes a gang; it can only be salvaged once the fleet is defeated. Where a fight is ahead it now says \"guarded\" instead of \"dangerous\". Radiation and debris are nature instead: giants carry their radiation belt, belts carry their density. As a result only about a quarter as many gangs wake at the start as before. Start a new game -- an old save is backed up and discarded on loading. The places and names of outposts and drones stay where they were; because fewer places lie in a system, the orbit numbers change (\"1-XII\").",
+    ],
+  },
+  {
+    version: "0.9.87",
+    de: [
+      "Gürtel tragen jetzt ihre Dichte: Jeder Asteroidengürtel hat eine Ausdehnung (Innenkante, Außenkante, Dicke), eine geschätzte Zahl von Körpern über einem Kilometer und daraus den mittleren Abstand zwischen zwei Körpern; die Zeile des entdeckten Gürtels nennt es. Im Hauptgürtel unseres Sonnensystems liegen die Körper im Mittel einige Millionen Kilometer auseinander -- ein Schiff fliegt hindurch, ohne einen zu sehen; dicht wird ein Trümmerfeld in der Natur nur, wenn es jung ist. Noch bewirkt die Dichte nichts -- sie ist eine Eigenschaft der Welt. Starte ein neues Spiel -- ein alter Spielstand wird beim Laden gesichert und verworfen. Alle Welten bleiben, wie sie waren.",
+    ],
+    en: [
+      "Belts now carry their density: every asteroid belt has an extent (inner edge, outer edge, thickness), an estimated number of bodies over one kilometre and, from that, the mean distance between two bodies; the line of a discovered belt names it. In the main belt of our solar system the bodies lie a few million kilometres apart on average -- a ship flies through without seeing one; in nature a debris field only gets dense when it is young. The density does nothing yet -- it is a property of the world. Start a new game -- an old save is backed up and discarded on loading. All worlds stay as they were.",
+    ],
+  },
+  {
+    version: "0.9.86",
+    de: [
+      "Riesen tragen jetzt ihren Strahlungsgürtel: Jeder Gas- und Eisriese hat ein Magnetfeld (in Vielfachen des Erdfelds) und eine Strahlungsdosis in einem festen Abstand, die in der Orbit-Zeile des entdeckten Riesen steht. Ein schwerer Gasriese von der Größe Jupiters hat ein Feld, dessen Gürtel in wenigen Stunden tödlich wäre; Eisriesen wie Uranus und Neptun strahlen nur schwach, kleine Gasriesen wie Saturn ebenso. Die Zahlen folgen den vier Riesen unseres Sonnensystems. Noch bewirkt die Strahlung nichts -- sie ist eine Eigenschaft der Welt. Starte ein neues Spiel -- ein alter Spielstand wird beim Laden gesichert und verworfen. Alle Welten bleiben, wie sie waren.",
+    ],
+    en: [
+      "Giants now carry their radiation belt: every gas and ice giant has a magnetic field (in multiples of Earth's field) and a radiation dose at a fixed distance, shown in the orbit line of a discovered giant. A heavy gas giant the size of Jupiter has a field whose belt would be lethal within hours; ice giants like Uranus and Neptune radiate only weakly, and so do small gas giants like Saturn. The numbers follow the four giants of our own solar system. The radiation does nothing yet -- it is a property of the world. Start a new game -- an old save is backed up and discarded on loading. All worlds stay as they were.",
+    ],
+  },
+  {
+    version: "0.9.85",
+    de: [
+      "Wracks geben jetzt, was ihr Schiff gekostet hat -- auch Elektronik: Ein Wrack ist ein Frachter, ein Kolonieschiff, ein Kriegsschiff oder eine Bergungsplattform, und seine Bergung bringt 30 % der Baukosten dieses Schiffs ein, wie die Verschrottung. Ein Kolonieschiff-Wrack ist damit ein Vielfaches eines Frachter-Wracks wert; im Mittel liefern Wracks etwa 40 % weniger Metall und Silizium als bisher, dafür Elektronik. Orte und Namen der Wracks bleiben, wo sie waren. Starte ein neues Spiel -- ein alter Spielstand wird beim Laden gesichert und verworfen.",
+    ],
+    en: [
+      "Wrecks now give what their ship cost -- including electronics: a wreck is a freighter, a colony ship, a warship or a salvage platform, and salvaging it yields 30 % of that ship's build cost, like scrapping. A colony ship wreck is therefore worth many times a freighter wreck; on average wrecks yield about 40 % less metal and silicon than before, but electronics on top. The places and names of wrecks stay where they were. Start a new game -- an old save is backed up and discarded on loading.",
+    ],
+  },
+  {
+    version: "0.9.84",
+    de: [
+      "Die Supernova ist jetzt ein echter Stern, der zu seiner Entfernung passt: Der Stern, der in der Vorwarnzeit sterben wird, steht immer in rund 29 Lichtjahren Entfernung und ist ein schwerer blauweißer Stern, der wirklich explodieren kann. Bisher konnte in manchen Galaxien an dieser Stelle ein ganz anderer Stern stehen, dessen angezeigte Entfernung nicht zu den Fristen passte. Starte ein neues Spiel -- ein alter Spielstand wird beim Laden gesichert und verworfen. Alle anderen Sterne bleiben, wie sie waren.",
+    ],
+    en: [
+      "The supernova is now a real star that fits its distance: the star that will die during the warning time always stands about 29 light years away and is a heavy blue-white star that can really explode. Until now, in some galaxies a very different star could stand there, whose displayed distance did not match the deadlines. Start a new game -- an old save is backed up and discarded on loading. All other stars stay as they were.",
+    ],
+  },
+  {
+    version: "0.9.83",
+    de: [
+      "Die Galaxiekarte trifft jetzt den Stern, auf den du klickst: Bisher ging ein Klick, wo sich Sterne überlagern, oft an einen Nachbarn -- bei 2.000 Systemen traf er auf der ganzen Karte nur noch etwa jeden dritten Stern richtig. Jetzt gilt das System, das dem Mauszeiger am nächsten liegt, und der Hinweis beim Überfahren nennt dasselbe System. Ein Klick ins Leere wählt nichts. Wo zwei Sterne fast aufeinander liegen, hilft Hineinzoomen.",
+    ],
+    en: [
+      "The galaxy map now hits the star you click: until now, where stars overlap, a click often went to a neighbour -- at 2,000 systems only about every third star was hit correctly across the whole map. Now the system closest to the mouse pointer counts, and the hint on hovering names the same system. Clicking empty space selects nothing. Where two stars lie almost on top of each other, zooming in helps.",
+    ],
+  },
+  {
+    version: "0.9.82",
+    de: [
+      "Die Galaxie ist jetzt viermal so groß: 2.000 statt 500 Systeme, bei gleicher Sternendichte. Das ist der erste Schritt zur Zielgröße. Starte ein neues Spiel -- ein alter Spielstand passt nicht mehr zur größeren Galaxie und wird beim Laden gesichert und verworfen. Auf der Galaxiekarte liegen jetzt viermal so viele Punkte auf derselben Fläche; wo sie dicht stehen, triffst du ein bestimmtes System erst nach dem Hineinzoomen verlässlich.",
+    ],
+    en: [
+      "The galaxy is now four times as large: 2,000 systems instead of 500, at the same star density. This is the first step towards the target size. Start a new game -- an old save no longer fits the larger galaxy and is backed up and discarded on loading. The galaxy map now holds four times as many points on the same area; where they sit close together, you only hit a specific system reliably after zooming in.",
+    ],
+  },
+  {
+    version: "0.9.81",
+    de: [
+      "Nur intern: Die Zahl der Orte, an denen eine Schlüsseltechnologie zu finden ist, wächst jetzt mit der Größe der Galaxie, damit der Weg zu den tiefen Technologien in einer größeren Galaxie nicht länger wird. Bei der heutigen Größe von 500 Systemen ändert sich für dich nichts.",
+    ],
+    en: [
+      "Internal only: the number of places where a key technology can be found now grows with the size of the galaxy, so the way to the deep technologies doesn't get longer in a bigger galaxy. At today's size of 500 systems nothing changes for you.",
+    ],
+  },
+  {
+    version: "0.9.80",
+    de: [
+      "Piratenbanden erwachen jetzt erst, wenn ihr System in Reichweite einer Basis liegt -- deiner oder der eines fremden Imperiums, mit der Reichweite der jeweiligen Fraktion. Bei gleicher Saat sind am Anfang deshalb weit weniger Banden aktiv (rund 60 statt rund 1.000 bei 500 Systemen), und neue erwachen, sobald ein Außenposten, eine Kolonie oder mehr Antriebstechnik ihre Reichweite weiter hinausschiebt. Was in deiner Reichweite liegt, ist wie bisher wach; Splitter und Umzüge der Banden wählen kein System mit schlafender Gefahr. Dein Spielstand ist davon nicht betroffen: er lädt wie zuvor, seine Banden sind schon wach. Dazu läuft die Welt spürbar flotter und der Spielstand ist viel kleiner.",
+    ],
+    en: [
+      "Pirate bands now wake only when their system lies within range of a base -- yours or a foreign empire's, with that faction's range. With the same seed, far fewer bands are active at the start (about 60 instead of about 1,000 at 500 systems), and new ones wake as soon as an outpost, a colony or more drive technology pushes a range further out. Whatever lies within your range is awake as before; splitters and relocations of the bands never pick a system with a sleeping hazard. Your save isn't affected: it loads as before, its bands are already awake. In addition the world runs noticeably faster and the save is much smaller.",
+    ],
+  },
+  {
+    version: "0.9.79",
+    de: [
+      "Wracks, Strukturen, Gefahren, leere Plätze und Anomalien kommen jetzt so häufig vor, wie ihr Bereich es vorsieht -- bisher fielen sie zu selten aus, besonders Wracks, Gefahren und Strukturen. Im Mittel liegen jetzt rund 2,5 Wracks, 2 Gefahren und 1,5 Strukturen in einem System (vorher 1,8, 1,5 und 1,2). Bei gleicher Saat liegen sie deshalb in anderer Zahl und an anderen Orten; Planeten, Gürtel und Heimatwelt bleiben, wie sie waren. Dein Spielstand ist davon nicht betroffen: er lädt wie zuvor. Folge: Es gibt im Mittel mehr Piratenbanden, die sich halten, weil mehr Wracks Beute hergeben.",
+    ],
+    en: [
+      "Wrecks, structures, hazards, empty slots and anomalies now occur as often as their range says -- until now they came out too rarely, especially wrecks, hazards and structures. On average a system now holds about 2.5 wrecks, 2 hazards and 1.5 structures (before: 1.8, 1.5 and 1.2). With the same seed they therefore sit in different numbers and different places; planets, belts and your home world stay as they were. Your save isn't affected: it loads as before. Consequence: on average there are more pirate bands that hold out, because more wrecks offer loot.",
+    ],
+  },
+  {
     version: "0.9.78",
     de: [
       "Die Welt wird beim Erzeugen jetzt in zwei getrennten Schichten gewürfelt: die Natur (Sterne, Planeten, Riesen, Gürtel, Monde) und alles, was Reiche hinterlassen (Anomalien, Wracks, Strukturen, Gefahren, leere Plätze). Planeten, Gürtel und Heimatwelt bleiben bei gleicher Saat genau, wie sie waren -- aber Wracks, Strukturen, Gefahren und Anomalien können jetzt an anderen Orten liegen und andere Namen und Mengen tragen. Dein Spielstand ist davon nicht betroffen: er lädt wie zuvor. Wer in einem alten Stand ein bestimmtes Wrack oder einen Piratenposten im Kopf hat, findet an seinem Orbit unter Umständen etwas anderes. Der Sinn: künftig kann die eine Schicht wachsen, ohne die andere zu verschieben.",

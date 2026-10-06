@@ -6,6 +6,7 @@
 
 import {
   BUILDINGS,
+  SPIELER_FRAKTION,
   RESEARCH,
   RESSOURCEN,
   LAGER_RESSOURCEN,
@@ -25,13 +26,15 @@ import {
   PLANETEN_KLASSEN,
   affinitaetVon,
   zusammensetzungVon,
+  RIESE_DOSIS_BEZUG_RADIEN,
+  GUERTEL_KOERPER_MINDESTGROESSE_KM,
   STOFFE,
   stoffeNachRessource,
   stoffAnzeige,
   MASSE_RADIUS_EXPONENT,
   AFFINITAET_GUT,
   SYMBOLE,
-  TYP_SYMBOL,
+  objektSymbol,
   kostenFuerLevel,
   bauzeitFuerLevel,
   forschungsAufwand,
@@ -55,8 +58,8 @@ import {
   VORKOMMEN_MELDESCHWELLE,
   VORKOMMEN_RATE_SPEC,
   ERDMASSE_T,
-} from "./data.js?v=0.9.78";
-import { VARIANTE } from "./variante.js?v=0.9.78";
+} from "./data.js?v=0.9.93";
+import { VARIANTE } from "./variante.js?v=0.9.93";
 import {
   effektiveRaten,
   angezeigteRate,
@@ -141,7 +144,7 @@ import {
   fossilReichweiteMs,
   fossilVerbrauchProStunde,
   foerderErgiebigkeit,
-} from "./state.js?v=0.9.78";
+} from "./state.js?v=0.9.93";
 import {
   bauStarten,
   forschungStarten,
@@ -218,7 +221,8 @@ import {
   routeStoppen,
   routeMindestbeladungSetzen,
   routeBeladungAnteil,
-} from "./simulation.js?v=0.9.78";
+  reichName,
+} from "./simulation.js?v=0.9.93";
 import {
   flottePosition,
   reiseAnteil,
@@ -239,26 +243,26 @@ import {
   flotteSiedlerKapazitaet,
   flotteLadungAnteile,
   flotteTankAnteile,
-} from "./flotten.js?v=0.9.78";
-import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.78";
-import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.78";
-import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.78";
+} from "./flotten.js?v=0.9.93";
+import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.93";
+import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.93";
+import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.93";
 // Nur für den Neustart-Knopf im Abspann. Der Weg dorthin ist derselbe wie im
 // Testmodus (js/testmodus.js) -- ein zweiter Reset wäre eine zweite Wahrheit
 // darüber, was "neu anfangen" bedeutet.
-import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.78";
-import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.78";
-import { systemName, sternFuer } from "./galaxie.js?v=0.9.78";
+import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.93";
+import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.93";
+import { systemName, sternFuer } from "./galaxie.js?v=0.9.93";
 // Die beiden Karten. Sie holen sich von hier `listeAbgleichen` zurück -- ein
 // Ringtausch, der trägt, weil keine der beiden Dateien beim LADEN etwas aus
 // der anderen benutzt, sondern erst beim Zeichnen. Die Alternative wäre ein
 // zweiter Abgleich-Mechanismus in karte.js gewesen, und genau davor warnt
 // Prinzip 5.
-import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.78";
-import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.78";
-import { feedbackAdresse } from "./feedback.js?v=0.9.78";
-import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.78";
-import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.78";
+import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.93";
+import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.93";
+import { feedbackAdresse } from "./feedback.js?v=0.9.93";
+import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.93";
+import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.93";
 
 // UI-lokaler Regler-Zustand für die Flotten-Beladung/Tanken-Schieber --
 // bewusst NICHT Teil des Spielzustands. Nötig, weil render() auch von einem
@@ -7994,7 +7998,7 @@ function slotZeileFuellen(state, systemId, objekt, flotte, li) {
   if (objekt.typ === "heimat" || eigen) li.classList.add("slot-heimat");
   else if (besetzer) li.classList.add("slot-besetzt");
   else if (!objekt.entdeckt) li.classList.add("slot-unerforscht");
-  else if (objekt.gefahr && !objekt.verteidigerBesiegt) li.classList.add("slot-gefahr");
+  else if (objekt.bewacht && !objekt.verteidigerBesiegt) li.classList.add("slot-bewacht");
   else if (gesperrt) li.classList.add("slot-gesperrt");
   else if (objekt.verwertet || objekt.verteidigerBesiegt) li.classList.add("slot-verwertet");
 
@@ -8038,9 +8042,11 @@ function slotZeileFuellen(state, systemId, objekt, flotte, li) {
           fraktion: (fraktionById(state, fraktionVon(besetzer)) || {}).name || t("Unbekannt"),
         })
       : "",
+    // A-333: eine Bande der Saat oder eine Neugründung nennt ihr Ursprungsreich.
+    besetzer ? fraktionHerkunftText(state, fraktionById(state, fraktionVon(besetzer))) : "",
     // A-315: derselbe Stoff-Gesamtinhalt wie die Detailzeile, hier aber jeder
     // Stoff einzeln (Definition von fertig, Abschnitt 3) -- zusammensetzungVon
-    // liefert `null` für Objekte ohne Zusammensetzung (Gefahr, Wrack, ...),
+    // liefert `null` für Objekte ohne Zusammensetzung (Piratenposten, Wrack, ...),
     // dann liefert die Funktion "" und die Zeile fällt durch den Filter unten.
     objekt.entdeckt ? zusammensetzungTooltip(objekt.daten) : "",
   ]
@@ -8049,7 +8055,7 @@ function slotZeileFuellen(state, systemId, objekt, flotte, li) {
   attributSetzen(li, "title", titel);
 
   textSetzen(li.querySelector(".slot-nummer"), String(objekt.orbit));
-  textSetzen(li.querySelector(".slot-symbol"), objekt.entdeckt ? TYP_SYMBOL[objekt.typ] : "?");
+  textSetzen(li.querySelector(".slot-symbol"), objekt.entdeckt ? objektSymbol(objekt) : "?");
   textSetzen(
     li.querySelector(".slot-bezeichnung"),
     objekt.entdeckt ? t(objekt.bezeichnung) : t("Unerforscht")
@@ -8156,6 +8162,38 @@ function zehnerpotenzText(wert) {
   return `${mantisse.toLocaleString(gebietsschema(), { maximumFractionDigits: 1 })}·10${hochzahlText(exp)}`;
 }
 
+// A-327: Strahlungsgürtel eines Riesen -- Magnetfeld (Vielfaches des
+// Erdfelds) und Dosisleistung am Bezugsabstand (9,4 Radien, der Abstand von
+// Europa zu Jupiter, Herleitung bei RIESE_MOMENT_ANKER in data.js). Nur
+// Gas-/Eisriesen tragen die Felder; `slotDetail` ruft das erst für
+// entdeckte Objekte.
+function strahlungText(daten) {
+  if (!daten || typeof daten.magnetmomentErd !== "number" || typeof daten.dosisSvTag !== "number") return "";
+  const zahl = (wert) => wert.toLocaleString(gebietsschema(), { maximumSignificantDigits: 3 });
+  return ` · ${t("Magnetfeld {moment} × Erde · Strahlung {dosis} Sv/Tag in {radien} Radien Abstand", {
+    moment: zahl(daten.magnetmomentErd),
+    dosis: zahl(daten.dosisSvTag),
+    radien: zahl(RIESE_DOSIS_BEZUG_RADIEN),
+  })}`;
+}
+
+// A-328: Ausdehnung und Dichte eines Gürtels -- Innen-/Außenkante, Dicke, Zahl
+// der Körper über der Mindestgröße und ihr mittlerer Abstand (Herleitung bei
+// GUERTEL_AUSDEHNUNG_RELATIV in data.js). `slotDetail` ruft das erst für
+// entdeckte Objekte.
+function guertelDichteText(daten) {
+  if (!daten || typeof daten.koerperAbstandKm !== "number") return "";
+  const zahl = (wert) => wert.toLocaleString(gebietsschema(), { maximumSignificantDigits: 3 });
+  return ` · ${t("Ausdehnung {innen}-{aussen} AE, {dicke} AE dick · {zahl} Körper über {groesse} km, im Mittel {abstand} km auseinander", {
+    innen: zahl(daten.innenkanteAE),
+    aussen: zahl(daten.aussenkanteAE),
+    dicke: zahl(daten.dickeAE),
+    zahl: zehnerpotenzText(daten.koerperZahl),
+    groesse: GUERTEL_KOERPER_MINDESTGROESSE_KM,
+    abstand: zehnerpotenzText(daten.koerperAbstandKm),
+  })}`;
+}
+
 // A-311: Monde stehen in derselben Zeile wie die Zusammensetzung (A-307) --
 // nur das Nötigste: Anzahl und der größte Mond (Masse, Eisanteil). Die volle
 // Zusammensetzung jedes einzelnen Mondes zeigt kein Tooltip (Auftrag: "die
@@ -8260,7 +8298,25 @@ function eigenZusammensetzungText(eigen) {
   return zusammensetzungText({ klasse: eigen.klasse, wasser: eigen.wasser, masse, monde: eigen.monde });
 }
 
+// Herkunft und Alter eines Relikts (A-334): "etwa 40.000 Jahre alt · Ursprungs-Ort 12".
+// Das Alter steht auf zwei gültige Stellen gerundet: ein Alter von 41.370 Jahren wäre
+// eine Genauigkeit, die niemand kennt (○, die Wirklichkeit schweigt). Ein Name für den
+// Ort kommt mit dem Baustein R-6.
+export function reliktHerkunftText(daten) {
+  if (!daten || !Number.isInteger(daten.ursprung) || !Number.isInteger(daten.alterJahre)) return "";
+  const stelle = 10 ** Math.max(0, Math.floor(Math.log10(Math.max(1, daten.alterJahre))) - 1);
+  const jahre = Math.round(daten.alterJahre / stelle) * stelle;
+  const alter = t("etwa {jahre} Jahre alt", { jahre: jahre.toLocaleString(gebietsschema()) });
+  return `${alter} · ${t("Ursprungs-Ort {nummer}", { nummer: daten.ursprung })}`;
+}
+
 export function slotDetail(state, objekt, gesperrt, eigen) {
+  const text = slotDetailOhneHerkunft(state, objekt, gesperrt, eigen);
+  const relikt = objekt.typ === "struktur" ? reliktHerkunftText(objekt.daten) : "";
+  return relikt ? `${text} · ${relikt}` : text;
+}
+
+function slotDetailOhneHerkunft(state, objekt, gesperrt, eigen) {
   if (eigen) {
     const basis = eigen.typ === "kolonie" ? t("deine Kolonie") : eigen.typ === "heimat" ? t("Heimatplanet") : t("dein Außenposten");
     // A-307: die Heimatwelt läuft durch dieselbe Zusammensetzungsfunktion
@@ -8288,6 +8344,25 @@ export function slotDetail(state, objekt, gesperrt, eigen) {
       : "";
     return `<span class="gesperrt-text">${sperre}</span>${rest}${ertrag}`;
   }
+  // A-329: ein bewachter Ort (Piratenposten, Wächter-Relikt) zeigt seine Flotte,
+  // gleich welcher Typ er ist; die Anzeige fragt das Flag, nicht den Typ.
+  if (objekt.bewacht) {
+    // A-333: ein Piratenposten ist die Abspaltung eines Reiches und nennt es, mit Alter.
+    const herkunft = objekt.typ === "piratenposten" ? postenHerkunftText(state, objekt.daten) : "";
+    const mit = (text) => (herkunft ? `${text} · ${herkunft}` : text);
+    if (objekt.verteidigerBesiegt) {
+      const restOffen = objekt.restErtrag && Object.values(objekt.restErtrag).some((m) => m > 0);
+      return mit(restOffen
+        ? t("besiegt · Rest liegt noch: {rest}", { rest: buendelText(objekt.restErtrag) })
+        : t("besiegt"));
+    }
+    const schiffe = objekt.verteidigerSchiffe || objekt.daten.flotte || {};
+    const staerke = schiffeStaerke(schiffe, objekt.verteidigerSchaden || {});
+    const werte = { schiffe: schiffeText(schiffe), hp: Math.round(staerke.hp) };
+    return mit(objekt.verteidigerSchiffe
+      ? t("bewacht · Flotte: {schiffe} · {hp} HP (bereits geschwächt)", werte)
+      : t("bewacht · Flotte: {schiffe} · {hp} HP", werte));
+  }
   switch (objekt.typ) {
     case "heimat": return t("Heimatplanet");
     case "planet": {
@@ -8299,7 +8374,7 @@ export function slotDetail(state, objekt, gesperrt, eigen) {
         // einer Kolonie, die es hier nie geben kann -- auf einem Riesen wäre
         // das keine wahre Aussage, sondern eine über einen Fall, der nicht
         // eintritt.
-        return `${t("nicht besiedelbar")} · ${abstandText(objekt.daten)}${zusammensetzungText(objekt.daten)}`;
+        return `${t("nicht besiedelbar")} · ${abstandText(objekt.daten)}${strahlungText(objekt.daten)}${zusammensetzungText(objekt.daten)}`;
       }
       // Profil VOR der Koloniegründung zeigen. Seit die Planetenart hart
       // bestimmt, was es dort gibt (und ob überhaupt Nahrung wächst), wäre
@@ -8311,20 +8386,6 @@ export function slotDetail(state, objekt, gesperrt, eigen) {
         + affinitaetText(objekt.daten)
         + zusammensetzungText(objekt.daten)
       );
-    }
-    case "gefahr": {
-      if (objekt.verteidigerBesiegt) {
-        const restOffen = objekt.restErtrag && Object.values(objekt.restErtrag).some((m) => m > 0);
-        return restOffen
-          ? t("besiegt · Rest liegt noch: {rest}", { rest: buendelText(objekt.restErtrag) })
-          : t("besiegt");
-      }
-      const schiffe = objekt.verteidigerSchiffe || objekt.daten.flotte || {};
-      const staerke = schiffeStaerke(schiffe, objekt.verteidigerSchaden || {});
-      const werte = { schiffe: schiffeText(schiffe), hp: Math.round(staerke.hp) };
-      return objekt.verteidigerSchiffe
-        ? t("gefährlich · Flotte: {schiffe} · {hp} HP (bereits geschwächt)", werte)
-        : t("gefährlich · Flotte: {schiffe} · {hp} HP", werte);
     }
     case "leer": return t("leer");
     case "anomalie": return objekt.verwertet ? t("ausgewertet") : t("auswertbar");
@@ -8341,19 +8402,82 @@ export function slotDetail(state, objekt, gesperrt, eigen) {
         : objekt.restErtrag
         ? t("Rest: {rest} – Frachtraum reichte nicht", { rest: buendelText(objekt.restErtrag) })
         : t("Ertrag: {ertrag}", { ertrag: buendelText(offenerErtrag(state, objekt)) });
-      if (!objekt.daten.kolonisierbar) return `${haufenTeil} · ${abstandText(objekt.daten)}`;
+      if (!objekt.daten.kolonisierbar) return `${haufenTeil} · ${abstandText(objekt.daten)}${guertelDichteText(objekt.daten)}`;
       // A-307: liefert bis A-308 `null` (Gürtel sind keine der drei
       // Gesteinsklassen), zusammensetzungText also noch leer -- derselbe
       // Aufruf wie beim Planeten, damit A-308 hier nichts nachziehen muss.
-      return `${haufenTeil} · ${t("besiedelbar")} · ${abstandText(objekt.daten)}${affinitaetText(objekt.daten)}${zusammensetzungText(objekt.daten)}`;
+      return `${haufenTeil} · ${t("besiedelbar")} · ${abstandText(objekt.daten)}${guertelDichteText(objekt.daten)}${affinitaetText(objekt.daten)}${zusammensetzungText(objekt.daten)}`;
+    }
+    case "wrack": {
+      // A-332: ein Wrack kommt aus einem Reich und hat ein Alter (Jahre vor
+      // Spielbeginn). Ein von Hand gesetztes Wrack ohne Herkunft (Tests) zeigt
+      // nur den Teil davor.
+      const grund = wrackHerkunftText(state, objekt.daten);
+      const rest = slotDetailBergbar(state, objekt);
+      return grund ? `${rest} · ${grund}` : rest;
     }
     default:
-      if (objekt.verwertet) return t("verwertet");
-      if (!objekt.daten.ertrag) return t("erkundet");
-      return objekt.restErtrag
-        ? t("Rest: {rest} – Frachtraum reichte nicht", { rest: buendelText(objekt.restErtrag) })
-        : t("Ertrag: {ertrag}", { ertrag: buendelText(offenerErtrag(state, objekt)) });
+      return slotDetailBergbar(state, objekt);
   }
+}
+
+// Der Ertragsteil der Detailzeile eines Objekts, an dem etwas zu bergen ist.
+function slotDetailBergbar(state, objekt) {
+  if (objekt.verwertet) return t("verwertet");
+  if (!objekt.daten.ertrag) return t("erkundet");
+  return objekt.restErtrag
+    ? t("Rest: {rest} – Frachtraum reichte nicht", { rest: buendelText(objekt.restErtrag) })
+    : t("Ertrag: {ertrag}", { ertrag: buendelText(offenerErtrag(state, objekt)) });
+}
+
+// Abtrünnige eines Reiches (A-333): "Abtrünnige aus <Reich> · seit etwa 140 Jahren".
+// Ein Piratenposten der Saat trägt Herkunft (den Reichindex) und Alter in `daten`;
+// die erwachte Bande trägt die Fraktion des Reiches in `fraktion.herkunft` -- dasselbe
+// Feld wie die Abtrünnigen einer Neugründung -- und ihr Alter steht am Posten, auf
+// dem ihre Basis sitzt. Die Zeile entsteht an EINER Stelle (abtruenigeZeile).
+function abtruenigeZeile(reich, jahre) {
+  const von = t("Abtrünnige aus {reich}", { reich });
+  if (!Number.isInteger(jahre)) return von;
+  const alter = jahre === 0
+    ? t("seit weniger als einem Jahr")
+    : jahre === 1
+    ? t("seit etwa einem Jahr")
+    : t("seit etwa {jahre} Jahren", { jahre });
+  return `${von} · ${alter}`;
+}
+
+export function postenHerkunftText(state, daten) {
+  if (!daten || !Number.isInteger(daten.herkunft)) return "";
+  const reich = daten.herkunft === 0 ? t("deinem Imperium") : reichName(state.galaxie.seed, daten.herkunft);
+  return abtruenigeZeile(reich, daten.alterJahre);
+}
+
+export function fraktionHerkunftText(state, fraktion) {
+  if (!fraktion || fraktion.art !== "pirat" || !fraktion.herkunft) return "";
+  const reich = fraktion.herkunft === SPIELER_FRAKTION
+    ? t("deinem Imperium")
+    : (fraktionById(state, fraktion.herkunft) || {}).name;
+  if (!reich) return "";
+  const basis = planetById(state, fraktion.basisPlanet);
+  const posten = basis ? holeSystem(state, basis.systemId).objekte.find((o) => o.orbit === basis.orbit) : null;
+  const jahre = posten && posten.typ === "piratenposten" && posten.fraktionId === fraktion.id ? posten.daten.alterJahre : null;
+  return abtruenigeZeile(reich, jahre);
+}
+
+// Herkunft und Alter eines Wracks (A-332): "aus Union von Altair · vor 140 Jahren".
+// Der Name kommt aus der Saat (reichName), das Alter aus daten.alterJahre.
+function wrackHerkunftText(state, daten) {
+  if (!daten || !Number.isInteger(daten.herkunft) || !Number.isInteger(daten.alterJahre)) return "";
+  const von = daten.herkunft === 0
+    ? t("aus deinem Imperium")
+    : t("aus {reich}", { reich: reichName(state.galaxie.seed, daten.herkunft) });
+  const jahre = daten.alterJahre;
+  const alter = jahre === 0
+    ? t("vor weniger als einem Jahr")
+    : jahre === 1
+    ? t("vor einem Jahr")
+    : t("vor {jahre} Jahren", { jahre });
+  return `${von} · ${alter}`;
 }
 
 // WAS DARF DIESE FLOTTE AN DIESEM ORBIT? Eine Antwort, zwei Leser: die Zeile

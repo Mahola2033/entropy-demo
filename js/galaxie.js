@@ -13,6 +13,8 @@
 
 import {
   GALAXIE_REGELN,
+  SUPERNOVA,
+  LJ_PRO_EINHEIT,
   ENTDECKBARE_FORSCHUNGEN,
   techStufe,
   schluesselHaeufigkeit,
@@ -26,9 +28,9 @@ import {
   DOPPELSTERN_ABSTAND_SIGMA,
   DOPPELSTERN_WEISSER_ZWERG_ANTEIL,
   WEISSER_ZWERG_IFMR,
-} from "./data.js?v=0.9.78";
-import { stromFuer, mischen, gewichtetWaehlen } from "./zufall.js?v=0.9.78";
-import { t } from "./sprache.js?v=0.9.78";
+} from "./data.js?v=0.9.93";
+import { stromFuer, mischen, gewichtetWaehlen } from "./zufall.js?v=0.9.93";
+import { t } from "./sprache.js?v=0.9.93";
 
 // Position eines Systems in der Galaxie-Ebene. Rein aus der Saat abgeleitet.
 export function systemPosition(seed, systemId) {
@@ -263,9 +265,13 @@ function begleiterFuer(primaerTyp, primaerMasse, rng) {
 export function sternFuer(seed, systemId, istHeimat = false) {
   const rng = stromFuer(seed, systemId * 104729);
   const tabelle = Object.values(STERN_TYPEN).map((s) => ({ id: s.id, gewicht: s.haeufigkeit }));
-  const gewaehlt = istHeimat
-    ? STERN_TYPEN[HEIMAT_STERN]
-    : STERN_TYPEN[gewichtetWaehlen(rng, tabelle).id];
+  // A-325: das Zielsystem der Supernova trägt einen Vorläufer. Der Typ-Zug
+  // geschieht trotzdem (und wird verworfen), damit der Strom dieses Systems
+  // bis zum Massezug dieselbe Reihenfolge hat wie bei jedem anderen. Das
+  // Heimatsystem ist nie das Zielsystem; sein Zweig bleibt unberührt.
+  const istZiel = !istHeimat && systemId === supernovaSystemFuer(seed);
+  const gezogen = istHeimat ? null : STERN_TYPEN[gewichtetWaehlen(rng, tabelle).id];
+  const gewaehlt = istHeimat ? STERN_TYPEN[HEIMAT_STERN] : istZiel ? STERN_TYPEN.b : gezogen;
 
   let masse, leuchtkraft;
   if (istHeimat) {
@@ -277,7 +283,11 @@ export function sternFuer(seed, systemId, istHeimat = false) {
     leuchtkraft = rund3(min + rng() * (max - min));
     masse = rund3(Math.pow(leuchtkraft, 0.25));
   } else {
-    const stern = sternAusTyp(gewaehlt, rng);
+    // Vorläufer: Masse aus dem Bereich, in dem ein Kernkollaps möglich ist
+    // (SUPERNOVA.vorlaeuferMasseMin bis zur oberen Grenze des B-Bereichs).
+    const stern = istZiel
+      ? sternAusTyp(gewaehlt, rng, rund3(SUPERNOVA.vorlaeuferMasseMin + rng() * (gewaehlt.masse[1] - SUPERNOVA.vorlaeuferMasseMin)))
+      : sternAusTyp(gewaehlt, rng);
     masse = stern.masse;
     leuchtkraft = stern.leuchtkraft;
   }
@@ -288,18 +298,72 @@ export function sternFuer(seed, systemId, istHeimat = false) {
   return { ...gewaehlt, masse, leuchtkraft, begleiter };
 }
 
+// Der Abstand zweier Positionen, auf 0,1 gerundet -- die EINE Formel hinter
+// entfernung() und hinter der Wecksuche der Piratenbanden (A-321), die
+// Positionen vorab holt, statt sie je Paar neu zu ziehen.
+export function positionsAbstand(a, b) {
+  return Math.round(Math.hypot(a.x - b.x, a.y - b.y) * 10) / 10;
+}
+
 export function entfernung(seed, systemA, systemB) {
   if (systemA === systemB) return 0;
-  const a = systemPosition(seed, systemA);
-  const b = systemPosition(seed, systemB);
-  return Math.round(Math.hypot(a.x - b.x, a.y - b.y) * 10) / 10;
+  return positionsAbstand(systemPosition(seed, systemA), systemPosition(seed, systemB));
+}
+
+// Das Heimatsystem aus dem ersten Zug des Stroms 1 -- die EINE Formel, die
+// `galaxiePlanen` und `supernovaSystemFuer` teilen (A-325, Prinzip 5a).
+function heimatAusZug(zug, anzahl) {
+  return Math.floor(zug * anzahl) + 1;
+}
+
+// Das Heimatsystem des Spielers, rein aus der Saat und der Größe -- ohne den
+// ganzen Galaxieplan zu bauen (A-331: die Heimatsuche der Reiche braucht nur
+// diese eine Nummer). `galaxiePlanen` zieht denselben ersten Zug.
+export function heimatSystemVon(seed) {
+  return heimatAusZug(stromFuer(seed, 1)(), GALAXIE_REGELN.anzahlSysteme);
+}
+
+// Das System, in dem die Supernova steht: das dem Zielabstand
+// (SUPERNOVA.entfernungLj) am nächsten zum Heimatsystem, das Heimatsystem
+// selbst ausgenommen, bei Gleichstand das mit der kleineren Nummer (A-325).
+// Das Szenario wählt den Ort -- und der Stern dort ist ein Vorläufer
+// (`sternFuer`); die Entfernung, die Anzeige und die Fristen sagen damit immer
+// dasselbe. Eine Schleife über Positionen, keine über Sterne.
+//
+// Pro (Saat, Größe, Zielabstand) einmal gerechnet und gemerkt: `sternFuer` fragt bei jedem
+// Aufruf danach. Größe und Zielabstand stehen im Schlüssel, denn Messskripte und Tests
+// ändern `GALAXIE_REGELN.anzahlSysteme` (oder der Zielabstand) im Prozess -- die Positionen (und mit
+// ihnen das Ziel) hängen über den Radius an ihr. Gibt `null` zurück, wenn es
+// außer dem Heimatsystem kein System gibt.
+const zielSysteme = new Map();
+export function supernovaSystemFuer(seed) {
+  const anzahl = GALAXIE_REGELN.anzahlSysteme;
+  const schluessel = seed + ":" + anzahl + ":" + SUPERNOVA.entfernungLj;
+  let ziel = zielSysteme.get(schluessel);
+  if (ziel !== undefined) return ziel;
+  const heimat = heimatSystemVon(seed);
+  const zielEinheiten = SUPERNOVA.entfernungLj / LJ_PRO_EINHEIT;
+  const heimatPosition = systemPosition(seed, heimat);
+  let besterAbstand = Infinity;
+  ziel = null;
+  for (let id = 1; id <= anzahl; id++) {
+    if (id === heimat) continue;
+    const abweichung = Math.abs(positionsAbstand(heimatPosition, systemPosition(seed, id)) - zielEinheiten);
+    if (abweichung < besterAbstand) {
+      besterAbstand = abweichung;
+      ziel = id;
+    }
+  }
+  if (zielSysteme.size >= 256) zielSysteme.clear(); // Schutz gegen Schleifen über viele Saaten
+  zielSysteme.set(schluessel, ziel);
+  return ziel;
 }
 
 // Erzeugt den Galaxieplan: Heimatsystem und Verteilung der Schlüssel.
 export function galaxiePlanen(seed) {
   const rng = stromFuer(seed, 1);
   const alle = Array.from({ length: GALAXIE_REGELN.anzahlSysteme }, (_, i) => i + 1);
-  const heimatSystem = alle[Math.floor(rng() * alle.length)];
+  const heimatSystem = alle[heimatAusZug(rng(), alle.length) - 1];
 
   // Technologien von flach nach tief verteilen.
   const techs = [...ENTDECKBARE_FORSCHUNGEN].sort((a, b) => techStufe(a) - techStufe(b));

@@ -270,8 +270,8 @@ export const EN = {
     "Improves the yield of your iridium extraction sites by 7% per level.",
   "Startet mit einem Klick so viele Sonden, wie es unerforschte einfache Ziele im System gibt -- statt jede einzeln loszuschicken.":
     "Launches as many probes as there are unexplored simple targets in the system, in one click – instead of sending each one separately.",
-  "Dasselbe für Erkunder: ein Klick deckt alle komplexen Ziele im System auf -- Anomalien, Strukturen, Gefahren.":
-    "The same for explorers: one click reveals every complex target in the system – anomalies, structures, hazards.",
+  "Dasselbe für Erkunder: ein Klick deckt alle komplexen Ziele im System auf -- Anomalien, Strukturen, Piratenaußenposten.":
+    "The same for explorers: one click reveals every complex target in the system – anomalies, structures, pirate outposts.",
   "Grundlage der selbständig handelnden Steuerungen. Routen fährst du auch ohne sie – hier beginnt, was ohne dich ENTSCHEIDET, statt nur zu wiederholen.":
     "The basis of the steering systems that act on their own. You can run routes without it – this is where things start DECIDING for you instead of only repeating.",
   "Planeten gleichen konfigurierte Mindestbestände automatisch untereinander aus -- mit derselben Verzögerung, die die schnellstmögliche Flotte bräuchte, aber ohne dass du Schiffe schicken musst.":
@@ -290,8 +290,8 @@ export const EN = {
 
   "Billige Einwegsonde. Deckt einfache Ziele auf. Sie kehrt nicht zurück, weil Abbremsen genauso viel Treibstoff kostet wie Beschleunigen – eine Sonde, die heimkommen soll, ist ein ganz anderes Schiff.":
     "Cheap single-use probe. Reveals simple targets. It does not come back, because slowing down costs as much fuel as speeding up – a probe meant to return is an entirely different ship.",
-  "Bemanntes Aufklärungsschiff. Nötig für komplexe Ziele – Anomalien, Strukturen, Gefahren.":
-    "Crewed reconnaissance ship. Required for complex targets – anomalies, structures, hazards.",
+  "Bemanntes Aufklärungsschiff. Nötig für komplexe Ziele – Anomalien, Strukturen, Piratenaußenposten.":
+    "Crewed reconnaissance ship. Required for complex targets – anomalies, structures, pirate outposts.",
   "Wertet Anomalien aus. Ohne Forschungsmission gibt eine Anomalie ihre Technologie nicht her.":
     "Studies anomalies. Without a science mission an anomaly will not yield its technology.",
   "Bringt Bergungsgut und Ressourcen nach Hause. Große Funde brauchen mehrere Fahrten.":
@@ -300,8 +300,8 @@ export const EN = {
     "Stays at the asteroid belt, processes on site and loads the result straight into its own cargo hold – the entry point before a full mining colony, not its replacement. Extracts under the same diminishing yield as any mining facility, without anyone having to settle there.",
   "Gründet eine vollwertige Kolonie. Braucht eigene Kolonisten an Bord, die der Spieler selbst belädt, und wird beim Gründen verbraucht.":
     "Founds a full colony. Needs its own colonists on board, loaded by the player, and is consumed when founding.",
-  "Bewaffnetes Schiff. Einziger Schiffstyp, der Gefahren-Objekte angreifen kann. Verstecken kann es sich nicht: jedes Schiff strahlt seine Abwärme gegen einen drei Grad über dem absoluten Nullpunkt kalten Hintergrund ab. Wer im System ist, ist sichtbar.":
-    "Armed vessel. The only ship type that can attack hazard objects. It cannot hide: every ship radiates its waste heat against a background three degrees above absolute zero. Whoever is in the system is visible.",
+  "Bewaffnetes Schiff. Einziger Schiffstyp, der bewachte Ziele angreifen kann. Verstecken kann es sich nicht: jedes Schiff strahlt seine Abwärme gegen einen drei Grad über dem absoluten Nullpunkt kalten Hintergrund ab. Wer im System ist, ist sichtbar.":
+    "Armed vessel. The only ship type that can attack guarded targets. It cannot hide: every ship radiates its waste heat against a background three degrees above absolute zero. Whoever is in the system is visible.",
 
   // --- Verteidigung (A-204) -------------------------------------------------
   Verteidigung: "Defense",
@@ -417,11 +417,28 @@ export const EN = {
   Gasriese: "Gas Giant",
   Heimatwelt: "Homeworld",
 
+  // --- Abtrünnige eines Reiches (A-333) -----------------------------------
+  "Abtrünnige aus {reich}": "Renegades from {reich}",
+  "deinem Imperium": "your empire",
+  "seit weniger als einem Jahr": "for less than a year",
+  "seit etwa einem Jahr": "for about a year",
+  "seit etwa {jahre} Jahren": "for about {jahre} years",
+
+  // --- Herkunft und Alter eines Relikts (A-334) ---------------------------
+  "etwa {jahre} Jahre alt": "about {jahre} years old",
+  "Ursprungs-Ort {nummer}": "Origin site {nummer}",
+
+  // --- Herkunft und Alter eines Wracks (A-332) ----------------------------
+  "dein Imperium": "your empire",
+  "Reich {n}": "Empire {n}",
+  "aus deinem Imperium": "from your empire",
+  "aus {reich}": "from {reich}",
+  "vor weniger als einem Jahr": "less than a year ago",
+  "vor einem Jahr": "a year ago",
+  "vor {jahre} Jahren": "{jahre} years ago",
+
   // --- Objektbezeichnungen der Weltgenerierung ----------------------------
-  "Havarierter Frachter": "Crippled Freighter",
-  "Ausgebranntes Kolonieschiff": "Burnt-out Colony Ship",
-  "Zerschossener Geleitkreuzer": "Shot-up Escort Cruiser",
-  "Treibende Bergungsplattform": "Drifting Salvage Platform",
+  "Havarierter Erkunder": "Crippled Explorer",
   "Fremdartige Signalboje": "Alien Signal Buoy",
   "Verlassene Forschungsstation": "Abandoned Research Station",
   "Kristalline Struktur unbekannten Ursprungs": "Crystalline Structure of Unknown Origin",
@@ -430,9 +447,7 @@ export const EN = {
   "Fremdartiger Resonanzkörper": "Alien Resonance Body",
   "Verschlossene Artefaktkammer": "Locked Artifact Chamber",
   Piratenaußenposten: "Pirate Outpost",
-  "Dichtes Trümmerfeld": "Dense Debris Field",
-  "Instabile Strahlungszone": "Unstable Radiation Zone",
-  "Automatisierte Abwehrdrohnen": "Automated Defense Drones",
+  "Abwehrdrohnen-Schwarm": "Defense Drone Swarm",
   "Tiefliegendes Vorkommen": "Deep-lying Deposit",
   Asteroidengürtel: "Asteroid Belt",
   "Leerer Orbit": "Empty Orbit",
@@ -1274,6 +1289,8 @@ export const EN = {
   "nicht besiedelbar": "not colonizable",
   "besiedelbar · {radius} Erdradien": "colonizable · {radius} Earth radii",
   "{abstand} AE · {temperatur} K": "{abstand} AU · {temperatur} K",
+  "Ausdehnung {innen}-{aussen} AE, {dicke} AE dick · {zahl} Körper über {groesse} km, im Mittel {abstand} km auseinander": "Extent {innen}-{aussen} AU, {dicke} AU thick · {zahl} bodies over {groesse} km, {abstand} km apart on average",
+  "Magnetfeld {moment} × Erde · Strahlung {dosis} Sv/Tag in {radien} Radien Abstand": "Magnetic field {moment} × Earth · radiation {dosis} Sv/day at {radien} radii",
   Kruste: "Crust",
   Hülle: "Envelope",
   gesamt: "total",
@@ -1288,8 +1305,16 @@ export const EN = {
   besiedelbar: "colonizable",
   besiegt: "defeated",
   "besiegt · Rest liegt noch: {rest}": "defeated · still lying here: {rest}",
-  "gefährlich · Flotte: {schiffe} · {hp} HP": "dangerous · fleet: {schiffe} · {hp} HP",
-  "gefährlich · Flotte: {schiffe} · {hp} HP (bereits geschwächt)":
+  "{form} von {system}": "{form} of {system}",
+  Union: "Union",
+  Republik: "Republic",
+  Konföderation: "Confederation",
+  Bund: "Federation",
+  Gemeinschaft: "Commonwealth",
+  Liga: "League",
+  "Bewacht – erst die Flotte besiegen.": "Guarded – defeat the fleet first.",
+  "bewacht · Flotte: {schiffe} · {hp} HP": "guarded · fleet: {schiffe} · {hp} HP",
+  "bewacht · Flotte: {schiffe} · {hp} HP (bereits geschwächt)":
     "dangerous · fleet: {schiffe} · {hp} HP (already weakened)",
   ausgewertet: "studied",
   auswertbar: "can be studied",

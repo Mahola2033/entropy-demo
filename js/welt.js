@@ -17,7 +17,15 @@
 // liegen. Das gilt unabhängig davon, in welchem System welcher Teil liegt.
 
 import {
+  guertelAusdehnungVon,
+  guertelKoerperAbstandKm,
+  riesenStrahlungVon,
+  RIESE_STRAHLUNG_STROM_PRIMZAHL,
+  RIESE_STRAHLUNG_SAAT_MASKE,
   SYSTEM_REGELN,
+  GALAXIE_REGELN,
+  REICHWEITE,
+  BOT,
   VORKOMMEN_TABELLE,
   ENTDECKBARE_FORSCHUNGEN,
   zoneVonTemperatur,
@@ -75,17 +83,17 @@ import {
   ZWERGPLANET_SUMME_MAX_ANTEIL,
   KOMETENWOLKE_MASSE_BEREICH_ERDMASSEN,
   KOMETENWOLKE_OHNE_RIESEN_FAKTOR,
-} from "./data.js?v=0.9.78";
-import { stromFuer, waehle, zwischen, gewichtetWaehlen, logGleichverteilt, poissonZug } from "./zufall.js?v=0.9.78";
+} from "./data.js?v=0.9.93";
+import { stromFuer, waehle, zwischen, gewichtetWaehlen, logGleichverteilt, poissonZug } from "./zufall.js?v=0.9.93";
 import {
   reicheOrteGenerieren,
   WRACK_ARTEN,
   ANOMALIE_ARTEN,
   STRUKTUR_ARTEN,
-  GEFAHR_ARTEN,
+  BEWACHTE_ARTEN,
   LEERER_ORBIT,
-} from "./reiche-orte.js?v=0.9.78";
-import { sternFuer, leuchtkraftAusMasse, bildungstypVon, rundSignifikant, normalverteilt } from "./galaxie.js?v=0.9.78";
+} from "./reiche-orte.js?v=0.9.93";
+import { sternFuer, leuchtkraftAusMasse, bildungstypVon, rundSignifikant, normalverteilt, heimatSystemVon, entfernung, systemPosition } from "./galaxie.js?v=0.9.93";
 
 // Systeme können deutlich mehr als 50 Objekte tragen (die alte harte
 // Obergrenze ist mit A-305 gefallen) -- römische Zahlen daher berechnen
@@ -206,7 +214,7 @@ const PLANETEN_ARTEN = [
   // Klassen ohne Oberfläche tragen ihren Klassennamen
   "Mini-Neptun", "Eisriese", "Gasriese",
 ];
-// WRACK_ARTEN, ANOMALIE_ARTEN, STRUKTUR_ARTEN, GEFAHR_ARTEN und LEERER_ORBIT
+// WRACK_ARTEN, ANOMALIE_ARTEN, STRUKTUR_ARTEN, BEWACHTE_ARTEN und LEERER_ORBIT
 // (die Reiche-Schicht) wohnen seit A-319 in js/reiche-orte.js.
 // Bezeichnungen, die nicht aus einer der Listen oben stammen.
 const SONSTIGE_ARTEN = ["Heimatwelt", "Tiefliegendes Vorkommen", "Asteroidengürtel", LEERER_ORBIT];
@@ -225,7 +233,7 @@ export const BEZEICHNUNGEN = [
   ...WRACK_ARTEN,
   ...ANOMALIE_ARTEN,
   ...STRUKTUR_ARTEN,
-  ...GEFAHR_ARTEN,
+  ...BEWACHTE_ARTEN,
   ...SONSTIGE_ARTEN,
 ];
 
@@ -240,7 +248,7 @@ function neuesObjekt(systemId, orbit, felder) {
       name: orbitName(systemId, orbit),
       entdeckt: false,
       verwertet: false,
-      gefahr: false,
+      bewacht: false,
       benoetigt: null,
       daten: {},
     },
@@ -518,7 +526,7 @@ function guertelPositionenBauen(bahnRng, rahmen, innereKette, aussenKoerper) {
     const [fMin, fMax] = AEUSSERER_GUERTEL_FAKTOR_BEREICH;
     // Referenz ist die vor-Migration-Position (jenseitsDerRiesen), NIE die
     // eines heißen Jupiters: der ist nach innen gewandert, das äußere
-    // Trümmerfeld hat davon nichts gemerkt (Abschnitt 8, aeussereKoerperBauen).
+    // Gürtel hat davon nichts gemerkt (Abschnitt 8, aeussereKoerperBauen).
     const aeusserstePosition = kaltePlaneten.length ? kaltePlaneten[kaltePlaneten.length - 1] : jenseitsDerRiesen;
     const kandidat =
       riesenPositionen.length || kaltePlaneten.length
@@ -582,21 +590,33 @@ function heimatMasse(rng, klasse) {
 }
 
 /**
- * Erzeugt ein System.
+ * Erzeugt die NATUR eines Systems: Stern, Rahmen, Planeten, Gürtel, Kometenwolke
+ * -- ohne die Reiche-Schicht (A-331). Das ist der Einstieg, den die Suche nach
+ * den Heimaten der Reiche braucht (`reicheHeimaten`): sie darf die
+ * Reiche-Schicht nicht bauen, weil die ihrerseits die Heimaten lesen wird
+ * (Prinzip 7b, kein Zirkel). `systemGenerieren` ruft diese Funktion und hängt
+ * die Reiche-Schicht an; der Zufallsstrom `rng` endet hier, die Reiche ziehen
+ * nichts daraus.
+ *
+ * Die Einträge sind roh und ungeordnet-nach-Rang: `systemNatur` trägt
+ * `abstandAE`, `typ`, `bezeichnung`, `daten`, aber noch keine Orbitnummer --
+ * der Rang entsteht erst, wenn die Reiche-Schicht dazugemischt ist.
  * @param seed        Galaxie-Saat
  * @param systemId    Systemnummer
- * @param optionen    { schluessel: [techId...], istHeimat, heimatName,
- *                      schwierigkeit } -- `schwierigkeit` (A-190) wirkt nur,
- *                      wenn istHeimat gesetzt ist; siehe STARTSCHWIERIGKEIT.
+ * @param optionen    { istHeimat, heimatName, schwierigkeit }
+ * @returns { stern, rahmen, systemNatur, kometenwolke }
  */
-export function systemGenerieren(seed, systemId, optionen = {}) {
-  const { schluessel = [], istHeimat = false, heimatName = "Heimatwelt", schwierigkeit = STARTSCHWIERIGKEIT_VORGABE } = optionen;
+export function systemNaturGenerieren(seed, systemId, optionen = {}) {
+  const { istHeimat = false, heimatName = "Heimatwelt", schwierigkeit = STARTSCHWIERIGKEIT_VORGABE } = optionen;
   const rng = stromFuer(seed, systemId);
   // A-305: eigener Zufallsstrom für die Bahnen der Natur (Planeten, Gürtel).
   // 953 ist eine Primzahl, die in keiner anderen stromFuer-Kennung dieses
   // Projekts vorkommt (sternFuer: *104729, systemPosition: *7919,
-  // guertelStrom: *1601+Index) -- derselbe Kollisionsschutz wie beim
-  // bestehenden Muster. Die Reiche-Schicht hat seit A-319 ihre eigenen Ströme
+  // guertelStrom: *1601+Index, dazu *2017 Kometenwolke, *2003+Index Monde,
+  // *2029+Index Riesenstrahlung mit maskierter Saat (A-327), *4099
+  // Imperiennamen mit maskierter Saat (A-330), *4909 und *6469 die Relikte an
+  // Ursprungs-Orten mit maskierter Saat (A-334)) -- derselbe Kollisionsschutz wie
+  // beim bestehenden Muster. Die Reiche-Schicht hat seit A-319 ihre eigenen Ströme
   // (js/reiche-orte.js, *3571 + Art).
   const bahnRng = stromFuer(seed, systemId * 953);
 
@@ -700,6 +720,7 @@ export function systemGenerieren(seed, systemId, optionen = {}) {
       daten: {
         ertrag: { [eintrag.ressource]: Math.round(menge) },
         ...eig,
+        ...guertelAusdehnung(eig.masseT, abstandAE, art),
         abstandAE: rundSignifikant(abstandAE, 4),
         temperaturK: Math.round(temperaturK),
         schwerkraft: 0,
@@ -738,12 +759,32 @@ export function systemGenerieren(seed, systemId, optionen = {}) {
         return {
           ...k,
           abstandAE,
-          daten: { ...k.daten, abstandAE: rundSignifikant(abstandAE, 4), temperaturK: Math.round(temperaturK) },
+          daten: {
+            ...k.daten,
+            ...(k.typ === "asteroiden" ? guertelGeweitet(k.daten, weitung) : {}),
+            abstandAE: rundSignifikant(abstandAE, 4),
+            temperaturK: Math.round(temperaturK),
+          },
         };
       });
   }
 
-  // --- Reiche-Schicht: Anomalien, Wracks, Strukturen, Gefahren, leere Plätze
+  return { stern, rahmen, systemNatur, kometenwolke };
+}
+
+/**
+ * Erzeugt ein System.
+ * @param seed        Galaxie-Saat
+ * @param systemId    Systemnummer
+ * @param optionen    { schluessel: [techId...], istHeimat, heimatName,
+ *                      schwierigkeit } -- `schwierigkeit` (A-190) wirkt nur,
+ *                      wenn istHeimat gesetzt ist; siehe STARTSCHWIERIGKEIT.
+ */
+export function systemGenerieren(seed, systemId, optionen = {}) {
+  const { schluessel = [] } = optionen;
+  const { stern, rahmen, systemNatur, kometenwolke } = systemNaturGenerieren(seed, systemId, optionen);
+
+  // --- Reiche-Schicht: Anomalien, Wracks, Relikte (an Ursprungs-Orten, A-334), Piratenposten, leere Plätze
   // A-319: eigenes Modul, je Art ein eigener Strom -- kein Zug der Natur
   // verschiebt sie mehr, und sie zieht nichts aus `rng`. Die Reiche entstehen
   // nach dem Weißen-Zwerg-Filter und werden nicht mitgeweitet; auch die eines
@@ -752,7 +793,7 @@ export function systemGenerieren(seed, systemId, optionen = {}) {
   const reiche = reicheOrteGenerieren(seed, systemId, {
     innenkanteAE: rahmen.innenkanteAE,
     aussenkanteAE: rahmen.aussenkanteAE,
-  }, schluessel);
+  }, schluessel, reicheZoneVon(seed, systemId), systemPosition(seed, systemId));
 
   // --- Abschnitt 8: Rang nach Abstand -------------------------------------
   const alle = [...systemNatur, ...reiche].sort((a, b) => a.abstandAE - b.abstandAE);
@@ -765,7 +806,7 @@ export function systemGenerieren(seed, systemId, optionen = {}) {
       typ: roh.typ,
       bezeichnung: roh.bezeichnung,
       entdeckt: roh.entdeckt ?? false,
-      gefahr: roh.gefahr ?? false,
+      bewacht: roh.bewacht ?? false,
       benoetigt: roh.benoetigt ?? null,
       daten: roh.daten,
     })
@@ -774,13 +815,99 @@ export function systemGenerieren(seed, systemId, optionen = {}) {
   return { systemId, orbitAnzahl, heimatOrbit, stern, objekte, kometenwolke };
 }
 
+// --- Die Heimaten der Reiche (A-331) ---------------------------------------
+//
+// Wo die sieben Heimaten stehen -- die des Spielers und die der Bot-Imperien --,
+// entscheidet DIESE Funktion, rein aus Saat und Größe (Prinzip 1, 5a). Vor
+// A-331 fand `botWeltStart` (js/simulation.js) die sechs Bot-Heimaten selbst,
+// im Zustandscode, über `holeSystem` -- und `holeSystem` baut das System samt
+// Reiche-Schicht. Sollen die Reiche die Heimaten lesen (die junge Schicht der
+// Reiche-Spuren liegt um sie), wäre das ein Zirkel. Darum liest die Suche nur
+// die NATUR (`systemNaturGenerieren`), und `botWeltStart` ruft sie.
+//
+// Die Regel, unverändert: ab Systemnummer 1 das jeweils erste System (das
+// Heimatsystem des Spielers übersprungen), in dem ein Planet kolonisierbar ist
+// und als Startwelt taugt (`taugtAlsStartwelt`), und dort der innerste solche
+// Planet -- bis BOT.anzahl Bot-Heimaten gesetzt sind. Die Suche endet früh
+// (gemessen: Systeme 3 bis 52 bei 2.000); sie läuft nie über alle Systeme.
+//
+// Ein Eintrag: { index, systemId, planetRang, spieler }. Index 0 ist der
+// Spieler, 1..BOT.anzahl die Bots in der Reihenfolge, in der sie entstehen.
+// WARUM `planetRang` und keine Orbitnummer: die Orbitnummer ist der Rang nach
+// Abstand über Natur UND Reiche-Schicht -- sie steht erst fest, wenn die
+// Reiche-Schicht gebaut ist, und genau die darf hier nicht gebaut werden.
+// `planetRang` zählt nur die Planeten (1 = innerster Planet) und ist in beiden
+// Fassungen dasselbe; `heimatPlanetVon` löst ihn im fertigen System auf. Beim
+// Spieler (Heimat-Eintrag statt Planet, Orbit gesetzt durch die Startschwierigkeit)
+// ist er `null`.
+//
+// Pro (Saat, Größe, Imperienzahl) einmal gerechnet und gemerkt; Messskripte und
+// Tests ändern die Größe im Prozess.
+const heimatenGemerkt = new Map();
+
+export function reicheHeimaten(seed) {
+  const anzahl = GALAXIE_REGELN.anzahlSysteme;
+  const schluessel = seed + ":" + anzahl + ":" + BOT.anzahl;
+  const bekannt = heimatenGemerkt.get(schluessel);
+  if (bekannt) return bekannt;
+
+  const spielerSystem = heimatSystemVon(seed);
+  const liste = [{ index: 0, systemId: spielerSystem, planetRang: null, spieler: true }];
+  for (let systemId = 1; systemId <= anzahl && liste.length <= BOT.anzahl; systemId++) {
+    if (systemId === spielerSystem) continue;
+    const planeten = systemNaturGenerieren(seed, systemId).systemNatur
+      .filter((k) => k.typ === "planet")
+      .sort((a, b) => a.abstandAE - b.abstandAE);
+    const rang = planeten.findIndex((p) => p.daten.kolonisierbar && taugtAlsStartwelt(p.daten)) + 1;
+    if (rang === 0) continue;
+    liste.push({ index: liste.length, systemId, planetRang: rang, spieler: false });
+  }
+  if (heimatenGemerkt.size >= 256) heimatenGemerkt.clear(); // Schutz gegen Schleifen über viele Saaten
+  heimatenGemerkt.set(schluessel, liste);
+  return liste;
+}
+
+// Vergisst das Gemerkte -- `cacheLeeren` (js/systeme.js) ruft es: wer die Regel
+// einer Welt im Prozess ändert (Messskripte, Tests), leert dort alle Zwischenspeicher.
+export function heimatenVergessen() {
+  heimatenGemerkt.clear();
+}
+
+// Die Zone eines Systems (A-332): liegt es innerhalb der Startreichweite
+// (REICHWEITE.basis, in Galaxie-Einheiten) um die Heimat eines Reiches -- so weit,
+// wie ein Reich in `alterRaumfahrtJahre` unterlichtschnell gekommen ist --, ist
+// es Zone des NÄCHSTEN Reiches; bei genau gleichem Abstand gewinnt der kleinere
+// Reichindex (Spieler = 0 zuerst). Ein System zählt einmal, auch wenn zwei Zonen
+// sich schneiden. `null` heißt: außerhalb jeder Zone. Läuft je System über die
+// sieben Heimaten, nie über alle Systeme (Natur-Code läuft nie über alle Systeme).
+export function reicheZoneVon(seed, systemId, heimaten = reicheHeimaten(seed)) {
+  let beste = null;
+  for (const heimat of heimaten) {
+    const abstand = entfernung(seed, heimat.systemId, systemId);
+    const naeher = beste === null || abstand < beste.abstand || (abstand === beste.abstand && heimat.index < beste.reich);
+    if (abstand <= REICHWEITE.basis && naeher) {
+      beste = { reich: heimat.index, abstand };
+    }
+  }
+  return beste ? { reich: beste.reich } : null;
+}
+
+// Der Planet einer Bot-Heimat im fertigen System (mit Reiche-Schicht und
+// Orbitnummer): der `planetRang`-te Planet nach Abstand.
+export function heimatPlanetVon(system, heimat) {
+  return system.objekte.filter((o) => o.typ === "planet")[heimat.planetRang - 1];
+}
+
 // A-311: Monde -- ein Planet oder die Heimat bekommt `daten.monde` (eine
 // Liste, innen nach außen), gezogen aus einem EIGENEN Strom je Körper, NIE
 // dem Systemstrom `rng` (Bekannte Fallen: ein neuer Zug darin verschöbe jede
 // Klasse, Masse und Sperre danach). 2003 ist eine Primzahl, in keiner
 // anderen stromFuer-Kennung dieses Projekts verwendet (sternFuer: *104729,
 // systemPosition: *7919, guertelStrom: *1601+Index, bahnRng: *953,
-// Reiche-Schicht: *3571+Art). `index` ist die Stelle des Körpers in `natur` (vor dem
+// Reiche-Schicht: *3571+Art, Riesenstrahlung (A-327): *2029+Index mit
+// maskierter Saat, Imperiennamen (A-330): *4099 mit maskierter Saat, Relikte an
+// Ursprungs-Orten (A-334): *4909 und *6469 mit maskierter Saat).
+// `index` ist die Stelle des Körpers in `natur` (vor dem
 // Sortieren) -- die Heimat hat Index 0.
 //
 // Die Stabilitätsprüfung selbst braucht keinen Zufall (reine Geometrie aus
@@ -835,6 +962,50 @@ function mondeErzeugen(seed, systemId, index, { klasse, masse, abstandAE, temper
   return [];
 }
 
+// A-328: Ausdehnung und Dichte eines Gürtels, Herleitung und Quellen bei
+// GUERTEL_AUSDEHNUNG_RELATIV in data.js. Reine Funktion von Masse, Lage und
+// Art; gespeichert wird gerundet, gerechnet mit den ungerundeten Werten.
+function guertelAusdehnung(masseT, abstandAE, art) {
+  const a = guertelAusdehnungVon(masseT, abstandAE, art);
+  return {
+    innenkanteAE: rundSignifikant(a.innenkanteAE, 4),
+    aussenkanteAE: rundSignifikant(a.aussenkanteAE, 4),
+    dickeAE: rundSignifikant(a.dickeAE, 3),
+    koerperZahl: rundSignifikant(a.koerperZahl, 3),
+    koerperAbstandKm: rundSignifikant(a.koerperAbstandKm, 3),
+  };
+}
+
+// A-328: Weißer Zwerg -- die Bahn weitet sich um `faktor`, der Gürtel mit ihr
+// (alle Längen, nicht die Zahl der Körper); der Abstand folgt aus derselben
+// Formel wie bei der Erzeugung (guertelKoerperAbstandKm), nicht aus einer
+// zweiten.
+function guertelGeweitet(daten, faktor) {
+  const innenkanteAE = daten.innenkanteAE * faktor;
+  const aussenkanteAE = daten.aussenkanteAE * faktor;
+  const dickeAE = daten.dickeAE * faktor;
+  return {
+    innenkanteAE: rundSignifikant(innenkanteAE, 4),
+    aussenkanteAE: rundSignifikant(aussenkanteAE, 4),
+    dickeAE: rundSignifikant(dickeAE, 3),
+    koerperAbstandKm: rundSignifikant(guertelKoerperAbstandKm(innenkanteAE, aussenkanteAE, dickeAE, daten.koerperZahl), 3),
+  };
+}
+
+// A-327: Strahlungsgürtel eines Riesen -- magnetisches Moment (Erdeinheiten)
+// und Dosisleistung am Bezugsabstand (Sv/Tag), Herleitung und Quellen bei
+// RIESE_MOMENT_ANKER in data.js. Reine Funktion von Klasse und Masse; nur der
+// Eisriese zieht EINEN Wert, aus einem eigenen Strom (nie aus `rng`/`bahnRng`,
+// Prinzip 1 -- ein Zug dort verschöbe jede Welt). Andere Klassen: nichts.
+function riesenStrahlung(seed, systemId, index, klasse, masse) {
+  if (klasse !== "gasriese" && klasse !== "eisriese") return {};
+  const u = klasse === "eisriese"
+    ? stromFuer(seed ^ RIESE_STRAHLUNG_SAAT_MASKE, systemId * RIESE_STRAHLUNG_STROM_PRIMZAHL + index)()
+    : 0;
+  const { moment, dosisSvTag } = riesenStrahlungVon(klasse, masse, u);
+  return { magnetmomentErd: rundSignifikant(moment, 3), dosisSvTag: rundSignifikant(dosisSvTag, 3) };
+}
+
 // Ein Planet der inneren Kette oder der äußeren Körper -- Masse aus dem
 // Bereich der Klasse, Radius/Schwerkraft daraus abgeleitet, wie vor A-305.
 // A-317: kein Ertrag, keine Sperre, kein Nachwachsen mehr -- die
@@ -845,6 +1016,7 @@ function planetObjektBauen(rng, abstandAE, temperaturK, eig, seed, systemId, ind
   const radius = radiusAusMasse(masse);
   const schwerkraft = klasse.oberflaeche ? Math.round(schwerkraftAus(masse, radius) * 100) / 100 : klasse.schwerkraft;
   const monde = mondeErzeugen(seed, systemId, index, { klasse: eig.klasse, masse, abstandAE, temperaturK, rahmenMasse });
+  const strahlung = riesenStrahlung(seed, systemId, index, eig.klasse, Math.round(masse * 100) / 100);
   return {
     abstandAE,
     typ: "planet",
@@ -859,6 +1031,7 @@ function planetObjektBauen(rng, abstandAE, temperaturK, eig, seed, systemId, ind
       masse: Math.round(masse * 100) / 100,
       groesse: Math.round(radius * 100),
       ...(monde.length ? { monde } : {}),
+      ...strahlung,
     },
   };
 }

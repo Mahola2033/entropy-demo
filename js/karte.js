@@ -32,10 +32,10 @@
 // Eine geschlossene Ansicht darf keine Rechenzeit kosten -- eine Messung hat
 // der alten Galaxieansicht 4,5 ms pro Sekunde nachgewiesen, auch geschlossen.
 
-import { GALAXIE_REGELN, SPIELER_FRAKTION, TYP_SYMBOL } from "./data.js?v=0.9.78";
-import { systemPosition, systemName, sternFuer } from "./galaxie.js?v=0.9.78";
-import { flottePosition, schiffeText, flotteRestreichweite } from "./flotten.js?v=0.9.78";
-import { holeSystem, objektGesperrt } from "./systeme.js?v=0.9.78";
+import { GALAXIE_REGELN, SPIELER_FRAKTION, objektSymbol } from "./data.js?v=0.9.93";
+import { systemPosition, systemName, sternFuer } from "./galaxie.js?v=0.9.93";
+import { flottePosition, schiffeText, flotteRestreichweite } from "./flotten.js?v=0.9.93";
+import { holeSystem, objektGesperrt } from "./systeme.js?v=0.9.93";
 import {
   planetenVon,
   planetAn,
@@ -45,10 +45,11 @@ import {
   untersuchteOrbits,
   fraktionVon,
   fraktionById,
-} from "./state.js?v=0.9.78";
-import { stromFuer } from "./zufall.js?v=0.9.78";
-import { t, sprache, gebietsschema } from "./sprache.js?v=0.9.78";
-import { listeAbgleichen, attributSetzen, textSetzen, fmtDauer } from "./ui.js?v=0.9.78";
+} from "./state.js?v=0.9.93";
+import { stromFuer } from "./zufall.js?v=0.9.93";
+import { zielRasterBauen, naechstesZiel, KLICK_RADIUS } from "./kartenziel.js?v=0.9.93";
+import { t, sprache, gebietsschema } from "./sprache.js?v=0.9.93";
+import { listeAbgleichen, attributSetzen, textSetzen, fmtDauer, fraktionHerkunftText } from "./ui.js?v=0.9.93";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -123,7 +124,12 @@ const rueckrufe = { system: null, orbit: null, flotte: null };
 // gelesen wird immer nur einer.
 let galaxieStand = { state: null, abstand: [], reichweite: 0 };
 
-// Der zuletzt gesetzte Klassenname je System, damit die Schleife über 500
+// Die Sternpositionen der Karte im Kartenraum, einmal beim Gerüstbau in ein
+// Raster gelegt (js/kartenziel.js): daraus wählt ein Klick das NÄCHSTE System
+// (A-324). Wird mit dem Gerüst neu gebaut.
+let zielRaster = zielRasterBauen([]);
+
+// Der zuletzt gesetzte Klassenname je System, damit die Schleife über alle
 // Sterne das DOM gar nicht erst befragen muss. attributSetzen liest sonst je
 // Stern zweimal zurück -- richtig, aber tausend Rückfragen pro Sekunde für
 // eine Antwort, die wir selbst geschrieben haben. Wird beim Neuaufbau des
@@ -182,27 +188,30 @@ function flottenTitelText(state, flotte, jetzt) {
 
 // Das Gerüst der Galaxiekarte: alle Sterne EINMAL, danach nie wieder.
 //
-// Zwei Ebenen je Stern statt einer: der sichtbare Punkt darf klein sein (bei
-// 500 Systemen muss er das sogar), die Klickfläche darf es nicht. Getrennt
-// gehalten kann der Punkt seine Größe nach Lage ändern, ohne dass das Ziel
-// unter dem Zeiger mitwandert -- Prinzip 8a gilt auch für "getroffen, aber
-// danebengeklickt".
+// Der sichtbare Punkt darf klein sein (bei 2.000 Systemen muss er das sogar),
+// die Klickfläche darf es nicht -- und sie liegt nicht am Punkt: es gibt keine
+// Klickelemente je Stern mehr. Was ein Klick meint, entscheidet `naechstesZiel`
+// (js/kartenziel.js) nach ABSTAND zur Zeigerposition; mit überlappenden
+// Elementen traf bei 2.000 Systemen nur noch jeder dritte Klick auf die Mitte
+// eines Systems das gemeinte (A-324, Prinzip 8a).
 function galaxieGeruestBauen(svg, state) {
   const skala = galaxieSkala();
   sternKlassen = [];
   svg.replaceChildren(
+    // Der EINE Tooltip der Karte: er gehört immer zum System, das ein Klick an
+    // der Zeigerposition wählen würde (galaxieVerdrahten, "mousemove").
+    svgEl("title", { "data-zieltitel": "" }),
     svgEl("g", { "data-reichweite": "" }),
     svgEl("g", { "data-flottenring": "" }),
     svgEl("g", { "data-sterne": "" }),
     svgEl("g", { "data-wahl": "" }),
-    svgEl("g", { "data-treffer": "" }),
     svgEl("g", { "data-routen": "" }),
     svgEl("g", { "data-vorschau": "" }),
     svgEl("g", { "data-flotten": "" })
   );
 
   const sterne = svg.querySelector("[data-sterne]");
-  const treffer = svg.querySelector("[data-treffer]");
+  const punkte = [];
   for (let id = 1; id <= state.galaxie.anzahlSysteme; id++) {
     const pos = systemPosition(state.galaxie.seed, id);
     const stern = sternFuer(state.galaxie.seed, id, id === state.galaxie.heimatSystem);
@@ -211,10 +220,11 @@ function galaxieGeruestBauen(svg, state) {
     sterne.appendChild(
       svgEl("circle", { class: "karte-stern", cx: x, cy: y, r: 1.15, fill: stern.farbe, "data-punkt": id })
     );
-    const ziel = svgEl("circle", { class: "karte-treffer", cx: x, cy: y, r: 3.2, "data-system": id });
-    ziel.appendChild(svgEl("title"));
-    treffer.appendChild(ziel);
+    // Dieselben gerundeten Zahlen wie am Punkt: die Mitte, die der Spieler
+    // sieht, ist die Mitte, auf die das Ziel rechnet.
+    punkte.push({ id, x: Number(x), y: Number(y) });
   }
+  zielRaster = zielRasterBauen(punkte);
 
   svg.querySelector("[data-wahl]").appendChild(svgEl("circle", { class: "karte-wahl", r: 4.6, hidden: "" }));
   svg
@@ -236,12 +246,14 @@ function galaxieGeruestBauen(svg, state) {
 // Zeichenroutine, keine Transformationsmatrix, die irgendwo mitgeführt werden
 // müsste (Prinzip 5, und die Falle aus dem Auftrag).
 //
-// DIE TREFFERERKENNUNG BRAUCHT DEHALB GAR NICHTS. Der Auftrag nennt sie „die
-// eigentliche Arbeit" -- das gilt für eine Karte, die selbst transformiert
-// (Canvas, oder ein `transform` auf einer Gruppe). Bei einer viewBox rechnet
-// der Browser die Zeigerposition selbst zurück: `ereignis.target` ist bei
-// jedem Maßstab dasselbe Element wie in der Übersicht. Nachgemessen, nicht
-// angenommen (siehe Ergebnis von A-039).
+// DIE TREFFERERKENNUNG BRAUCHTE DEHALB ZUNÄCHST GAR NICHTS (A-039): bei einer
+// viewBox rechnet der Browser die Zeigerposition selbst zurück, `ereignis.target`
+// war bei jedem Maßstab dasselbe Element wie in der Übersicht. Das galt, solange
+// jedes System ein eigenes Klickelement trug -- und trug nur, solange die Ziele
+// sich nicht überlappten: bei 2.000 Systemen wählte der Browser bei Überlappung
+// das später gezeichnete (35 % Treffer bei Zoom 1, A-323). Seit A-324 wählt
+// `systemUnterZeiger` nach Abstand (js/kartenziel.js), mit der Zeigerposition
+// aus `zeigerInKarte` und dem Zoom aus `ansichtVon`.
 //
 // Der Zustand liegt bewusst NICHT im Spielstand: eine Ansicht ist keine Welt.
 // Er hängt an der SVG selbst und ist mit dem Neuladen weg -- so beauftragt.
@@ -276,8 +288,9 @@ function ansichtAnwenden(svg, a) {
   );
   svg.classList.toggle("karte-gezoomt", a.zoom > 1);
   // Die Klickziele sollen ihre Größe AUF DEM SCHIRM behalten, statt mit der
-  // Karte zu wachsen -- sonst überlappen sie bei 500 Systemen in jedem Maßstab
-  // gleich stark und der Zoom hilft beim Zielen nicht. Siehe .karte-treffer.
+  // Karte zu wachsen -- sonst hilft der Zoom beim Zielen nicht. Für Sterne
+  // rechnet das `systemUnterZeiger` (Radius / Zoom); die Variable lesen die
+  // Flottenziele im CSS (.karte-flotte-treffer).
   svg.style.setProperty("--karte-zoom", String(a.zoom));
 }
 
@@ -427,22 +440,41 @@ function galaxieVerdrahten(svg) {
       if (rueckrufe.flotte) rueckrufe.flotte(Number(flotte.dataset.flotte));
       return;
     }
-    const ziel = ereignis.target.closest("[data-system]");
-    if (ziel && rueckrufe.system) rueckrufe.system(Number(ziel.dataset.system));
+    // System nach ABSTAND (A-324): das nächste zur Zeigerposition innerhalb
+    // des Klickradius, kein Ziel im Leeren. Läuft HINTER dem Filter für den
+    // Klick nach einem Zug (zoomVerdrahten, "click" im Fangmodus).
+    const system = systemUnterZeiger(svg, ereignis);
+    if (system !== null && rueckrufe.system) rueckrufe.system(system);
   });
 
   // Der Tooltip entsteht erst beim Überfahren. Gelesen wird immer nur einer --
-  // ihn im Sekundentakt für 500 Sterne zu bauen wäre die mit Abstand teuerste
-  // Arbeit dieser Datei, und zwar für nichts.
-  svg.addEventListener("mouseover", (ereignis) => {
-    const ziel = ereignis.target.closest("[data-system]");
-    if (!ziel || !galaxieStand.state) return;
-    textSetzen(ziel.querySelector("title"), sternTitelText(galaxieStand.state, Number(ziel.dataset.system)));
-  });
+  // ihn im Sekundentakt für 2.000 Sterne zu bauen wäre die mit Abstand teuerste
+  // Arbeit dieser Datei, und zwar für nichts. Er und der Zeigefinger gehören
+  // zum selben System wie der Klick: dieselbe Funktion, dieselbe Zeigerposition.
+  let ueberSystem = null;
+  const hoverSetzen = (system) => {
+    if (system === ueberSystem) return;
+    ueberSystem = system;
+    const titel = svg.querySelector("[data-zieltitel]");
+    textSetzen(titel, system === null || !galaxieStand.state ? "" : sternTitelText(galaxieStand.state, system));
+    svg.classList.toggle("karte-ueber-ziel", system !== null);
+  };
+  svg.addEventListener("mousemove", (ereignis) => hoverSetzen(systemUnterZeiger(svg, ereignis)));
+  svg.addEventListener("mouseleave", () => hoverSetzen(null));
+}
+
+// Welches System meint ein Zeiger an dieser Stelle? Zeigerposition im
+// Kartenraum (die Zoom-Mathematik der viewBox steht in zeigerInKarte), Radius
+// KLICK_RADIUS / Zoom: das Ziel behält seine Größe AUF DEM SCHIRM, je näher man
+// heranzoomt, desto genauer trifft man.
+function systemUnterZeiger(svg, ereignis) {
+  const punkt = zeigerInKarte(svg, ereignis);
+  if (!punkt) return null;
+  return naechstesZiel(zielRaster, punkt.x, punkt.y, KLICK_RADIUS / ansichtVon(svg).zoom);
 }
 
 // `systeme` kommt fertig aus renderGalaxie: dort wird die Entfernung zum
-// nächsten eigenen Stützpunkt ohnehin für alle 500 Systeme gerechnet. Sie hier
+// nächsten eigenen Stützpunkt ohnehin für alle Systeme gerechnet. Sie hier
 // ein zweites Mal zu rechnen wäre dieselbe Schleife zweimal pro Sekunde.
 export function galaxieKarteZeichnen(svg, legende, state, opts) {
   if (!svg || !opts.sichtbar) return;
@@ -925,13 +957,13 @@ function systemObjektFuellen(state, systemId, objekt, gruppe, gewaehlterOrbit) {
   if (objekt.typ === "heimat" || eigen) klassen.push("karte-eigen");
   else if (fremdBesetzt) klassen.push("karte-besetzt");
   else if (!objekt.entdeckt) klassen.push("karte-unerforscht");
-  else if (objekt.gefahr && !objekt.verteidigerBesiegt) klassen.push("karte-gefahr");
+  else if (objekt.bewacht && !objekt.verteidigerBesiegt) klassen.push("karte-bewacht");
   else if (gesperrt) klassen.push("karte-gesperrt");
   else if (objekt.verwertet || objekt.verteidigerBesiegt) klassen.push("karte-verwertet");
   if (objekt.orbit === gewaehlterOrbit) klassen.push("karte-gewaehlt");
   attributSetzen(gruppe, "class", klassen.join(" "));
 
-  textSetzen(gruppe.querySelector("text"), objekt.entdeckt ? TYP_SYMBOL[objekt.typ] : "?");
+  textSetzen(gruppe.querySelector("text"), objekt.entdeckt ? objektSymbol(objekt) : "?");
   const halter = fremdBesetzt ? fraktionById(state, fraktionVon(planet)) : null;
   textSetzen(
     gruppe.querySelector("title"),
@@ -946,6 +978,8 @@ function systemObjektFuellen(state, systemId, objekt, gruppe, gewaehlterOrbit) {
       eigen ? t("Dein Stützpunkt: {name}", { name: planet.name }) : "",
       // Eigenname der Fraktion, roh wie überall -- er wird nicht übersetzt.
       halter ? t("Fremder Stützpunkt: {fraktion}", { fraktion: halter.name }) : "",
+      // A-333: eine Bande nennt ihr Ursprungsreich
+      halter ? fraktionHerkunftText(state, halter) : "",
     ]
       .filter(Boolean)
       .join("\n")

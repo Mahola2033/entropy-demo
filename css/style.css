@@ -50,7 +50,7 @@
 
   /* --- Farbfamilien (A-105, aus der A-103-Ausnahmeliste benannt) ----------
      Ein Name je ROLLE, nicht je Wert: zwei Rollen, die zufällig denselben
-     Hex-Wert trugen, bekommen zwei Namen (--gefahr-rahmen und
+     Hex-Wert trugen, bekommen zwei Namen (--bewacht-rahmen und
      --testmodus-reset-hover sind beide #6b2828, bewusst getrennt). */
   /* Testmodus-Bernstein: Header-Streifen (A-038), Gesperrt-Zustand (Karte/
      Liste), Schlüssel-Gegenstände, Handbuch-Überschriften, Voraussetzung-
@@ -71,9 +71,9 @@
   --testmodus-reset-knopf: #4a1c1c;
   --testmodus-reset-text: #f0a0a0;
   --testmodus-reset-hover: #6b2828;
-  /* Gefahr-/Besetzt-Rot: dieselbe Warnfarbe auf Karte und Systemliste. */
-  --gefahr-rahmen: #6b2828;
-  --gefahr-hg: #241416;
+  /* Bewacht-/Besetzt-Rot: dieselbe Warnfarbe auf Karte und Systemliste. */
+  --bewacht-rahmen: #6b2828;
+  --bewacht-hg: #241416;
   /* Fremd: Karten-Lila, zweite und letzte Farbe auf der Karte (Prinzip 11). */
   --fremd-tag-hg: #2a1e40;
   --fremd-tag-rahmen: #6a4ca8;
@@ -2688,12 +2688,12 @@ body {
    nicht zu unterscheiden (A-002). */
 .slot-besetzt {
   border-color: var(--warnung);
-  background: var(--gefahr-hg);
+  background: var(--bewacht-hg);
 }
 
-.slot-gefahr {
-  border-color: var(--gefahr-rahmen);
-  background: var(--gefahr-hg);
+.slot-bewacht {
+  border-color: var(--bewacht-rahmen);
+  background: var(--bewacht-hg);
 }
 
 .slot-gesperrt {
@@ -2816,24 +2816,15 @@ body {
   opacity: 0.22;
 }
 
-/* Die unsichtbare Klickfläche. `pointer-events: all` gilt auch für eine
-   Fläche ohne Füllung -- ohne das wäre der Kreis für die Maus gar nicht da. */
-/* Das Klickziel eines Sterns. Sein Radius steht hier und nicht mehr nur als
-   Attribut am Element, weil er vom Zoom abhängt (A-039).
-
-   Warum überhaupt: bei 500 Systemen überlappen sich die 3,2 Einheiten großen
-   Ziele in der Übersicht bereits kräftig -- gemessen wurden vier von fünf
-   Sternen von einem Nachbarn verdeckt. Wächst das Ziel beim Zoomen mit,
-   bleibt das für immer so, und der Zoom hilft beim Zielen genau nichts.
-   Geteilt durch den Maßstab behält das Ziel seine Größe AUF DEM SCHIRM: je
-   näher man herangeht, desto genauer trifft man. Das ist der Sinn der Sache.
-
-   Eine Zeile statt 500 Attributschreibungen je Zoomschritt -- `r` ist in
-   SVG2 eine CSS-Eigenschaft, und `px` heißt hier Benutzereinheit. */
-.karte-treffer {
-  r: calc(3.2px / var(--karte-zoom, 1));
-  fill: transparent;
-  pointer-events: all;
+/* Das Klickziel eines Sterns gibt es nicht mehr als Element (A-324): was ein
+   Klick meint, wählt `naechstesZiel` (js/kartenziel.js) nach ABSTAND, mit dem
+   Radius 3,2 / Zoom Karteneinheiten -- das Ziel behält seine Größe AUF DEM
+   SCHIRM, je näher man herangeht, desto genauer trifft man (A-039). Mit
+   überlappenden Elementen traf bei 2.000 Systemen nur noch jeder dritte Klick
+   das gemeinte System. Hier bleibt nur der Zeigefinger, solange ein System unter
+   dem Zeiger liegt (Klasse setzt js/karte.js bei "mousemove"); er steht NACH
+   `.karte-gezoomt` und gewinnt damit gegen den Greifzeiger. */
+.karte.karte-ueber-ziel {
   cursor: pointer;
 }
 
@@ -2875,8 +2866,8 @@ body {
   pointer-events: all;
 }
 
-/* Das Klickziel einer Flotte (A-056) -- dieselbe Rechnung wie bei
-   .karte-treffer: die sichtbare Raute ist 2,8 Einheiten hoch, ein Ziel dieser
+/* Das Klickziel einer Flotte (A-056) -- dieselbe Rechnung wie beim Stern
+   (KLICK_RADIUS in js/kartenziel.js): die sichtbare Raute ist 2,8 Einheiten hoch, ein Ziel dieser
    Größe wäre keine Bedienung, sondern Glück. Geteilt durch den Maßstab behält
    das Ziel seine Größe AUF DEM SCHIRM, statt beim Zoomen mitzuwachsen. */
 .karte-flotte-treffer {
@@ -3012,17 +3003,17 @@ body {
 
 /* Fremd besetzt: dieselbe Warnfarbe wie die fremden Flottenmarken. Keine neue
    Farbe (Prinzip 11) -- Rot beantwortet auf beiden Karten dieselbe Frage:
-   das hier gehört dir nicht. Bewusst heller als .karte-gefahr, denn ein
+   das hier gehört dir nicht. Bewusst heller als .karte-bewacht, denn ein
    besetzter Orbit ist kein Naturereignis, sondern jemand. */
 .karte-objekt.karte-besetzt .karte-objekt-scheibe {
-  fill: var(--gefahr-hg);
+  fill: var(--bewacht-hg);
   stroke: var(--warnung);
   stroke-width: 1.2;
 }
 
-.karte-objekt.karte-gefahr .karte-objekt-scheibe {
-  fill: var(--gefahr-hg);
-  stroke: var(--gefahr-rahmen);
+.karte-objekt.karte-bewacht .karte-objekt-scheibe {
+  fill: var(--bewacht-hg);
+  stroke: var(--bewacht-rahmen);
 }
 
 .karte-objekt.karte-gesperrt .karte-objekt-scheibe {
