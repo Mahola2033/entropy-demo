@@ -83,8 +83,8 @@ import {
   ZWERGPLANET_SUMME_MAX_ANTEIL,
   KOMETENWOLKE_MASSE_BEREICH_ERDMASSEN,
   KOMETENWOLKE_OHNE_RIESEN_FAKTOR,
-} from "./data.js?v=0.9.93";
-import { stromFuer, waehle, zwischen, gewichtetWaehlen, logGleichverteilt, poissonZug } from "./zufall.js?v=0.9.93";
+} from "./data.js?v=0.9.94";
+import { stromFuer, waehle, zwischen, gewichtetWaehlen, logGleichverteilt, poissonZug } from "./zufall.js?v=0.9.94";
 import {
   reicheOrteGenerieren,
   WRACK_ARTEN,
@@ -92,8 +92,8 @@ import {
   STRUKTUR_ARTEN,
   BEWACHTE_ARTEN,
   LEERER_ORBIT,
-} from "./reiche-orte.js?v=0.9.93";
-import { sternFuer, leuchtkraftAusMasse, bildungstypVon, rundSignifikant, normalverteilt, heimatSystemVon, entfernung, systemPosition } from "./galaxie.js?v=0.9.93";
+} from "./reiche-orte.js?v=0.9.94";
+import { sternFuer, leuchtkraftAusMasse, bildungstypVon, rundSignifikant, normalverteilt, heimatSystemVon, entfernung, systemPosition } from "./galaxie.js?v=0.9.94";
 
 // Systeme können deutlich mehr als 50 Objekte tragen (die alte harte
 // Obergrenze ist mit A-305 gefallen) -- römische Zahlen daher berechnen
@@ -615,7 +615,8 @@ export function systemNaturGenerieren(seed, systemId, optionen = {}) {
   // guertelStrom: *1601+Index, dazu *2017 Kometenwolke, *2003+Index Monde,
   // *2029+Index Riesenstrahlung mit maskierter Saat (A-327), *4099
   // Imperiennamen mit maskierter Saat (A-330), *4909 und *6469 die Relikte an
-  // Ursprungs-Orten mit maskierter Saat (A-334)) -- derselbe Kollisionsschutz wie
+  // Ursprungs-Orten mit maskierter Saat (A-334); Name, Bauherr und Zweck je Ort
+  // (A-335) mit eigener Maske ohne Primzahl, js/ursprungs-orte.js) -- derselbe Kollisionsschutz wie
   // beim bestehenden Muster. Die Reiche-Schicht hat seit A-319 ihre eigenen Ströme
   // (js/reiche-orte.js, *3571 + Art).
   const bahnRng = stromFuer(seed, systemId * 953);
@@ -906,7 +907,8 @@ export function heimatPlanetVon(system, heimat) {
 // systemPosition: *7919, guertelStrom: *1601+Index, bahnRng: *953,
 // Reiche-Schicht: *3571+Art, Riesenstrahlung (A-327): *2029+Index mit
 // maskierter Saat, Imperiennamen (A-330): *4099 mit maskierter Saat, Relikte an
-// Ursprungs-Orten (A-334): *4909 und *6469 mit maskierter Saat).
+// Ursprungs-Orten (A-334): *4909 und *6469 mit maskierter Saat; Name,
+// Bauherr und Zweck je Ort (A-335): eigene Maske ohne Primzahl).
 // `index` ist die Stelle des Körpers in `natur` (vor dem
 // Sortieren) -- die Heimat hat Index 0.
 //

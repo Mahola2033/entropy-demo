@@ -19,7 +19,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.9.93";
+export const VERSION = "0.9.94";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von vollversion.mjs (bis A-272: uebernehmen.mjs) beim
@@ -66,7 +66,7 @@ export const DEMO_SAAT = 20269933;
 // wird an den anzeigenden Stellen, nicht hier. Einzige Ausnahme ist
 // voraussetzungenText() weiter unten -- die einzige Funktion in dieser Datei,
 // die Anzeigetext zusammensetzt.
-import { t } from "./sprache.js?v=0.9.93";
+import { t } from "./sprache.js?v=0.9.94";
 
 // A-164 (31.08.2026): Von 50 auf 125.000 (×2.500) -- die Maßstabsrunde.
 // Vorher skalierte EIN MASSSTAB Material, Menschen und Arbeitskraft
@@ -4770,3 +4770,79 @@ export const ABBAUSCHIFF_FOERDERSTUFE = 1;
 // 6 Stunden: in derselben Größenordnung wie eine einzelne Bergungsfahrt,
 // spürbar aber nicht dominant (Prinzip 6, Zahlen sind spät).
 export const ABBAUSCHIFF_DAUER_STUNDEN = 6;
+
+// --- Zweck, Bauherr und Name eines Ursprungs-Ortes (A-335) --------------------
+// Tobi, 06.10.2026, R-71 (alle drei Fragen die Empfehlung): je Ort ein ERLOSCHENER
+// Bauherr mit eigenem Namen, ein Zweck aus EINER Tabelle, ein erzeugter Name. Ob es je
+// Bauherren gab, weiß die Wirklichkeit nicht (○, Prinzip 0c): das Gameplay setzt den Ort
+// des Szenarios, die Welt wird dafür nicht verbogen. Erloschen IST das Setting; was
+// weiterläuft, sind Maschinen ohne Bauherr, die Wächter.
+//
+// DIE TABELLE DER ZWECKE (Prinzip 5a, eine Tabelle): `schluessel` steht im Spielstand
+// (daten.zweck), `bezeichnung` ist der Anzeigetext (durch t() in js/ui.js). `gewicht` ist
+// die Wahrscheinlichkeit des Zwecks unter allen Orten, `strukturen` die der Strukturarten
+// (STRUKTUR_ARTEN, js/reiche-orte.js) an einem Ort dieses Zwecks: die Strukturart FOLGT
+// aus dem Zweck (Prinzip 15, Entferntes hinterlässt keine Ruinen: ein Monolith ist ein
+// Grabmal, eine Kammer ein Archiv, ein Resonanzkörper ein Instrument). Der Anteil der
+// Wächter-Relikte bleibt URSPRUNG_WAECHTER_ANTEIL. Werft und Station tragen alle drei
+// Arten gleich: ein Ort, an dem gearbeitet und gewohnt wurde, hat von allem etwas (○).
+// Die Summe über alle Orte bleibt bei einem Drittel je Art (die Forschungen, die eine Art
+// vergibt, ändern ihre Häufigkeit nicht). Eine Strukturart ohne Zeile ist ein Fehler im
+// Test (tests/ursprungs-orte.test.js), kein stiller Standard.
+export const URSPRUNG_ZWECKE = [
+  {
+    schluessel: "observatorium", bezeichnung: "Observatorium", gewicht: 1,
+    strukturen: { "Fremdartiger Resonanzkörper": 6, "Versiegelter Monolith": 2, "Verschlossene Artefaktkammer": 2 },
+  },
+  {
+    schluessel: "werft", bezeichnung: "Werft", gewicht: 1,
+    strukturen: { "Fremdartiger Resonanzkörper": 1, "Versiegelter Monolith": 1, "Verschlossene Artefaktkammer": 1 },
+  },
+  {
+    schluessel: "archiv", bezeichnung: "Archiv", gewicht: 1,
+    strukturen: { "Fremdartiger Resonanzkörper": 2, "Versiegelter Monolith": 2, "Verschlossene Artefaktkammer": 6 },
+  },
+  {
+    schluessel: "grabstaette", bezeichnung: "Grabstätte", gewicht: 1,
+    strukturen: { "Fremdartiger Resonanzkörper": 2, "Versiegelter Monolith": 6, "Verschlossene Artefaktkammer": 2 },
+  },
+  {
+    schluessel: "station", bezeichnung: "Station", gewicht: 1,
+    strukturen: { "Fremdartiger Resonanzkörper": 1, "Versiegelter Monolith": 1, "Verschlossene Artefaktkammer": 1 },
+  },
+];
+
+// Die Silben der erzeugten Namen (Eigennamen: sprachneutral, nie übersetzt). Ein Name ist
+// eine erste Silbe, null bis zwei Folgesilben (eine Folgesilbe beginnt mit einem Konsonanten,
+// damit keine zwei Vokale zusammenstoßen) und eine Endung. Der Raum trägt die Orte der
+// Zielgröße: ein Ort je 100 Systeme sind bei der Zwerggalaxie (~100.000 Systeme) rund 1.000
+// Orte je Saat; die Zahl der möglichen Namen steht im Ergebnis von A-335.
+// ORTSNAMEN klingen nach Plätzen (kurz, hart), BAUHERRENNAMEN nach Völkern (Endung auf
+// -ari, -oni ...): Endungen und Folgesilben sind getrennt, damit ein Ort nie so heißt wie sein
+// Bauherr.
+export const URSPRUNG_ORTSNAMEN = {
+  erste: [
+    "va", "ke", "mor", "tal", "sa", "dre", "ul", "bran", "nei", "kor", "ha", "zel",
+    "an", "or", "lu", "fe", "gan", "thi", "ste", "wen", "ri", "ba", "dun", "ys",
+    "el", "ma", "pol", "qui", "jo", "ta", "ren", "si", "dal", "ku", "vo", "lis",
+    "men", "ar", "tho", "gri", "ne", "pa", "hel", "zu", "cor", "bel", "fa", "ro",
+  ],
+  folge: [
+    "va", "ke", "mor", "tal", "sa", "dre", "bran", "kor", "ha", "zel", "lu", "fe",
+    "gan", "thi", "ste", "wen", "ri", "ba", "dun", "ma", "pol", "ta", "ren", "si",
+    "dal", "ku", "vo", "lis", "men", "tho", "gri", "ne", "pa", "hel", "zu", "ro",
+  ],
+  ende: ["", "a", "ia", "en", "ar", "on", "um", "ek", "is", "or", "th", "os", "ix", "eth"],
+};
+export const URSPRUNG_BAUHERRENNAMEN = {
+  erste: [
+    "kes", "tor", "vel", "nar", "mir", "dra", "sul", "haz", "lor", "zan", "bel", "gur",
+    "fen", "oth", "ish", "yar", "cal", "dem", "rho", "tal", "uv", "ben", "sim", "ket",
+    "ulm", "wah", "pyr", "zeb", "nov", "kar", "hil", "tes",
+  ],
+  folge: [
+    "sa", "ra", "ne", "ko", "li", "tu", "ve", "mo", "di", "ga", "ha", "ze",
+    "ba", "fi", "ru", "so", "ta", "ki", "no", "la",
+  ],
+  ende: ["ari", "oni", "ith", "ani", "ush", "ori", "ae", "esh", "eri", "uin", "azi", "ond"],
+};

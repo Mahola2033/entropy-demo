@@ -50,18 +50,18 @@ import {
   VORKOMMEN_RESSOURCEN,
   ARBEITSKRAFT_LEERLAUF,
   DROSSELUNG,
-} from "./data.js?v=0.9.93";
-import { VARIANTE } from "./variante.js?v=0.9.93";
-import { stromFuer, waehle } from "./zufall.js?v=0.9.93";
-import { systemGenerieren } from "./welt.js?v=0.9.93";
+} from "./data.js?v=0.9.94";
+import { VARIANTE } from "./variante.js?v=0.9.94";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.94";
+import { systemGenerieren } from "./welt.js?v=0.9.94";
 // A-082: eigener Zufallsstrom für den Heimatweltnamen. Die Kennung ist eine
 // beliebige feste Zahl -- wichtig ist nur, dass sie keiner Systemkennung in
 // die Quere kommt und sich nie wieder ändert (sonst hieße jede bestehende
 // Partie beim nächsten Laden anders).
 const HEIMATWELT_NAMEN_KENNUNG = 900001;
-import { galaxiePlanen, entfernung, schluesselImSystem, supernovaSystemFuer } from "./galaxie.js?v=0.9.93";
-import { skalieren } from "./ressourcen.js?v=0.9.93";
-import { t } from "./sprache.js?v=0.9.93";
+import { galaxiePlanen, entfernung, schluesselImSystem, supernovaSystemFuer } from "./galaxie.js?v=0.9.94";
+import { skalieren } from "./ressourcen.js?v=0.9.94";
+import { t } from "./sprache.js?v=0.9.94";
 
 // v0.28: Sterntypen verschieben die Orbitzonen -- dieselbe Saat erzeugt jetzt
 // andere Planeten. Ein alter Spielstand trüge Fortschritt zu Orbits, in denen
@@ -142,7 +142,11 @@ import { t } from "./sprache.js?v=0.9.93";
 // und tragen daten.ursprung und daten.alterJahre. Ein Stand der Version 45 trägt Strukturen,
 // Wächter und Orbitnummern der alten Streuung (rund 4.000 je 2.000 Systeme) -- sichern und
 // verwerfen wie bei 44 -> 45, kein Kettenglied.
-export const SAVE_VERSION = 46;
+// 46 -> 47 (A-335, 06.10.2026): ein Relikt trägt den NAMEN seines Ursprungs-Ortes in daten.ursprung
+// (bis 46 die Ortsnummer, eine Zahl) und dazu daten.zweck (Schlüssel) und daten.bauherr (Name); die
+// Strukturart folgt dem Zweck des Ortes. Ein Stand der Version 46 trägt Strukturen mit Ortsnummer und
+// der alten Artenverteilung -- sichern und verwerfen wie bei 45 -> 46, kein Kettenglied.
+export const SAVE_VERSION = 47;
 
 function startRessourcen(voll) {
   const res = {};

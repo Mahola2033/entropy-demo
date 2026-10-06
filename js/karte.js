@@ -32,10 +32,10 @@
 // Eine geschlossene Ansicht darf keine Rechenzeit kosten -- eine Messung hat
 // der alten Galaxieansicht 4,5 ms pro Sekunde nachgewiesen, auch geschlossen.
 
-import { GALAXIE_REGELN, SPIELER_FRAKTION, objektSymbol } from "./data.js?v=0.9.93";
-import { systemPosition, systemName, sternFuer } from "./galaxie.js?v=0.9.93";
-import { flottePosition, schiffeText, flotteRestreichweite } from "./flotten.js?v=0.9.93";
-import { holeSystem, objektGesperrt } from "./systeme.js?v=0.9.93";
+import { GALAXIE_REGELN, SPIELER_FRAKTION, objektSymbol } from "./data.js?v=0.9.94";
+import { systemPosition, systemName, sternFuer } from "./galaxie.js?v=0.9.94";
+import { flottePosition, schiffeText, flotteRestreichweite } from "./flotten.js?v=0.9.94";
+import { holeSystem, objektGesperrt } from "./systeme.js?v=0.9.94";
 import {
   planetenVon,
   planetAn,
@@ -45,11 +45,11 @@ import {
   untersuchteOrbits,
   fraktionVon,
   fraktionById,
-} from "./state.js?v=0.9.93";
-import { stromFuer } from "./zufall.js?v=0.9.93";
-import { zielRasterBauen, naechstesZiel, KLICK_RADIUS } from "./kartenziel.js?v=0.9.93";
-import { t, sprache, gebietsschema } from "./sprache.js?v=0.9.93";
-import { listeAbgleichen, attributSetzen, textSetzen, fmtDauer, fraktionHerkunftText } from "./ui.js?v=0.9.93";
+} from "./state.js?v=0.9.94";
+import { stromFuer } from "./zufall.js?v=0.9.94";
+import { zielRasterBauen, naechstesZiel, KLICK_RADIUS } from "./kartenziel.js?v=0.9.94";
+import { t, sprache, gebietsschema } from "./sprache.js?v=0.9.94";
+import { listeAbgleichen, attributSetzen, textSetzen, fmtDauer, fraktionHerkunftText } from "./ui.js?v=0.9.94";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 

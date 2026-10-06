@@ -28,6 +28,15 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.9.94",
+    de: [
+      "Die alten Orte heißen jetzt anders: Relikte tragen einen Ortsnamen, einen Bauherrn und einen Zweck. An jedem Ursprungs-Ort stand einmal ein Volk, das es nicht mehr gibt -- ein Observatorium, eine Werft, ein Archiv, eine Grabstätte oder eine Station. Die Orbitzeile eines Relikts nennt es: \"etwa 41.000 Jahre alt · Archiv der Kessari, Ort Varen\". Die Namen sind erfunden und hängen nicht an der Größe der Galaxie: derselbe Ort heißt in jeder Galaxie gleicher Saat gleich. Welche Art Struktur an einem Ort liegt, folgt seinem Zweck: ein Observatorium trägt meist Resonanzkörper, ein Archiv Artefaktkammern, eine Grabstätte Monolithen. Wo die Relikte liegen, wie alt sie sind und was sie bringen, bleibt wie es war. Starte ein neues Spiel -- ein alter Spielstand wird beim Laden gesichert und verworfen.",
+    ],
+    en: [
+      "The old sites are named differently now: relics carry a site name, a builder and a purpose. At every origin site a people once stood that no longer exists -- an observatory, a shipyard, an archive, a burial site or a station. The orbit line of a relic says so: \"about 41,000 years old · Archive of the Kessari, site Varen\". The names are invented and do not depend on the size of the galaxy: the same site has the same name in every galaxy of the same seed. Which kind of structure lies at a site follows its purpose: an observatory mostly carries resonance bodies, an archive artifact chambers, a burial site monoliths. Where the relics lie, how old they are and what they yield stays as it was. Start a new game -- an old save is backed up and discarded on loading.",
+    ],
+  },
+  {
     version: "0.9.93",
     de: [
       "Strukturen und Wächter gibt es nur noch an wenigen Orten, an denen früher jemand war. Ein solcher Ursprungs-Ort liegt im Mittel bei jedem hundertsten System; rund um ihn trägt etwa jedes siebzehnte System ein Relikt, im Mittel viereinhalb je Ort, drei Viertel Strukturen und ein Viertel Wächter. Jedes Relikt nennt sein Alter und seinen Ursprung -- \"etwa 41.000 Jahre alt · Ursprungs-Ort 12\" --, und die Relikte eines Ortes sind aus demselben Zeitalter: zwischen 5.000 und 5 Millionen Jahre alt. In deiner Nachbarschaft liegt dadurch meist keines mehr; wer Beute sucht, muss einen Ursprungs-Ort finden. Starte ein neues Spiel -- ein alter Spielstand wird beim Laden gesichert und verworfen. Die Orbitnummern verschieben sich, weil weit weniger Orte im System liegen.",

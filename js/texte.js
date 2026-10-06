@@ -426,7 +426,13 @@ export const EN = {
 
   // --- Herkunft und Alter eines Relikts (A-334) ---------------------------
   "etwa {jahre} Jahre alt": "about {jahre} years old",
-  "Ursprungs-Ort {nummer}": "Origin site {nummer}",
+  "{zweck} der {bauherr}, Ort {ort}": "{zweck} of the {bauherr}, site {ort}",
+  // Zwecke der Ursprungs-Orte (A-335, URSPRUNG_ZWECKE in js/data.js)
+  // (Werft: schon oben)
+  Observatorium: "Observatory",
+  Archiv: "Archive",
+  Grabstätte: "Burial site",
+  Station: "Station",
 
   // --- Herkunft und Alter eines Wracks (A-332) ----------------------------
   "dein Imperium": "your empire",

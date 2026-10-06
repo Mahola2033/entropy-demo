@@ -58,8 +58,9 @@ import {
   VORKOMMEN_MELDESCHWELLE,
   VORKOMMEN_RATE_SPEC,
   ERDMASSE_T,
-} from "./data.js?v=0.9.93";
-import { VARIANTE } from "./variante.js?v=0.9.93";
+  URSPRUNG_ZWECKE,
+} from "./data.js?v=0.9.94";
+import { VARIANTE } from "./variante.js?v=0.9.94";
 import {
   effektiveRaten,
   angezeigteRate,
@@ -144,7 +145,7 @@ import {
   fossilReichweiteMs,
   fossilVerbrauchProStunde,
   foerderErgiebigkeit,
-} from "./state.js?v=0.9.93";
+} from "./state.js?v=0.9.94";
 import {
   bauStarten,
   forschungStarten,
@@ -222,7 +223,7 @@ import {
   routeMindestbeladungSetzen,
   routeBeladungAnteil,
   reichName,
-} from "./simulation.js?v=0.9.93";
+} from "./simulation.js?v=0.9.94";
 import {
   flottePosition,
   reiseAnteil,
@@ -243,26 +244,26 @@ import {
   flotteSiedlerKapazitaet,
   flotteLadungAnteile,
   flotteTankAnteile,
-} from "./flotten.js?v=0.9.93";
-import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.93";
-import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.93";
-import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.93";
+} from "./flotten.js?v=0.9.94";
+import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.94";
+import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.94";
+import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.94";
 // Nur für den Neustart-Knopf im Abspann. Der Weg dorthin ist derselbe wie im
 // Testmodus (js/testmodus.js) -- ein zweiter Reset wäre eine zweite Wahrheit
 // darüber, was "neu anfangen" bedeutet.
-import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.93";
-import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.93";
-import { systemName, sternFuer } from "./galaxie.js?v=0.9.93";
+import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.94";
+import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.94";
+import { systemName, sternFuer } from "./galaxie.js?v=0.9.94";
 // Die beiden Karten. Sie holen sich von hier `listeAbgleichen` zurück -- ein
 // Ringtausch, der trägt, weil keine der beiden Dateien beim LADEN etwas aus
 // der anderen benutzt, sondern erst beim Zeichnen. Die Alternative wäre ein
 // zweiter Abgleich-Mechanismus in karte.js gewesen, und genau davor warnt
 // Prinzip 5.
-import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.93";
-import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.93";
-import { feedbackAdresse } from "./feedback.js?v=0.9.93";
-import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.93";
-import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.93";
+import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.94";
+import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.94";
+import { feedbackAdresse } from "./feedback.js?v=0.9.94";
+import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.94";
+import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.94";
 
 // UI-lokaler Regler-Zustand für die Flotten-Beladung/Tanken-Schieber --
 // bewusst NICHT Teil des Spielzustands. Nötig, weil render() auch von einem
@@ -8298,16 +8299,19 @@ function eigenZusammensetzungText(eigen) {
   return zusammensetzungText({ klasse: eigen.klasse, wasser: eigen.wasser, masse, monde: eigen.monde });
 }
 
-// Herkunft und Alter eines Relikts (A-334): "etwa 40.000 Jahre alt · Ursprungs-Ort 12".
-// Das Alter steht auf zwei gültige Stellen gerundet: ein Alter von 41.370 Jahren wäre
-// eine Genauigkeit, die niemand kennt (○, die Wirklichkeit schweigt). Ein Name für den
-// Ort kommt mit dem Baustein R-6.
+// Herkunft und Alter eines Relikts (A-334, A-335): "etwa 40.000 Jahre alt · Archiv der Kessari,
+// Ort Varen". Das Alter steht auf zwei gültige Stellen gerundet: ein Alter von 41.370 Jahren
+// wäre eine Genauigkeit, die niemand kennt (○, die Wirklichkeit schweigt). Ortsname und Bauherr
+// sind Eigennamen und bleiben unübersetzt; der Zweck (Schlüssel im Stand, Text aus
+// URSPRUNG_ZWECKE) und der Satzbau gehen durch t().
 export function reliktHerkunftText(daten) {
-  if (!daten || !Number.isInteger(daten.ursprung) || !Number.isInteger(daten.alterJahre)) return "";
+  if (!daten || typeof daten.ursprung !== "string" || typeof daten.bauherr !== "string" || !Number.isInteger(daten.alterJahre)) return "";
+  const zweck = URSPRUNG_ZWECKE.find((z) => z.schluessel === daten.zweck);
+  if (!zweck) return "";
   const stelle = 10 ** Math.max(0, Math.floor(Math.log10(Math.max(1, daten.alterJahre))) - 1);
   const jahre = Math.round(daten.alterJahre / stelle) * stelle;
   const alter = t("etwa {jahre} Jahre alt", { jahre: jahre.toLocaleString(gebietsschema()) });
-  return `${alter} · ${t("Ursprungs-Ort {nummer}", { nummer: daten.ursprung })}`;
+  return `${alter} · ${t("{zweck} der {bauherr}, Ort {ort}", { zweck: t(zweck.bezeichnung), bauherr: daten.bauherr, ort: daten.ursprung })}`;
 }
 
 export function slotDetail(state, objekt, gesperrt, eigen) {

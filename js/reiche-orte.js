@@ -20,8 +20,9 @@
 // Richtung auf der Karte: *1013, Namensliste: 15485863, Riesenstrahlung
 // (A-327): *2029+Index mit maskierter Saat, Imperiennamen (A-330): *4099 mit
 // maskierter Saat, Relikte an Ursprungs-Orten (A-334): *4909 und *6469 je
-// (System, Ort) mit maskierter Saat; der Ortsstrom je Zelle in js/ursprungs-orte.js
-// trägt keine Primzahl und ebenfalls eine maskierte Saat). Weil artNummer
+// (System, Ort) mit maskierter Saat; der Ortsstrom je Zelle und der Strom für Name,
+// Bauherr und Zweck je Ort (A-335) in js/ursprungs-orte.js tragen keine Primzahl und je
+// eine eigene Maske der Saat). Weil artNummer
 // kleiner als die Primzahl ist, teilen sich zwei Arten nie einen Strom.
 //
 // ANZAHL, ORT UND INHALT EINER ART kommen aus demselben Strom dieser Art:
@@ -57,8 +58,10 @@
 // Systeme, im Mittel 4,5 Relikte je Ort, ein Viertel davon Wächter). Der alte Strom
 // "struktur" und die Wächter-Würfe im Strom "bewacht" liefern keine Objekte mehr; der
 // Strom "bewacht" zieht trotzdem jeden Zug (Orte und Flotten der Piratenposten
-// bleiben). Jedes Relikt trägt `daten.ursprung` (Ortsnummer) und `daten.alterJahre`
-// (5.000 bis 5 Mio., die Relikte eines Ortes in einem Zeitalter). Die Position des
+// bleiben). Jedes Relikt trägt `daten.ursprung` (Name des Ortes), `daten.zweck` (Schlüssel,
+// URSPRUNG_ZWECKE), `daten.bauherr` (Name des erloschenen Volkes) und `daten.alterJahre`
+// (5.000 bis 5 Mio., die Relikte eines Ortes in einem Zeitalter, A-335). Die Strukturart
+// folgt dem Zweck des Ortes (ein Zug, wie zuvor). Die Position des
 // Systems kommt als Parameter herein (kein Import aus welt.js oder galaxie.js).
 //
 // DIE ANZAHL WIRD EINMAL GEZOGEN (A-320), vor dem ersten Eintrag der Art, und
@@ -77,9 +80,10 @@ import {
   URSPRUNG_ALTER_MIN_JAHRE,
   URSPRUNG_ALTER_MAX_JAHRE,
   URSPRUNG_ALTER_STREUUNG,
-} from "./data.js?v=0.9.93";
-import { stromFuer, waehle, zwischen, logGleichverteilt } from "./zufall.js?v=0.9.93";
-import { URSPRUNG_SAAT_MASKE, ursprungsOrteUm, ortNummer, relikteWahrscheinlichkeit } from "./ursprungs-orte.js?v=0.9.93";
+  URSPRUNG_ZWECKE,
+} from "./data.js?v=0.9.94";
+import { stromFuer, waehle, zwischen, logGleichverteilt, gewichtetWaehlen } from "./zufall.js?v=0.9.94";
+import { URSPRUNG_SAAT_MASKE, ursprungsOrteUm, relikteWahrscheinlichkeit } from "./ursprungs-orte.js?v=0.9.94";
 
 export const WRACK_ARTEN = ["Havarierter Erkunder"];
 // Ein Wrack IST ein Schiff (A-326, Prinzip 0c): welches, steht hier, EINE
@@ -106,6 +110,12 @@ export const ANOMALIE_ARTEN = [
 export const STRUKTUR_ARTEN = [
   "Versiegelter Monolith", "Fremdartiger Resonanzkörper", "Verschlossene Artefaktkammer",
 ];
+// Die Strukturart FOLGT dem Zweck des Ortes (A-335): je Zweck eine gewichtete Tabelle über
+// STRUKTUR_ARTEN, gebaut aus URSPRUNG_ZWECKE (js/data.js, die eine Tabelle). Eine Art ohne
+// Gewicht bekommt 0 und fällt im Test auf (tests/ursprungs-orte.test.js), nicht hier still.
+const STRUKTUR_NACH_ZWECK = new Map(
+  URSPRUNG_ZWECKE.map((z) => [z.schluessel, STRUKTUR_ARTEN.map((art) => ({ art, gewicht: z.strukturen[art] ?? 0 }))]),
+);
 // A-329: die Kategorie "Gefahr" gibt es nicht mehr. Zwei Arten bleiben, EINE
 // Tabelle: ein Piratenposten (eigener Typ, aus ihm erwachen die Banden) und ein
 // Wächter-Relikt (eine Struktur, die ihre Flotte noch trägt und sie nie
@@ -154,7 +164,7 @@ function reliktEintraege(seed, systemId, position, abstand) {
     // (multiplikativ, wie ein Alter über Größenordnungen streut).
     const faktor = Math.exp((rng() * 2 - 1) * Math.log(1 + URSPRUNG_ALTER_STREUUNG));
     const alterJahre = Math.round(Math.min(URSPRUNG_ALTER_MAX_JAHRE, Math.max(URSPRUNG_ALTER_MIN_JAHRE, ort.alterJahre * faktor)));
-    const herkunft = { ursprung: ortNummer(ort), alterJahre };
+    const herkunft = { ursprung: ort.name, zweck: ort.zweck, bauherr: ort.bauherr, alterJahre };
     if (waechter) {
       // Struktur mit Wächterflotte, ohne Schloss (`benoetigt` leer) -- die Flotte ist
       // die Sperre (A-329); Flotte und Ertrag wie die der früheren Drohnen.
@@ -173,7 +183,8 @@ function reliktEintraege(seed, systemId, position, abstand) {
       eintraege.push({
         abstandAE,
         typ: "struktur",
-        bezeichnung: waehle(rng, STRUKTUR_ARTEN),
+        // EIN Zug, wie vor A-335 (waehle zog ebenfalls einen): Abstand, Forschung, Ertrag bleiben.
+        bezeichnung: gewichtetWaehlen(rng, STRUKTUR_NACH_ZWECK.get(ort.zweck)).art,
         benoetigt: { forschung: waehle(rng, ENTDECKBARE_FORSCHUNGEN) },
         daten: {
           ertrag: { metall: mengeSkaliert(zwischen(rng, 1500, 4000)), silizium: mengeSkaliert(zwischen(rng, 1200, 3000)) },
