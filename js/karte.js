@@ -32,10 +32,10 @@
 // Eine geschlossene Ansicht darf keine Rechenzeit kosten -- eine Messung hat
 // der alten Galaxieansicht 4,5 ms pro Sekunde nachgewiesen, auch geschlossen.
 
-import { GALAXIE_REGELN, SPIELER_FRAKTION, objektSymbol } from "./data.js?v=0.9.94";
-import { systemPosition, systemName, sternFuer } from "./galaxie.js?v=0.9.94";
-import { flottePosition, schiffeText, flotteRestreichweite } from "./flotten.js?v=0.9.94";
-import { holeSystem, objektGesperrt } from "./systeme.js?v=0.9.94";
+import { GALAXIE_REGELN, SPIELER_FRAKTION, objektSymbol } from "./data.js?v=0.9.95";
+import { systemPosition, systemName, sternFuer } from "./galaxie.js?v=0.9.95";
+import { flottePosition, schiffeText, flotteRestreichweite } from "./flotten.js?v=0.9.95";
+import { holeSystem, objektGesperrt } from "./systeme.js?v=0.9.95";
 import {
   planetenVon,
   planetAn,
@@ -45,11 +45,11 @@ import {
   untersuchteOrbits,
   fraktionVon,
   fraktionById,
-} from "./state.js?v=0.9.94";
-import { stromFuer } from "./zufall.js?v=0.9.94";
-import { zielRasterBauen, naechstesZiel, KLICK_RADIUS } from "./kartenziel.js?v=0.9.94";
-import { t, sprache, gebietsschema } from "./sprache.js?v=0.9.94";
-import { listeAbgleichen, attributSetzen, textSetzen, fmtDauer, fraktionHerkunftText } from "./ui.js?v=0.9.94";
+} from "./state.js?v=0.9.95";
+import { stromFuer } from "./zufall.js?v=0.9.95";
+import { zielRasterBauen, naechstesZiel, klickUrteil, KLICK_RADIUS } from "./kartenziel.js?v=0.9.95";
+import { t, sprache, gebietsschema } from "./sprache.js?v=0.9.95";
+import { listeAbgleichen, attributSetzen, textSetzen, fmtDauer, fraktionHerkunftText } from "./ui.js?v=0.9.95";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -254,6 +254,9 @@ function galaxieGeruestBauen(svg, state) {
 // das später gezeichnete (35 % Treffer bei Zoom 1, A-323). Seit A-324 wählt
 // `systemUnterZeiger` nach Abstand (js/kartenziel.js), mit der Zeigerposition
 // aus `zeigerInKarte` und dem Zoom aus `ansichtVon`.
+// Seit A-339 zoomt ein Klick, dessen nächstes System auf dem Schirm nicht eindeutig
+// ist (der zweitnächste Stern höchstens 0,75 Pixel vom Klick entfernt), auf die
+// Stelle, statt einen Nachbarn zu wählen (`klickUrteil`, js/kartenziel.js).
 //
 // Der Zustand liegt bewusst NICHT im Spielstand: eine Ansicht ist keine Welt.
 // Er hängt an der SVG selbst und ist mit dem Neuladen weg -- so beauftragt.
@@ -443,8 +446,18 @@ function galaxieVerdrahten(svg) {
     // System nach ABSTAND (A-324): das nächste zur Zeigerposition innerhalb
     // des Klickradius, kein Ziel im Leeren. Läuft HINTER dem Filter für den
     // Klick nach einem Zug (zoomVerdrahten, "click" im Fangmodus).
-    const system = systemUnterZeiger(svg, ereignis);
-    if (system !== null && rueckrufe.system) rueckrufe.system(system);
+    // Im Gedränge (A-339) ist das nächste auf dem Schirm nicht eindeutig: dann wählt
+    // der Klick nichts, sondern zoomt auf die Stelle (vorhandenes `zoomen`, der Punkt
+    // unter dem Zeiger bleibt stehen); bei ZOOM_MAX gibt es nichts mehr zu vergrößern.
+    const punkt = zeigerInKarte(svg, ereignis);
+    if (!punkt) return;
+    const ansicht = ansichtVon(svg);
+    const urteil = klickUrteil(zielRaster, punkt.x, punkt.y, KLICK_RADIUS / ansicht.zoom, pixelProEinheit(svg));
+    if (urteil.mehrdeutig && ansicht.zoom < ZOOM_MAX) {
+      zoomen(svg, Math.max(ZOOM_SCHRITT, urteil.faktor), punkt);
+      return;
+    }
+    if (urteil.system !== null && rueckrufe.system) rueckrufe.system(urteil.system);
   });
 
   // Der Tooltip entsteht erst beim Überfahren. Gelesen wird immer nur einer --
@@ -461,6 +474,13 @@ function galaxieVerdrahten(svg) {
   };
   svg.addEventListener("mousemove", (ereignis) => hoverSetzen(systemUnterZeiger(svg, ereignis)));
   svg.addEventListener("mouseleave", () => hoverSetzen(null));
+}
+
+// Bildpunkte je Karteneinheit (aus der Bildschirmmatrix: kennt viewBox, Zoom und die
+// Randstreifen). NaN, wenn es keine Matrix gibt -- dann gilt kein Klick als mehrdeutig.
+function pixelProEinheit(svg) {
+  const ctm = svg.getScreenCTM();
+  return ctm ? Math.hypot(ctm.a, ctm.b) : NaN;
 }
 
 // Welches System meint ein Zeiger an dieser Stelle? Zeigerposition im

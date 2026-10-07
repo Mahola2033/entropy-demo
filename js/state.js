@@ -50,18 +50,18 @@ import {
   VORKOMMEN_RESSOURCEN,
   ARBEITSKRAFT_LEERLAUF,
   DROSSELUNG,
-} from "./data.js?v=0.9.94";
-import { VARIANTE } from "./variante.js?v=0.9.94";
-import { stromFuer, waehle } from "./zufall.js?v=0.9.94";
-import { systemGenerieren } from "./welt.js?v=0.9.94";
+} from "./data.js?v=0.9.95";
+import { VARIANTE } from "./variante.js?v=0.9.95";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.95";
+import { systemGenerieren } from "./welt.js?v=0.9.95";
 // A-082: eigener Zufallsstrom für den Heimatweltnamen. Die Kennung ist eine
 // beliebige feste Zahl -- wichtig ist nur, dass sie keiner Systemkennung in
 // die Quere kommt und sich nie wieder ändert (sonst hieße jede bestehende
 // Partie beim nächsten Laden anders).
 const HEIMATWELT_NAMEN_KENNUNG = 900001;
-import { galaxiePlanen, entfernung, schluesselImSystem, supernovaSystemFuer } from "./galaxie.js?v=0.9.94";
-import { skalieren } from "./ressourcen.js?v=0.9.94";
-import { t } from "./sprache.js?v=0.9.94";
+import { galaxiePlanen, entfernung, schluesselImSystem, supernovaSystemFuer } from "./galaxie.js?v=0.9.95";
+import { skalieren } from "./ressourcen.js?v=0.9.95";
+import { t } from "./sprache.js?v=0.9.95";
 
 // v0.28: Sterntypen verschieben die Orbitzonen -- dieselbe Saat erzeugt jetzt
 // andere Planeten. Ein alter Spielstand trüge Fortschritt zu Orbits, in denen

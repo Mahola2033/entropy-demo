@@ -59,8 +59,8 @@ import {
   VORKOMMEN_RATE_SPEC,
   ERDMASSE_T,
   URSPRUNG_ZWECKE,
-} from "./data.js?v=0.9.94";
-import { VARIANTE } from "./variante.js?v=0.9.94";
+} from "./data.js?v=0.9.95";
+import { VARIANTE } from "./variante.js?v=0.9.95";
 import {
   effektiveRaten,
   angezeigteRate,
@@ -145,7 +145,7 @@ import {
   fossilReichweiteMs,
   fossilVerbrauchProStunde,
   foerderErgiebigkeit,
-} from "./state.js?v=0.9.94";
+} from "./state.js?v=0.9.95";
 import {
   bauStarten,
   forschungStarten,
@@ -223,7 +223,7 @@ import {
   routeMindestbeladungSetzen,
   routeBeladungAnteil,
   reichName,
-} from "./simulation.js?v=0.9.94";
+} from "./simulation.js?v=0.9.95";
 import {
   flottePosition,
   reiseAnteil,
@@ -244,26 +244,26 @@ import {
   flotteSiedlerKapazitaet,
   flotteLadungAnteile,
   flotteTankAnteile,
-} from "./flotten.js?v=0.9.94";
-import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.94";
-import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.94";
-import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.94";
+} from "./flotten.js?v=0.9.95";
+import { t, sprache, spracheSetzen, SPRACHEN, gebietsschema } from "./sprache.js?v=0.9.95";
+import { BEGRIFF_VORWARNZEIT } from "./texte.js?v=0.9.95";
+import { holeSystem, cacheLeeren, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.95";
 // Nur für den Neustart-Knopf im Abspann. Der Weg dorthin ist derselbe wie im
 // Testmodus (js/testmodus.js) -- ein zweiter Reset wäre eine zweite Wahrheit
 // darüber, was "neu anfangen" bedeutet.
-import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.94";
-import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.94";
-import { systemName, sternFuer } from "./galaxie.js?v=0.9.94";
+import { zuruecksetzen, standAlsText, standDateiname, standPruefen, standUebernehmen, sicherungLesen } from "./save.js?v=0.9.95";
+import { startschwierigkeit, startschwierigkeitSetzen } from "./schwierigkeit.js?v=0.9.95";
+import { systemName, sternFuer } from "./galaxie.js?v=0.9.95";
 // Die beiden Karten. Sie holen sich von hier `listeAbgleichen` zurück -- ein
 // Ringtausch, der trägt, weil keine der beiden Dateien beim LADEN etwas aus
 // der anderen benutzt, sondern erst beim Zeichnen. Die Alternative wäre ein
 // zweiter Abgleich-Mechanismus in karte.js gewesen, und genau davor warnt
 // Prinzip 5.
-import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.94";
-import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.94";
-import { feedbackAdresse } from "./feedback.js?v=0.9.94";
-import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.94";
-import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.94";
+import { galaxieKarteZeichnen, systemKarteZeichnen } from "./karte.js?v=0.9.95";
+import { handbuchAbschnitte, handbuchAbsatz, erststartTafel } from "./handbuch.js?v=0.9.95";
+import { feedbackAdresse } from "./feedback.js?v=0.9.95";
+import { PATCHNOTES, ROADMAP_PUNKTE } from "./patchnotes.js?v=0.9.95";
+import { formatZahl as fmt, formatKurz, mitEinheit, einheit, buendelText, buendelSymbole, skalieren } from "./ressourcen.js?v=0.9.95";
 
 // UI-lokaler Regler-Zustand für die Flotten-Beladung/Tanken-Schieber --
 // bewusst NICHT Teil des Spielzustands. Nötig, weil render() auch von einem

@@ -75,3 +75,77 @@ export function naechstesZiel(raster, x, y, radius) {
   }
   return besteId;
 }
+
+// --- Ein Klick im Gedränge (A-339) --------------------------------------------
+//
+// Die Zielwahl oben rechnet richtig, aber die Karte löst nicht beliebig fein auf: bei
+// 5.000 Systemen im kleinen Fenster (1,22 Einheiten je Pixel, mittlerer Nachbarabstand
+// 1,2 Einheiten) liegt dem angeklickten PIXEL oft ein Nachbar näher als die gemeinte
+// Mitte. Das Pixel ist, was der Spieler sieht, also entscheidet das Pixel (A-336,
+// Trefferquote Zoom 1: 88,7 %). Ein Klick, dessen Ziel auf dem Schirm nicht eindeutig
+// ist, wählt deshalb keinen Stern, sondern zoomt auf die Stelle (js/karte.js, `zoomen`).
+//
+// DIE REGEL: ein Klick ist mehrdeutig, wenn der ZWEITNÄCHSTE Stern höchstens
+// MEHRDEUTIG_PIXEL vom Klickpunkt entfernt ist (Bildschirmpixel, nicht Karteneinheiten).
+// Herleitung: wer die Mitte eines Sterns S anklickt, trifft ein Pixel höchstens 0,71 px
+// (halbe Pixeldiagonale) von S entfernt. Ist S nicht der nächste Stern, ist S mindestens
+// der zweitnächste, und d_S ≤ 0,71 px. Liegt also der zweitnächste Stern weiter als
+// 0,71 px weg, kann kein anderer als der nächste der gemeinte sein: der Klick ist
+// eindeutig. Die Schwelle 0,75 px ist 0,71 mit Rand; sie ist die kleinste, die jeden
+// Fehlgriff bei einem Klick auf die Mitte ausschließt (bei 0,5 px bleiben Fehlgriffe,
+// gemessen in A-339). Die Garantie gilt für Klicks auf die MITTE; wer irgendwo auf den
+// Sternpunkt klickt, bekommt den nächsten Stern wie vor A-339.
+export const MEHRDEUTIG_PIXEL = 0.75;
+// Nach dem Zoom soll der zweitnächste Stern mindestens so viele Pixel entfernt liegen
+// (der Abstand wächst linear mit dem Zoom): weit über MEHRDEUTIG_PIXEL, damit auch ein
+// Klick auf die Mitte, ein Pixel daneben, eindeutig ist.
+export const EINDEUTIG_PIXEL = 3;
+
+// Die beiden nächsten Systeme zum Punkt innerhalb von `radius` Einheiten, nach Abstand,
+// bei Gleichstand nach Nummer (wie `naechstesZiel`: das erste ist immer dasselbe System).
+// [] bei keinem, sonst ein oder zwei Einträge { id, abstand } (Abstand in Einheiten).
+export function naechsteZiele(raster, x, y, radius) {
+  const vonX = Math.floor((x - radius) / ZELLE);
+  const bisX = Math.floor((x + radius) / ZELLE);
+  const vonY = Math.floor((y - radius) / ZELLE);
+  const bisY = Math.floor((y + radius) / ZELLE);
+  const grenze = radius * radius;
+  let eins = null;
+  let zwei = null;
+  const besser = (a, b) => b === null || a.q < b.q || (a.q === b.q && a.id < b.id);
+  for (let zx = vonX; zx <= bisX; zx++) {
+    for (let zy = vonY; zy <= bisY; zy++) {
+      const liste = raster.zellen.get(zellenSchluessel(zx, zy));
+      if (!liste) continue;
+      for (const punkt of liste) {
+        const dx = punkt.x - x;
+        const dy = punkt.y - y;
+        const kandidat = { id: punkt.id, q: dx * dx + dy * dy };
+        if (kandidat.q > grenze) continue;
+        if (besser(kandidat, eins)) {
+          zwei = eins;
+          eins = kandidat;
+        } else if (besser(kandidat, zwei)) {
+          zwei = kandidat;
+        }
+      }
+    }
+  }
+  return [eins, zwei].filter(Boolean).map((k) => ({ id: k.id, abstand: Math.sqrt(k.q) }));
+}
+
+// Das Urteil über einen Klick: { system, mehrdeutig, faktor }.
+//   system     das nächste System im Klickradius (wie `naechstesZiel`), sonst null
+//   mehrdeutig der zweitnächste Stern liegt höchstens MEHRDEUTIG_PIXEL vom Klick entfernt
+//   faktor     um wie viel gezoomt werden müsste, damit er EINDEUTIG_PIXEL entfernt liegt
+//              (nur bei mehrdeutig; die Grenzen setzt der Aufrufer)
+// `pixelProEinheit` kommt aus der Bildschirmmatrix der Karte (dieselbe Zoom-Mathematik
+// wie `zeigerInKarte`); fehlt sie, gibt es keine Mehrdeutigkeit (Verhalten wie vor A-339).
+export function klickUrteil(raster, x, y, radius, pixelProEinheit) {
+  const ziele = naechsteZiele(raster, x, y, radius);
+  if (ziele.length === 0) return { system: null, mehrdeutig: false, faktor: 1 };
+  if (ziele.length === 1 || !(pixelProEinheit > 0)) return { system: ziele[0].id, mehrdeutig: false, faktor: 1 };
+  const zweiter = ziele[1].abstand * pixelProEinheit;
+  if (zweiter > MEHRDEUTIG_PIXEL) return { system: ziele[0].id, mehrdeutig: false, faktor: 1 };
+  return { system: ziele[0].id, mehrdeutig: true, faktor: EINDEUTIG_PIXEL / Math.max(zweiter, 0.05) };
+}

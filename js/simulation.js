@@ -52,7 +52,7 @@ import {
   bauzeitFuerLevel,
   forschungsAufwand,
   voraussetzungenText,
-} from "./data.js?v=0.9.94";
+} from "./data.js?v=0.9.95";
 import {
   effektiveRaten,
   bevoelkerungsWachstumsrate,
@@ -116,7 +116,7 @@ import {
   maxReichweite,
   reichweiteVon,
   handelsMindestFuer,
-} from "./state.js?v=0.9.94";
+} from "./state.js?v=0.9.95";
 import {
   ortVonPlanet,
   ortVonSystem,
@@ -136,10 +136,10 @@ import {
   schiffeGesamt,
   schiffeStaerke,
   schiffeText,
-} from "./flotten.js?v=0.9.94";
-import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.94";
-import { reicheHeimaten, heimatPlanetVon } from "./welt.js?v=0.9.94";
-import { stromFuer, waehle } from "./zufall.js?v=0.9.94";
+} from "./flotten.js?v=0.9.95";
+import { findeObjekt, setzeOrbitZustand, holeSystem, objektGesperrt, restLiegtAn } from "./systeme.js?v=0.9.95";
+import { reicheHeimaten, heimatPlanetVon } from "./welt.js?v=0.9.95";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.95";
 import {
   reichenAus,
   fehlende,
@@ -150,8 +150,8 @@ import {
   buendelText,
   formatZahl as fmt,
   name as resName,
-} from "./ressourcen.js?v=0.9.94";
-import { t } from "./sprache.js?v=0.9.94";
+} from "./ressourcen.js?v=0.9.95";
+import { t } from "./sprache.js?v=0.9.95";
 
 // Kurzform: Ressourcen in ein Planetenlager einlagern, begrenzt durch den
 // gemeinsamen Pool und etwaige Annahmeregeln. Gibt zurück, was nicht
@@ -172,7 +172,7 @@ function insLager(state, planet, buendel) {
     (resId) => aufnahmeGrenzeFuer(planet, resId)
   );
 }
-import { systemName, entfernung, systemPosition, positionsAbstand } from "./galaxie.js?v=0.9.94";
+import { systemName, entfernung, systemPosition, positionsAbstand } from "./galaxie.js?v=0.9.95";
 
 const MS_PRO_STUNDE = 1000 * 60 * 60;
 

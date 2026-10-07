@@ -28,6 +28,15 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.9.95",
+    de: [
+      "Ein Klick in ein Gedränge von Sternen zoomt jetzt auf die Stelle, statt einen Nachbarn zu wählen. Liegen unter dem Mauszeiger zwei Sterne so dicht, dass auf dem Bildschirm nicht zu erkennen ist, welchen du meinst, vergrößert die Karte genau diese Stelle; danach trifft der nächste Klick den gemeinten Stern. Wo die Sterne weiter auseinanderliegen, wählt der Klick wie bisher. Das macht sich vor allem in einem kleinen Fenster und in großen Galaxien bemerkbar.",
+    ],
+    en: [
+      "A click into a crowd of stars now zooms in on that spot instead of picking a neighbour. If two stars lie so close under the mouse pointer that you cannot tell on screen which one you mean, the map magnifies exactly that spot; the next click then hits the star you meant. Where stars are further apart, the click selects as before. You notice this mostly in a small window and in large galaxies.",
+    ],
+  },
+  {
     version: "0.9.94",
     de: [
       "Die alten Orte heißen jetzt anders: Relikte tragen einen Ortsnamen, einen Bauherrn und einen Zweck. An jedem Ursprungs-Ort stand einmal ein Volk, das es nicht mehr gibt -- ein Observatorium, eine Werft, ein Archiv, eine Grabstätte oder eine Station. Die Orbitzeile eines Relikts nennt es: \"etwa 41.000 Jahre alt · Archiv der Kessari, Ort Varen\". Die Namen sind erfunden und hängen nicht an der Größe der Galaxie: derselbe Ort heißt in jeder Galaxie gleicher Saat gleich. Welche Art Struktur an einem Ort liegt, folgt seinem Zweck: ein Observatorium trägt meist Resonanzkörper, ein Archiv Artefaktkammern, eine Grabstätte Monolithen. Wo die Relikte liegen, wie alt sie sind und was sie bringen, bleibt wie es war. Starte ein neues Spiel -- ein alter Spielstand wird beim Laden gesichert und verworfen.",
