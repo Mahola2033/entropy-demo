@@ -83,8 +83,8 @@ import {
   ZWERGPLANET_SUMME_MAX_ANTEIL,
   KOMETENWOLKE_MASSE_BEREICH_ERDMASSEN,
   KOMETENWOLKE_OHNE_RIESEN_FAKTOR,
-} from "./data.js?v=0.9.95";
-import { stromFuer, waehle, zwischen, gewichtetWaehlen, logGleichverteilt, poissonZug } from "./zufall.js?v=0.9.95";
+} from "./data.js?v=0.9.96";
+import { stromFuer, waehle, zwischen, gewichtetWaehlen, logGleichverteilt, poissonZug } from "./zufall.js?v=0.9.96";
 import {
   reicheOrteGenerieren,
   WRACK_ARTEN,
@@ -92,8 +92,8 @@ import {
   STRUKTUR_ARTEN,
   BEWACHTE_ARTEN,
   LEERER_ORBIT,
-} from "./reiche-orte.js?v=0.9.95";
-import { sternFuer, leuchtkraftAusMasse, bildungstypVon, rundSignifikant, normalverteilt, heimatSystemVon, entfernung, systemPosition } from "./galaxie.js?v=0.9.95";
+} from "./reiche-orte.js?v=0.9.96";
+import { sternFuer, leuchtkraftAusMasse, bildungstypVon, rundSignifikant, normalverteilt, heimatSystemVon, entfernung, systemPosition } from "./galaxie.js?v=0.9.96";
 
 // Systeme können deutlich mehr als 50 Objekte tragen (die alte harte
 // Obergrenze ist mit A-305 gefallen) -- römische Zahlen daher berechnen

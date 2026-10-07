@@ -19,7 +19,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.9.95";
+export const VERSION = "0.9.96";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von vollversion.mjs (bis A-272: uebernehmen.mjs) beim
@@ -66,7 +66,7 @@ export const DEMO_SAAT = 20269933;
 // wird an den anzeigenden Stellen, nicht hier. Einzige Ausnahme ist
 // voraussetzungenText() weiter unten -- die einzige Funktion in dieser Datei,
 // die Anzeigetext zusammensetzt.
-import { t } from "./sprache.js?v=0.9.95";
+import { t } from "./sprache.js?v=0.9.96";
 
 // A-164 (31.08.2026): Von 50 auf 125.000 (×2.500) -- die Maßstabsrunde.
 // Vorher skalierte EIN MASSSTAB Material, Menschen und Arbeitskraft
@@ -3867,7 +3867,9 @@ const DICHTE_SYSTEME = 80;
 const DICHTE_RADIUS = 120;
 
 export const GALAXIE_REGELN = {
-  anzahlSysteme: 2000,
+  // Zielgröße Zwerggalaxie (~100.000 Systeme, Entscheidung 10) in Schritten: 80 -> 500 -> 2.000 (A-323)
+  // -> 5.000 (A-337, Tobi 06.10.2026, R-72).
+  anzahlSysteme: 5000,
 
   // Der Streuradius wird GERECHNET, nicht gesetzt -- und das ist der
   // eigentliche Punkt: die Sternendichte muss konstant bleiben, egal wie groß
@@ -3928,7 +3930,7 @@ export const STERNDICHTE = DICHTE_SYSTEME / (Math.PI * DICHTE_RADIUS * DICHTE_RA
 // gemessen (8 Saaten, weitester nächster Schlüssel je Technologie vom
 // Heimatsystem, Einheiten der Karte): 500 Systeme Mittel ~310, 2.000 Systeme
 // mit unveränderter Zahl ~690, 4.000 ~570; mit der Zahl mal N/500 bleibt es bei
-// allen Größen um die 310. Als Ableitung statt als zweite Zahl kann die Wegstrecke
+// allen Größen um die 310 (A-337, 20 Saaten: 500 Systeme 348, 2.000 Systeme 331, 5.000 Systeme 370). Als Ableitung statt als zweite Zahl kann die Wegstrecke
 // zu den tiefen Schlüsseln nicht mehr stillschweigend mit der Galaxie wachsen
 // (derselbe Gedanke wie beim Radius).
 export const SCHLUESSEL_BEZUG_SYSTEME = 500;

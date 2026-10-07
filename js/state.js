@@ -50,18 +50,18 @@ import {
   VORKOMMEN_RESSOURCEN,
   ARBEITSKRAFT_LEERLAUF,
   DROSSELUNG,
-} from "./data.js?v=0.9.95";
-import { VARIANTE } from "./variante.js?v=0.9.95";
-import { stromFuer, waehle } from "./zufall.js?v=0.9.95";
-import { systemGenerieren } from "./welt.js?v=0.9.95";
+} from "./data.js?v=0.9.96";
+import { VARIANTE } from "./variante.js?v=0.9.96";
+import { stromFuer, waehle } from "./zufall.js?v=0.9.96";
+import { systemGenerieren } from "./welt.js?v=0.9.96";
 // A-082: eigener Zufallsstrom für den Heimatweltnamen. Die Kennung ist eine
 // beliebige feste Zahl -- wichtig ist nur, dass sie keiner Systemkennung in
 // die Quere kommt und sich nie wieder ändert (sonst hieße jede bestehende
 // Partie beim nächsten Laden anders).
 const HEIMATWELT_NAMEN_KENNUNG = 900001;
-import { galaxiePlanen, entfernung, schluesselImSystem, supernovaSystemFuer } from "./galaxie.js?v=0.9.95";
-import { skalieren } from "./ressourcen.js?v=0.9.95";
-import { t } from "./sprache.js?v=0.9.95";
+import { galaxiePlanen, entfernung, schluesselImSystem, supernovaSystemFuer } from "./galaxie.js?v=0.9.96";
+import { skalieren } from "./ressourcen.js?v=0.9.96";
+import { t } from "./sprache.js?v=0.9.96";
 
 // v0.28: Sterntypen verschieben die Orbitzonen -- dieselbe Saat erzeugt jetzt
 // andere Planeten. Ein alter Spielstand trüge Fortschritt zu Orbits, in denen
@@ -146,7 +146,11 @@ import { t } from "./sprache.js?v=0.9.95";
 // (bis 46 die Ortsnummer, eine Zahl) und dazu daten.zweck (Schlüssel) und daten.bauherr (Name); die
 // Strukturart folgt dem Zweck des Ortes. Ein Stand der Version 46 trägt Strukturen mit Ortsnummer und
 // der alten Artenverteilung -- sichern und verwerfen wie bei 45 -> 46, kein Kettenglied.
-export const SAVE_VERSION = 47;
+// 47 -> 48 (A-337, 07.10.2026): die Galaxie wächst von 2.000 auf 5.000 Systeme (Radius 600 -> 949). Ein
+// Stand der Version 47 trägt Systemnummern, Orbits und Namen einer Galaxie mit anderem Radius und anderen
+// Positionen; geladen mit dem neuen Radius wären alle Entfernungen verzerrt (dieselbe stille Variante wie
+// bei 36 -> 37) -- sichern und verwerfen, kein Kettenglied.
+export const SAVE_VERSION = 48;
 
 function startRessourcen(voll) {
   const res = {};

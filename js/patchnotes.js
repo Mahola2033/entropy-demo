@@ -28,6 +28,15 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.9.96",
+    de: [
+      "Die Galaxie ist größer: 5.000 statt 2.000 Systeme. Die Sterne stehen weiter so dicht wie bisher, die Karte zeigt entsprechend mehr Punkte, und es gibt mehr Ursprungs-Orte mit ihren Relikten zu finden (rund einen je hundert Systeme). In einem kleinen Fenster liegen die Sterne auf der Karte oft nur einen Bildpunkt auseinander; ein Klick dazwischen zoomt auf die Stelle. Alte Spielstände werden verworfen: beim ersten Laden wird der alte Stand gesichert und ein neues Spiel gestartet. Die Welt eines neuen Spiels sieht anders aus als vorher, weil die Galaxie anders aufgespannt ist.",
+    ],
+    en: [
+      "The galaxy is larger: 5,000 systems instead of 2,000. The stars stand as densely as before, the map shows correspondingly more dots, and there are more origin sites with their relics to find (about one per hundred systems). In a small window the stars on the map are often only one pixel apart; a click in between zooms in on the spot. Old saves are discarded: on first loading, the old save is backed up and a new game starts. The world of a new game looks different than before because the galaxy is laid out differently.",
+    ],
+  },
+  {
     version: "0.9.95",
     de: [
       "Ein Klick in ein Gedränge von Sternen zoomt jetzt auf die Stelle, statt einen Nachbarn zu wählen. Liegen unter dem Mauszeiger zwei Sterne so dicht, dass auf dem Bildschirm nicht zu erkennen ist, welchen du meinst, vergrößert die Karte genau diese Stelle; danach trifft der nächste Klick den gemeinten Stern. Wo die Sterne weiter auseinanderliegen, wählt der Klick wie bisher. Das macht sich vor allem in einem kleinen Fenster und in großen Galaxien bemerkbar.",
