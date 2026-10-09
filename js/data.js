@@ -19,7 +19,7 @@
 //
 // NICHT ZU VERWECHSELN mit SAVE_VERSION in state.js: die steigt nur, wenn eine
 // laufende Partie dabei verloren geht, und folgt einer eigenen Regel.
-export const VERSION = "0.9.96";
+export const VERSION = "0.9.98";
 
 // Welcher der beiden Stände liefert diese Dateien aus? Der Wert steht hier auf
 // "entwicklung" und wird von vollversion.mjs (bis A-272: uebernehmen.mjs) beim
@@ -56,6 +56,9 @@ export const STAND = "demo";
 // 14 Aktionen in zwei Stunden (Sollband 13-16, Mitte), größte Leerlauflücke
 // 21 Minuten, 6 Nachbarsysteme in Startreichweite und einen sterbenden Stern
 // in 28,9 Lichtjahren -- die gerechnete Annahme sind 29 (SUPERNOVA).
+// Gewählt wurde bei 500 Systemen; nachgemessen (A-337) besteht sie die Bedingungen auch
+// bei 2.000 (5 Nachbarn, Stern bei 28,5 Lj) und bei 5.000 Systemen (5 Nachbarn, 29,1 Lj).
+// Die Heimatwelt dazu ist je Größe eine andere, die Saat bleibt.
 //
 // null hier setzen heißt: wieder würfeln. Dann bekommt jede Partie ihre
 // eigene Galaxie, und die Messwerte oben gelten nicht mehr.
@@ -66,7 +69,7 @@ export const DEMO_SAAT = 20269933;
 // wird an den anzeigenden Stellen, nicht hier. Einzige Ausnahme ist
 // voraussetzungenText() weiter unten -- die einzige Funktion in dieser Datei,
 // die Anzeigetext zusammensetzt.
-import { t } from "./sprache.js?v=0.9.96";
+import { t } from "./sprache.js?v=0.9.98";
 
 // A-164 (31.08.2026): Von 50 auf 125.000 (×2.500) -- die Maßstabsrunde.
 // Vorher skalierte EIN MASSSTAB Material, Menschen und Arbeitskraft

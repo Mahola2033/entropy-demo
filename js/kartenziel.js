@@ -149,3 +149,46 @@ export function klickUrteil(raster, x, y, radius, pixelProEinheit) {
   if (zweiter > MEHRDEUTIG_PIXEL) return { system: ziele[0].id, mehrdeutig: false, faktor: 1 };
   return { system: ziele[0].id, mehrdeutig: true, faktor: EINDEUTIG_PIXEL / Math.max(zweiter, 0.05) };
 }
+
+// --- Zwei Sterne unter einem Bildpunkt (A-340) ---------------------------------
+//
+// Bei ZOOM_MAX gibt es nichts mehr zu vergrößern. Liegen dort zwei Sterne näher als ein
+// Bildpunkt beieinander (bei 5.000 Systemen 4 bis 10 Paare im großen, 25 bis 30 im kleinen
+// Fenster, A-337), wählte ein Klick immer denselben, und der andere war nur über die
+// Systemliste erreichbar (Prinzip 8a). Jetzt wechselt ein zweiter Klick auf dieselbe
+// Stelle zum nächsten Kandidaten der Reihe nach, nach dem letzten wieder zum ersten
+// (js/karte.js merkt sich den zuletzt gewählten). Die Welt bleibt, wie sie ist (R-74 (a)).
+
+// Alle Systeme innerhalb von `radius` Einheiten um den Punkt, nach Abstand, bei Gleichstand
+// nach Nummer (dieselbe Reihenfolge wie `naechstesZiel` und `naechsteZiele`).
+// [{ id, abstand }], leer, wenn keins so nah liegt.
+export function zieleImRadius(raster, x, y, radius) {
+  const vonX = Math.floor((x - radius) / ZELLE);
+  const bisX = Math.floor((x + radius) / ZELLE);
+  const vonY = Math.floor((y - radius) / ZELLE);
+  const bisY = Math.floor((y + radius) / ZELLE);
+  const grenze = radius * radius;
+  const treffer = [];
+  for (let zx = vonX; zx <= bisX; zx++) {
+    for (let zy = vonY; zy <= bisY; zy++) {
+      const liste = raster.zellen.get(zellenSchluessel(zx, zy));
+      if (!liste) continue;
+      for (const punkt of liste) {
+        const dx = punkt.x - x;
+        const dy = punkt.y - y;
+        const q = dx * dx + dy * dy;
+        if (q <= grenze) treffer.push({ id: punkt.id, q });
+      }
+    }
+  }
+  treffer.sort((a, b) => a.q - b.q || a.id - b.id);
+  return treffer.map((t) => ({ id: t.id, abstand: Math.sqrt(t.q) }));
+}
+
+// Der nächste Kandidat der Reihe: der auf `zuletzt` folgende, nach dem letzten wieder der
+// erste; ist `zuletzt` kein Kandidat (oder null), der erste.
+export function naechsterKandidat(kandidaten, zuletzt) {
+  if (kandidaten.length === 0) return null;
+  const i = zuletzt === null || zuletzt === undefined ? -1 : kandidaten.indexOf(zuletzt);
+  return kandidaten[(i + 1) % kandidaten.length];
+}

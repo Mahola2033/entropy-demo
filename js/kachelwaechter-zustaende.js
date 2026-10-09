@@ -9,8 +9,8 @@
 // (A-158-Auftrag) -- deshalb drei feste Stände statt "was zufällig im
 // localStorage lag".
 
-import { neuesSpiel } from "./state.js?v=0.9.96";
-import { BUILDINGS, SCHIFFE } from "./data.js?v=0.9.96";
+import { neuesSpiel } from "./state.js?v=0.9.98";
+import { BUILDINGS, SCHIFFE } from "./data.js?v=0.9.98";
 
 // früh -- frischer Start, nichts gebaut. Der unveränderte Weltstart selbst.
 export function kwZustandFrueh(saat) {

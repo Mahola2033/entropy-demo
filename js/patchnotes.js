@@ -28,6 +28,24 @@
 
 export const PATCHNOTES = [
   {
+    version: "0.9.98",
+    de: [
+      "Bei höchstem Zoom wechselt der zweite Klick auf zwei übereinanderliegende Sterne auch dann, wenn die Maus beim Klicken leicht zittert. Vorher fiel der Wechsel aus, sobald sich die Maus zwischen Drücken und Loslassen um einen Bildpunkt bewegte. Außerdem folgt die Karte beim Ziehen mit der Maus jetzt genau dem Zeiger: bisher wanderte sie bei längeren Zügen nur etwa die halbe Strecke. Nur intern: die Karte merkt sich die Stelle jetzt im Kartenmaß statt in Bildpunkten.",
+    ],
+    en: [
+      "At maximum zoom, the second click on two stars lying on top of each other now switches even if the mouse trembles slightly while clicking. Before, the switch failed as soon as the mouse moved by one pixel between pressing and releasing. Also, when dragging with the mouse the map now follows the pointer exactly: before, it moved only about half the distance on longer drags. Internal only: the map now remembers the spot in map units instead of pixels.",
+    ],
+  },
+  {
+    version: "0.9.97",
+    de: [
+      "Bei höchstem Zoom wählt ein zweiter Klick auf dieselbe Stelle den anderen Stern, wenn zwei Sterne übereinanderliegen. Jeder weitere Klick auf dieselbe Stelle geht der Reihe nach durch alle Sterne dort; ein Klick woanders oder eine geänderte Ansicht beginnt wieder beim nächsten Stern. Damit ist jeder Stern der Karte per Klick erreichbar. Nur intern: die Merkung gehört zur Karte, nicht zum Spielstand.",
+    ],
+    en: [
+      "At maximum zoom, a second click on the same spot selects the other star when two stars lie on top of each other. Each further click on the same spot goes through all stars there in turn; a click elsewhere or a changed view starts again at the nearest star. This makes every star on the map reachable by click. Internal only: the memory belongs to the map, not to the save.",
+    ],
+  },
+  {
     version: "0.9.96",
     de: [
       "Die Galaxie ist größer: 5.000 statt 2.000 Systeme. Die Sterne stehen weiter so dicht wie bisher, die Karte zeigt entsprechend mehr Punkte, und es gibt mehr Ursprungs-Orte mit ihren Relikten zu finden (rund einen je hundert Systeme). In einem kleinen Fenster liegen die Sterne auf der Karte oft nur einen Bildpunkt auseinander; ein Klick dazwischen zoomt auf die Stelle. Alte Spielstände werden verworfen: beim ersten Laden wird der alte Stand gesichert und ein neues Spiel gestartet. Die Welt eines neuen Spiels sieht anders aus als vorher, weil die Galaxie anders aufgespannt ist.",

@@ -81,9 +81,9 @@ import {
   URSPRUNG_ALTER_MAX_JAHRE,
   URSPRUNG_ALTER_STREUUNG,
   URSPRUNG_ZWECKE,
-} from "./data.js?v=0.9.96";
-import { stromFuer, waehle, zwischen, logGleichverteilt, gewichtetWaehlen } from "./zufall.js?v=0.9.96";
-import { URSPRUNG_SAAT_MASKE, ursprungsOrteUm, relikteWahrscheinlichkeit } from "./ursprungs-orte.js?v=0.9.96";
+} from "./data.js?v=0.9.98";
+import { stromFuer, waehle, zwischen, logGleichverteilt, gewichtetWaehlen } from "./zufall.js?v=0.9.98";
+import { URSPRUNG_SAAT_MASKE, ursprungsOrteUm, relikteWahrscheinlichkeit } from "./ursprungs-orte.js?v=0.9.98";
 
 export const WRACK_ARTEN = ["Havarierter Erkunder"];
 // Ein Wrack IST ein Schiff (A-326, Prinzip 0c): welches, steht hier, EINE

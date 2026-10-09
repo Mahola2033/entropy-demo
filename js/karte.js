@@ -32,10 +32,10 @@
 // Eine geschlossene Ansicht darf keine Rechenzeit kosten -- eine Messung hat
 // der alten Galaxieansicht 4,5 ms pro Sekunde nachgewiesen, auch geschlossen.
 
-import { GALAXIE_REGELN, SPIELER_FRAKTION, objektSymbol } from "./data.js?v=0.9.96";
-import { systemPosition, systemName, sternFuer } from "./galaxie.js?v=0.9.96";
-import { flottePosition, schiffeText, flotteRestreichweite } from "./flotten.js?v=0.9.96";
-import { holeSystem, objektGesperrt } from "./systeme.js?v=0.9.96";
+import { GALAXIE_REGELN, SPIELER_FRAKTION, objektSymbol } from "./data.js?v=0.9.98";
+import { systemPosition, systemName, sternFuer } from "./galaxie.js?v=0.9.98";
+import { flottePosition, schiffeText, flotteRestreichweite } from "./flotten.js?v=0.9.98";
+import { holeSystem, objektGesperrt } from "./systeme.js?v=0.9.98";
 import {
   planetenVon,
   planetAn,
@@ -45,11 +45,19 @@ import {
   untersuchteOrbits,
   fraktionVon,
   fraktionById,
-} from "./state.js?v=0.9.96";
-import { stromFuer } from "./zufall.js?v=0.9.96";
-import { zielRasterBauen, naechstesZiel, klickUrteil, KLICK_RADIUS } from "./kartenziel.js?v=0.9.96";
-import { t, sprache, gebietsschema } from "./sprache.js?v=0.9.96";
-import { listeAbgleichen, attributSetzen, textSetzen, fmtDauer, fraktionHerkunftText } from "./ui.js?v=0.9.96";
+} from "./state.js?v=0.9.98";
+import { stromFuer } from "./zufall.js?v=0.9.98";
+import {
+  zielRasterBauen,
+  naechstesZiel,
+  klickUrteil,
+  zieleImRadius,
+  naechsterKandidat,
+  KLICK_RADIUS,
+  MEHRDEUTIG_PIXEL,
+} from "./kartenziel.js?v=0.9.98";
+import { t, sprache, gebietsschema } from "./sprache.js?v=0.9.98";
+import { listeAbgleichen, attributSetzen, textSetzen, fmtDauer, fraktionHerkunftText } from "./ui.js?v=0.9.98";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -267,6 +275,13 @@ const ZOOM_SCHRITT = 1.3;
 
 const ansichten = new WeakMap();
 
+// Der zuletzt bei ZOOM_MAX gewählte Kandidat im Gedränge (A-340): Kartenpunkt des Klicks (A-341:
+// im Kartenmaß, nicht in Bildpunkten: beim Zittern zwischen Drücken und Loslassen bleibt der Griffpunkt
+// unter dem Zeiger, der Kartenpunkt also stehen) und Systemnummer, je Karte. Wie die Ansicht gehört
+// das nicht in den Spielstand; eine Zoomänderung, ein Zug über die Schwelle und jeder eindeutige
+// Klick löschen es -- ein bloßes Zittern nicht.
+const klickMerkung = new WeakMap();
+
 function ansichtVon(svg) {
   let a = ansichten.get(svg);
   if (!a) {
@@ -319,6 +334,7 @@ function zoomen(svg, faktor, anker) {
   const alt = a.zoom;
   const neu = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, alt * faktor));
   if (neu === alt) return;
+  klickMerkung.delete(svg);
   if (anker) {
     const halbAlt = GRUND_HALB / alt;
     const halbNeu = GRUND_HALB / neu;
@@ -334,6 +350,7 @@ function zoomen(svg, faktor, anker) {
 
 function zoomZuruecksetzen(svg) {
   const a = ansichtVon(svg);
+  klickMerkung.delete(svg);
   a.zoom = 1;
   a.mx = 0;
   a.my = 0;
@@ -385,7 +402,7 @@ function zoomVerdrahten(svg) {
     if (a.zoom <= ZOOM_MIN) return; // in der Übersicht gibt es nichts zu schieben
     const start = zeigerInKarte(svg, ereignis);
     if (!start) return;
-    zug = { start, mx: a.mx, my: a.my, gezogen: false };
+    zug = { start, wegX: 0, wegY: 0, gezogen: false };
     svg.setPointerCapture(ereignis.pointerId);
   });
   svg.addEventListener("pointermove", (ereignis) => {
@@ -393,12 +410,23 @@ function zoomVerdrahten(svg) {
     const jetzt = zeigerInKarte(svg, ereignis);
     if (!jetzt) return;
     const a = ansichtVon(svg);
-    // Zwischenschritt: der Griffpunkt soll unter dem Zeiger bleiben. Deshalb
-    // wird von der GEMERKTEN Mitte aus gerechnet, nicht Schritt für Schritt --
-    // sonst summieren sich Rundungsfehler zu einem Driften.
-    a.mx = zug.mx - (jetzt.x - zug.start.x);
-    a.my = zug.my - (jetzt.y - zug.start.y);
-    if (Math.abs(jetzt.x - zug.start.x) > 1 || Math.abs(jetzt.y - zug.start.y) > 1) zug.gezogen = true;
+    // Der Griffpunkt soll unter dem Zeiger bleiben. `jetzt` ist der Kartenpunkt unter dem Zeiger
+    // in der AKTUELLEN Ansicht (nach dem letzten Schritt liegt dort der Griffpunkt): verschoben wird
+    // also um den Rest, von der aktuellen Mitte aus. Von der Mitte beim Drücken aus zu rechnen (so
+    // stand es bis A-341) heißt, den schon verschobenen Anteil zu verdoppeln: im Browser, wo sich die
+    // Bildschirmmatrix mit der Ansicht ändert, pendelt die Karte dann hin und her (60 Bildpunkte
+    // Zug in zehn Schritten ergaben 30).
+    const rx = jetzt.x - zug.start.x;
+    const ry = jetzt.y - zug.start.y;
+    a.mx -= rx;
+    a.my -= ry;
+    // Der Weg des Zeigers seit dem Drücken ist die Summe der Reste (Schwelle wie zuvor: 1 Karteneinheit).
+    zug.wegX += rx;
+    zug.wegY += ry;
+    if (Math.abs(zug.wegX) > 1 || Math.abs(zug.wegY) > 1) {
+      zug.gezogen = true;
+      klickMerkung.delete(svg); // ein echter Zug ändert die Ansicht (A-341); Zittern darunter nicht
+    }
     ansichtAnwenden(svg, a);
   });
   const beenden = (ereignis) => {
@@ -448,7 +476,8 @@ function galaxieVerdrahten(svg) {
     // Klick nach einem Zug (zoomVerdrahten, "click" im Fangmodus).
     // Im Gedränge (A-339) ist das nächste auf dem Schirm nicht eindeutig: dann wählt
     // der Klick nichts, sondern zoomt auf die Stelle (vorhandenes `zoomen`, der Punkt
-    // unter dem Zeiger bleibt stehen); bei ZOOM_MAX gibt es nichts mehr zu vergrößern.
+    // unter dem Zeiger bleibt stehen); bei ZOOM_MAX gibt es nichts mehr zu vergrößern, dort
+    // wechselt ein wiederholter Klick zwischen den Kandidaten (A-340).
     const punkt = zeigerInKarte(svg, ereignis);
     if (!punkt) return;
     const ansicht = ansichtVon(svg);
@@ -457,6 +486,20 @@ function galaxieVerdrahten(svg) {
       zoomen(svg, Math.max(ZOOM_SCHRITT, urteil.faktor), punkt);
       return;
     }
+    if (urteil.mehrdeutig) {
+      // Bei ZOOM_MAX gibt es nichts mehr zu vergrößern (A-340): ein zweiter Klick auf dieselbe
+      // Stelle (±1 Bildpunkt) wählt den nächsten Kandidaten der Reihe, nach dem letzten wieder
+      // den ersten. Kandidaten: alle Sterne höchstens MEHRDEUTIG_PIXEL vom Klick entfernt.
+      const kandidaten = zieleImRadius(zielRaster, punkt.x, punkt.y, MEHRDEUTIG_PIXEL / pixelProEinheit(svg)).map((z) => z.id);
+      const alt = klickMerkung.get(svg);
+      // "Dieselbe Stelle": höchstens ein Bildpunkt Abstand im Kartenmaß (A-341).
+      const gleicheStelle = alt && Math.hypot(alt.x - punkt.x, alt.y - punkt.y) <= 1 / pixelProEinheit(svg);
+      const wahl = naechsterKandidat(kandidaten, gleicheStelle ? alt.system : null) ?? urteil.system;
+      klickMerkung.set(svg, { x: punkt.x, y: punkt.y, system: wahl });
+      if (rueckrufe.system) rueckrufe.system(wahl);
+      return;
+    }
+    klickMerkung.delete(svg);
     if (urteil.system !== null && rueckrufe.system) rueckrufe.system(urteil.system);
   });
 

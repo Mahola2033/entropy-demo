@@ -47,8 +47,8 @@ import {
   URSPRUNG_ZWECKE,
   URSPRUNG_ORTSNAMEN,
   URSPRUNG_BAUHERRENNAMEN,
-} from "./data.js?v=0.9.96";
-import { stromFuer, logGleichverteilt, poissonZug, gewichtetWaehlen, waehle } from "./zufall.js?v=0.9.96";
+} from "./data.js?v=0.9.98";
+import { stromFuer, logGleichverteilt, poissonZug, gewichtetWaehlen, waehle } from "./zufall.js?v=0.9.98";
 
 export const URSPRUNG_SAAT_MASKE = 0x5ca1ab1e;
 // Name, Bauherr und Zweck eines Ortes (A-335) ziehen aus einem EIGENEN Strom je Ort:

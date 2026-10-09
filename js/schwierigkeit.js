@@ -10,7 +10,7 @@
 // unverändert einen SAVE_VERSION-Sprung, der die laufende Partie sonst
 // nirgends berührt.
 
-import { STARTSCHWIERIGKEIT, STARTSCHWIERIGKEIT_VORGABE } from "./data.js?v=0.9.96";
+import { STARTSCHWIERIGKEIT, STARTSCHWIERIGKEIT_VORGABE } from "./data.js?v=0.9.98";
 
 const SPEICHER_SCHLUESSEL = "entropy-startschwierigkeit";
 

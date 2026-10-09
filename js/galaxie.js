@@ -28,9 +28,9 @@ import {
   DOPPELSTERN_ABSTAND_SIGMA,
   DOPPELSTERN_WEISSER_ZWERG_ANTEIL,
   WEISSER_ZWERG_IFMR,
-} from "./data.js?v=0.9.96";
-import { stromFuer, mischen, gewichtetWaehlen } from "./zufall.js?v=0.9.96";
-import { t } from "./sprache.js?v=0.9.96";
+} from "./data.js?v=0.9.98";
+import { stromFuer, mischen, gewichtetWaehlen } from "./zufall.js?v=0.9.98";
+import { t } from "./sprache.js?v=0.9.98";
 
 // Position eines Systems in der Galaxie-Ebene. Rein aus der Saat abgeleitet.
 export function systemPosition(seed, systemId) {
